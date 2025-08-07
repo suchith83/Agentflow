@@ -65,3 +65,9 @@ dmypy.json
 
 # Cython debug symbols
 cython_debug/
+
+
+# All environment variables files
+.env
+.env.*
+*.env
