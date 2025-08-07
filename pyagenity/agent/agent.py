@@ -97,7 +97,11 @@ class AgentResponse:
 # Main Agent class
 class Agent:
     def __init__(
-        self, name: str, model: str, custom_llm_provider: Optional[str] = None, **kwargs
+        self,
+        name: str,
+        model: str,
+        custom_llm_provider: Optional[str] = None,
+        **kwargs,
     ):
         """
         Initialize the Agent with model and parameters.
