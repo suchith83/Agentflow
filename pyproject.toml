@@ -1,0 +1,13 @@
+[project]
+name = "pyagenity"
+version = "0.1.0"
+description = "PyAgenity is a Python framework for building, orchestrating, and managing multi-agent systems. Designed for flexibility and scalability, PyAgenity enables developers to create intelligent agents that collaborate, communicate, and solve complex tasks together."
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "litellm>=1.75.0",
+]
+
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
