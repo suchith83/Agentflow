@@ -1,97 +1,9 @@
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Union, Generator, Iterable, Callable
 import litellm
+import json
 
-
-# Custom input class for agent requests
-class AgentRequest:
-    def __init__(
-        self,
-        messages: List[Dict[str, Any]],
-        model: str,
-        temperature: Optional[float] = None,
-        top_p: Optional[float] = None,
-        n: Optional[int] = None,
-        stream: Optional[bool] = None,
-        stream_options: Optional[dict] = None,
-        stop: Optional[Union[str, List[str]]] = None,
-        max_tokens: Optional[int] = None,
-        max_completion_tokens: Optional[int] = None,
-        modalities: Optional[List[Any]] = None,
-        prediction: Optional[Any] = None,
-        audio: Optional[Any] = None,
-        presence_penalty: Optional[float] = None,
-        frequency_penalty: Optional[float] = None,
-        logit_bias: Optional[dict] = None,
-        user: Optional[str] = None,
-        response_format: Optional[Union[dict, Any]] = None,
-        seed: Optional[int] = None,
-        tools: Optional[List[Any]] = None,
-        tool_choice: Optional[Union[str, dict]] = None,
-        parallel_tool_calls: Optional[bool] = None,
-        logprobs: Optional[bool] = None,
-        top_logprobs: Optional[int] = None,
-        deployment_id: Optional[str] = None,
-        reasoning_effort: Optional[str] = None,
-        base_url: Optional[str] = None,
-        api_version: Optional[str] = None,
-        api_key: Optional[str] = None,
-        model_list: Optional[list] = None,
-        extra_headers: Optional[dict] = None,
-        thinking: Optional[Any] = None,
-        web_search_options: Optional[Any] = None,
-        custom_llm_provider: Optional[str] = None,
-        **kwargs,
-    ):
-        self.messages = messages
-        self.model = model
-        self.temperature = temperature
-        self.top_p = top_p
-        self.n = n
-        self.stream = stream
-        self.stream_options = stream_options
-        self.stop = stop
-        self.max_tokens = max_tokens
-        self.max_completion_tokens = max_completion_tokens
-        self.modalities = modalities
-        self.prediction = prediction
-        self.audio = audio
-        self.presence_penalty = presence_penalty
-        self.frequency_penalty = frequency_penalty
-        self.logit_bias = logit_bias
-        self.user = user
-        self.response_format = response_format
-        self.seed = seed
-        self.tools = tools
-        self.tool_choice = tool_choice
-        self.parallel_tool_calls = parallel_tool_calls
-        self.logprobs = logprobs
-        self.top_logprobs = top_logprobs
-        self.deployment_id = deployment_id
-        self.reasoning_effort = reasoning_effort
-        self.base_url = base_url
-        self.api_version = api_version
-        self.api_key = api_key
-        self.model_list = model_list
-        self.extra_headers = extra_headers
-        self.thinking = thinking
-        self.web_search_options = web_search_options
-        self.custom_llm_provider = custom_llm_provider
-        self.kwargs = kwargs
-
-
-# Custom response class for agent responses
-class AgentResponse:
-    def __init__(
-        self,
-        content: str = "",
-        thinking: Optional[Any] = None,
-        usage: Optional[dict] = None,
-        raw: Optional[Any] = None,
-    ):
-        self.content = content or ""
-        self.thinking = thinking
-        self.usage = usage
-        self.raw = raw
+from pyagenity.agent.agent_request import AgentRequest
+from pyagenity.agent.agent_response import AgentResponse, AgentResponseChunk
 
 
 # Main Agent class
@@ -111,12 +23,18 @@ class Agent:
         self.model = model
         self.custom_llm_provider = custom_llm_provider
         self.params = kwargs
+        self._final_message_hooks: List[Callable[[AgentResponse], None]] = []
+
+    # --------------------------- Public API --------------------------- #
+    def add_final_message_hook(self, hook: Callable[[AgentResponse], None]) -> None:
+        """Register a hook executed when a non-streaming run completes."""
+        self._final_message_hooks.append(hook)
 
     def run(
         self,
         prompt: Union[str, AgentRequest, List[Dict[str, Any]]],
         **kwargs,
-    ) -> AgentResponse:
+    ) -> Union[AgentResponse, Generator[AgentResponseChunk, None, AgentResponse]]:
         """
         Run the agent with a prompt or AgentRequest.
         Returns AgentResponse with content, thinking, usage, and raw response.
@@ -152,14 +70,24 @@ class Agent:
         # Remove None values to avoid TypeError in LiteLLM
         llm_args = {k: v for k, v in llm_args.items() if v is not None}
 
-        # Call LiteLLM
-        response = litellm.completion(**llm_args)
+        # Decide streaming vs normal
+        stream_requested = llm_args.get("stream", False)
+        if stream_requested:
+            return self._run_stream_internal(llm_args)
+        response = litellm.completion(**llm_args)  # litellm object
 
         # Robust extraction
         content = ""
         thinking = None
         usage = None
-        raw = response
+        # Convert litellm response to raw JSON string (prevent leaking object)
+        try:
+            raw = response.model_dump_json()  # type: ignore[attr-defined]
+        except Exception:
+            try:
+                raw = json.dumps(getattr(response, "__dict__", {}))
+            except Exception:
+                raw = None
         # Try to extract choices
         choices = getattr(response, "choices", None)
         if choices is None and isinstance(response, dict):
@@ -187,6 +115,65 @@ class Agent:
         if hasattr(usage, "__dict__"):
             usage = usage.__dict__
 
-        return AgentResponse(
-            content=content or "", thinking=thinking, usage=usage, raw=raw
+        finish_reason = None
+        if choices and len(choices) > 0:
+            choice0 = choices[0]
+            if isinstance(choice0, dict):
+                finish_reason = choice0.get("finish_reason")
+            else:
+                finish_reason = getattr(choice0, "finish_reason", None)
+
+        agent_response = AgentResponse(
+            content=content or "",
+            thinking=thinking,
+            usage=usage,
+            raw=raw,
+            model=getattr(response, "model", None),
+            provider=getattr(response, "_hidden_params", {}).get("custom_llm_provider")
+            if hasattr(response, "_hidden_params")
+            else None,
+            finish_reason=finish_reason,
         )
+        # Fire hooks
+        for hook in self._final_message_hooks:
+            try:
+                hook(agent_response)
+            except Exception:
+                pass
+        return agent_response
+
+    # ------------------------- Internal Helpers ---------------------- #
+    def _run_stream_internal(
+        self, llm_args: Dict[str, Any]
+    ) -> Generator[AgentResponseChunk, None, AgentResponse]:
+        """Streaming execution returning chunks and final AgentResponse when closed."""
+        llm_args["stream"] = True
+        litestream: Iterable[Any] = litellm.completion(**llm_args)
+        aggregated: List[str] = []
+        for part in litestream:
+            try:
+                choices = getattr(part, "choices", None)
+                if choices:
+                    delta_obj = choices[0]
+                    # openai style streaming delta
+                    delta = ""
+                    if isinstance(delta_obj, dict):
+                        delta = delta_obj.get("delta", {}).get("content") or ""
+                    else:
+                        delta_section = getattr(delta_obj, "delta", None)
+                        if delta_section:
+                            delta = getattr(delta_section, "content", "") or ""
+                    if delta:
+                        aggregated.append(delta)
+                        yield AgentResponseChunk(delta=delta, done=False)
+            except Exception:
+                continue
+        # Build final response
+        final = AgentResponse(content="".join(aggregated))
+        for hook in self._final_message_hooks:
+            try:
+                hook(final)
+            except Exception:
+                pass
+        yield AgentResponseChunk(delta="", done=True)
+        return final

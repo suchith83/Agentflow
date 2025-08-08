@@ -16,6 +16,7 @@ def main():
     print("Content:", response.content)
     print("Thinking:", response.thinking)
     print("Usage:", response.usage)
+    print("Raw Response:", response.raw)
 
 
 if __name__ == "__main__":
