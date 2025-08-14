@@ -4,7 +4,7 @@ Command API for AgentGraph.
 Allows combining state updates with control flow similar to LangGraph's Command.
 """
 
-from typing import Generic, Literal, TypeVar
+from typing import Literal, TypeVar
 
 from litellm.types.utils import ModelResponse
 
@@ -14,7 +14,7 @@ from pyagenity.graph.state import AgentState
 T = TypeVar("T")
 
 
-class Command(Generic[T]):
+class Command[T]:
     """
     Command object that combines state updates with control flow.
 

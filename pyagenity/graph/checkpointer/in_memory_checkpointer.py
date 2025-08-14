@@ -28,7 +28,7 @@ class InMemoryCheckpointer(BaseCheckpointer):
         thread_id = config.get("thread_id", "default")
         return self._messages.get(thread_id, []).copy()
 
-    def list(
+    def list_messages(
         self,
         config: dict[str, Any],
         search: str | None = None,

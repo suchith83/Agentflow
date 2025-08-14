@@ -30,7 +30,7 @@ class BaseCheckpointer(ABC):
         raise NotImplementedError("get method must be implemented")
 
     @abstractmethod
-    def list(
+    def list_messages(
         self,
         config: dict[str, Any],
         search: str | None = None,
@@ -85,3 +85,4 @@ class BaseCheckpointer(ABC):
         config: dict[str, Any],
     ) -> None:
         """Cleanup resources if needed, This will delete all checkpoints for a thread."""
+        raise NotImplementedError("cleanup method must be implemented")

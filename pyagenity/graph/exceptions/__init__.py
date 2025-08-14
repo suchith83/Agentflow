@@ -3,4 +3,4 @@ from .node_error import NodeError
 from .recursion_error import GraphRecursionError
 
 
-__all__ = ["GraphError", "NodeError", "GraphRecursionError"]
+__all__ = ["GraphError", "GraphRecursionError", "NodeError"]
