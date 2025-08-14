@@ -1,10 +1,11 @@
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from pyagenity.graph.state import AgentState
+
 from .message import Message
 
 
-def _convert_dict(message: Message) -> Dict[str, Any]:
+def _convert_dict(message: Message) -> dict[str, Any]:
     if message.role == "tool":
         return {
             "role": message.role,
@@ -23,9 +24,9 @@ def _convert_dict(message: Message) -> Dict[str, Any]:
 
 
 def convert_messages(
-    system_prompts: List[Dict[str, Any]],
-    state: Optional[AgentState] = None,
-    extra_messages: Optional[list[Message]] = None,
+    system_prompts: list[dict[str, Any]],
+    state: AgentState | None = None,
+    extra_messages: list[Message] | None = None,
 ) -> list[dict[str, Any]]:
     if system_prompts is None:
         raise ValueError("System prompts cannot be None")

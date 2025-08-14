@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Any, Dict
+from typing import Any
 
 
 class BaseStore(ABC):
@@ -8,7 +8,7 @@ class BaseStore(ABC):
     @abstractmethod
     def update_memory(
         self,
-        config: Dict[str, Any],
+        config: dict[str, Any],
         info: str,
     ) -> None:
         """Store a single message."""
@@ -16,21 +16,21 @@ class BaseStore(ABC):
 
     def get_memory(
         self,
-        config: Dict[str, Any],
+        config: dict[str, Any],
     ) -> None:
         """Retrieve a single message."""
         raise NotImplementedError("get_memory method must be implemented")
 
     def delete_memory(
         self,
-        config: Dict[str, Any],
+        config: dict[str, Any],
     ) -> None:
         """Delete a single message."""
         raise NotImplementedError("delete_memory method must be implemented")
 
     def related_memory(
         self,
-        config: Dict[str, Any],
+        config: dict[str, Any],
         query: str,
     ) -> None:
         """Retrieve related messages."""

@@ -1,12 +1,12 @@
-from typing import List, Optional
-from pyagenity.graph.graph.tool_node import ToolNode
 import json
+
+from pyagenity.graph.graph.tool_node import ToolNode
 
 
 def get_current_weather(
     location: str,
     unit: str = "celsius",
-    times: Optional[List[str]] = None,
+    times: list[str] | None = None,
 ):
     """Get the current weather in a given location.
 

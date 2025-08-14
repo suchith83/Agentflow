@@ -1,30 +1,34 @@
 from __future__ import annotations
-from typing import Optional, Dict, Any, Callable, List
+
+from collections.abc import Callable
+from typing import Any
+
 from .graph import Graph
-from .state import InMemoryStateStore, GraphState, SessionStatus
 from .nodes import HumanInputNode
+from .state import GraphState, InMemoryStateStore, SessionStatus
+
 
 FinalHook = Callable[[GraphState], None]
 
 
 class GraphExecutor:
-    def __init__(self, graph: Graph, store: Optional[InMemoryStateStore] = None):
+    def __init__(self, graph: Graph, store: InMemoryStateStore | None = None):
         self.graph = graph
         self.store = store or InMemoryStateStore()
-        self._final_hooks: List[FinalHook] = []
+        self._final_hooks: list[FinalHook] = []
         self.graph.validate()
 
     def add_final_hook(self, hook: FinalHook):
         self._final_hooks.append(hook)
 
-    def start(self, initial_shared: Optional[Dict[str, Any]] = None) -> GraphState:
+    def start(self, initial_shared: dict[str, Any] | None = None) -> GraphState:
         state = self.store.create(self.graph.start_node)
         if initial_shared:
             state.shared.update(initial_shared)
         self.store.update(state)
         return self._run(state)
 
-    def resume(self, session_id: str, human_input: Optional[str] = None) -> GraphState:
+    def resume(self, session_id: str, human_input: str | None = None) -> GraphState:
         state = self.store.get(session_id)
         if state is None:
             raise ValueError("Unknown session id")
@@ -48,10 +52,7 @@ class GraphExecutor:
                 state.status = SessionStatus.FAILED
                 break
             # Human input pause
-            if (
-                isinstance(node, HumanInputNode)
-                and state.shared.get("human_input") is None
-            ):
+            if isinstance(node, HumanInputNode) and state.shared.get("human_input") is None:
                 state.status = SessionStatus.WAITING_HUMAN
                 break
             # Determine next nodes

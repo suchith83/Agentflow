@@ -83,9 +83,7 @@ class ToolNode:
                 # omit to use default
                 pass
             else:
-                raise TypeError(
-                    f"Missing required parameter '{p_name}' for function '{name}'"
-                )
+                raise TypeError(f"Missing required parameter '{p_name}' for function '{name}'")
 
         return fn(**kwargs)
 

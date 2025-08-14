@@ -1,5 +1,4 @@
 from collections.abc import Callable
-from typing import Optional
 
 
 class Edge:
@@ -9,9 +8,9 @@ class Edge:
         self,
         from_node: str,
         to_node: str,
-        condition: Optional[Callable] = None,
+        condition: Callable | None = None,
     ):
         self.from_node = from_node
         self.to_node = to_node
         self.condition = condition
-        self.condition_result: Optional[str] = None
+        self.condition_result: str | None = None

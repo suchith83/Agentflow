@@ -1,5 +1,7 @@
 from __future__ import annotations
-from typing import Callable, Optional, Any, Dict
+
+from collections.abc import Callable
+from typing import Any
 
 
 class Edge:
@@ -12,13 +14,13 @@ class Edge:
         self,
         source: str,
         target: str,
-        condition: Optional[Callable[[Dict[str, Any]], bool]] = None,
+        condition: Callable[[dict[str, Any]], bool] | None = None,
     ):
         self.source = source
         self.target = target
         self.condition = condition
 
-    def is_triggered(self, context: Dict[str, Any]) -> bool:
+    def is_triggered(self, context: dict[str, Any]) -> bool:
         if self.condition is None:
             return True
         try:

@@ -1,4 +1,5 @@
-from typing import Any, Dict, Optional
+from typing import Any
+
 from dotenv import load_dotenv
 from litellm import completion
 
@@ -8,14 +9,15 @@ from pyagenity.graph.utils.constants import END
 from pyagenity.graph.utils.converter import convert_messages
 from pyagenity.graph.utils.message import Message
 
+
 load_dotenv()
 
 
 def main_agent(
     state: AgentState,
-    config: Dict[str, Any],
-    checkpointer: Optional[Any] = None,
-    store: Optional[Any] = None,
+    config: dict[str, Any],
+    checkpointer: Any | None = None,
+    store: Any | None = None,
 ):
     prompts = """
         You are a helpful assistant.

@@ -1,6 +1,8 @@
-from typing import Any, Dict, List, Optional, Union, Generator, Iterable, Callable
-import litellm
 import json
+from collections.abc import Callable, Generator, Iterable
+from typing import Any
+
+import litellm
 
 from pyagenity.agent.agent_request import AgentRequest
 from pyagenity.agent.agent_response import AgentResponse, AgentResponseChunk
@@ -12,7 +14,7 @@ class Agent:
         self,
         name: str,
         model: str,
-        custom_llm_provider: Optional[str] = None,
+        custom_llm_provider: str | None = None,
         **kwargs,
     ):
         """
@@ -23,7 +25,7 @@ class Agent:
         self.model = model
         self.custom_llm_provider = custom_llm_provider
         self.params = kwargs
-        self._final_message_hooks: List[Callable[[AgentResponse], None]] = []
+        self._final_message_hooks: list[Callable[[AgentResponse], None]] = []
 
     # --------------------------- Public API --------------------------- #
     def add_final_message_hook(self, hook: Callable[[AgentResponse], None]) -> None:
@@ -32,9 +34,9 @@ class Agent:
 
     def run(
         self,
-        prompt: Union[str, AgentRequest, List[Dict[str, Any]]],
+        prompt: str | AgentRequest | list[dict[str, Any]],
         **kwargs,
-    ) -> Union[AgentResponse, Generator[AgentResponseChunk, None, AgentResponse]]:
+    ) -> AgentResponse | Generator[AgentResponseChunk, None, AgentResponse]:
         """
         Run the agent with a prompt or AgentRequest.
         Returns AgentResponse with content, thinking, usage, and raw response.
@@ -95,11 +97,7 @@ class Agent:
         if choices and len(choices) > 0:
             choice = choices[0]
             if isinstance(choice, dict):
-                content = (
-                    choice.get("message", {}).get("content")
-                    or choice.get("text", "")
-                    or ""
-                )
+                content = choice.get("message", {}).get("content") or choice.get("text", "") or ""
                 thinking = choice.get("message", {}).get("thinking")
             else:
                 message = getattr(choice, "message", None)
@@ -144,12 +142,12 @@ class Agent:
 
     # ------------------------- Internal Helpers ---------------------- #
     def _run_stream_internal(
-        self, llm_args: Dict[str, Any]
+        self, llm_args: dict[str, Any]
     ) -> Generator[AgentResponseChunk, None, AgentResponse]:
         """Streaming execution returning chunks and final AgentResponse when closed."""
         llm_args["stream"] = True
         litestream: Iterable[Any] = litellm.completion(**llm_args)
-        aggregated: List[str] = []
+        aggregated: list[str] = []
         for part in litestream:
             try:
                 choices = getattr(part, "choices", None)

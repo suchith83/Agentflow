@@ -1,6 +1,9 @@
 from __future__ import annotations
-from typing import Dict, Any, Callable, Optional
+
+from collections.abc import Callable
 from dataclasses import dataclass, field
+from typing import Any
+
 from ..agent.agent import Agent, AgentResponse
 
 
@@ -11,21 +14,19 @@ class NodeExecutionError(Exception):
 @dataclass
 class BaseNode:
     name: str
-    description: Optional[str] = None
+    description: str | None = None
 
-    def run(
-        self, state: Dict[str, Any]
-    ) -> Dict[str, Any]:  # pragma: no cover - interface
+    def run(self, state: dict[str, Any]) -> dict[str, Any]:  # pragma: no cover - interface
         raise NotImplementedError
 
 
 @dataclass
 class LLMNode(BaseNode):
-    agent: Optional[Agent] = field(default=None)
-    prompt_builder: Optional[Callable[[Dict[str, Any]], str]] = None
+    agent: Agent | None = field(default=None)
+    prompt_builder: Callable[[dict[str, Any]], str] | None = None
     output_key: str = "last_response"
 
-    def run(self, state: Dict[str, Any]) -> Dict[str, Any]:
+    def run(self, state: dict[str, Any]) -> dict[str, Any]:
         if self.agent is None:
             raise NodeExecutionError("LLMNode requires an Agent instance")
         if self.prompt_builder:
@@ -47,9 +48,9 @@ class LLMNode(BaseNode):
 
 @dataclass
 class FunctionNode(BaseNode):
-    func: Optional[Callable[[Dict[str, Any]], Dict[str, Any]]] = field(default=None)
+    func: Callable[[dict[str, Any]], dict[str, Any]] | None = field(default=None)
 
-    def run(self, state: Dict[str, Any]) -> Dict[str, Any]:
+    def run(self, state: dict[str, Any]) -> dict[str, Any]:
         if self.func is None:
             raise NodeExecutionError("FunctionNode requires a callable 'func'")
         updated = self.func(state)
@@ -62,6 +63,6 @@ class FunctionNode(BaseNode):
 class HumanInputNode(BaseNode):
     input_key: str = "human_input"
 
-    def run(self, state: Dict[str, Any]) -> Dict[str, Any]:
+    def run(self, state: dict[str, Any]) -> dict[str, Any]:
         # Executor will detect absence of human input and pause
         return state

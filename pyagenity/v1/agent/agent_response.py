@@ -1,5 +1,5 @@
-from typing import Any, Optional, Dict
 from dataclasses import dataclass
+from typing import Any
 
 
 @dataclass
@@ -16,14 +16,14 @@ class AgentResponseChunk:
 @dataclass
 class AgentResponse:
     content: str = ""
-    thinking: Optional[Any] = None
-    usage: Optional[dict] = None
-    raw: Optional[str] = None
-    model: Optional[str] = None
-    provider: Optional[str] = None
-    finish_reason: Optional[str] = None
+    thinking: Any | None = None
+    usage: dict | None = None
+    raw: str | None = None
+    model: str | None = None
+    provider: str | None = None
+    finish_reason: str | None = None
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "content": self.content,
             "thinking": self.thinking,

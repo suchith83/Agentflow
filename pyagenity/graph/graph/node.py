@@ -1,5 +1,6 @@
 import asyncio
-from typing import Any, Dict, Optional, Callable, Union
+from collections.abc import Callable
+from typing import Any
 
 from pyagenity.graph.exceptions import NodeError
 from pyagenity.graph.state import AgentState
@@ -21,10 +22,10 @@ class Node:
     async def execute(
         self,
         state: AgentState,
-        config: Dict[str, Any],
-        checkpointer: Optional[Any] = None,
-        store: Optional[Any] = None,
-    ) -> Union[Dict[str, Any], Command]:
+        config: dict[str, Any],
+        checkpointer: Any | None = None,
+        store: Any | None = None,
+    ) -> dict[str, Any] | Command:
         """Execute the node function."""
         try:
             if self.is_async:
@@ -33,4 +34,4 @@ class Node:
                 result = self.func(state, config, checkpointer, store)
             return result
         except Exception as e:
-            raise NodeError(f"Error in node '{self.name}': {str(e)}") from e
+            raise NodeError(f"Error in node '{self.name}': {e!s}") from e

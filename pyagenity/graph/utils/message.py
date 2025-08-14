@@ -1,8 +1,9 @@
 # Default message representation
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, Optional, Literal
+from typing import Any, Literal
 from uuid import uuid4
+
 from litellm.types.utils import ModelResponse
 
 
@@ -44,14 +45,14 @@ class Message:
     message_id: str
     role: Literal["user", "assistant", "system", "tool"]
     content: str
-    tools_calls: Optional[list[dict[str, Any]]] = None
-    tool_call_id: Optional[str] = None
-    function_call: Optional[dict[str, Any]] = None
-    reasoning: Optional[str] = None
-    timestamp: Optional[datetime] = None
-    metadata: Optional[dict[str, Any]] = None
-    usages: Optional[TokenUsages] = None
-    raw: Optional[dict[str, Any]] = None
+    tools_calls: list[dict[str, Any]] | None = None
+    tool_call_id: str | None = None
+    function_call: dict[str, Any] | None = None
+    reasoning: str | None = None
+    timestamp: datetime | None = None
+    metadata: dict[str, Any] | None = None
+    usages: TokenUsages | None = None
+    raw: dict[str, Any] | None = None
 
     def __post_init__(self):
         if self.timestamp is None:
@@ -104,7 +105,7 @@ class Message:
             else datetime.now(),
             metadata=data.get("metadata", {}),
             usages=TokenUsages.from_dict(data["usages"]) if "usages" in data else None,
-            raw=data.get("raw", None),
+            raw=data.get("raw"),
         )
 
     @staticmethod
@@ -117,9 +118,7 @@ class Message:
             completion_tokens=usages_data.get("completion_tokens", 0),
             prompt_tokens=usages_data.get("prompt_tokens", 0),
             total_tokens=usages_data.get("total_tokens", 0),
-            cache_creation_input_tokens=usages_data.get(
-                "cache_creation_input_tokens", 0
-            ),
+            cache_creation_input_tokens=usages_data.get("cache_creation_input_tokens", 0),
             cache_read_input_tokens=usages_data.get("cache_read_input_tokens", 0),
             reasoning_tokens=usages_data.get("prompt_tokens_details", {}).get(
                 "reasoning_tokens", 0
@@ -130,9 +129,7 @@ class Message:
         created_date = data.get("created", datetime.now())
 
         # check tools calls
-        tools_calls = (
-            data.get("choices", [{}])[0].get("message", {}).get("tool_calls", [])
-        )
+        tools_calls = data.get("choices", [{}])[0].get("message", {}).get("tool_calls", [])
 
         tool_call_id = tools_calls[0].get("id") if tools_calls else None
 
@@ -145,20 +142,14 @@ class Message:
                 "content",
                 "",
             ),
-            reasoning=data.get("choices", [{}])[0]
-            .get("message", {})
-            .get("reasoning_content", ""),
+            reasoning=data.get("choices", [{}])[0].get("message", {}).get("reasoning_content", ""),
             timestamp=created_date,
             metadata={
                 "model": data.get("model", ""),
-                "finish_reason": data.get("choices", [{}])[0].get(
-                    "finish_reason", "UNKNOWN"
-                ),
+                "finish_reason": data.get("choices", [{}])[0].get("finish_reason", "UNKNOWN"),
                 "object": data.get("object", ""),
                 "prompt_tokens_details": usages_data.get("prompt_tokens_details", {}),
-                "completion_tokens_details": usages_data.get(
-                    "completion_tokens_details", {}
-                ),
+                "completion_tokens_details": usages_data.get("completion_tokens_details", {}),
             },
             usages=usages,
             raw=data,

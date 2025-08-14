@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from pyagenity.graph.state import AgentState
 from pyagenity.graph.utils import Message
@@ -17,40 +17,40 @@ class BaseCheckpointer(ABC):
     @abstractmethod
     def put(
         self,
-        config: Dict[str, Any],
+        config: dict[str, Any],
         messages: list[Message],
-        metadata: Optional[Dict[str, Any]] = None,
+        metadata: dict[str, Any] | None = None,
     ) -> None:
         """Store a checkpoint."""
         raise NotImplementedError("put method must be implemented")
 
     @abstractmethod
-    def get(self, config: Dict[str, Any]) -> list[Message]:
+    def get(self, config: dict[str, Any]) -> list[Message]:
         """Retrieve a checkpoint."""
         raise NotImplementedError("get method must be implemented")
 
     @abstractmethod
     def list(
         self,
-        config: Dict[str, Any],
-        search: Optional[str] = None,
-        offset: Optional[int] = None,
-        limit: Optional[int] = None,
+        config: dict[str, Any],
+        search: str | None = None,
+        offset: int | None = None,
+        limit: int | None = None,
     ) -> list[Message]:
         """List checkpoints for a thread."""
         raise NotImplementedError("list method must be implemented")
 
-    def delete(self, config: Dict[str, Any]) -> None:
+    def delete(self, config: dict[str, Any]) -> None:
         """Delete a checkpoint."""
         raise NotImplementedError("delete method must be implemented")
 
-    def get_state(self, config: Dict[str, Any]) -> Optional[AgentState]:
+    def get_state(self, config: dict[str, Any]) -> AgentState | None:
         """Get the latest state snapshot."""
         raise NotImplementedError("get_state method must be implemented")
 
     def update_state(
         self,
-        config: Dict[str, Any],
+        config: dict[str, Any],
         state: AgentState,
     ) -> None:
         """Update the state at the current checkpoint."""
@@ -58,31 +58,30 @@ class BaseCheckpointer(ABC):
 
     def put_thread(
         self,
-        config: Dict[str, Any],
-        thread_info: Dict[str, Any],
+        config: dict[str, Any],
+        thread_info: dict[str, Any],
     ) -> None:
         """Store a new thread."""
         raise NotImplementedError("put_thread method must be implemented")
 
     def get_thread(
         self,
-        config: Dict[str, Any],
-    ) -> Optional[Dict[str, Any]]:
+        config: dict[str, Any],
+    ) -> dict[str, Any] | None:
         """Retrieve a thread by its ID."""
         raise NotImplementedError("get_thread method must be implemented")
 
     def list_threads(
         self,
-        search: Optional[str] = None,
-        offset: Optional[int] = None,
-        limit: Optional[int] = None,
-    ) -> List[Dict[str, Any]]:
+        search: str | None = None,
+        offset: int | None = None,
+        limit: int | None = None,
+    ) -> list[dict[str, Any]]:
         """List all threads."""
         raise NotImplementedError("list_threads method must be implemented")
 
     def cleanup(
         self,
-        config: Dict[str, Any],
+        config: dict[str, Any],
     ) -> None:
         """Cleanup resources if needed, This will delete all checkpoints for a thread."""
-        pass

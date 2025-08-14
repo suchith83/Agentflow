@@ -1,5 +1,7 @@
 from __future__ import annotations
-from typing import Dict, List, Any, Optional
+
+from typing import Any
+
 from .edge import Edge
 from .nodes import BaseNode
 
@@ -8,21 +10,21 @@ class Graph:
     """Directed conditional graph of nodes."""
 
     def __init__(self):
-        self.nodes: Dict[str, BaseNode] = {}
-        self.edges: List[Edge] = []
-        self.start_node: Optional[str] = None
+        self.nodes: dict[str, BaseNode] = {}
+        self.edges: list[Edge] = []
+        self.start_node: str | None = None
 
-    def add_node(self, node: BaseNode, start: bool = False) -> "Graph":
+    def add_node(self, node: BaseNode, start: bool = False) -> Graph:
         self.nodes[node.name] = node
         if start or self.start_node is None:
             self.start_node = node.name
         return self
 
-    def add_edge(self, edge: Edge) -> "Graph":
+    def add_edge(self, edge: Edge) -> Graph:
         self.edges.append(edge)
         return self
 
-    def next_nodes(self, current: str, context: Dict[str, Any]) -> List[str]:
+    def next_nodes(self, current: str, context: dict[str, Any]) -> list[str]:
         out = []
         for e in self.edges:
             if e.source == current and e.is_triggered(context):

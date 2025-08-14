@@ -1,19 +1,21 @@
-from typing import Any, Dict, Optional
 import asyncio
+from typing import Any
+
 from litellm.types.utils import ModelResponse
-from pyagenity.graph.checkpointer import BaseCheckpointer
-from pyagenity.graph.checkpointer import BaseStore
+
+from pyagenity.graph.checkpointer import BaseCheckpointer, BaseStore
 from pyagenity.graph.exceptions import GraphRecursionError
-from .state_graph import StateGraph
 from pyagenity.graph.state import AgentState
 from pyagenity.graph.utils import (
-    Command,
     END,
     START,
-    ResponseGranularity,
+    Command,
     Message,
+    ResponseGranularity,
     add_messages,
 )
+
+from .state_graph import StateGraph
 
 
 class CompiledGraph:
@@ -22,8 +24,8 @@ class CompiledGraph:
     def __init__(
         self,
         state_graph: StateGraph,
-        checkpointer: Optional[BaseCheckpointer] = None,
-        store: Optional[BaseStore] = None,
+        checkpointer: BaseCheckpointer | None = None,
+        store: BaseStore | None = None,
         debug: bool = False,
     ):
         self.state_graph = state_graph
@@ -94,10 +96,10 @@ class CompiledGraph:
 
     async def ainvoke(
         self,
-        input_data: Dict[str, Any],
-        config: Dict[str, Any],
+        input_data: dict[str, Any],
+        config: dict[str, Any],
         response_granularity: ResponseGranularity = ResponseGranularity.LOW,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Execute the graph asynchronously."""
         input_data = input_data or {}
         config = config or {}
@@ -139,8 +141,8 @@ class CompiledGraph:
 
     def _initialize_state(
         self,
-        input_data: Dict[str, Any],
-        config: Dict[str, Any],
+        input_data: dict[str, Any],
+        config: dict[str, Any],
     ) -> AgentState:
         """Initialize the graph state."""
         state: AgentState = self.state_graph.state
@@ -153,7 +155,7 @@ class CompiledGraph:
     async def _execute_graph(
         self,
         state: AgentState,
-        config: Dict[str, Any],
+        config: dict[str, Any],
     ) -> tuple[AgentState, list[Message]]:
         """Execute the entire graph."""
         current_node = START
@@ -186,9 +188,7 @@ class CompiledGraph:
                     elif isinstance(result.update, AgentState):
                         state = result.update
                         messages.append(
-                            state.context[-1]
-                            if state.context
-                            else Message.from_text("Unknown")
+                            state.context[-1] if state.context else Message.from_text("Unknown")
                         )
                 # Handle navigation
                 if result.goto:
@@ -229,9 +229,7 @@ class CompiledGraph:
             state.step = step
 
             if step >= max_steps:
-                raise GraphRecursionError(
-                    f"Graph execution exceeded recursion limit: {max_steps}"
-                )
+                raise GraphRecursionError(f"Graph execution exceeded recursion limit: {max_steps}")
 
         return state, messages
 
@@ -296,9 +294,7 @@ class CompiledGraph:
     ) -> str:
         """Get the next node to execute based on edges."""
         # Find outgoing edges from current node
-        outgoing_edges = [
-            e for e in self.state_graph.edges if e.from_node == current_node
-        ]
+        outgoing_edges = [e for e in self.state_graph.edges if e.from_node == current_node]
 
         if not outgoing_edges:
             return END
@@ -312,12 +308,10 @@ class CompiledGraph:
                         # Mapped conditional edge
                         if condition_result == edge.condition_result:
                             return edge.to_node
-                    else:
-                        # Direct conditional edge
-                        if isinstance(condition_result, str):
-                            return condition_result
-                        elif condition_result:
-                            return edge.to_node
+                    elif isinstance(condition_result, str):
+                        return condition_result
+                    elif condition_result:
+                        return edge.to_node
                 except Exception as e:
                     if self.debug:
                         print(f"Error in condition: {e}")

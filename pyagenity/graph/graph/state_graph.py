@@ -1,14 +1,11 @@
-from typing import Callable, Dict, Optional, Union
+from collections.abc import Callable
 
-from pyagenity.graph.checkpointer import BaseCheckpointer
-from pyagenity.graph.checkpointer import BaseStore
-from pyagenity.graph.checkpointer import InMemoryCheckpointer
+from pyagenity.graph.checkpointer import BaseCheckpointer, BaseStore, InMemoryCheckpointer
 from pyagenity.graph.exceptions import GraphError
-from .compiled_graph import CompiledGraph
-from pyagenity.graph.state import BaseContextManager
-from pyagenity.graph.state import AgentState
-from pyagenity.graph.utils import START, END
+from pyagenity.graph.state import AgentState, BaseContextManager
+from pyagenity.graph.utils import END, START
 
+from .compiled_graph import CompiledGraph
 from .edge import Edge
 from .node import Node
 
@@ -23,13 +20,13 @@ class StateGraph:
     def __init__(
         self,
         state: AgentState = AgentState(),
-        context_manager: Optional[BaseContextManager] = None,
+        context_manager: BaseContextManager | None = None,
     ):
         self.state = state
         self.nodes: dict[str, Node] = {}
         self.edges: list[Edge] = []
-        self.entry_point: Optional[str] = None
-        self.context_manager: Optional[BaseContextManager] = context_manager
+        self.entry_point: str | None = None
+        self.context_manager: BaseContextManager | None = context_manager
         self.compiled = False
 
         # Add START and END nodes
@@ -38,8 +35,8 @@ class StateGraph:
 
     def add_node(
         self,
-        name_or_func: Union[str, Callable],
-        func: Optional[Callable] = None,
+        name_or_func: str | Callable,
+        func: Callable | None = None,
     ) -> "StateGraph":
         """Add a node to the graph."""
         if callable(name_or_func) and func is None:
@@ -71,7 +68,7 @@ class StateGraph:
         self,
         from_node: str,
         condition: Callable,
-        path_map: Optional[Dict[str, str]] = None,
+        path_map: dict[str, str] | None = None,
     ) -> "StateGraph":
         """Add conditional edges from a node."""
         # Create edges based on possible returns from condition function
@@ -87,7 +84,7 @@ class StateGraph:
 
     def add_sequence(
         self,
-        nodes: list[Union[str, Callable]],
+        nodes: list[str | Callable],
     ) -> "StateGraph":
         """Add a sequence of nodes with automatic edges."""
         processed_nodes = []
@@ -116,15 +113,13 @@ class StateGraph:
 
     def compile(
         self,
-        checkpointer: Optional[BaseCheckpointer] = None,
-        store: Optional[BaseStore] = None,
+        checkpointer: BaseCheckpointer | None = None,
+        store: BaseStore | None = None,
         debug: bool = False,
     ) -> "CompiledGraph":
         """Compile the graph for execution."""
         if not self.entry_point:
-            raise GraphError(
-                "No entry point set. Use set_entry_point() or add an edge from START."
-            )
+            raise GraphError("No entry point set. Use set_entry_point() or add an edge from START.")
 
         # Validate graph structure
         self._validate_graph()

@@ -1,7 +1,6 @@
 from dotenv import load_dotenv
 from litellm import completion
 
-from litellm.utils import supports_prompt_caching
 
 ## set ENV variables
 load_dotenv()

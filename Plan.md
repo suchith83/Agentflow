@@ -10,7 +10,7 @@ I want to create an agentic framework that allows for the creation of agents tha
 # State Managements:
 1. State should be stored in database, but not all the messages
 should be stored, its only context will be stored
-2. List of all messages will be stored in db separately, 
+2. List of all messages will be stored in db separately,
 and based on thread_id, we can fetch the messages
 3. Long term memory should be stored in db, and it should be
 retrievable by the agent
@@ -50,7 +50,7 @@ Based on extensive research of the latest agentic frameworks, here are cutting-e
 ### Layered Memory Architecture (Inspired by CrewAI's approach)
 ```
 ┌─ Context Memory (Redis/In-Memory) ─ Session state, conversation context
-├─ Working Memory (SQLite/PostgreSQL) ─ Task results, intermediate data  
+├─ Working Memory (SQLite/PostgreSQL) ─ Task results, intermediate data
 ├─ Long-term Memory (Vector DB) ─ Embeddings, semantic search
 └─ Entity Memory (Graph DB) ─ Relationships, knowledge graphs
 ```
@@ -89,7 +89,7 @@ Based on extensive research of the latest agentic frameworks, here are cutting-e
 ### Comprehensive SDK Support
 ```
 ├─ Python SDK (Primary)
-├─ JavaScript/TypeScript SDK  
+├─ JavaScript/TypeScript SDK
 ├─ REST API (OpenAPI spec)
 ├─ GraphQL API (Optional)
 └─ CLI Tool for management
@@ -140,7 +140,7 @@ Based on extensive research of the latest agentic frameworks, here are cutting-e
 
 ### Third-party Integrations
 - **Vector Databases**: Pinecone, Weaviate, Qdrant support
-- **Analytics Platforms**: DataDog, New Relic integration  
+- **Analytics Platforms**: DataDog, New Relic integration
 - **Notification Services**: Slack, Discord, email alerts
 - **CI/CD Integration**: GitHub Actions, GitLab CI support
 
@@ -166,7 +166,7 @@ Based on extensive research of the latest agentic frameworks, here are cutting-e
 - **Semantic Web Integration**: RDF/OWL knowledge representation
 - **Blockchain Integration**: Decentralized agent networks
 
-### AI/ML Enhancements  
+### AI/ML Enhancements
 - **Multi-modal Support**: Text, image, audio, video processing
 - **Edge Computing**: On-device agent deployment
 - **Federated Learning**: Distributed model training
@@ -179,7 +179,7 @@ Based on extensive research of the latest agentic frameworks, here are cutting-e
 ```
 ┌─ Frontend Layer ──────────────────────────────┐
 │  React Dashboard + WebSocket Client    │
-├─ API Layer ──────────────────────────────────┤  
+├─ API Layer ──────────────────────────────────┤
 │  FastAPI + GraphQL + REST Endpoints   │
 ├─ Core Framework ─────────────────────────────┤
 │  Python + liteLLM + A2A + MCP     │

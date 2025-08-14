@@ -1,37 +1,39 @@
-from typing import Any, Dict, List, Optional
+from typing import Any
+
 from pyagenity.graph.state import AgentState
 from pyagenity.graph.utils import Message
+
 from .base_checkpointer import BaseCheckpointer
 
 
 class InMemoryCheckpointer(BaseCheckpointer):
     def __init__(self):
         # Simulate tables with dicts/lists
-        self._threads: Dict[str, Dict[str, Any]] = {}
-        self._messages: Dict[str, List[Message]] = {}
-        self._states: Dict[str, AgentState] = {}
+        self._threads: dict[str, dict[str, Any]] = {}
+        self._messages: dict[str, list[Message]] = {}
+        self._states: dict[str, AgentState] = {}
 
     def put(
         self,
-        config: Dict[str, Any],
+        config: dict[str, Any],
         messages: list[Message],
-        metadata: Optional[Dict[str, Any]] = None,
+        metadata: dict[str, Any] | None = None,
     ) -> None:
         thread_id = config.get("thread_id", "default")
         self._messages[thread_id] = messages.copy()
         if metadata:
             self._threads.setdefault(thread_id, {})["metadata"] = metadata
 
-    def get(self, config: Dict[str, Any]) -> list[Message]:
+    def get(self, config: dict[str, Any]) -> list[Message]:
         thread_id = config.get("thread_id", "default")
         return self._messages.get(thread_id, []).copy()
 
     def list(
         self,
-        config: Dict[str, Any],
-        search: Optional[str] = None,
-        offset: Optional[int] = None,
-        limit: Optional[int] = None,
+        config: dict[str, Any],
+        search: str | None = None,
+        offset: int | None = None,
+        limit: int | None = None,
     ) -> list[Message]:
         thread_id = config.get("thread_id", "default")
         messages = self._messages.get(thread_id, [])
@@ -43,17 +45,17 @@ class InMemoryCheckpointer(BaseCheckpointer):
             messages = messages[:limit]
         return messages.copy()
 
-    def delete(self, config: Dict[str, Any]) -> None:
+    def delete(self, config: dict[str, Any]) -> None:
         thread_id = config.get("thread_id", "default")
         self._messages.pop(thread_id, None)
 
-    def get_state(self, config: Dict[str, Any]) -> Optional[AgentState]:
+    def get_state(self, config: dict[str, Any]) -> AgentState | None:
         thread_id = config.get("thread_id", "default")
         return self._states.get(thread_id)
 
     def update_state(
         self,
-        config: Dict[str, Any],
+        config: dict[str, Any],
         state: AgentState,
     ) -> None:
         thread_id = config.get("thread_id", "default")
@@ -61,25 +63,25 @@ class InMemoryCheckpointer(BaseCheckpointer):
 
     def put_thread(
         self,
-        config: Dict[str, Any],
-        thread_info: Dict[str, Any],
+        config: dict[str, Any],
+        thread_info: dict[str, Any],
     ) -> None:
         thread_id = config.get("thread_id", "default")
         self._threads[thread_id] = thread_info.copy()
 
     def get_thread(
         self,
-        config: Dict[str, Any],
-    ) -> Optional[Dict[str, Any]]:
+        config: dict[str, Any],
+    ) -> dict[str, Any] | None:
         thread_id = config.get("thread_id", "default")
         return self._threads.get(thread_id)
 
     def list_threads(
         self,
-        search: Optional[str] = None,
-        offset: Optional[int] = None,
-        limit: Optional[int] = None,
-    ) -> List[Dict[str, Any]]:
+        search: str | None = None,
+        offset: int | None = None,
+        limit: int | None = None,
+    ) -> list[dict[str, Any]]:
         threads = list(self._threads.values())
         if search:
             threads = [t for t in threads if search in str(t)]
@@ -91,7 +93,7 @@ class InMemoryCheckpointer(BaseCheckpointer):
 
     def cleanup(
         self,
-        config: Dict[str, Any],
+        config: dict[str, Any],
     ) -> None:
         thread_id = config.get("thread_id", "default")
         self._messages.pop(thread_id, None)

@@ -4,8 +4,10 @@ Command API for AgentGraph.
 Allows combining state updates with control flow similar to LangGraph's Command.
 """
 
-from typing import Generic, TypeVar, Optional, Literal
+from typing import Generic, Literal, TypeVar
+
 from litellm.types.utils import ModelResponse
+
 from pyagenity.graph.state import AgentState
 
 
@@ -24,9 +26,9 @@ class Command(Generic[T]):
 
     def __init__(
         self,
-        update: Optional[AgentState] | ModelResponse = None,
-        goto: Optional[T] = None,
-        graph: Optional[str] = None,
+        update: AgentState | None | ModelResponse = None,
+        goto: T | None = None,
+        graph: str | None = None,
     ):
         """
         Initialize a Command.
