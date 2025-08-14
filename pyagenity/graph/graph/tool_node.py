@@ -9,15 +9,6 @@ from __future__ import annotations
 import inspect
 import typing as t
 
-from dataclasses import dataclass
-
-
-@dataclass
-class ToolSpec:
-    name: str
-    description: str
-    parameters: dict
-
 
 class ToolNode:
     """Registry for callables that exports function specs and executes them."""

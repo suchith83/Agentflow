@@ -1,0 +1,53 @@
+from typing import Any, Dict, Optional
+from dotenv import load_dotenv
+from litellm import completion
+
+from pyagenity.graph.graph.state_graph import StateGraph
+from pyagenity.graph.state.state import AgentState
+from pyagenity.graph.utils.constants import END
+from pyagenity.graph.utils.converter import convert_messages
+from pyagenity.graph.utils.message import Message
+
+load_dotenv()
+
+
+def main_agent(
+    state: AgentState,
+    config: Dict[str, Any],
+    checkpointer: Optional[Any] = None,
+    store: Optional[Any] = None,
+):
+    prompts = """
+        You are a helpful assistant.
+        Your task is to assist the user in finding information and answering questions.
+    """
+
+    messages = convert_messages(
+        system_prompts=[{"role": "system", "content": prompts}],
+        state=state,
+    )
+
+    response = completion(
+        model="gemini/gemini-2.5-flash",
+        messages=messages,
+    )
+
+    return response
+
+
+graph = StateGraph()
+graph.add_node("MAIN", main_agent)
+graph.add_edge("MAIN", END)
+
+
+app = graph.compile()
+
+
+# now run it
+
+inp = {"message": [Message.from_text("Hello, world!", role="user")]}
+config = {"thread_id": "12345", "recursion_limit": 5}
+
+res = app.invoke(inp, config=config)
+
+print(res)

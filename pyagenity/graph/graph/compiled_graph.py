@@ -135,7 +135,9 @@ class CompiledGraph:
     #         yield step_result
 
     def _initialize_state(
-        self, input_data: Dict[str, Any], config: Dict[str, Any]
+        self,
+        input_data: Dict[str, Any],
+        config: Dict[str, Any],
     ) -> AgentState:
         """Initialize the graph state."""
         state: AgentState = self.state_graph.state

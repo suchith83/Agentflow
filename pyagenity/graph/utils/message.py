@@ -42,7 +42,7 @@ class Message:
     """A message in the conversation."""
 
     message_id: str
-    role: Literal["human", "assistant", "system", "tool"]
+    role: Literal["user", "assistant", "system", "tool"]
     content: str
     tools_calls: Optional[list[dict[str, Any]]] = None
     tool_call_id: Optional[str] = None
@@ -75,7 +75,7 @@ class Message:
     @staticmethod
     def from_text(
         data: str,
-        role: Literal["human", "assistant", "system", "tool"] = "human",
+        role: Literal["user", "assistant", "system", "tool"] = "user",
     ) -> "Message":
         return Message(
             message_id=str(uuid4()),  # Generate a new UUID

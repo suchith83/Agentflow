@@ -30,8 +30,7 @@ class Node:
             if self.is_async:
                 result = await self.func(state, config, checkpointer, store)
             else:
-                # TODO: Improve me
-                result = self.func(state, config)
+                result = self.func(state, config, checkpointer, store)
             return result
         except Exception as e:
             raise NodeError(f"Error in node '{self.name}': {str(e)}") from e

@@ -134,10 +134,23 @@ messages = [
     },
 ]
 
+messages = [
+    {"role": "system", "content": "You are a helpful assistant. For job"},
+    {
+        "role": "system",
+        "content": "Job ID: 12345, skills: [Python, Data Analysis] designation: Python developer",
+    },
+    {
+        "role": "system",
+        "content": "CV: Name shudipto, Skills: Python, Java, Work Experience: 5 years in software development",
+    },
+    {"role": "user", "content": "HI, I am ready"},
+]
+
 response = completion(
     model="gemini/gemini-2.5-flash",
     messages=messages,
-    tools=tools,
+    # tools=tools,
 )
 # Add any assertions, here to check response args
 print(response.model_dump_json())

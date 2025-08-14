@@ -21,6 +21,7 @@ class ExecutionState(StrEnum):
     ERROR = "error"
     INTERRUPTED = "interrupted"
     ABORTED = "aborted"
+    IDLE = "idle"
 
 
 class ResponseGranularity(StrEnum):
