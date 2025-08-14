@@ -1,4 +1,5 @@
 from pyagenity.graph.state.state import AgentState
+from pyagenity.graph.utils.message import Message
 from .base_context import BaseContextManager
 
 
@@ -20,27 +21,14 @@ class MessageContextManager(BaseContextManager):
         """
         self.max_messages = max_messages
 
-    def trim_context(self, state: AgentState) -> AgentState:
-        """
-        Trim the context in the given AgentState based on the maximum number of user messages.
-
-        The first message (typically a system prompt) is always preserved. Only the most recent
-        user messages up to `max_messages` are kept, along with the first message.
-
-        Args:
-            state (AgentState): The agent state containing the context to trim.
-
-        Returns:
-            AgentState: The updated agent state with trimmed context.
-        """
-        messages = state.context
+    def _trim(self, messages: list[Message]) -> list[Message] | None:
         # check context is empty
         if not messages:
-            return state
+            return None
 
         if len(messages) <= self.max_messages:
             # no trimming needed
-            return state
+            return None
 
         # Keep first message (usually system prompt)
         # and recent messages
@@ -59,5 +47,35 @@ class MessageContextManager(BaseContextManager):
 
             final_messages.append(messages[i])
 
-        state.context = [first_message] + final_messages
+        return [first_message] + final_messages
+
+    def trim_context(self, state: AgentState) -> AgentState:
+        """
+        Trim the context in the given AgentState based on the maximum number of user messages.
+
+        The first message (typically a system prompt) is always preserved. Only the most recent
+        user messages up to `max_messages` are kept, along with the first message.
+
+        Args:
+            state (AgentState): The agent state containing the context to trim.
+
+        Returns:
+            AgentState: The updated agent state with trimmed context.
+        """
+        messages = state.context
+        trimmed_messages = self._trim(messages)
+        if trimmed_messages is None:
+            return state
+        state.context = trimmed_messages
+        return state
+
+    async def atrim_context(self, state: AgentState) -> AgentState:
+        """
+        Asynchronous method to trim context based on message count.
+        """
+        messages = state.context
+        trimmed_messages = self._trim(messages)
+        if trimmed_messages is None:
+            return state
+        state.context = trimmed_messages
         return state

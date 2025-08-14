@@ -1,8 +1,13 @@
 from typing import Any, Callable, Dict, Optional, Type, Union
 
+from pyagenity.graph.exceptions.graph_error import GraphError
+from pyagenity.graph.graph.compiled_graph import CompiledGraph
+from pyagenity.graph.state.base_context import BaseContextManager
+from pyagenity.graph.state.state import AgentState
+
 from .edge import Edge
 
-from .agent import Node
+from .node import Node
 from pyagenity.graph.utils.constants import START, END
 
 
@@ -15,15 +20,14 @@ class StateGraph:
 
     def __init__(
         self,
-        state_schema: Type,
-        context_schema: Optional[Type] = None,
+        state: AgentState = AgentState(),
+        context_manager: Optional[BaseContextManager] = None,
     ):
-        self.state_schema = state_schema
-        self.context_schema = context_schema
+        self.state = state
         self.nodes: dict[str, Node] = {}
         self.edges: list[Edge] = []
         self.entry_point: Optional[str] = None
-        self.context_manager = ContextManager()
+        self.context_manager: Optional[BaseContextManager] = context_manager
         self.compiled = False
 
         # Add START and END nodes
@@ -34,9 +38,6 @@ class StateGraph:
         self,
         name_or_func: Union[str, Callable],
         func: Optional[Callable] = None,
-        defer: bool = False,
-        retry_policy: Optional[Dict[str, Any]] = None,
-        cache_policy: Optional[Dict[str, Any]] = None,
     ) -> "StateGraph":
         """Add a node to the graph."""
         if callable(name_or_func) and func is None:
@@ -49,7 +50,7 @@ class StateGraph:
         else:
             raise ValueError("Invalid arguments for add_node")
 
-        self.nodes[name] = Node(name, func, defer, retry_policy, cache_policy)
+        self.nodes[name] = Node(name, func)
         return self
 
     def add_edge(
@@ -128,7 +129,10 @@ class StateGraph:
 
         self.compiled = True
         return CompiledGraph(
-            state_graph=self, checkpointer=checkpointer, store=store, debug=debug
+            state_graph=self,
+            checkpointer=checkpointer,
+            store=store,
+            debug=debug,
         )
 
     def _validate_graph(self):

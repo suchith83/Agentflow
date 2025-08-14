@@ -2,6 +2,7 @@ import asyncio
 from typing import Any, Dict, Optional, Callable, Union
 
 from pyagenity.graph.exceptions.node_error import NodeError
+from pyagenity.graph.state.state import AgentState
 from pyagenity.graph.utils.command import Command
 
 
@@ -12,21 +13,17 @@ class Node:
         self,
         name: str,
         func: Callable,
-        defer: bool = False,
-        retry_policy: Optional[Dict[str, Any]] = None,
-        cache_policy: Optional[Dict[str, Any]] = None,
     ):
         self.name = name
         self.func = func
-        self.defer = defer
-        self.retry_policy = retry_policy or {}
-        self.cache_policy = cache_policy or {}
         self.is_async = asyncio.iscoroutinefunction(func)
 
     async def execute(
         self,
-        state: Dict[str, Any],
+        state: AgentState,
         config: Dict[str, Any],
+        checkpointer: Optional[Any] = None,
+        store: Optional[Any] = None,
     ) -> Union[Dict[str, Any], Command]:
         """Execute the node function."""
         try:
