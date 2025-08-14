@@ -2,21 +2,24 @@
 Multi-agent workflow demo using PyAgenity's Agent and AgentGraph.
 """
 
-from pyagenity.agent.agent import Agent
-from pyagenity.graph.base import AgentGraph
+from pyagenity.graph.graph import AgentGraph
+
+
+def build_agent(name, model):
+    return [{"role": "user", "content": f"Create a {name} agent with model {model}."}]
 
 
 def main():
     # Define agents
-    main_agent = Agent(name="main", model="google/gemini-pro")
-    research_agent = Agent(name="research", model="google/gemini-pro")
-    science_agent = Agent(name="science", model="google/gemini-pro")
+    main_agent = build_agent(name="main", model="google/gemini-pro")
+    research_agent = build_agent(name="research", model="google/gemini-pro")
+    science_agent = build_agent(name="science", model="google/gemini-pro")
 
     # Create graph and add agents
     graph = AgentGraph()
-    graph.add_agent("main", main_agent)
-    graph.add_agent("research", research_agent)
-    graph.add_agent("science", science_agent)
+    graph.add_node("main", main_agent)
+    graph.add_node("research", research_agent)
+    graph.add_node("science", science_agent)
 
     # Connect agents: main -> research -> science
     graph.connect("main", "research")
