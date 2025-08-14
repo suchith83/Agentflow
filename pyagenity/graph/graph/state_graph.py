@@ -1,5 +1,8 @@
-from typing import Any, Callable, Dict, Optional, Type, Union
+from typing import Callable, Dict, Optional, Union
 
+from pyagenity.graph.checkpointer.base_checkpointer import BaseCheckpointer
+from pyagenity.graph.checkpointer.base_store import BaseStore
+from pyagenity.graph.checkpointer.in_memory_checkpointer import InMemoryCheckpointer
 from pyagenity.graph.exceptions.graph_error import GraphError
 from pyagenity.graph.graph.compiled_graph import CompiledGraph
 from pyagenity.graph.state.base_context import BaseContextManager
@@ -114,8 +117,8 @@ class StateGraph:
 
     def compile(
         self,
-        checkpointer: Optional[Any] = None,
-        store: Optional[Any] = None,
+        checkpointer: Optional[BaseCheckpointer] = None,
+        store: Optional[BaseStore] = None,
         debug: bool = False,
     ) -> "CompiledGraph":
         """Compile the graph for execution."""
@@ -126,6 +129,9 @@ class StateGraph:
 
         # Validate graph structure
         self._validate_graph()
+
+        if not checkpointer:
+            checkpointer = InMemoryCheckpointer()
 
         self.compiled = True
         return CompiledGraph(

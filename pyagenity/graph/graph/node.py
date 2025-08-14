@@ -28,8 +28,9 @@ class Node:
         """Execute the node function."""
         try:
             if self.is_async:
-                result = await self.func(state, config)
+                result = await self.func(state, config, checkpointer, store)
             else:
+                # TODO: Improve me
                 result = self.func(state, config)
             return result
         except Exception as e:

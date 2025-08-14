@@ -1,4 +1,5 @@
 from typing import Literal
+from enum import StrEnum
 
 # Special node names for graph execution flow
 START: Literal["__start__"] = "__start__"
@@ -13,10 +14,16 @@ class StorageLevel:
 
 
 # Graph execution states
-class ExecutionState:
+class ExecutionState(StrEnum):
     RUNNING = "running"
     PAUSED = "paused"
     COMPLETED = "completed"
     ERROR = "error"
     INTERRUPTED = "interrupted"
     ABORTED = "aborted"
+
+
+class ResponseGranularity(StrEnum):
+    FULL = "full"  # State, Latest Messages
+    PARTIAL = "partial"  # Context, Summary, Latest Messages
+    LOW = "low"  # Only Latest Messages
