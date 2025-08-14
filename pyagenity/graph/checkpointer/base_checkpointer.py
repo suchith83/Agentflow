@@ -1,8 +1,8 @@
 from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional
 
-from pyagenity.graph.state.state import AgentState
-from pyagenity.graph.utils.message import Message
+from pyagenity.graph.state import AgentState
+from pyagenity.graph.utils import Message
 
 
 class BaseCheckpointer(ABC):

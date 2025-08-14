@@ -13,5 +13,5 @@ class Edge:
     ):
         self.from_node = from_node
         self.to_node = to_node
-        self.condition = condition  # For conditional edges
-        self.condition_result: Optional[str] = None  # For mapped conditional edges
+        self.condition = condition
+        self.condition_result: Optional[str] = None

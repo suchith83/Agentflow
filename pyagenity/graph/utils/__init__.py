@@ -2,13 +2,16 @@
 from .command import Command
 
 # Export from constants.py
-from .constants import START, END, StorageLevel, ExecutionState
+from .constants import START, END, StorageLevel, ExecutionState, ResponseGranularity
 
 # Export from message.py
-from .message import Message
+from .message import Message, TokenUsages
 
 # Export from reducers.py
 from .reducers import add_messages, replace_messages, append_items, replace_value
+
+from .converter import convert_messages
+
 
 __all__ = [
     "Command",
@@ -16,9 +19,12 @@ __all__ = [
     "END",
     "StorageLevel",
     "ExecutionState",
+    "ResponseGranularity",
     "Message",
+    "TokenUsages",
     "add_messages",
     "replace_messages",
     "append_items",
     "replace_value",
+    "convert_messages",
 ]

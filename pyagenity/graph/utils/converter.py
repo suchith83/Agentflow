@@ -1,7 +1,7 @@
 from typing import Any, Dict, List, Optional
 
-from pyagenity.graph.state.state import AgentState
-from pyagenity.graph.utils import Message
+from pyagenity.graph.state import AgentState
+from .message import Message
 
 
 def _convert_dict(message: Message) -> Dict[str, Any]:

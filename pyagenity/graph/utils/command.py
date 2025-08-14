@@ -6,7 +6,7 @@ Allows combining state updates with control flow similar to LangGraph's Command.
 
 from typing import Generic, TypeVar, Optional, Literal
 from litellm.types.utils import ModelResponse
-from pyagenity.graph.state.state import AgentState
+from pyagenity.graph.state import AgentState
 
 
 T = TypeVar("T")

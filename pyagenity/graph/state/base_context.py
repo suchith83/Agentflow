@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 
-from pyagenity.graph.state.state import AgentState
+from pyagenity.graph.state import AgentState
 
 
 class BaseContextManager(ABC):
