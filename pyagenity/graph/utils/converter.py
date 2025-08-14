@@ -1,8 +1,10 @@
-from typing import Any
-
-from pyagenity.graph.state import AgentState
+from typing import TYPE_CHECKING, Any, Union
 
 from .message import Message
+
+
+if TYPE_CHECKING:
+    from pyagenity.graph.state import AgentState
 
 
 def _convert_dict(message: Message) -> dict[str, Any]:
@@ -25,7 +27,7 @@ def _convert_dict(message: Message) -> dict[str, Any]:
 
 def convert_messages(
     system_prompts: list[dict[str, Any]],
-    state: AgentState | None = None,
+    state: Union["AgentState", None] = None,
     extra_messages: list[Message] | None = None,
 ) -> list[dict[str, Any]]:
     if system_prompts is None:

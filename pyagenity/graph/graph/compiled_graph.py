@@ -1,5 +1,5 @@
 import asyncio
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from litellm.types.utils import ModelResponse
 
@@ -15,7 +15,9 @@ from pyagenity.graph.utils import (
     add_messages,
 )
 
-from .state_graph import StateGraph
+
+if TYPE_CHECKING:
+    from .state_graph import StateGraph
 
 
 class CompiledGraph:
@@ -23,7 +25,7 @@ class CompiledGraph:
 
     def __init__(
         self,
-        state_graph: StateGraph,
+        state_graph: "StateGraph",
         checkpointer: BaseCheckpointer | None = None,
         store: BaseStore | None = None,
         debug: bool = False,

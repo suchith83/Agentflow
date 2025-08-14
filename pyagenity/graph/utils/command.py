@@ -4,11 +4,14 @@ Command API for AgentGraph.
 Allows combining state updates with control flow similar to LangGraph's Command.
 """
 
-from typing import Literal, TypeVar
+from typing import TYPE_CHECKING, Literal, TypeVar, Union
 
 from litellm.types.utils import ModelResponse
 
-from pyagenity.graph.state import AgentState
+
+if TYPE_CHECKING:
+    # Import only for type checking to avoid circular imports at runtime
+    from pyagenity.graph.state import AgentState
 
 
 T = TypeVar("T")
@@ -26,7 +29,7 @@ class Command[T]:
 
     def __init__(
         self,
-        update: AgentState | None | ModelResponse = None,
+        update: Union["AgentState", None, ModelResponse] = None,
         goto: T | None = None,
         graph: str | None = None,
     ):

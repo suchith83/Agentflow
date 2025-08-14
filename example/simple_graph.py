@@ -5,7 +5,7 @@ from litellm import completion
 
 from pyagenity.graph.graph import StateGraph
 from pyagenity.graph.state import AgentState
-from pyagenity.graph.utils import END, Message, convert_messages
+from pyagenity.graph.utils import Message, convert_messages
 
 
 load_dotenv()
@@ -37,7 +37,7 @@ def main_agent(
 
 graph = StateGraph()
 graph.add_node("MAIN", main_agent)
-graph.add_edge("MAIN", END)
+graph.set_entry_point("MAIN")
 
 
 app = graph.compile()
@@ -45,7 +45,7 @@ app = graph.compile()
 
 # now run it
 
-inp = {"message": [Message.from_text("Hello, world!", role="user")]}
+inp = {"messages": [Message.from_text("Hello, world!", role="user")]}
 config = {"thread_id": "12345", "recursion_limit": 5}
 
 res = app.invoke(inp, config=config)

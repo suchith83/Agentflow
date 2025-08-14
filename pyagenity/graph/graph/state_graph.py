@@ -1,37 +1,41 @@
 from collections.abc import Callable
+from typing import TYPE_CHECKING
 
 from pyagenity.graph.checkpointer import BaseCheckpointer, BaseStore, InMemoryCheckpointer
 from pyagenity.graph.exceptions import GraphError
 from pyagenity.graph.state import AgentState, BaseContextManager
 from pyagenity.graph.utils import END, START
 
-from .compiled_graph import CompiledGraph
+
+if TYPE_CHECKING:
+    from .compiled_graph import CompiledGraph
+
 from .edge import Edge
 from .node import Node
 
 
 class StateGraph:
-    """
-    Main graph class for orchestrating multi-agent workflows.
+    """Main graph class for orchestrating multi-agent workflows.
 
     Similar to LangGraph's StateGraph but designed for direct Litellm integration.
     """
 
     def __init__(
         self,
-        state: AgentState = AgentState(),
+        state: AgentState | None = None,
         context_manager: BaseContextManager | None = None,
     ):
-        self.state = state
+        # Initialize state and structure
+        self.state = state or AgentState()
         self.nodes: dict[str, Node] = {}
         self.edges: list[Edge] = []
         self.entry_point: str | None = None
         self.context_manager: BaseContextManager | None = context_manager
         self.compiled = False
 
-        # Add START and END nodes
-        self.nodes[START] = Node(START, lambda s, c: s)
-        self.nodes[END] = Node(END, lambda s, c: s)
+        # Add START and END nodes (accept full node signature)
+        self.nodes[START] = Node(START, lambda s, c, checkpointer=None, store=None: s)
+        self.nodes[END] = Node(END, lambda s, c, checkpointer=None, store=None: s)
 
     def add_node(
         self,
@@ -128,6 +132,9 @@ class StateGraph:
             checkpointer = InMemoryCheckpointer()
 
         self.compiled = True
+        # Import here to avoid circular import at module import time
+        from .compiled_graph import CompiledGraph
+
         return CompiledGraph(
             state_graph=self,
             checkpointer=checkpointer,
