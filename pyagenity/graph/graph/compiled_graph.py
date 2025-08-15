@@ -1,14 +1,14 @@
 import asyncio
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Callable
 
 from litellm.types.utils import ModelResponse
 
 from pyagenity.graph.checkpointer import BaseCheckpointer, BaseStore
 from pyagenity.graph.exceptions import GraphRecursionError
 from pyagenity.graph.state import AgentState
+from pyagenity.graph.state.execution_state import ExecutionStatus
 from pyagenity.graph.utils import (
     END,
-    START,
     Command,
     Message,
     ResponseGranularity,
@@ -29,59 +29,95 @@ class CompiledGraph:
         checkpointer: BaseCheckpointer | None = None,
         store: BaseStore | None = None,
         debug: bool = False,
+        interrupt_before: list[str] | None = None,
+        interrupt_after: list[str] | None = None,
+        # Hook for frequent state sync (sync or async callable)
+        realtime_state_sync: Callable | None = None,
     ):
         self.state_graph = state_graph
         self.checkpointer = checkpointer
         self.store = store
         self.debug = debug
         self.context_manager = state_graph.context_manager
+        self.interrupt_before = interrupt_before or []
+        self.interrupt_after = interrupt_after or []
+        self.realtime_state_sync = realtime_state_sync
 
     def invoke(
         self,
         input_data: dict[str, Any],
-        config: dict[str, Any],
+        config: dict[str, Any] | None = None,
+        response_granularity: ResponseGranularity = ResponseGranularity.LOW,
     ) -> dict[str, Any]:
-        """Execute the graph synchronously."""
-        return asyncio.run(self.ainvoke(input_data, config))
+        """Execute the graph synchronously.
 
-    # def stream(
-    #     self,
-    #     input_data: Optional[Dict[str, Any]] = None,
-    #     config: Optional[Dict[str, Any]] = None,
-    # ):
-    #     """Stream graph execution synchronously."""
+        Auto-detects whether to start fresh execution or resume from interrupted state.
 
-    #     async def _async_stream():
-    #         async for result in self.astream(input_data, config):
-    #             yield result
+        Args:
+            input_data: Input dict (no longer accepts AgentState directly)
+            config: Configuration dictionary
 
-    #     # Create a new event loop to run the async generator
-    #     loop = asyncio.new_event_loop()
-    #     asyncio.set_event_loop(loop)
-    #     try:
+        Returns:
+            Final state dict and messages
+        """
+        return asyncio.run(self.ainvoke(input_data, config, response_granularity))
 
-    #         async def run_generator():
-    #             results = []
-    #             async for result in self.astream(input_data, config):
-    #                 results.append(result)
-    #             return results
+    async def ainvoke(
+        self,
+        input_data: dict[str, Any],
+        config: dict[str, Any] | None = None,
+        response_granularity: ResponseGranularity = ResponseGranularity.LOW,
+    ) -> dict[str, Any]:
+        """Execute the graph asynchronously.
 
-    #         results = loop.run_until_complete(run_generator())
-    #         for result in results:
-    #             yield result
-    #     finally:
-    #         loop.close()
+        Auto-detects whether to start fresh execution or resume from interrupted state
+        based on the AgentState's execution metadata.
+
+        Args:
+            input_data: Input dict with 'messages' key (for new execution) or
+                       additional data for resuming
+            config: Configuration dictionary
+            response_granularity: Response parsing granularity
+
+        Returns:
+            Response dict based on granularity
+        """
+        config = config or {}
+        input_data = input_data or {}
+
+        # Load or initialize state
+        state = await self._load_or_create_state(input_data, config)
+
+        # Check if this is a resume case
+        if state.is_interrupted():
+            # This is a resume case - clear interrupt and merge input data
+            if input_data:
+                config["resume_data"] = input_data
+            state.clear_interrupt()
+        elif not input_data.get("messages") and not state.context:
+            # This is a fresh execution - validate input data
+            raise ValueError("Input data must contain 'messages' for new execution.")
+
+        # Execute graph
+        final_state, messages = await self._execute_graph(state, config)
+
+        return await self.parse_response(
+            final_state,
+            messages,
+            response_granularity,
+        )
 
     async def parse_response(
         self,
         state: AgentState,
         messages: list[Message],
         response_granularity: ResponseGranularity = ResponseGranularity.LOW,
-    ):
+    ) -> dict[str, Any]:
+        """Parse response based on granularity."""
         match response_granularity:
             case ResponseGranularity.FULL:
                 # Return full state and messages
-                return {"state": state, "messages": messages}
+                return {"state": state.to_dict(include_internal=False), "messages": messages}
             case ResponseGranularity.PARTIAL:
                 # Return state and summary of messages
                 return {
@@ -96,198 +132,224 @@ class CompiledGraph:
 
         return {"messages": messages}
 
-    async def ainvoke(
-        self,
-        input_data: dict[str, Any],
-        config: dict[str, Any],
-        response_granularity: ResponseGranularity = ResponseGranularity.LOW,
-    ) -> dict[str, Any]:
-        """Execute the graph asynchronously."""
-        input_data = input_data or {}
-        config = config or {}
-
-        # Validate input data
-        if not input_data.get("messages"):
-            raise ValueError("Input data must contain 'messages'.")
-
-        # Initialize state
-        state = self._initialize_state(input_data, config)
-
-        # Execute graph
-        final_state, messages = await self._execute_graph(
-            state,
-            config,
-        )
-
-        return await self.parse_response(
-            final_state,
-            messages,
-            response_granularity,
-        )
-
-    # async def astream(
-    #     self,
-    #     input_data: Optional[Dict[str, Any]] = None,
-    #     config: Optional[Dict[str, Any]] = None,
-    # ):
-    #     """Stream graph execution asynchronously."""
-    #     input_data = input_data or {}
-    #     config = config or {}
-
-    #     # Initialize state
-    #     state = self._initialize_state(input_data, config)
-
-    #     # Stream execution
-    #     async for step_result in self._stream_graph(state, config):
-    #         yield step_result
-
-    def _initialize_state(
+    async def _load_or_create_state(
         self,
         input_data: dict[str, Any],
         config: dict[str, Any],
     ) -> AgentState:
-        """Initialize the graph state."""
+        """Load existing state from checkpointer or create new state."""
+        # Try to load existing state if checkpointer is available
+        if self.checkpointer:
+            existing_state = self.checkpointer.get_state(config)
+            if existing_state:
+                # Merge new messages with existing context
+                new_messages = input_data.get("messages", [])
+                if new_messages:
+                    existing_state.context = add_messages(existing_state.context, new_messages)
+                return existing_state
+
+        # Create new state
         state: AgentState = self.state_graph.state
-        # Merge new messages with existing context
+        # Set thread_id in execution metadata
+        thread_id = config.get("thread_id", "default")
+        state.execution_meta.thread_id = thread_id
+
+        # Merge new messages with context
         new_messages = input_data.get("messages", [])
         if new_messages:
             state.context = add_messages(state.context, new_messages)
         return state
+
+    async def _call_realtime_sync(
+        self,
+        state: AgentState,
+        messages: list[Message],
+        config: dict[str, Any],
+    ) -> None:
+        """Call the realtime state sync hook if provided."""
+        if not self.realtime_state_sync:
+            return
+
+        exec_meta = state.execution_meta.to_dict()
+
+        try:
+            # Check if it's an async function
+            if asyncio.iscoroutinefunction(self.realtime_state_sync):
+                await self.realtime_state_sync(state, messages, exec_meta, config)
+            else:
+                # Sync function
+                self.realtime_state_sync(state, messages, exec_meta, config)
+        except Exception:
+            if self.debug:
+                # Debug logging could be added here if needed
+                pass
 
     async def _execute_graph(
         self,
         state: AgentState,
         config: dict[str, Any],
     ) -> tuple[AgentState, list[Message]]:
-        """Execute the entire graph."""
-        current_node = START
-        max_steps = config.get("recursion_limit", 25)
-        step = 0
+        """Execute the entire graph with support for interrupts and resuming."""
         messages: list[Message] = []
+        max_steps = config.get("recursion_limit", 25)
 
-        while current_node != END and step < max_steps:
-            # Execute current node
-            node = self.state_graph.nodes[current_node]
+        # Get current execution info from state
+        current_node = state.execution_meta.current_node
+        step = state.execution_meta.step
 
-            if self.debug:
-                print(f"Executing node: {current_node}")
+        try:
+            while current_node != END and step < max_steps:
+                # Update execution metadata
+                state.set_current_node(current_node)
+                state.execution_meta.step = step
 
-            result = await node.execute(
-                state,
-                config,
-                self.checkpointer,
-                self.store,
-            )
+                # Check for interrupt_before
+                if await self._check_and_handle_interrupt(current_node, "before", state, config):
+                    return state, messages
 
-            # Handle Command returns
-            if isinstance(result, Command):
-                # Apply state updates
-                if result.update:
-                    if isinstance(result.update, ModelResponse):
-                        lm = Message.from_response(result.update)
-                        messages.append(lm)
-                        state.context = add_messages(state.context, [lm])
-                    elif isinstance(result.update, AgentState):
-                        state = result.update
-                        messages.append(
-                            state.context[-1] if state.context else Message.from_text("Unknown")
-                        )
-                # Handle navigation
-                if result.goto:
-                    current_node = result.goto
+                # Execute current node
+                node = self.state_graph.nodes[current_node]
+                if self.debug:
+                    # Debug logging could be added here if needed
+                    pass
 
-            elif isinstance(result, Message):
-                messages.append(result)
-                # update the start also
-                state.context = add_messages(state.context, [result])
-
-            elif isinstance(result, AgentState):
-                state = result
-                messages.append(
-                    state.context[-1] if state.context else Message.from_text("Unknown")
+                result = await node.execute(
+                    state,
+                    config,
+                    self.checkpointer,
+                    self.store,
                 )
 
-            elif isinstance(result, dict):
-                lm = Message.from_dict(result)
-                messages.append(lm)
-                state.context = add_messages(state.context, [lm])
+                # Process result and get next node
+                state, messages, next_node = await self._process_node_result(
+                    result,
+                    state,
+                    messages,
+                )
 
-            elif isinstance(result, str):
-                lm = Message.from_text(result)
-                messages.append(lm)
-                state.context = add_messages(state.context, [lm])
+                # Call realtime sync after node execution (if state/messages changed)
+                await self._call_realtime_sync(state, messages, config)
 
-            elif isinstance(result, ModelResponse):
-                lm = Message.from_response(result)
-                messages.append(lm)
-                state.context = add_messages(state.context, [lm])
+                # Check for interrupt_after
+                if await self._check_and_handle_interrupt(
+                    current_node,
+                    "after",
+                    state,
+                    config,
+                ):
+                    # For interrupt_after, advance to next node before pausing
+                    if next_node is None:
+                        next_node = self._get_next_node(current_node, state)
+                    state.set_current_node(next_node)
+                    # Persist state with updated node pointer
+                    if self.checkpointer:
+                        self.checkpointer.update_state(config, state)
+                    return state, messages
 
-            else:
-                print("Nothing returned from node execution")
+                # Get next node (only if no explicit navigation from Command)
+                if next_node is None:
+                    current_node = self._get_next_node(current_node, state)
+                else:
+                    current_node = next_node
 
-            current_node = self._get_next_node(current_node, state)
+                # Advance step after successful node execution
+                step += 1
+                state.advance_step()
 
-            step += 1
-            state.step = step
+                if step >= max_steps:
+                    raise GraphRecursionError(
+                        f"Graph execution exceeded recursion limit: {max_steps}"
+                    )
 
-            if step >= max_steps:
-                raise GraphRecursionError(f"Graph execution exceeded recursion limit: {max_steps}")
+            # Execution completed successfully
+            state.complete()
+            if self.checkpointer:
+                self.checkpointer.update_state(config, state)
 
-        return state, messages
+            return state, messages
 
-    # async def _stream_graph(
-    #     self,
-    #     state: AgentState,
-    #     config: Dict[str, Any],
-    # ):
-    #     """Stream graph execution step by step."""
-    #     current_node = START
-    #     max_steps = config.get("recursion_limit", 100)
-    #     step = 0
+        except Exception as e:
+            # Handle execution errors
+            state.error(str(e))
+            if self.checkpointer:
+                self.checkpointer.update_state(config, state)
+            raise
 
-    #     while current_node != END and step < max_steps:
-    #         # Execute current node
-    #         node: Node = self.state_graph.nodes[current_node]
+    async def _process_node_result(
+        self, result: Any, state: AgentState, messages: list[Message]
+    ) -> tuple[AgentState, list[Message], str | None]:
+        """Process result from node execution and return updated state, messages, and next node."""
+        next_node = None
 
-    #         result = await node.execute(state, config)
+        if isinstance(result, Command):
+            # Apply state updates
+            if result.update:
+                if isinstance(result.update, ModelResponse):
+                    lm = Message.from_response(result.update)
+                    messages.append(lm)
+                    state.context = add_messages(state.context, [lm])
+                elif isinstance(result.update, AgentState):
+                    state = result.update
+                    messages.append(
+                        state.context[-1] if state.context else Message.from_text("Unknown")
+                    )
+            # Handle navigation
+            if result.goto:
+                next_node = result.goto
 
-    #         # Handle Command returns
-    #         if isinstance(result, Command):
-    #             # Apply state updates
-    #             if result.update:
-    #                 state.update(result.update)
-    #                 # Fixme: Update context if messages changed
-    #                 # state = self.context_manager.update_context(state)
+        elif isinstance(result, Message):
+            messages.append(result)
+            state.context = add_messages(state.context, [result])
 
-    #             # Yield step result
-    #             yield {current_node: result.update or {}}
+        elif isinstance(result, AgentState):
+            state = result
+            messages.append(state.context[-1] if state.context else Message.from_text("Unknown"))
 
-    #             # Handle navigation
-    #             if result.goto:
-    #                 current_node = result.goto
-    #             else:
-    #                 current_node = self._get_next_node(current_node, state)
-    #         else:
-    #             # Apply state updates from dict return
-    #             if isinstance(result, dict):
-    #                 state.update(result)
-    #                 # Fixme: later
-    #                 # state = self.context_manager.update_context(state)
+        elif isinstance(result, dict):
+            lm = Message.from_dict(result)
+            messages.append(lm)
+            state.context = add_messages(state.context, [lm])
 
-    #             # Yield step result
-    #             yield {current_node: result}
+        elif isinstance(result, str):
+            lm = Message.from_text(result)
+            messages.append(lm)
+            state.context = add_messages(state.context, [lm])
 
-    #             # Get next node via edges
-    #             current_node = self._get_next_node(current_node, state)
+        elif isinstance(result, ModelResponse):
+            lm = Message.from_response(result)
+            messages.append(lm)
+            state.context = add_messages(state.context, [lm])
 
-    #         step += 1
-    #         if "step" in state:
-    #             state["step"] = step
+        return state, messages, next_node
 
-    #     if step >= max_steps:
-    #         raise GraphRecursionError(
-    #             f"Graph execution exceeded recursion limit: {max_steps}"
-    #         )
+    async def _check_and_handle_interrupt(
+        self,
+        current_node: str,
+        interrupt_type: str,
+        state: AgentState,
+        config: dict[str, Any],
+    ) -> bool:
+        """Check for interrupts and save state if needed. Returns True if interrupted."""
+        interrupt_nodes = (
+            self.interrupt_before if interrupt_type == "before" else self.interrupt_after
+        )
+
+        if current_node in interrupt_nodes:
+            status = (
+                ExecutionStatus.INTERRUPTED_BEFORE
+                if interrupt_type == "before"
+                else ExecutionStatus.INTERRUPTED_AFTER
+            )
+            state.set_interrupt(
+                current_node,
+                f"interrupt_{interrupt_type}: {current_node}",
+                status,
+            )
+            # Save state and interrupt
+            if self.checkpointer:
+                self.checkpointer.update_state(config, state)
+            return True
+        return False
 
     def _get_next_node(
         self,
@@ -314,9 +376,10 @@ class CompiledGraph:
                         return condition_result
                     elif condition_result:
                         return edge.to_node
-                except Exception as e:
+                except Exception:
                     if self.debug:
-                        print(f"Error in condition: {e}")
+                        # Debug logging could be added here if needed
+                        pass
                     continue
 
         # Return first static edge if no conditions matched

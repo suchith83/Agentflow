@@ -1,5 +1,5 @@
 from collections.abc import Callable
-from typing import TYPE_CHECKING, Union
+from typing import TYPE_CHECKING, Any, Union
 
 from pyagenity.graph.checkpointer import BaseCheckpointer, BaseStore, InMemoryCheckpointer
 from pyagenity.graph.exceptions import GraphError
@@ -122,13 +122,36 @@ class StateGraph:
         checkpointer: BaseCheckpointer | None = None,
         store: BaseStore | None = None,
         debug: bool = False,
+        interrupt_before: list[str] | None = None,
+        interrupt_after: list[str] | None = None,
+        realtime_state_sync: Any | None = None,
     ) -> "CompiledGraph":
-        """Compile the graph for execution."""
+        """Compile the graph for execution.
+
+        Args:
+            checkpointer: Checkpointer for state persistence
+            store: Store for additional data
+            debug: Enable debug mode
+            interrupt_before: List of node names to interrupt before execution
+            interrupt_after: List of node names to interrupt after execution
+            realtime_state_sync: Hook for frequent state sync (sync or async callable)
+        """
         if not self.entry_point:
             raise GraphError("No entry point set. Use set_entry_point() or add an edge from START.")
 
         # Validate graph structure
         self._validate_graph()
+
+        # Validate interrupt node names
+        interrupt_before = interrupt_before or []
+        interrupt_after = interrupt_after or []
+
+        all_interrupt_nodes = set(interrupt_before + interrupt_after)
+        invalid_nodes = all_interrupt_nodes - set(self.nodes.keys())
+        if invalid_nodes:
+            raise GraphError(
+                f"Invalid interrupt nodes: {invalid_nodes}. Must be existing node names."
+            )
 
         if not checkpointer:
             checkpointer = InMemoryCheckpointer()
@@ -144,6 +167,9 @@ class StateGraph:
             checkpointer=checkpointer,
             store=store,
             debug=debug,
+            interrupt_before=interrupt_before,
+            interrupt_after=interrupt_after,
+            realtime_state_sync=realtime_state_sync,
         )
 
     def _validate_graph(self):
