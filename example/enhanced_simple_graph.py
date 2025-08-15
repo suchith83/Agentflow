@@ -1,4 +1,6 @@
-from typing import Any
+"""Enhanced simple_graph.py example showing proper type hints with injectable parameters."""
+
+from typing import Any, TypedDict
 
 from dotenv import load_dotenv
 from litellm import completion
@@ -12,19 +14,32 @@ from pyagenity.graph.utils import END, InjectState, InjectToolCallID, Message, c
 load_dotenv()
 
 
+# Example of a typed config for better IDE support
+class GraphConfig(TypedDict):
+    """Configuration with proper typing for IDE support."""
+
+    thread_id: str
+    recursion_limit: int
+
+
 def get_weather(
     location: str,
-    tool_call_id: InjectToolCallID = None,
-    state: InjectState = None,
+    tool_call_id: InjectToolCallID[str] = None,  # IDE knows: str
+    state: InjectState[AgentState] = None,  # IDE knows: AgentState
 ) -> str:
     """
     Get the current weather for a specific location.
-    This demo shows injectable parameters: tool_call_id and state are automatically injected.
+
+    Now with enhanced type hints:
+    - tool_call_id: IDE knows this is str
+    - state: IDE knows this is AgentState and provides autocomplete for state.context, etc.
     """
-    # You can access injected parameters here
+    # IDE will provide autocomplete for these!
     if tool_call_id:
-        print(f"Tool call ID: {tool_call_id}")
+        print(f"Tool call ID: {tool_call_id}")  # IDE knows tool_call_id is str
+
     if state and hasattr(state, "context"):
+        # IDE knows state.context exists and can provide autocomplete
         print(f"Number of messages in context: {len(state.context)}")
 
     return f"The weather in {location} is sunny."
@@ -96,6 +111,7 @@ def should_use_tools(state: AgentState) -> str:
     return END
 
 
+# Build the graph
 graph = StateGraph()
 graph.add_node("MAIN", main_agent)
 graph.add_node("TOOL", tool_node)
@@ -111,11 +127,31 @@ graph.set_entry_point("MAIN")
 app = graph.compile()
 
 
-# now run it
+# Demonstrate the enhanced usage
+if __name__ == "__main__":
+    print("Enhanced Injectable Types Example")
+    print("=" * 40)
 
-inp = {"messages": [Message.from_text("Please call the get_weather function for New York City")]}
-config = {"thread_id": "12345", "recursion_limit": 10}
+    # Show the tool specification - injectable params are excluded
+    tools = tool_node.all_tools()
+    print("\nTool specification (injectable params excluded):")
+    for tool in tools:
+        func_name = tool["function"]["name"]
+        params = list(tool["function"]["parameters"]["properties"].keys())
+        print(f"  {func_name}: {params}")
 
-res = app.invoke(inp, config=config)
+    print("\nBenefits of enhanced injectable types:")
+    print("✓ IDE provides autocomplete for state.context")
+    print("✓ IDE knows tool_call_id is str type")
+    print("✓ Type safety at development time")
+    print("✓ Clean tool specifications for LLMs")
 
-print(res)
+    # Run the actual example
+    print("\nRunning graph example...")
+    inp = {
+        "messages": [Message.from_text("Please call the get_weather function for New York City")]
+    }
+    config: GraphConfig = {"thread_id": "12345", "recursion_limit": 10}
+
+    res = app.invoke(inp, config=config)
+    print(f"\nResult: {len(res['messages'])} messages generated")

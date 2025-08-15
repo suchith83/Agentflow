@@ -5,6 +5,17 @@ from .command import Command
 from .constants import END, START, ExecutionState, ResponseGranularity, StorageLevel
 from .converter import convert_messages
 
+# Export from injectable.py
+from .injectable import (
+    InjectCheckpointer,
+    InjectConfig,
+    InjectState,
+    InjectStore,
+    InjectToolCallID,
+    get_injectable_param_name,
+    is_injectable_type,
+)
+
 # Export from message.py
 from .message import Message, TokenUsages
 
@@ -17,6 +28,11 @@ __all__ = [
     "START",
     "Command",
     "ExecutionState",
+    "InjectCheckpointer",
+    "InjectConfig",
+    "InjectState",
+    "InjectStore",
+    "InjectToolCallID",
     "Message",
     "ResponseGranularity",
     "StorageLevel",
@@ -24,6 +40,8 @@ __all__ = [
     "add_messages",
     "append_items",
     "convert_messages",
+    "get_injectable_param_name",
+    "is_injectable_type",
     "replace_messages",
     "replace_value",
 ]

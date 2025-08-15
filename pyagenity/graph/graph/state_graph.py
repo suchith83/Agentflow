@@ -1,10 +1,12 @@
 from collections.abc import Callable
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Union
 
 from pyagenity.graph.checkpointer import BaseCheckpointer, BaseStore, InMemoryCheckpointer
 from pyagenity.graph.exceptions import GraphError
 from pyagenity.graph.state import AgentState, BaseContextManager
 from pyagenity.graph.utils import END, START
+
+from .tool_node import ToolNode
 
 
 if TYPE_CHECKING:
@@ -39,15 +41,15 @@ class StateGraph:
 
     def add_node(
         self,
-        name_or_func: str | Callable,
-        func: Callable | None = None,
+        name_or_func: Union[str, Callable],
+        func: Union[Callable, "ToolNode", None] = None,
     ) -> "StateGraph":
         """Add a node to the graph."""
         if callable(name_or_func) and func is None:
             # Function passed as first argument
             name = name_or_func.__name__
             func = name_or_func
-        elif isinstance(name_or_func, str) and callable(func):
+        elif isinstance(name_or_func, str) and (callable(func) or isinstance(func, ToolNode)):
             # Name and function passed separately
             name = name_or_func
         else:
@@ -133,7 +135,9 @@ class StateGraph:
 
         self.compiled = True
         # Import here to avoid circular import at module import time
-        from .compiled_graph import CompiledGraph
+
+        # Import the CompiledGraph class
+        from .compiled_graph import CompiledGraph  # noqa: PLC0415
 
         return CompiledGraph(
             state_graph=self,

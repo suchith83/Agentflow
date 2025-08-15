@@ -1,0 +1,28 @@
+Task In library
+1. Dependency Injection
+2. Make injectable in tool calls and exclude those when we are converting for llm
+3. Play/Pause make the node interactable
+4. Human in the loop
+5. Multi Agent
+
+
+API with python
+with workflow run
+1. invoke
+2. stream
+3. sse
+
+# threads
+1. v1/threads -> GET
+2. v1/threads/{thread_id} -> GET
+3. v1/threads/{thread_id} -> PATCH
+4. v1/threads/{thread_id} -> DELETE
+
+# Messages
+1. v1/threads/{thread_id}/messages -> GET
+2. v1/threads/{thread_id}/messages/{message_id} -> GET
+3. v1/threads/{thread_id}/messages/{message_id} -> DELETE
+
+# State
+1. v1/threads/{thread_id}/state -> GET
+2. v1/threads/{thread_id}/state -> PATCH
