@@ -73,31 +73,21 @@ class SecurityConfig:
 class SecurityError(Exception):
     """Base security exception."""
 
-    pass
-
 
 class InputValidationError(SecurityError):
     """Raised when input validation fails."""
-
-    pass
 
 
 class PromptInjectionError(SecurityError):
     """Raised when prompt injection is detected."""
 
-    pass
-
 
 class RateLimitError(SecurityError):
     """Raised when rate limit is exceeded."""
 
-    pass
-
 
 class ResourceLimitError(SecurityError):
     """Raised when resource limits are exceeded."""
-
-    pass
 
 
 class SecurityValidator:

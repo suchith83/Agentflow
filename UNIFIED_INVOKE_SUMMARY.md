@@ -97,14 +97,14 @@ compiled_graph = graph.compile(
 
 ## Validation Results
 
-✅ **Fresh execution detection** - Works correctly  
-✅ **Auto-resume detection** - Works correctly  
-✅ **Interrupt points** - Pause/resume at configured nodes  
-✅ **Resume data propagation** - Additional input reaches nodes  
-✅ **Multi-user isolation** - Separate thread_ids maintain independent state  
-✅ **Realtime sync hooks** - Both sync and async variants work  
-✅ **State persistence** - Execution metadata embedded and persisted atomically  
-✅ **Checkpointer compatibility** - Existing and new API both functional  
+✅ **Fresh execution detection** - Works correctly
+✅ **Auto-resume detection** - Works correctly
+✅ **Interrupt points** - Pause/resume at configured nodes
+✅ **Resume data propagation** - Additional input reaches nodes
+✅ **Multi-user isolation** - Separate thread_ids maintain independent state
+✅ **Realtime sync hooks** - Both sync and async variants work
+✅ **State persistence** - Execution metadata embedded and persisted atomically
+✅ **Checkpointer compatibility** - Existing and new API both functional
 
 ## Files Modified
 

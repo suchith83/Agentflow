@@ -22,6 +22,7 @@ from pyagenity.graph.utils import (
 )
 from pyagenity.graph.utils.callable_utils import call_sync_or_async
 
+
 # Generic type variable bound to AgentState for compiled graph subtyping
 StateT = TypeVar("StateT", bound=AgentState)
 

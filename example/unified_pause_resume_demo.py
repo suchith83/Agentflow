@@ -14,9 +14,9 @@ from typing import Any
 from pyagenity.graph.checkpointer.in_memory_checkpointer import InMemoryCheckpointer
 from pyagenity.graph.graph.state_graph import StateGraph
 from pyagenity.graph.state.agent_state import AgentState
-from pyagenity.graph.utils.message import Message
 from pyagenity.graph.utils.command import Command
 from pyagenity.graph.utils.constants import END
+from pyagenity.graph.utils.message import Message
 
 
 def dummy_realtime_sync(

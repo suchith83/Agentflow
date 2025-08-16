@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import Any, Generic, TypeVar
 
+
 # Generic type variable for extensible data types
 DataT = TypeVar("DataT")
 

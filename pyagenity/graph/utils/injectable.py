@@ -6,9 +6,9 @@ and should not be included in the LLM tool specification.
 
 from typing import TYPE_CHECKING, Generic, TypeVar
 
+
 if TYPE_CHECKING:
-    from pyagenity.graph.checkpointer import BaseCheckpointer, BaseStore
-    from pyagenity.graph.state import AgentState
+    pass
 
 T = TypeVar("T")
 

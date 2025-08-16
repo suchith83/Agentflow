@@ -5,6 +5,7 @@ This demo shows stream and astream methods working with various response types.
 """
 
 import asyncio
+
 from pyagenity.graph.graph.state_graph import StateGraph
 from pyagenity.graph.state.agent_state import AgentState
 from pyagenity.graph.utils.message import Message

@@ -1,6 +1,5 @@
 """Demo showing enhanced injectable types with proper IDE type hints."""
 
-import json
 from typing import Any, TypedDict
 
 from pyagenity.graph.graph.tool_node import ToolNode

@@ -21,7 +21,7 @@ The PyAgenity graph system now includes comprehensive pause/resume functionality
 ### 3. **Checkpointer Integration**
 - ✅ Extended `BaseCheckpointer` with execution state methods:
   - `put_execution_state()` - Save execution state
-  - `get_execution_state()` - Load execution state  
+  - `get_execution_state()` - Load execution state
   - `clear_execution_state()` - Clean up completed executions
 - ✅ Implemented in `InMemoryCheckpointer`
 - ✅ Thread-isolated state storage
@@ -44,7 +44,7 @@ The PyAgenity graph system now includes comprehensive pause/resume functionality
 ### **Test Results:**
 ```
 ✅ Basic interrupt_before and interrupt_after functionality
-✅ Pausing execution at specified nodes  
+✅ Pausing execution at specified nodes
 ✅ Resuming execution from interrupted state
 ✅ Multi-user state isolation (different users paused at different points)
 ✅ Checkpointer integration for state persistence
@@ -100,7 +100,7 @@ The pause/resume functionality is now fully integrated into PyAgenity and ready 
 
 ### **Key Benefits:**
 - **Human-in-the-loop workflows** - Pause for user input/approval
-- **Long-running processes** - Interrupt and resume complex workflows  
+- **Long-running processes** - Interrupt and resume complex workflows
 - **Multi-user applications** - Independent execution contexts per user
 - **Debugging support** - Step through execution for development
 - **State persistence** - Survive application restarts with checkpointer

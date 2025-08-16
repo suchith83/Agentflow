@@ -20,7 +20,8 @@ import time
 import uuid
 from collections.abc import Callable
 from contextlib import contextmanager
-from typing import Any, Union
+from typing import Any
+
 
 # Thread-local storage for correlation IDs
 _local = threading.local()

@@ -10,32 +10,29 @@ This test verifies that all the implemented improvements work correctly:
 
 import asyncio
 import logging
-import sys
 import time
+
+from pyagenity.graph.checkpointer.in_memory_checkpointer import InMemoryCheckpointer
 
 # Test imports
 from pyagenity.graph.utils.logging import (
     configure_logging,
     correlation_context,
-    security_logger,
-    performance_logger,
     debug_logger,
-)
-from pyagenity.graph.utils.security import (
-    SecurityValidator,
-    SecurityConfig,
-    InputValidationError,
-    PromptInjectionError,
-    RateLimitError,
-    ResourceLimitError,
+    performance_logger,
+    security_logger,
 )
 from pyagenity.graph.utils.performance import (
     LRUCache,
     MemoryEfficientList,
-    memory_monitor,
     cache_with_ttl,
+    memory_monitor,
 )
-from pyagenity.graph.checkpointer.in_memory_checkpointer import InMemoryCheckpointer
+from pyagenity.graph.utils.security import (
+    InputValidationError,
+    PromptInjectionError,
+    SecurityValidator,
+)
 
 
 def test_security_validation():
@@ -233,7 +230,6 @@ async def test_integration():
     try:
         # This would test the full graph execution with all improvements
         # For now, just test that imports work
-        from pyagenity.graph.graph.compiled_graph import CompiledGraph
 
         print("✓ Enhanced CompiledGraph imports successfully")
 

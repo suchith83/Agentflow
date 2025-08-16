@@ -10,7 +10,7 @@ This example shows:
 """
 
 from dataclasses import dataclass, field
-from typing import Any, Dict
+from typing import Any
 
 from dotenv import load_dotenv
 from litellm import completion
@@ -28,6 +28,7 @@ from pyagenity.graph.utils import (
     convert_messages,
 )
 
+
 load_dotenv()
 
 
@@ -36,9 +37,9 @@ load_dotenv()
 class CustomAgentState(AgentState):
     """Custom state that extends AgentState with application-specific fields."""
 
-    user_preferences: Dict[str, Any] = field(default_factory=dict)
-    session_data: Dict[str, str] = field(default_factory=dict)
-    analytics: Dict[str, int] = field(default_factory=lambda: {"api_calls": 0, "tool_uses": 0})
+    user_preferences: dict[str, Any] = field(default_factory=dict)
+    session_data: dict[str, str] = field(default_factory=dict)
+    analytics: dict[str, int] = field(default_factory=lambda: {"api_calls": 0, "tool_uses": 0})
 
 
 # === 2. Injectable Dependencies ===
@@ -51,10 +52,10 @@ class DatabaseService:
             "products": {"laptop": {"price": 999, "stock": 5}},
         }
 
-    def get_user_preferences(self, user_id: str) -> Dict[str, Any]:
+    def get_user_preferences(self, user_id: str) -> dict[str, Any]:
         return self.data.get("users", {}).get(user_id, {}).get("preferences", {})
 
-    def get_product_info(self, product_id: str) -> Dict[str, Any]:
+    def get_product_info(self, product_id: str) -> dict[str, Any]:
         return self.data.get("products", {}).get(product_id, {})
 
 
@@ -121,7 +122,7 @@ def get_user_preferences(
 
         return f"User {user_id} preferences: {preferences}"
 
-    return f"Database service not available"
+    return "Database service not available"
 
 
 def get_product_info(
@@ -166,7 +167,7 @@ def get_product_info(
 
         return result
 
-    return f"Database service not available"
+    return "Database service not available"
 
 
 # === 4. Main Agent Function ===
@@ -188,7 +189,7 @@ def main_agent(
     prompts = """
     You are a helpful assistant with access to user preferences and product information.
     You can help users with their preferences and provide product details.
-    
+
     Available tools:
     - get_user_preferences: Get user's saved preferences
     - get_product_info: Get detailed product information

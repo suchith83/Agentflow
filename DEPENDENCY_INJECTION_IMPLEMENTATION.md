@@ -25,7 +25,7 @@ Successfully implemented dependency injection and generic state management for P
 - **InjectState[T]**: For state injection with type hints
 - **InjectToolCallID[T]**: For tool call ID injection
 - **InjectCheckpointer[T]**: For checkpointer injection
-- **InjectStore[T]**: For store injection  
+- **InjectStore[T]**: For store injection
 - **InjectConfig[T]**: For config injection
 
 #### Usage Example:
@@ -74,7 +74,7 @@ class CustomAgentState(AgentState):
 - **Dependency injection support**: Pass `DependencyContainer` in constructor
 - **Backward compatibility**: Default to `AgentState` if no type specified
 
-#### CompiledGraph Enhancements  
+#### CompiledGraph Enhancements
 - **Generic type parameter**: `CompiledGraph[StateT]`
 - **Passes dependencies**: Automatically passes dependency container to nodes
 - **Type-safe checkpointing**: Uses generic checkpointer types
@@ -109,7 +109,7 @@ graph.add_node("process", process_data)
 
 ### Custom State with Generic Types
 ```python
-@dataclass 
+@dataclass
 class MyState(AgentState):
     custom_field: str = "default"
 
@@ -134,7 +134,7 @@ def get_user_data(
     cached = cache.get(f"user:{user_id}")
     if cached:
         return cached
-    
+
     data = database.get_user(user_id)
     cache.set(f"user:{user_id}", data)
     return f"User data: {data}"
@@ -146,7 +146,7 @@ tool_node = ToolNode([get_user_data])
 
 ### Existing Code Compatibility
 - ✅ All existing `AgentState` usage continues to work
-- ✅ Non-annotated function parameters work as before  
+- ✅ Non-annotated function parameters work as before
 - ✅ Existing graphs compile and run without changes
 - ✅ All existing tests pass
 
@@ -206,7 +206,7 @@ tool_node = ToolNode([get_user_data])
 - ✅ Existing streaming tests pass
 - ✅ Complex multi-node workflows function correctly
 
-### New Feature Tests  
+### New Feature Tests
 - ✅ Dependency injection works in nodes
 - ✅ Tool dependency injection functions properly
 - ✅ Custom state subclassing works

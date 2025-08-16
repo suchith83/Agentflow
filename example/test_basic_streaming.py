@@ -5,8 +5,7 @@ Simple test for streaming functionality.
 import asyncio
 
 from pyagenity.graph.graph import StateGraph
-from pyagenity.graph.state import AgentState
-from pyagenity.graph.utils import END, Message
+from pyagenity.graph.utils import Message
 
 
 def simple_agent(state, config, checkpointer=None, store=None):

@@ -1,9 +1,9 @@
 """Streaming utilities for handling both streamable and non-streamable responses."""
 
-from uuid import uuid4
 import asyncio
 import time
 from collections.abc import AsyncIterator, Generator
+from uuid import uuid4
 
 from litellm.types.utils import ModelResponse
 

@@ -28,7 +28,7 @@ The user asked: "we need streaming response so we need stream and astream to ach
 
 ### 4. Response Type Support
 - **String responses**: Character-by-character streaming
-- **Dict responses**: Content extraction and streaming (with proper message format validation)  
+- **Dict responses**: Content extraction and streaming (with proper message format validation)
 - **AgentState responses**: Full state object streaming
 - **None responses**: Graceful handling with state passthrough
 - **Multi-node graphs**: Continuous streaming across multiple nodes
@@ -54,7 +54,7 @@ Comprehensive testing showed successful streaming for:
 for chunk in compiled_graph.stream(input_data, config=config):
     print(f"CHUNK: {chunk.content} (final: {chunk.is_final})")
 
-# Async streaming  
+# Async streaming
 async for chunk in compiled_graph.astream(input_data, config=config):
     print(f"CHUNK: {chunk.content} (final: {chunk.is_final})")
 ```

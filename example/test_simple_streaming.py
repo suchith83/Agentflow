@@ -5,7 +5,6 @@ Simple test to debug the streaming issue.
 import asyncio
 
 from pyagenity.graph.graph import StateGraph
-from pyagenity.graph.state import AgentState
 from pyagenity.graph.utils import Message
 
 

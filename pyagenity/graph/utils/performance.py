@@ -12,11 +12,11 @@ This module provides:
 import asyncio
 import gc
 import time
-import weakref
-from collections import defaultdict, deque
-from functools import lru_cache, wraps
-from typing import Any, TypeVar, Generic
+from collections import deque
 from concurrent.futures import ThreadPoolExecutor
+from functools import wraps
+from typing import Any, Generic, TypeVar
+
 
 # Optional dependency for advanced memory monitoring
 try:
@@ -27,6 +27,7 @@ except ImportError:
     HAS_PSUTIL = False
 
 from pyagenity.graph.utils.logging import performance_logger
+
 
 T = TypeVar("T")
 K = TypeVar("K")

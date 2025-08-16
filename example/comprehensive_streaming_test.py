@@ -29,7 +29,7 @@ def agentstate_agent(state, config, checkpointer=None, store=None):
 
 def none_agent(state, config, checkpointer=None, store=None):
     """Agent that returns None."""
-    return None
+    return
 
 
 async def test_string_streaming():

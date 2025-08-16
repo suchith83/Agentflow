@@ -1,5 +1,5 @@
 from collections.abc import Callable
-from typing import TYPE_CHECKING, Any, Generic, TypeVar, Union
+from typing import TYPE_CHECKING, Generic, TypeVar, Union
 
 from pyagenity.graph.checkpointer import BaseCheckpointer, BaseStore, InMemoryCheckpointer
 from pyagenity.graph.exceptions import GraphError
@@ -7,6 +7,7 @@ from pyagenity.graph.state import AgentState, BaseContextManager
 from pyagenity.graph.utils import END, START, DependencyContainer
 
 from .tool_node import ToolNode
+
 
 # Generic type variable bound to AgentState for state subtyping
 StateT = TypeVar("StateT", bound=AgentState)
@@ -49,7 +50,7 @@ class StateGraph(Generic[StateT]):
 
     def add_node(
         self,
-        name_or_func: Union[str, Callable],
+        name_or_func: str | Callable,
         func: Union[Callable, "ToolNode", None] = None,
     ) -> "StateGraph":
         """Add a node to the graph."""
@@ -167,7 +168,7 @@ class StateGraph(Generic[StateT]):
         # Import here to avoid circular import at module import time
 
         # Import the CompiledGraph class
-        from .compiled_graph import CompiledGraph  # noqa: PLC0415
+        from .compiled_graph import CompiledGraph
 
         return CompiledGraph(
             state_graph=self,

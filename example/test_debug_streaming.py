@@ -2,7 +2,6 @@
 Debug test for streaming functionality.
 """
 
-import asyncio
 
 from pyagenity.graph.graph import StateGraph
 from pyagenity.graph.state import AgentState

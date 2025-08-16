@@ -4,8 +4,10 @@ Shows both streaming and non-streaming responses.
 """
 
 from typing import Any
+
 from dotenv import load_dotenv
-from litellm import completion, acompletion
+from litellm import acompletion, completion
+
 from pyagenity.graph.graph import StateGraph
 from pyagenity.graph.graph.tool_node import ToolNode
 from pyagenity.graph.state import AgentState
@@ -55,10 +57,7 @@ async def test_native_async_streaming():
         print(f"\nError in native async streaming: {e}")
 
 
-from pyagenity.graph.graph import StateGraph
-from pyagenity.graph.graph.tool_node import ToolNode
 from pyagenity.graph.state import AgentState
-from pyagenity.graph.utils import END, InjectState, InjectToolCallID, Message, convert_messages
 
 
 load_dotenv()
