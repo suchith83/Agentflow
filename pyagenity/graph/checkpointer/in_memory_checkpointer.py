@@ -11,27 +11,54 @@ class InMemoryCheckpointer(BaseCheckpointer):
     """In-memory checkpointer that persists combined AgentState (including execution metadata)."""
 
     def __init__(self):
-        # Simulate tables with dicts/lists
-        self._threads: dict[str, dict[str, Any]] = {}
-        self._messages: dict[str, list[Message]] = {}
-        self._states: dict[str, AgentState] = {}
-        # Note: _execution_states is kept for compatibility but execution state
-        # is now embedded in AgentState.execution_meta
+        # Use dicts for in-memory storage
+        self._state_store: dict[str, AgentState] = {}
+        self._messages_store: dict[str, list[Message]] = {}
+        self._threads_store: dict[str, dict[str, Any]] = {}
+        self._sync_state_store: dict[str, AgentState] = {}
 
-    def put(
+    def _config_key(self, config: dict[str, Any]) -> str:
+        # Use a string key for config; simple str() for demo, customize as needed
+        return str(sorted(config.items()))
+
+    # === PRIMARY API: Combined State Management ===
+    def put_state(self, config: dict[str, Any], state: AgentState) -> None:
+        key = self._config_key(config)
+        self._state_store[key] = state
+
+    def get_state(self, config: dict[str, Any]) -> AgentState | None:
+        key = self._config_key(config)
+        return self._state_store.get(key)
+
+    def clear_state(self, config: dict[str, Any]) -> None:
+        key = self._config_key(config)
+        self._state_store.pop(key, None)
+
+    # === Realtime Sync State ===
+    def sync_state(self, config: dict[str, Any], state: AgentState) -> None:
+        key = self._config_key(config)
+        self._sync_state_store[key] = state
+
+    def get_sync_state(self, config: dict[str, Any]) -> AgentState | None:
+        key = self._config_key(config)
+        return self._sync_state_store.get(key)
+
+    # === OTHER METHODS: Messages, Threads, etc. ===
+    def put_messages(
         self,
         config: dict[str, Any],
         messages: list[Message],
         metadata: dict[str, Any] | None = None,
     ) -> None:
-        thread_id = config.get("thread_id", "default")
-        self._messages[thread_id] = messages.copy()
-        if metadata:
-            self._threads.setdefault(thread_id, {})["metadata"] = metadata
+        key = self._config_key(config)
+        self._messages_store[key] = messages
 
-    def get(self, config: dict[str, Any]) -> list[Message]:
-        thread_id = config.get("thread_id", "default")
-        return self._messages.get(thread_id, []).copy()
+    def get_message(self, config: dict[str, Any]) -> Message:
+        key = self._config_key(config)
+        msgs = self._messages_store.get(key, [])
+        if not msgs:
+            raise KeyError(f"No messages for config: {config}")
+        return msgs[-1]
 
     def list_messages(
         self,
@@ -40,68 +67,28 @@ class InMemoryCheckpointer(BaseCheckpointer):
         offset: int | None = None,
         limit: int | None = None,
     ) -> list[Message]:
-        thread_id = config.get("thread_id", "default")
-        messages = self._messages.get(thread_id, [])
+        key = self._config_key(config)
+        msgs = self._messages_store.get(key, [])
+        # Optionally filter/search
         if search:
-            messages = [m for m in messages if search in m.content]
+            msgs = [m for m in msgs if search in str(m)]
         if offset is not None:
-            messages = messages[offset:]
+            msgs = msgs[offset:]
         if limit is not None:
-            messages = messages[:limit]
-        return messages.copy()
+            msgs = msgs[:limit]
+        return msgs
 
-    def delete(self, config: dict[str, Any]) -> None:
-        thread_id = config.get("thread_id", "default")
-        self._messages.pop(thread_id, None)
+    def delete_message(self, config: dict[str, Any]) -> None:
+        key = self._config_key(config)
+        self._messages_store.pop(key, None)
 
-    # === PRIMARY API: Combined State Management ===
+    def put_thread(self, config: dict[str, Any], thread_info: dict[str, Any]) -> None:
+        key = self._config_key(config)
+        self._threads_store[key] = thread_info
 
-    def put_state(
-        self,
-        config: dict[str, Any],
-        state: AgentState,
-    ) -> None:
-        """Store complete AgentState (including execution metadata) atomically."""
-        thread_id = config.get("thread_id", "default")
-        self._states[thread_id] = state
-
-    def get_state(self, config: dict[str, Any]) -> AgentState | None:
-        """Get the complete AgentState (including execution metadata)."""
-        thread_id = config.get("thread_id", "default")
-        return self._states.get(thread_id)
-
-    def clear_state(
-        self,
-        config: dict[str, Any],
-    ) -> None:
-        """Clear the complete AgentState for the given config."""
-        thread_id = config.get("thread_id", "default")
-        self._states.pop(thread_id, None)
-
-    # === LEGACY API: For Backward Compatibility ===
-
-    def update_state(
-        self,
-        config: dict[str, Any],
-        state: AgentState,
-    ) -> None:
-        thread_id = config.get("thread_id", "default")
-        self._states[thread_id] = state
-
-    def put_thread(
-        self,
-        config: dict[str, Any],
-        thread_info: dict[str, Any],
-    ) -> None:
-        thread_id = config.get("thread_id", "default")
-        self._threads[thread_id] = thread_info.copy()
-
-    def get_thread(
-        self,
-        config: dict[str, Any],
-    ) -> dict[str, Any] | None:
-        thread_id = config.get("thread_id", "default")
-        return self._threads.get(thread_id)
+    def get_thread(self, config: dict[str, Any]) -> dict[str, Any] | None:
+        key = self._config_key(config)
+        return self._threads_store.get(key)
 
     def list_threads(
         self,
@@ -109,76 +96,18 @@ class InMemoryCheckpointer(BaseCheckpointer):
         offset: int | None = None,
         limit: int | None = None,
     ) -> list[dict[str, Any]]:
-        threads = list(self._threads.values())
+        threads = list(self._threads_store.values())
         if search:
             threads = [t for t in threads if search in str(t)]
         if offset is not None:
             threads = threads[offset:]
         if limit is not None:
             threads = threads[:limit]
-        return [t.copy() for t in threads]
+        return threads
 
-    def cleanup(
-        self,
-        config: dict[str, Any],
-    ) -> None:
-        thread_id = config.get("thread_id", "default")
-        self._messages.pop(thread_id, None)
-        self._states.pop(thread_id, None)
-        self._threads.pop(thread_id, None)
-
-    def put_execution_state(
-        self,
-        config: dict[str, Any],
-        execution_state: ExecutionState,
-    ) -> None:
-        """Store execution state for pause/resume functionality.
-
-        This method is kept for compatibility but execution state is now embedded
-        in AgentState.execution_meta. This method updates the existing AgentState
-        or creates a minimal one if it doesn't exist.
-        """
-        thread_id = config.get("thread_id", "default")
-        execution_state.thread_id = thread_id
-
-        # Get or create AgentState to store the execution metadata
-        state = self._states.get(thread_id)
-        if state:
-            # Update execution metadata in existing state
-            state.execution_meta = execution_state
-        else:
-            # Create minimal state with execution metadata
-            state = AgentState()
-            state.execution_meta = execution_state
-
-        self._states[thread_id] = state
-
-    def get_execution_state(
-        self,
-        config: dict[str, Any],
-    ) -> ExecutionState | None:
-        """Retrieve execution state for pause/resume functionality.
-
-        This method is kept for compatibility but execution state is now embedded
-        in AgentState.execution_meta.
-        """
-        thread_id = config.get("thread_id", "default")
-        state = self._states.get(thread_id)
-        if state:
-            return state.execution_meta
-        return None
-
-    def clear_execution_state(
-        self,
-        config: dict[str, Any],
-    ) -> None:
-        """Clear execution state when execution completes or errors.
-
-        This method is kept for compatibility. It resets the execution metadata
-        in the AgentState but keeps the rest of the state intact.
-        """
-        thread_id = config.get("thread_id", "default")
-        state = self._states.get(thread_id)
-        if state:
-            # Reset execution metadata to initial state
-            state.execution_meta = ExecutionState(current_node="__start__")
+    def cleanup(self, config: dict[str, Any]) -> None:
+        key = self._config_key(config)
+        self._state_store.pop(key, None)
+        self._messages_store.pop(key, None)
+        self._threads_store.pop(key, None)
+        self._sync_state_store.pop(key, None)

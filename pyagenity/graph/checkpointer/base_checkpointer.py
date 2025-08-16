@@ -5,6 +5,7 @@ from pyagenity.graph.state import AgentState
 from pyagenity.graph.state.execution_state import ExecutionState
 from pyagenity.graph.utils import Message
 
+
 if TYPE_CHECKING:
     pass
 
@@ -22,6 +23,15 @@ class BaseCheckpointer(ABC):
     - put_execution_state/get_execution_state: Now implemented via combined state
     - Other methods remain for messages, threads, etc.
     """
+
+    # Realtime Sync of state Recommended to use faster database
+    def sync_state(self, config: dict[str, Any], state: AgentState) -> None:
+        """Sync the current state to a faster database for real-time access."""
+        raise NotImplementedError("sync_state method must be implemented")
+
+    def get_sync_state(self, config: dict[str, Any]) -> AgentState | None:
+        """Get the synced state from the faster database."""
+        raise NotImplementedError("get_sync_state method must be implemented")
 
     # === PRIMARY API: Combined State Management ===
 
@@ -58,75 +68,10 @@ class BaseCheckpointer(ABC):
         """
         raise NotImplementedError("clear_state method must be implemented")
 
-    # === LEGACY API: For Backward Compatibility ===
-
-    def update_state(
-        self,
-        config: dict[str, Any],
-        state: AgentState,
-    ) -> None:
-        """Update the state at the current checkpoint.
-
-        Legacy method - now delegates to put_state for compatibility.
-        """
-        self.put_state(config, state)
-
-    def put_execution_state(
-        self,
-        config: dict[str, Any],
-        execution_state: "ExecutionState",
-    ) -> None:
-        """Store execution state for pause/resume functionality.
-
-        Legacy method - now implemented via combined state approach.
-        This method gets or creates an AgentState and updates its execution_meta.
-        """
-        # Get existing state or create minimal one
-        state = self.get_state(config)
-        if state is None:
-            # Create minimal AgentState with just execution metadata
-            state = AgentState()
-            state.execution_meta = execution_state
-        else:
-            # Update execution metadata in existing state
-            state.execution_meta = execution_state
-
-        # Store via primary API
-        self.put_state(config, state)
-
-    def get_execution_state(
-        self,
-        config: dict[str, Any],
-    ) -> "ExecutionState | None":
-        """Retrieve execution state for pause/resume functionality.
-
-        Legacy method - now implemented via combined state approach.
-        Extracts execution metadata from the stored AgentState.
-        """
-        state = self.get_state(config)
-        if state is not None:
-            return state.execution_meta
-        return None
-
-    def clear_execution_state(
-        self,
-        config: dict[str, Any],
-    ) -> None:
-        """Clear execution state when execution completes or errors.
-
-        Legacy method - now implemented via combined state approach.
-        Resets execution metadata in the AgentState but preserves other state.
-        """
-        state = self.get_state(config)
-        if state is not None:
-            # Reset execution metadata to initial state
-            state.execution_meta = ExecutionState(current_node="__start__")
-            self.put_state(config, state)
-
     # === OTHER METHODS: Messages, Threads, etc. ===
 
     @abstractmethod
-    def put(
+    def put_messages(
         self,
         config: dict[str, Any],
         messages: list[Message],
@@ -136,7 +81,7 @@ class BaseCheckpointer(ABC):
         raise NotImplementedError("put method must be implemented")
 
     @abstractmethod
-    def get(self, config: dict[str, Any]) -> list[Message]:
+    def get_message(self, config: dict[str, Any]) -> Message:
         """Retrieve a checkpoint."""
         raise NotImplementedError("get method must be implemented")
 
@@ -151,7 +96,7 @@ class BaseCheckpointer(ABC):
         """List checkpoints for a thread."""
         raise NotImplementedError("list method must be implemented")
 
-    def delete(self, config: dict[str, Any]) -> None:
+    def delete_message(self, config: dict[str, Any]) -> None:
         """Delete a checkpoint."""
         raise NotImplementedError("delete method must be implemented")
 

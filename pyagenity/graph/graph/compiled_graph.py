@@ -1,5 +1,7 @@
 import asyncio
-from typing import TYPE_CHECKING, Any, Callable
+from collections.abc import Callable
+from tokenize import maybe
+from typing import TYPE_CHECKING, Any
 
 from litellm.types.utils import ModelResponse
 
@@ -14,6 +16,7 @@ from pyagenity.graph.utils import (
     ResponseGranularity,
     add_messages,
 )
+from pyagenity.graph.utils.callable_utils import call_sync_or_async
 
 
 if TYPE_CHECKING:
@@ -31,8 +34,6 @@ class CompiledGraph:
         debug: bool = False,
         interrupt_before: list[str] | None = None,
         interrupt_after: list[str] | None = None,
-        # Hook for frequent state sync (sync or async callable)
-        realtime_state_sync: Callable | None = None,
     ):
         self.state_graph = state_graph
         self.checkpointer = checkpointer
@@ -41,7 +42,6 @@ class CompiledGraph:
         self.context_manager = state_graph.context_manager
         self.interrupt_before = interrupt_before or []
         self.interrupt_after = interrupt_after or []
-        self.realtime_state_sync = realtime_state_sync
 
     def invoke(
         self,
@@ -140,7 +140,12 @@ class CompiledGraph:
         """Load existing state from checkpointer or create new state."""
         # Try to load existing state if checkpointer is available
         if self.checkpointer:
-            existing_state = self.checkpointer.get_state(config)
+            # now first check we have state in realtime sync options
+            existing_state = self.checkpointer.get_sync_state(config)
+            if not existing_state:
+                # If no synced state, try to get from checkpointer
+                existing_state = self.checkpointer.get_state(config)
+
             if existing_state:
                 # Merge new messages with existing context
                 new_messages = input_data.get("messages", [])
@@ -163,26 +168,37 @@ class CompiledGraph:
     async def _call_realtime_sync(
         self,
         state: AgentState,
-        messages: list[Message],
         config: dict[str, Any],
     ) -> None:
         """Call the realtime state sync hook if provided."""
-        if not self.realtime_state_sync:
-            return
+        if self.checkpointer:
+            await call_sync_or_async(self.checkpointer.sync_state, config, state)
 
-        exec_meta = state.execution_meta.to_dict()
+    async def sync_data(
+        self,
+        state: AgentState,
+        config: dict[str, Any],
+        messages: list[Message],
+        trim: bool = False,
+    ) -> None:
+        """Sync the current state and messages to the checkpointer."""
+        if not self.checkpointer:
+            return  # Nothing to do
 
-        try:
-            # Check if it's an async function
-            if asyncio.iscoroutinefunction(self.realtime_state_sync):
-                await self.realtime_state_sync(state, messages, exec_meta, config)
-            else:
-                # Sync function
-                self.realtime_state_sync(state, messages, exec_meta, config)
-        except Exception:
-            if self.debug:
-                # Debug logging could be added here if needed
-                pass
+        new_state = state
+        # if context manager is available then utilize it
+        if self.context_manager and trim:
+            new_state = await call_sync_or_async(
+                self.context_manager.trim_context,
+                state,
+            )
+
+        # first sync with realtime then main db
+        await self._call_realtime_sync(new_state, config)
+
+        await call_sync_or_async(self.checkpointer.put_state, config, new_state)
+        if messages:
+            await call_sync_or_async(self.checkpointer.put_messages, config, messages)
 
     async def _execute_graph(
         self,
@@ -202,6 +218,7 @@ class CompiledGraph:
                 # Update execution metadata
                 state.set_current_node(current_node)
                 state.execution_meta.step = step
+                await self._call_realtime_sync(state, config)
 
                 # Check for interrupt_before
                 if await self._check_and_handle_interrupt(current_node, "before", state, config):
@@ -209,10 +226,6 @@ class CompiledGraph:
 
                 # Execute current node
                 node = self.state_graph.nodes[current_node]
-                if self.debug:
-                    # Debug logging could be added here if needed
-                    pass
-
                 result = await node.execute(
                     state,
                     config,
@@ -228,7 +241,7 @@ class CompiledGraph:
                 )
 
                 # Call realtime sync after node execution (if state/messages changed)
-                await self._call_realtime_sync(state, messages, config)
+                await self._call_realtime_sync(state, config)
 
                 # Check for interrupt_after
                 if await self._check_and_handle_interrupt(
@@ -241,9 +254,7 @@ class CompiledGraph:
                     if next_node is None:
                         next_node = self._get_next_node(current_node, state)
                     state.set_current_node(next_node)
-                    # Persist state with updated node pointer
-                    if self.checkpointer:
-                        self.checkpointer.update_state(config, state)
+
                     return state, messages
 
                 # Get next node (only if no explicit navigation from Command)
@@ -255,24 +266,24 @@ class CompiledGraph:
                 # Advance step after successful node execution
                 step += 1
                 state.advance_step()
+                await self._call_realtime_sync(state, config)
 
                 if step >= max_steps:
+                    state.error("Graph execution exceeded maximum steps")
+                    await self._call_realtime_sync(state, config)
                     raise GraphRecursionError(
                         f"Graph execution exceeded recursion limit: {max_steps}"
                     )
 
             # Execution completed successfully
             state.complete()
-            if self.checkpointer:
-                self.checkpointer.update_state(config, state)
-
+            await self.sync_data(state, config, messages, trim=True)
             return state, messages
 
         except Exception as e:
             # Handle execution errors
             state.error(str(e))
-            if self.checkpointer:
-                self.checkpointer.update_state(config, state)
+            await self.sync_data(state, config, messages, trim=True)
             raise
 
     async def _process_node_result(
@@ -346,8 +357,7 @@ class CompiledGraph:
                 status,
             )
             # Save state and interrupt
-            if self.checkpointer:
-                self.checkpointer.update_state(config, state)
+            await self.sync_data(state, config, [])
             return True
         return False
 

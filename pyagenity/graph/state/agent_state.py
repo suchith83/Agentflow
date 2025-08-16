@@ -17,10 +17,8 @@ class AgentState:
 
     context: Annotated[list[Message], add_messages] = field(default_factory=list)
     context_summary: str | None = None
-    active_node: str = ""
     # Internal execution metadata (kept private-ish but accessible to runtime)
     execution_meta: ExecMeta = field(default_factory=lambda: ExecMeta(current_node=START))
-    step: int = 0
 
     def to_dict(self, include_internal: bool = False) -> dict[str, Any]:
         """Serialize state to dict.
@@ -30,8 +28,8 @@ class AgentState:
         d = {
             "context": [m.to_dict() for m in self.context],
             "context_summary": self.context_summary,
-            "active_node": self.active_node,
-            "step": self.step,
+            "active_node": self.execution_meta.current_node,
+            "step": self.execution_meta.step,
         }
         if include_internal:
             d["execution_meta"] = self.execution_meta.to_dict()

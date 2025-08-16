@@ -1,11 +1,10 @@
-import asyncio
 import json
 from collections.abc import Callable
-from concurrent.futures import ThreadPoolExecutor
 from typing import TYPE_CHECKING, Any, Union
 
 from pyagenity.graph.exceptions import NodeError
 from pyagenity.graph.utils import Command
+from pyagenity.graph.utils.callable_utils import call_sync_or_async
 from pyagenity.graph.utils.message import Message
 
 from .tool_node import ToolNode
@@ -26,11 +25,6 @@ class Node:
     ):
         self.name = name
         self.func = func
-        # If func is a ToolNode (registry), it's not a coroutine function
-        # Avoid circular import at runtime; use TYPE_CHECKING for annotations
-
-        is_tool = isinstance(func, ToolNode)
-        self.is_async = False if is_tool else asyncio.iscoroutinefunction(func)
 
     async def _call_tools(
         self,
@@ -112,22 +106,14 @@ class Node:
                     # No context, return available tools
                     raise NodeError("No context available for tool execution")
 
-            elif self.is_async:
-                result = await self.func(state, config, checkpointer, store)
             else:
-                # Execute sync function in thread pool to avoid blocking
-                loop = asyncio.get_running_loop()
-                with ThreadPoolExecutor() as executor:
-                    # its callable sync function so no worry
-                    result = await loop.run_in_executor(
-                        executor,
-                        lambda: self.func(
-                            state,
-                            config,
-                            checkpointer,
-                            store,
-                        ),  # type: ignore
-                    )
+                result = await call_sync_or_async(
+                    self.func,
+                    state,
+                    config,
+                    checkpointer,
+                    store,
+                )
             return result  # pyright: ignore[reportReturnType]
         except Exception as e:
             raise NodeError(f"Error in node '{self.name}': {e!s}") from e
