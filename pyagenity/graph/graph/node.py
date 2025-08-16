@@ -19,13 +19,40 @@ if TYPE_CHECKING:
 
 
 class Node:
-    """Represents a node in the graph."""
+    """Represents a node in the graph workflow.
+
+    A Node encapsulates a function or ToolNode that can be executed as part of
+    a graph workflow. It handles dependency injection, parameter mapping, and
+    execution context management.
+
+    The Node class supports both regular callable functions and ToolNode instances
+    for handling tool-based operations. It automatically injects dependencies
+    based on function signatures and provides legacy parameter support.
+
+    Attributes:
+        name (str): Unique identifier for the node within the graph.
+        func (Union[Callable, ToolNode]): The function or ToolNode to execute.
+
+    Example:
+        >>> def my_function(state, config):
+        ...     return {"result": "processed"}
+        >>> node = Node("processor", my_function)
+        >>> result = await node.execute(state, config)
+    """
 
     def __init__(
         self,
         name: str,
         func: Union[Callable, "ToolNode"],
     ):
+        """Initialize a new Node instance.
+
+        Args:
+            name: Unique identifier for the node within the graph.
+            func: The function or ToolNode to execute when this node is called.
+                Functions should accept at least 'state' and 'config' parameters.
+                ToolNode instances handle tool-based operations.
+        """
         self.name = name
         self.func = func
 
@@ -182,25 +209,34 @@ class Node:
             return None
 
         injectable_param = get_injectable_param_name(param.annotation)
+        if not injectable_param:
+            return None
 
-        if injectable_param == "state":
-            return state
-        elif injectable_param == "config":
-            return config
-        elif injectable_param == "checkpointer":
-            return checkpointer
-        elif injectable_param == "store":
-            return store
-        elif injectable_param == "dependency":
-            # For InjectDep, use the parameter name to look up the dependency
-            if dependency_container and dependency_container.has(param_name):
-                return dependency_container.get(param_name)
-            elif param.default == param.empty:
-                # Required dependency not found
-                raise NodeError(f"Required dependency '{param_name}' not found in container")
-            # If default exists and dependency not found, don't inject (use default)
+        # Map injectable parameters to their values
+        injectable_values = {
+            "state": state,
+            "config": config,
+            "checkpointer": checkpointer,
+            "store": store,
+        }
+
+        if injectable_param in injectable_values:
+            return injectable_values[injectable_param]
+
+        if injectable_param == "dependency":
+            return self._handle_dependency_injection(param, param_name, dependency_container)
 
         return None
+
+    def _handle_dependency_injection(
+        self, param, param_name: str, dependency_container: DependencyContainer | None
+    ) -> Any | None:
+        """Handle dependency injection for InjectDep parameters."""
+        if dependency_container and dependency_container.has(param_name):
+            return dependency_container.get(param_name)
+        if param.default == param.empty:
+            raise NodeError(f"Required dependency '{param_name}' not found in container")
+        return None  # Use default
 
     def _is_legacy_parameter(self, param_name: str) -> bool:
         """Check if parameter is a legacy parameter that should be injected by name."""
@@ -214,13 +250,22 @@ class Node:
         checkpointer: "BaseCheckpointer | None",
         store: "BaseStore | None",
     ) -> Any:
-        """Get value for legacy parameter by name."""
-        if param_name == "state":
-            return state
-        elif param_name == "config":
-            return config
-        elif param_name == "checkpointer":
-            return checkpointer
-        elif param_name == "store":
-            return store
-        return None
+        """Get value for legacy parameter by name.
+
+        Args:
+            param_name: Name of the parameter to get value for.
+            state: Current agent state.
+            config: Configuration dictionary.
+            checkpointer: Optional checkpointer instance.
+            store: Optional store instance.
+
+        Returns:
+            The value for the requested parameter, or None if not found.
+        """
+        legacy_values = {
+            "state": state,
+            "config": config,
+            "checkpointer": checkpointer,
+            "store": store,
+        }
+        return legacy_values.get(param_name)

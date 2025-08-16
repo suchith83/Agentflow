@@ -109,50 +109,103 @@ class ToolNode:
             "config": config,
         }
 
-        kwargs: dict = {}
-        for p_name, p in sig.parameters.items():
-            if p.kind in (
-                inspect.Parameter.VAR_POSITIONAL,
-                inspect.Parameter.VAR_KEYWORD,
-            ):
-                continue
-
-            # Check if this parameter should be injected based on type annotation
-            annotation = p.annotation if p.annotation is not inspect._empty else None
-            if annotation and is_injectable_type(annotation):
-                injectable_param_name = get_injectable_param_name(annotation)
-
-                if injectable_param_name == "dependency":
-                    # For InjectDep, use the parameter name to look up the dependency
-                    if dependency_container and dependency_container.has(p_name):
-                        kwargs[p_name] = dependency_container.get(p_name)
-                    elif p.default is inspect._empty:
-                        # Required dependency not found
-                        raise TypeError(f"Required dependency '{p_name}' not found in container")
-                    # If default exists and dependency not found, don't inject (use default)
-                elif injectable_param_name and injectable_param_name in injectable_params:
-                    injectable_value = injectable_params[injectable_param_name]
-                    if injectable_value is not None:
-                        kwargs[p_name] = injectable_value
-                continue
-
-            # First try to use from args (function arguments)
-            if p_name in args:
-                kwargs[p_name] = args[p_name]
-            # Then try injectable parameters (legacy support for direct parameter names)
-            elif p_name in injectable_params and injectable_params[p_name] is not None:
-                kwargs[p_name] = injectable_params[p_name]
-            # Try dependency container for non-annotated parameters
-            elif dependency_container and dependency_container.has(p_name):
-                kwargs[p_name] = dependency_container.get(p_name)
-            # Finally use default if available
-            elif p.default is not inspect._empty:
-                # omit to use default
-                pass
-            else:
-                raise TypeError(f"Missing required parameter '{p_name}' for function '{name}'")
-
+        kwargs = self._prepare_kwargs(sig, args, injectable_params, dependency_container)
         return await call_sync_or_async(fn, **kwargs)
+
+    def _prepare_kwargs(
+        self,
+        sig: inspect.Signature,
+        args: dict,
+        injectable_params: dict,
+        dependency_container,
+    ) -> dict:
+        """Prepare keyword arguments for function execution."""
+        kwargs: dict = {}
+
+        for p_name, p in sig.parameters.items():
+            if self._should_skip_parameter(p):
+                continue
+
+            value = self._get_parameter_value(
+                p_name, p, args, injectable_params, dependency_container
+            )
+            if value is not None:
+                kwargs[p_name] = value
+
+        return kwargs
+
+    def _should_skip_parameter(self, param: inspect.Parameter) -> bool:
+        """Check if parameter should be skipped (VAR_POSITIONAL or VAR_KEYWORD)."""
+        return param.kind in (
+            inspect.Parameter.VAR_POSITIONAL,
+            inspect.Parameter.VAR_KEYWORD,
+        )
+
+    def _get_parameter_value(
+        self,
+        p_name: str,
+        param: inspect.Parameter,
+        args: dict,
+        injectable_params: dict,
+        dependency_container,
+    ) -> t.Any | None:
+        """Get the value for a parameter from various sources."""
+        # Check if this parameter should be injected based on type annotation
+        annotation = param.annotation if param.annotation is not inspect._empty else None
+
+        if annotation and is_injectable_type(annotation):
+            return self._handle_injectable_parameter(
+                p_name, param, annotation, injectable_params, dependency_container
+            )
+
+        # Try different value sources in order of priority
+        value_sources = [
+            lambda: args.get(p_name),  # Function arguments
+            lambda: (
+                injectable_params.get(p_name) if injectable_params.get(p_name) is not None else None
+            ),  # Injectable params
+            lambda: (
+                dependency_container.get(p_name)
+                if dependency_container and dependency_container.has(p_name)
+                else None
+            ),  # Dependency container
+        ]
+
+        for source in value_sources:
+            value = source()
+            if value is not None:
+                return value
+
+        # Handle default or raise error
+        if param.default is not inspect._empty:
+            return None  # Use default
+
+        raise TypeError(f"Missing required parameter '{p_name}' for function")
+
+    def _handle_injectable_parameter(
+        self,
+        p_name: str,
+        param: inspect.Parameter,
+        annotation: t.Any,
+        injectable_params: dict,
+        dependency_container,
+    ) -> t.Any | None:
+        """Handle parameter injection based on type annotation."""
+        injectable_param_name = get_injectable_param_name(annotation)
+
+        if injectable_param_name == "dependency":
+            if dependency_container and dependency_container.has(p_name):
+                return dependency_container.get(p_name)
+            if param.default is inspect._empty:
+                raise TypeError(f"Required dependency '{p_name}' not found in container")
+            return None  # Use default
+
+        if injectable_param_name and injectable_param_name in injectable_params:
+            injectable_value = injectable_params[injectable_param_name]
+            if injectable_value is not None:
+                return injectable_value
+
+        return None
 
     @staticmethod
     def _annotation_to_schema(annotation: t.Any, default: t.Any) -> dict:
@@ -161,41 +214,59 @@ class ToolNode:
         Supports basic primitives, list[...] and typing.Literal for enums.
         Falls back to string when unknown.
         """
-
-        origin = getattr(annotation, "__origin__", None)
-
         # Handle Optional[...] / Union[..., None]
+        schema = ToolNode._handle_optional_annotation(annotation, default)
+        if schema:
+            return schema
+
+        # Map primitive types
+        primitive_mappings = {
+            str: {"type": "string"},
+            int: {"type": "integer"},
+            float: {"type": "number"},
+            bool: {"type": "boolean"},
+        }
+
+        if annotation in primitive_mappings:
+            schema = primitive_mappings[annotation]
+        else:
+            schema = ToolNode._handle_complex_annotation(annotation)
+
+        # Add default if present
+        if default is not inspect._empty:
+            schema["default"] = default
+
+        return schema
+
+    @staticmethod
+    def _handle_optional_annotation(annotation: t.Any, default: t.Any) -> dict | None:
+        """Handle Optional[...] / Union[..., None] annotations."""
         args = getattr(annotation, "__args__", None)
         if args and any(a is type(None) for a in args):
             # pick the non-None arg and map that
             non_none = [a for a in args if a is not type(None)]
             if non_none:
                 return ToolNode._annotation_to_schema(non_none[0], default)
+        return None
 
-        if annotation is str:
-            schema = {"type": "string"}
-        elif annotation is int:
-            schema = {"type": "integer"}
-        elif annotation is float:
-            schema = {"type": "number"}
-        elif annotation is bool:
-            schema = {"type": "boolean"}
-        elif origin is list:
+    @staticmethod
+    def _handle_complex_annotation(annotation: t.Any) -> dict:
+        """Handle complex annotations like list[...] and Literal[...]."""
+        origin = getattr(annotation, "__origin__", None)
+
+        # Handle list types
+        if origin is list:
             item_type = getattr(annotation, "__args__", (str,))[0]
             item_schema = ToolNode._annotation_to_schema(item_type, None)
-            schema = {"type": "array", "items": item_schema}
-        else:
-            Literal = getattr(t, "Literal", None)
-            if Literal is not None and origin is Literal:
-                literals = list(getattr(annotation, "__args__", ()))
-                if all(isinstance(literal, str) for literal in literals):
-                    schema = {"type": "string", "enum": literals}
-                else:
-                    schema = {"enum": literals}
-            else:
-                schema = {"type": "string"}
+            return {"type": "array", "items": item_schema}
 
-        if default is not inspect._empty:
-            schema["default"] = default
+        # Handle Literal types
+        Literal = getattr(t, "Literal", None)
+        if Literal is not None and origin is Literal:
+            literals = list(getattr(annotation, "__args__", ()))
+            if all(isinstance(literal, str) for literal in literals):
+                return {"type": "string", "enum": literals}
+            return {"enum": literals}
 
-        return schema
+        # Default fallback
+        return {"type": "string"}

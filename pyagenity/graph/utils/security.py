@@ -16,7 +16,11 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 
-from pyagenity.graph.utils.logging import security_logger
+from pyagenity.graph.utils.logging import get_logger
+
+
+# Create security logger instance
+security_logger = get_logger("pyagenity.security")
 
 
 # Security configuration constants
@@ -25,6 +29,10 @@ MAX_CONTEXT_MESSAGES = 1000  # Maximum messages in context
 MAX_EXECUTION_STEPS = 100  # Maximum graph execution steps
 MAX_THREAD_ID_LENGTH = 255  # Maximum thread ID length
 MAX_NODE_NAME_LENGTH = 100  # Maximum node name length
+MAX_DICT_KEY_LENGTH = 100  # Maximum dictionary key length
+MAX_LIST_SIZE = 1000  # Maximum list size for validation
+MAX_DICT_SIZE = 100  # Maximum dictionary size for validation
+MIN_PRINTABLE_CHAR = 32  # Minimum printable character ASCII value
 
 # Dangerous patterns that could indicate injection attacks
 PROMPT_INJECTION_PATTERNS = [
@@ -109,7 +117,7 @@ class SecurityValidator:
 
         for key, value in input_data.items():
             # Validate key format
-            if not isinstance(key, str) or len(key) > 100:
+            if not isinstance(key, str) or len(key) > MAX_DICT_KEY_LENGTH:
                 security_logger.log_input_validation_failure(
                     "dict_key", f"Invalid key format: {key}", key
                 )
@@ -275,11 +283,11 @@ class SecurityValidator:
                 raise InputValidationError(f"String too long in {field_path}")
             return self._sanitize_content(value) if self.config.enable_input_sanitization else value
 
-        elif isinstance(value, (int, float, bool)):
+        if isinstance(value, int | float | bool):
             return value
 
-        elif isinstance(value, list):
-            if len(value) > 1000:  # Limit list size
+        if isinstance(value, list):
+            if len(value) > MAX_LIST_SIZE:  # Limit list size
                 security_logger.log_input_validation_failure(
                     field_path, f"List too long: {len(value)}", str(value)[:100]
                 )
@@ -288,22 +296,21 @@ class SecurityValidator:
                 self._validate_value(item, f"{field_path}[{i}]") for i, item in enumerate(value)
             ]
 
-        elif isinstance(value, dict):
-            if len(value) > 100:  # Limit dict size
+        if isinstance(value, dict):
+            if len(value) > MAX_DICT_SIZE:  # Limit dict size
                 security_logger.log_input_validation_failure(
                     field_path, f"Dict too large: {len(value)}", str(value)[:100]
                 )
                 raise InputValidationError(f"Dictionary too large in {field_path}")
             return {k: self._validate_value(v, f"{field_path}.{k}") for k, v in value.items()}
 
-        elif value is None:
+        if value is None:
             return None
 
-        else:
-            security_logger.log_input_validation_failure(
-                field_path, f"Unsupported type: {type(value)}", str(value)[:100]
-            )
-            raise InputValidationError(f"Unsupported value type in {field_path}: {type(value)}")
+        security_logger.log_input_validation_failure(
+            field_path, f"Unsupported type: {type(value)}", str(value)[:100]
+        )
+        raise InputValidationError(f"Unsupported value type in {field_path}: {type(value)}")
 
     def _detect_prompt_injection(self, content: str) -> None:
         """Detect potential prompt injection attempts."""
@@ -326,12 +333,12 @@ class SecurityValidator:
         content = re.sub(r"javascript:", "", content, flags=re.IGNORECASE)
 
         # Remove control characters except common whitespace
-        content = "".join(char for char in content if ord(char) >= 32 or char in "\t\n\r")
+        content = "".join(
+            char for char in content if ord(char) >= MIN_PRINTABLE_CHAR or char in "\t\n\r"
+        )
 
         # Limit consecutive whitespace
-        content = re.sub(r"\s{10,}", " " * 10, content)
-
-        return content
+        return re.sub(r"\s{10,}", " " * 10, content)
 
 
 def safe_json_loads(json_str: str, max_size: int = 10000) -> Any:

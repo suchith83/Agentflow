@@ -126,31 +126,29 @@ def get_injectable_param_name(annotation) -> str | None:
     if hasattr(annotation, "__origin__"):
         annotation = annotation.__origin__
 
-    # Check the base type to determine which parameter to inject
-    if annotation is InjectToolCallID or (
-        isinstance(original_annotation, type) and issubclass(original_annotation, InjectToolCallID)
-    ):
-        return "tool_call_id"
-    if annotation is InjectState or (
-        isinstance(original_annotation, type) and issubclass(original_annotation, InjectState)
-    ):
-        return "state"
-    if annotation is InjectCheckpointer or (
-        isinstance(original_annotation, type)
-        and issubclass(original_annotation, InjectCheckpointer)
-    ):
-        return "checkpointer"
-    if annotation is InjectStore or (
-        isinstance(original_annotation, type) and issubclass(original_annotation, InjectStore)
-    ):
-        return "store"
-    if annotation is InjectConfig or (
-        isinstance(original_annotation, type) and issubclass(original_annotation, InjectConfig)
-    ):
-        return "config"
-    if annotation is InjectDep or (
-        isinstance(original_annotation, type) and issubclass(original_annotation, InjectDep)
-    ):
-        return "dependency"  # Special marker for dependency injection
+    # Mapping of annotation types to parameter names
+    injectable_mappings = {
+        InjectToolCallID: "tool_call_id",
+        InjectState: "state",
+        InjectCheckpointer: "checkpointer",
+        InjectStore: "store",
+        InjectConfig: "config",
+        InjectDep: "dependency",
+    }
+
+    # Check direct annotation match first
+    for injectable_type, param_name in injectable_mappings.items():
+        if annotation is injectable_type:
+            return param_name
+
+    # Check if it's a subclass for backwards compatibility
+    if isinstance(original_annotation, type):
+        for injectable_type, param_name in injectable_mappings.items():
+            try:
+                if issubclass(original_annotation, injectable_type):
+                    return param_name
+            except TypeError:
+                # issubclass may fail for some types
+                continue
 
     return None

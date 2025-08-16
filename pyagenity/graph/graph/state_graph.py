@@ -6,27 +6,47 @@ from pyagenity.graph.exceptions import GraphError
 from pyagenity.graph.state import AgentState, BaseContextManager
 from pyagenity.graph.utils import END, START, DependencyContainer
 
+from .edge import Edge
+from .node import Node
 from .tool_node import ToolNode
+
+
+if TYPE_CHECKING:
+    from .compiled_graph import CompiledGraph
 
 
 # Generic type variable bound to AgentState for state subtyping
 StateT = TypeVar("StateT", bound=AgentState)
 
 
-if TYPE_CHECKING:
-    from .compiled_graph import CompiledGraph
-
-from .edge import Edge
-from .node import Node
-
-
 class StateGraph(Generic[StateT]):
     """Main graph class for orchestrating multi-agent workflows.
 
-    Similar to LangGraph's StateGraph but designed for direct Litellm integration.
-    Generic over state types to support custom AgentState subclasses.
+    This class provides the core functionality for building and managing stateful
+    agent workflows. It is similar to LangGraph's StateGraph but designed for
+    direct LiteLLM integration with support for dependency injection.
 
-    Supports dependency injection for reusable components across node functions.
+    The graph is generic over state types to support custom AgentState subclasses,
+    allowing for type-safe state management throughout the workflow execution.
+
+    Attributes:
+        state (StateT): The current state of the graph workflow.
+        nodes (dict[str, Node]): Collection of nodes in the graph.
+        edges (list[Edge]): Collection of edges connecting nodes.
+        entry_point (str | None): Name of the starting node for execution.
+        context_manager (BaseContextManager[StateT] | None): Optional context manager
+            for handling cross-node state operations.
+        dependency_container (DependencyContainer): Container for managing
+            dependencies that can be injected into node functions.
+        compiled (bool): Whether the graph has been compiled for execution.
+
+    Example:
+        >>> graph = StateGraph()
+        >>> graph.add_node("process", process_function)
+        >>> graph.add_edge(START, "process")
+        >>> graph.add_edge("process", END)
+        >>> compiled = graph.compile()
+        >>> result = compiled.invoke({"input": "data"})
     """
 
     def __init__(
@@ -35,6 +55,22 @@ class StateGraph(Generic[StateT]):
         context_manager: BaseContextManager[StateT] | None = None,
         dependency_container: DependencyContainer | None = None,
     ):
+        """Initialize a new StateGraph instance.
+
+        Args:
+            state: Initial state for the graph. If None, a default AgentState
+                will be created.
+            context_manager: Optional context manager for handling cross-node
+                state operations and advanced state management patterns.
+            dependency_container: Container for managing dependencies that can
+                be injected into node functions. If None, a new empty container
+                will be created.
+
+        Note:
+            START and END nodes are automatically added to the graph upon
+            initialization and accept the full node signature including
+            dependencies.
+        """
         # Initialize state and structure
         self.state = state or AgentState()  # type: ignore[assignment]
         self.nodes: dict[str, Node] = {}
@@ -53,7 +89,30 @@ class StateGraph(Generic[StateT]):
         name_or_func: str | Callable,
         func: Union[Callable, "ToolNode", None] = None,
     ) -> "StateGraph":
-        """Add a node to the graph."""
+        """Add a node to the graph.
+
+        This method supports two calling patterns:
+        1. Pass a callable as the first argument (name inferred from function name)
+        2. Pass a name string and callable/ToolNode as separate arguments
+
+        Args:
+            name_or_func: Either the node name (str) or a callable function.
+                If callable, the function name will be used as the node name.
+            func: The function or ToolNode to execute. Required if name_or_func
+                is a string, ignored if name_or_func is callable.
+
+        Returns:
+            StateGraph: The graph instance for method chaining.
+
+        Raises:
+            ValueError: If invalid arguments are provided.
+
+        Example:
+            >>> # Method 1: Function name inferred
+            >>> graph.add_node(my_function)
+            >>> # Method 2: Explicit name and function
+            >>> graph.add_node("process", my_function)
+        """
         if callable(name_or_func) and func is None:
             # Function passed as first argument
             name = name_or_func.__name__
@@ -72,7 +131,22 @@ class StateGraph(Generic[StateT]):
         from_node: str,
         to_node: str,
     ) -> "StateGraph":
-        """Add a static edge between nodes."""
+        """Add a static edge between two nodes.
+
+        Creates a direct connection from one node to another. If the source
+        node is START, the target node becomes the entry point for the graph.
+
+        Args:
+            from_node: Name of the source node.
+            to_node: Name of the target node.
+
+        Returns:
+            StateGraph: The graph instance for method chaining.
+
+        Example:
+            >>> graph.add_edge("node1", "node2")
+            >>> graph.add_edge(START, "entry_node")  # Sets entry point
+        """
         # Set entry point if edge is from START
         if from_node == START:
             self.entry_point = to_node
@@ -85,7 +159,32 @@ class StateGraph(Generic[StateT]):
         condition: Callable,
         path_map: dict[str, str] | None = None,
     ) -> "StateGraph":
-        """Add conditional edges from a node."""
+        """Add conditional edges from a node based on a condition function.
+
+        Creates edges that are traversed based on the result of a condition
+        function. The condition function receives the current state and should
+        return a value that determines which edge to follow.
+
+        Args:
+            from_node: Name of the source node.
+            condition: Function that evaluates the current state and returns
+                a value to determine the next node.
+            path_map: Optional mapping from condition results to target nodes.
+                If provided, creates multiple conditional edges. If None,
+                creates a single conditional edge.
+
+        Returns:
+            StateGraph: The graph instance for method chaining.
+
+        Example:
+            >>> def route_condition(state):
+            ...     return "success" if state.success else "failure"
+            >>> graph.add_conditional_edges(
+            ...     "processor",
+            ...     route_condition,
+            ...     {"success": "next_step", "failure": "error_handler"},
+            ... )
+        """
         # Create edges based on possible returns from condition function
         if path_map:
             for condition_result, target_node in path_map.items():

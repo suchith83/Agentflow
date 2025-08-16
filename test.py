@@ -141,7 +141,10 @@ messages = [
     },
     {
         "role": "system",
-        "content": "CV: Name shudipto, Skills: Python, Java, Work Experience: 5 years in software development",
+        "content": (
+            "CV: Name shudipto, Skills: Python, Java, "
+            "Work Experience: 5 years in software development"
+        ),
     },
     {"role": "user", "content": "HI, I am ready"},
 ]
@@ -152,4 +155,4 @@ response = completion(
     # tools=tools,
 )
 # Add any assertions, here to check response args
-print(response.model_dump_json())
+# print(response.model_dump_json())  # Disabled for production

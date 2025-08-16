@@ -4,7 +4,7 @@ Command API for AgentGraph.
 Allows combining state updates with control flow similar to LangGraph's Command.
 """
 
-from typing import TYPE_CHECKING, Literal, TypeVar, Union
+from typing import TYPE_CHECKING, Generic, Literal, TypeVar, Union
 
 from litellm.types.utils import ModelResponse
 
@@ -17,7 +17,7 @@ if TYPE_CHECKING:
 T = TypeVar("T")
 
 
-class Command[T]:
+class Command(Generic[T]):
     """
     Command object that combines state updates with control flow.
 
