@@ -1,18 +1,32 @@
 from dataclasses import dataclass, field
-from typing import Annotated, Any
+from typing import Annotated, Any, TypeVar
 
 from pyagenity.graph.state.execution_state import ExecutionState as ExecMeta
 from pyagenity.graph.utils import START, Message, add_messages
+
+# Generic type variable for state subclassing
+StateT = TypeVar("StateT", bound="AgentState")
 
 
 @dataclass
 class AgentState:
     """Common state schema that includes messages, context and internal execution metadata.
 
+    This class can be subclassed to add application-specific fields while maintaining
+    compatibility with the PyAgenity framework. All internal execution metadata
+    is preserved through subclassing.
+
     Notes:
     - `execution_meta` contains internal-only execution progress and interrupt info.
     - Users may subclass `AgentState` to add application fields; internal exec meta remains
       available to the runtime and will be persisted with the state.
+    - When subclassing, add your fields but keep the core fields intact.
+
+    Example:
+        @dataclass
+        class MyCustomState(AgentState):
+            user_data: dict = field(default_factory=dict)
+            custom_field: str = "default"
     """
 
     context: Annotated[list[Message], add_messages] = field(default_factory=list)

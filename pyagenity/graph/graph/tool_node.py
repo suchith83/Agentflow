@@ -82,6 +82,7 @@ class ToolNode:
         state: AgentState | None = None,
         checkpointer: BaseCheckpointer | None = None,
         store: BaseStore | None = None,
+        dependency_container=None,
     ) -> t.Any:
         """Execute the callable registered under `name` with `args` kwargs.
 
@@ -90,6 +91,7 @@ class ToolNode:
         - state: Current agent state (can be injected into function if needed)
         - checkpointer: Checkpointer instance (can be injected into function if needed)
         - store: Store instance (can be injected into function if needed)
+        - dependency_container: Container with custom dependencies
         """
 
         if name not in self._funcs:
@@ -119,7 +121,16 @@ class ToolNode:
             annotation = p.annotation if p.annotation is not inspect._empty else None
             if annotation and is_injectable_type(annotation):
                 injectable_param_name = get_injectable_param_name(annotation)
-                if injectable_param_name and injectable_param_name in injectable_params:
+
+                if injectable_param_name == "dependency":
+                    # For InjectDep, use the parameter name to look up the dependency
+                    if dependency_container and dependency_container.has(p_name):
+                        kwargs[p_name] = dependency_container.get(p_name)
+                    elif p.default is inspect._empty:
+                        # Required dependency not found
+                        raise TypeError(f"Required dependency '{p_name}' not found in container")
+                    # If default exists and dependency not found, don't inject (use default)
+                elif injectable_param_name and injectable_param_name in injectable_params:
                     injectable_value = injectable_params[injectable_param_name]
                     if injectable_value is not None:
                         kwargs[p_name] = injectable_value
@@ -131,6 +142,9 @@ class ToolNode:
             # Then try injectable parameters (legacy support for direct parameter names)
             elif p_name in injectable_params and injectable_params[p_name] is not None:
                 kwargs[p_name] = injectable_params[p_name]
+            # Try dependency container for non-annotated parameters
+            elif dependency_container and dependency_container.has(p_name):
+                kwargs[p_name] = dependency_container.get(p_name)
             # Finally use default if available
             elif p.default is not inspect._empty:
                 # omit to use default

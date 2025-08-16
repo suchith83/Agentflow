@@ -1,18 +1,23 @@
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Generic, TypeVar
 
 from pyagenity.graph.state import AgentState
 from pyagenity.graph.state.execution_state import ExecutionState
 from pyagenity.graph.utils import Message
+
+# Generic type variable bound to AgentState for checkpointer subtyping
+StateT = TypeVar("StateT", bound=AgentState)
 
 
 if TYPE_CHECKING:
     pass
 
 
-class BaseCheckpointer(ABC):
+class BaseCheckpointer(Generic[StateT], ABC):
     """
     Base class for checkpointer implementations.
+
+    Generic over state types to support custom AgentState subclasses.
 
     Primary API (new combined state approach):
     - put_state: Store complete AgentState (including execution metadata)
@@ -25,11 +30,11 @@ class BaseCheckpointer(ABC):
     """
 
     # Realtime Sync of state Recommended to use faster database
-    def sync_state(self, config: dict[str, Any], state: AgentState) -> None:
+    def sync_state(self, config: dict[str, Any], state: StateT) -> None:
         """Sync the current state to a faster database for real-time access."""
         raise NotImplementedError("sync_state method must be implemented")
 
-    def get_sync_state(self, config: dict[str, Any]) -> AgentState | None:
+    def get_sync_state(self, config: dict[str, Any]) -> StateT | None:
         """Get the synced state from the faster database."""
         raise NotImplementedError("get_sync_state method must be implemented")
 
@@ -39,7 +44,7 @@ class BaseCheckpointer(ABC):
     def put_state(
         self,
         config: dict[str, Any],
-        state: AgentState,
+        state: StateT,
     ) -> None:
         """Store complete AgentState (including execution metadata) atomically.
 
@@ -49,7 +54,7 @@ class BaseCheckpointer(ABC):
         raise NotImplementedError("put_state method must be implemented")
 
     @abstractmethod
-    def get_state(self, config: dict[str, Any]) -> AgentState | None:
+    def get_state(self, config: dict[str, Any]) -> StateT | None:
         """Get the complete AgentState (including execution metadata).
 
         This is the primary method for retrieving state in the new design.

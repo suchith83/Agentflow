@@ -1,37 +1,43 @@
 from abc import ABC, abstractmethod
-from typing import Any
+from typing import Any, Generic, TypeVar
+
+# Generic type variable for extensible data types
+DataT = TypeVar("DataT")
 
 
-class BaseStore(ABC):
-    """Base class for message storage implementations."""
+class BaseStore(Generic[DataT], ABC):
+    """Base class for message storage implementations.
+
+    Generic over data types to support extensible storage formats.
+    """
 
     @abstractmethod
     def update_memory(
         self,
         config: dict[str, Any],
-        info: str,
+        info: DataT,
     ) -> None:
-        """Store a single message."""
+        """Store a single piece of information."""
         raise NotImplementedError("update_memory method must be implemented")
 
     def get_memory(
         self,
         config: dict[str, Any],
-    ) -> None:
-        """Retrieve a single message."""
+    ) -> DataT | None:
+        """Retrieve a single piece of information."""
         raise NotImplementedError("get_memory method must be implemented")
 
     def delete_memory(
         self,
         config: dict[str, Any],
     ) -> None:
-        """Delete a single message."""
+        """Delete a single piece of information."""
         raise NotImplementedError("delete_memory method must be implemented")
 
     def related_memory(
         self,
         config: dict[str, Any],
         query: str,
-    ) -> None:
-        """Retrieve related messages."""
+    ) -> list[DataT]:
+        """Retrieve related information."""
         raise NotImplementedError("related_memory method must be implemented")

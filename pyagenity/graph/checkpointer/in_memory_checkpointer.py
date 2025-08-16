@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, TypeVar
 
 from pyagenity.graph.state import AgentState
 from pyagenity.graph.state.execution_state import ExecutionState
@@ -6,8 +6,11 @@ from pyagenity.graph.utils import Message
 
 from .base_checkpointer import BaseCheckpointer
 
+# Define the type variable for this implementation
+StateT = TypeVar("StateT", bound=AgentState)
 
-class InMemoryCheckpointer(BaseCheckpointer):
+
+class InMemoryCheckpointer(BaseCheckpointer[AgentState]):
     """In-memory checkpointer that persists combined AgentState (including execution metadata)."""
 
     def __init__(self):

@@ -87,6 +87,23 @@ class InjectConfig(_InjectableType[dict]):
     """
 
 
+class InjectDep(_InjectableType[T]):
+    """Type annotation indicating that a custom dependency should be injected.
+
+    The dependency name is automatically derived from the parameter name.
+
+    Usage:
+        def my_node(database: InjectDep[Database] = None):
+            # 'database' dependency will be looked up and injected
+            pass
+
+        # or with explicit type:
+        def my_node(logger: InjectDep[Logger] = None):
+            # 'logger' dependency will be looked up and injected
+            pass
+    """
+
+
 def is_injectable_type(annotation) -> bool:
     """Check if an annotation is an injectable type."""
     # Handle both direct class and generic instances
@@ -131,5 +148,9 @@ def get_injectable_param_name(annotation) -> str | None:
         isinstance(original_annotation, type) and issubclass(original_annotation, InjectConfig)
     ):
         return "config"
+    if annotation is InjectDep or (
+        isinstance(original_annotation, type) and issubclass(original_annotation, InjectDep)
+    ):
+        return "dependency"  # Special marker for dependency injection
 
     return None

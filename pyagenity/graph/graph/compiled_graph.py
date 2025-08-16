@@ -1,6 +1,6 @@
 import asyncio
 from collections.abc import AsyncIterator, Generator
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Generic, TypeVar
 
 from litellm.types.utils import ModelResponse
 
@@ -22,18 +22,24 @@ from pyagenity.graph.utils import (
 )
 from pyagenity.graph.utils.callable_utils import call_sync_or_async
 
+# Generic type variable bound to AgentState for compiled graph subtyping
+StateT = TypeVar("StateT", bound=AgentState)
+
 
 if TYPE_CHECKING:
     from .state_graph import StateGraph
 
 
-class CompiledGraph:
-    """A compiled graph ready for execution."""
+class CompiledGraph(Generic[StateT]):
+    """A compiled graph ready for execution.
+
+    Generic over state types to support custom AgentState subclasses.
+    """
 
     def __init__(
         self,
-        state_graph: "StateGraph",
-        checkpointer: BaseCheckpointer | None = None,
+        state_graph: "StateGraph[StateT]",
+        checkpointer: BaseCheckpointer[StateT] | None = None,
         store: BaseStore | None = None,
         debug: bool = False,
         interrupt_before: list[str] | None = None,
@@ -251,6 +257,7 @@ class CompiledGraph:
                     config,
                     self.checkpointer,
                     self.store,
+                    self.state_graph.dependency_container,
                 )
 
                 # Process result using the regular logic to get proper next_node
@@ -393,7 +400,7 @@ class CompiledGraph:
         self,
         input_data: dict[str, Any],
         config: dict[str, Any],
-    ) -> AgentState:
+    ) -> StateT:
         """Load existing state from checkpointer or create new state."""
         # Try to load existing state if checkpointer is available
         if self.checkpointer:
@@ -488,6 +495,7 @@ class CompiledGraph:
                     config,
                     self.checkpointer,
                     self.store,
+                    self.state_graph.dependency_container,
                 )
 
                 # Process result and get next node

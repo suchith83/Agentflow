@@ -5,10 +5,14 @@ from .command import Command
 from .constants import END, START, ExecutionState, ResponseGranularity, StorageLevel
 from .converter import convert_messages
 
+# Export from dependency_injection.py
+from .dependency_injection import DependencyContainer
+
 # Export from injectable.py
 from .injectable import (
     InjectCheckpointer,
     InjectConfig,
+    InjectDep,
     InjectState,
     InjectStore,
     InjectToolCallID,
@@ -36,12 +40,14 @@ from .streaming import (
 
 
 __all__ = [
+    "DependencyContainer",
     "END",
     "START",
     "Command",
     "ExecutionState",
     "InjectCheckpointer",
     "InjectConfig",
+    "InjectDep",
     "InjectState",
     "InjectStore",
     "InjectToolCallID",

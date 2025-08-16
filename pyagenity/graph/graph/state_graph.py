@@ -1,12 +1,15 @@
 from collections.abc import Callable
-from typing import TYPE_CHECKING, Any, Union
+from typing import TYPE_CHECKING, Any, Generic, TypeVar, Union
 
 from pyagenity.graph.checkpointer import BaseCheckpointer, BaseStore, InMemoryCheckpointer
 from pyagenity.graph.exceptions import GraphError
 from pyagenity.graph.state import AgentState, BaseContextManager
-from pyagenity.graph.utils import END, START
+from pyagenity.graph.utils import END, START, DependencyContainer
 
 from .tool_node import ToolNode
+
+# Generic type variable bound to AgentState for state subtyping
+StateT = TypeVar("StateT", bound=AgentState)
 
 
 if TYPE_CHECKING:
@@ -16,28 +19,33 @@ from .edge import Edge
 from .node import Node
 
 
-class StateGraph:
+class StateGraph(Generic[StateT]):
     """Main graph class for orchestrating multi-agent workflows.
 
     Similar to LangGraph's StateGraph but designed for direct Litellm integration.
+    Generic over state types to support custom AgentState subclasses.
+
+    Supports dependency injection for reusable components across node functions.
     """
 
     def __init__(
         self,
-        state: AgentState | None = None,
-        context_manager: BaseContextManager | None = None,
+        state: StateT | None = None,
+        context_manager: BaseContextManager[StateT] | None = None,
+        dependency_container: DependencyContainer | None = None,
     ):
         # Initialize state and structure
-        self.state = state or AgentState()
+        self.state = state or AgentState()  # type: ignore[assignment]
         self.nodes: dict[str, Node] = {}
         self.edges: list[Edge] = []
         self.entry_point: str | None = None
-        self.context_manager: BaseContextManager | None = context_manager
+        self.context_manager: BaseContextManager[StateT] | None = context_manager
+        self.dependency_container = dependency_container or DependencyContainer()
         self.compiled = False
 
-        # Add START and END nodes (accept full node signature)
-        self.nodes[START] = Node(START, lambda s, c, checkpointer=None, store=None: s)
-        self.nodes[END] = Node(END, lambda s, c, checkpointer=None, store=None: s)
+        # Add START and END nodes (accept full node signature including dependencies)
+        self.nodes[START] = Node(START, lambda state, config, **deps: state)
+        self.nodes[END] = Node(END, lambda state, config, **deps: state)
 
     def add_node(
         self,
@@ -119,12 +127,12 @@ class StateGraph:
 
     def compile(
         self,
-        checkpointer: BaseCheckpointer | None = None,
+        checkpointer: BaseCheckpointer[StateT] | None = None,
         store: BaseStore | None = None,
         debug: bool = False,
         interrupt_before: list[str] | None = None,
         interrupt_after: list[str] | None = None,
-    ) -> "CompiledGraph":
+    ) -> "CompiledGraph[StateT]":
         """Compile the graph for execution.
 
         Args:
