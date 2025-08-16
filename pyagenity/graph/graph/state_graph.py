@@ -124,7 +124,6 @@ class StateGraph:
         debug: bool = False,
         interrupt_before: list[str] | None = None,
         interrupt_after: list[str] | None = None,
-        realtime_state_sync: Any | None = None,
     ) -> "CompiledGraph":
         """Compile the graph for execution.
 
@@ -169,7 +168,6 @@ class StateGraph:
             debug=debug,
             interrupt_before=interrupt_before,
             interrupt_after=interrupt_after,
-            realtime_state_sync=realtime_state_sync,
         )
 
     def _validate_graph(self):
