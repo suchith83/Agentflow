@@ -19,7 +19,7 @@ if TYPE_CHECKING:
 StateT = TypeVar("StateT", bound=AgentState)
 
 
-class StateGraph(Generic[StateT]):
+class StateGraph[StateT: AgentState]:
     """Main graph class for orchestrating multi-agent workflows.
 
     This class provides the core functionality for building and managing stateful
@@ -259,9 +259,6 @@ class StateGraph(Generic[StateT]):
             raise GraphError(
                 f"Invalid interrupt nodes: {invalid_nodes}. Must be existing node names."
             )
-
-        if not checkpointer:
-            checkpointer = InMemoryCheckpointer()
 
         self.compiled = True
         # Import here to avoid circular import at module import time
