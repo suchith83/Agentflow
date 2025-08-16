@@ -1,15 +1,21 @@
+from typing import TypeVar
+
 from pyagenity.graph.state import AgentState
 from pyagenity.graph.utils import Message
 
 from .base_context import BaseContextManager
 
 
-class MessageContextManager(BaseContextManager):
+S = TypeVar("S", bound=AgentState)
+
+
+class MessageContextManager(BaseContextManager[S]):
     """
     Manages the context field for AI interactions.
 
     This class trims the context (message history) based on a maximum number of user messages,
     ensuring the first message (usually a system prompt) is always preserved.
+    Generic over AgentState or its subclasses.
     """
 
     def __init__(self, max_messages: int = 10) -> None:
@@ -48,9 +54,9 @@ class MessageContextManager(BaseContextManager):
 
             final_messages.append(messages[i])
 
-        return [first_message] + final_messages
+        return [first_message, *final_messages]
 
-    def trim_context(self, state: AgentState) -> AgentState:
+    async def trim_context(self, state: S) -> S:
         """
         Trim the context in the given AgentState based on the maximum number of user messages.
 
@@ -61,18 +67,7 @@ class MessageContextManager(BaseContextManager):
             state (AgentState): The agent state containing the context to trim.
 
         Returns:
-            AgentState: The updated agent state with trimmed context.
-        """
-        messages = state.context
-        trimmed_messages = self._trim(messages)
-        if trimmed_messages is None:
-            return state
-        state.context = trimmed_messages
-        return state
-
-    async def atrim_context(self, state: AgentState) -> AgentState:
-        """
-        Asynchronous method to trim context based on message count.
+            S: The updated agent state with trimmed context.
         """
         messages = state.context
         trimmed_messages = self._trim(messages)

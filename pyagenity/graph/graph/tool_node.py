@@ -6,16 +6,15 @@ descriptions suitable for function-calling LLMs and a simple execute API.
 
 from __future__ import annotations
 
-import asyncio
 import inspect
 import typing as t
-from concurrent.futures import ThreadPoolExecutor
 
 
 if t.TYPE_CHECKING:
     from pyagenity.graph.checkpointer import BaseCheckpointer, BaseStore
     from pyagenity.graph.state import AgentState
 
+from pyagenity.graph.utils.callable_utils import call_sync_or_async
 from pyagenity.graph.utils.injectable import get_injectable_param_name, is_injectable_type
 
 
@@ -139,15 +138,7 @@ class ToolNode:
             else:
                 raise TypeError(f"Missing required parameter '{p_name}' for function '{name}'")
 
-        # Execute function in a thread-safe manner
-        is_coroutine = inspect.iscoroutinefunction(fn)
-        if not is_coroutine:
-            # Run sync function in thread pool to avoid blocking
-            loop = asyncio.get_running_loop()
-            with ThreadPoolExecutor() as executor:
-                return await loop.run_in_executor(executor, lambda: fn(**kwargs))
-
-        return await fn(**kwargs)
+        return await call_sync_or_async(fn, **kwargs)
 
     @staticmethod
     def _annotation_to_schema(annotation: t.Any, default: t.Any) -> dict:

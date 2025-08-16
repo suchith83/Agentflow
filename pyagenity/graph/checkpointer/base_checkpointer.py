@@ -1,21 +1,77 @@
 from abc import ABC, abstractmethod
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from pyagenity.graph.state import AgentState
+from pyagenity.graph.state.execution_state import ExecutionState
 from pyagenity.graph.utils import Message
+
+
+if TYPE_CHECKING:
+    pass
 
 
 class BaseCheckpointer(ABC):
     """
     Base class for checkpointer implementations.
-    Will Create 3 Tables:
-    1. Thread Table (Save thread information)
-    2. Message Table (Save message information)
-    3. State Table (Save state information)
+
+    Primary API (new combined state approach):
+    - put_state: Store complete AgentState (including execution metadata)
+    - get_state: Retrieve complete AgentState
+    - clear_state: Remove stored state
+
+    Legacy API (for backward compatibility):
+    - put_execution_state/get_execution_state: Now implemented via combined state
+    - Other methods remain for messages, threads, etc.
     """
 
+    # Realtime Sync of state Recommended to use faster database
+    def sync_state(self, config: dict[str, Any], state: AgentState) -> None:
+        """Sync the current state to a faster database for real-time access."""
+        raise NotImplementedError("sync_state method must be implemented")
+
+    def get_sync_state(self, config: dict[str, Any]) -> AgentState | None:
+        """Get the synced state from the faster database."""
+        raise NotImplementedError("get_sync_state method must be implemented")
+
+    # === PRIMARY API: Combined State Management ===
+
     @abstractmethod
-    def put(
+    def put_state(
+        self,
+        config: dict[str, Any],
+        state: AgentState,
+    ) -> None:
+        """Store complete AgentState (including execution metadata) atomically.
+
+        This is the primary method for persisting state in the new design.
+        State includes both user data and internal execution metadata.
+        """
+        raise NotImplementedError("put_state method must be implemented")
+
+    @abstractmethod
+    def get_state(self, config: dict[str, Any]) -> AgentState | None:
+        """Get the complete AgentState (including execution metadata).
+
+        This is the primary method for retrieving state in the new design.
+        Returns None if no state exists for the given config.
+        """
+        raise NotImplementedError("get_state method must be implemented")
+
+    @abstractmethod
+    def clear_state(
+        self,
+        config: dict[str, Any],
+    ) -> None:
+        """Clear the complete AgentState for the given config.
+
+        This is the primary method for cleaning up state in the new design.
+        """
+        raise NotImplementedError("clear_state method must be implemented")
+
+    # === OTHER METHODS: Messages, Threads, etc. ===
+
+    @abstractmethod
+    def put_messages(
         self,
         config: dict[str, Any],
         messages: list[Message],
@@ -25,7 +81,7 @@ class BaseCheckpointer(ABC):
         raise NotImplementedError("put method must be implemented")
 
     @abstractmethod
-    def get(self, config: dict[str, Any]) -> list[Message]:
+    def get_message(self, config: dict[str, Any]) -> Message:
         """Retrieve a checkpoint."""
         raise NotImplementedError("get method must be implemented")
 
@@ -40,21 +96,9 @@ class BaseCheckpointer(ABC):
         """List checkpoints for a thread."""
         raise NotImplementedError("list method must be implemented")
 
-    def delete(self, config: dict[str, Any]) -> None:
+    def delete_message(self, config: dict[str, Any]) -> None:
         """Delete a checkpoint."""
         raise NotImplementedError("delete method must be implemented")
-
-    def get_state(self, config: dict[str, Any]) -> AgentState | None:
-        """Get the latest state snapshot."""
-        raise NotImplementedError("get_state method must be implemented")
-
-    def update_state(
-        self,
-        config: dict[str, Any],
-        state: AgentState,
-    ) -> None:
-        """Update the state at the current checkpoint."""
-        raise NotImplementedError("update_state method must be implemented")
 
     def put_thread(
         self,
