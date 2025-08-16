@@ -1,10 +1,6 @@
 Task In library
 1. Dependency Injection
-2. Make injectable in tool calls and exclude those when we are converting for llm
-3. Play/Pause make the node interactable
-4. Human in the loop
-5. Multi Agent
-
+2. streaming response
 
 API with python
 with workflow run

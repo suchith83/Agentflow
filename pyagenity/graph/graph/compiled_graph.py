@@ -1,6 +1,5 @@
 import asyncio
-from collections.abc import Callable
-from tokenize import maybe
+from collections.abc import AsyncIterator, Generator
 from typing import TYPE_CHECKING, Any
 
 from litellm.types.utils import ModelResponse
@@ -14,7 +13,12 @@ from pyagenity.graph.utils import (
     Command,
     Message,
     ResponseGranularity,
+    StreamChunk,
     add_messages,
+    extract_content_from_response,
+    is_async_streaming_response,
+    is_streaming_response,
+    simulate_async_streaming,
 )
 from pyagenity.graph.utils.callable_utils import call_sync_or_async
 
@@ -131,6 +135,259 @@ class CompiledGraph:
                 return {"messages": messages}
 
         return {"messages": messages}
+
+    def stream(
+        self,
+        input_data: dict[str, Any],
+        config: dict[str, Any] | None = None,
+        response_granularity: ResponseGranularity = ResponseGranularity.LOW,
+    ) -> Generator[StreamChunk, None, None]:
+        """Execute the graph synchronously with streaming support.
+
+        Yields StreamChunk objects containing incremental responses.
+        If nodes return streaming responses, yields them directly.
+        If nodes return complete responses, simulates streaming by chunking.
+
+        Args:
+            input_data: Input dict (no longer accepts AgentState directly)
+            config: Configuration dictionary
+            response_granularity: Response parsing granularity
+
+        Yields:
+            StreamChunk objects with incremental content
+        """
+
+        # For sync streaming, we'll use asyncio.run to handle the async implementation
+        async def _async_stream():
+            async for chunk in self.astream(input_data, config, response_granularity):
+                yield chunk
+
+        # Use a helper to convert async generator to sync generator
+        gen = _async_stream()
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+
+        try:
+            while True:
+                try:
+                    chunk = loop.run_until_complete(gen.__anext__())
+                    yield chunk
+                except StopAsyncIteration:
+                    break
+        finally:
+            loop.close()
+
+    async def astream(
+        self,
+        input_data: dict[str, Any],
+        config: dict[str, Any] | None = None,
+        response_granularity: ResponseGranularity = ResponseGranularity.LOW,
+    ) -> AsyncIterator[StreamChunk]:
+        """Execute the graph asynchronously with streaming support.
+
+        Yields StreamChunk objects containing incremental responses.
+        If nodes return streaming responses, yields them directly.
+        If nodes return complete responses, simulates streaming by chunking.
+
+        Args:
+            input_data: Input dict (no longer accepts AgentState directly)
+            config: Configuration dictionary
+            response_granularity: Response parsing granularity
+
+        Yields:
+            StreamChunk objects with incremental content
+        """
+        config = config or {}
+        input_data = input_data or {}
+
+        # Load or initialize state
+        state = await self._load_or_create_state(input_data, config)
+
+        # Check if this is a resume case
+        if state.is_interrupted():
+            # This is a resume case - clear interrupt and merge input data
+            if input_data:
+                config["resume_data"] = input_data
+            state.clear_interrupt()
+        elif not input_data.get("messages") and not state.context:
+            # This is a fresh execution - validate input data
+            raise ValueError("Input data must contain 'messages' for new execution.")
+
+        # Execute graph with streaming
+        async for chunk in self._execute_graph_streaming(state, config):
+            yield chunk
+
+    async def _execute_graph_streaming(
+        self,
+        state: AgentState,
+        config: dict[str, Any],
+    ) -> AsyncIterator[StreamChunk]:
+        """Execute the entire graph with streaming support."""
+        max_steps = config.get("recursion_limit", 25)
+
+        # Get current execution info from state
+        current_node = state.execution_meta.current_node
+        step = state.execution_meta.step
+
+        try:
+            while current_node != END and step < max_steps:
+                # Update execution metadata
+                state.set_current_node(current_node)
+                state.execution_meta.step = step
+                await self._call_realtime_sync(state, config)
+
+                # Check for interrupt_before
+                if await self._check_and_handle_interrupt(current_node, "before", state, config):
+                    yield StreamChunk(
+                        content="", delta="", is_final=True, finish_reason="interrupted"
+                    )
+                    return
+
+                # Execute current node
+
+                node = self.state_graph.nodes[current_node]
+                result = await node.execute(
+                    state,
+                    config,
+                    self.checkpointer,
+                    self.store,
+                )
+
+                # Process result using the regular logic to get proper next_node
+                temp_messages: list[Message] = []
+
+                try:
+                    _, temp_messages, next_node = await self._process_node_result(
+                        result,
+                        state,
+                        temp_messages,
+                    )
+
+                    # If _process_node_result didn't return a next_node, use _get_next_node
+                    if next_node is None and current_node:
+                        next_node = self._get_next_node(current_node, state)
+
+                except Exception:
+                    # Log error silently and continue
+                    next_node = None
+
+                # For streaming, we yield chunks based on the result
+                async for chunk in self._process_node_result_streaming(result, state):
+                    yield chunk
+
+                # Check for interrupt_after
+                if await self._check_and_handle_interrupt(
+                    current_node,
+                    "after",
+                    state,
+                    config,
+                ):
+                    # For interrupt_after, advance to next node before pausing
+                    if next_node is None and current_node:
+                        next_node = self._get_next_node(current_node, state)
+                    if next_node:
+                        state.set_current_node(next_node)
+
+                    yield StreamChunk(
+                        content="", delta="", is_final=True, finish_reason="interrupted"
+                    )
+                    return
+
+                current_node = next_node
+
+                # Advance step after successful node execution
+                step += 1
+                state.advance_step()
+                await self._call_realtime_sync(state, config)
+
+                if step >= max_steps:
+                    state.error("Graph execution exceeded maximum steps")
+                    await self._call_realtime_sync(state, config)
+                    raise GraphRecursionError(
+                        f"Graph execution exceeded recursion limit: {max_steps}"
+                    )
+
+            # Execution completed successfully
+            state.complete()
+            await self.sync_data(state, config, [], trim=True)
+
+            # Yield final completion chunk
+            yield StreamChunk(content="", delta="", is_final=True, finish_reason="stop")
+
+        except Exception as e:
+            # Handle execution errors
+            state.error(str(e))
+            await self.sync_data(state, config, [], trim=True)
+
+            # Yield error chunk
+            yield StreamChunk(content=str(e), delta=str(e), is_final=True, finish_reason="error")
+            raise
+
+    async def _process_node_result_streaming(
+        self, result: Any, state: AgentState
+    ) -> AsyncIterator[StreamChunk]:
+        """Process node result with streaming support."""
+        # Check if result is a streaming response
+        if is_streaming_response(result):
+            async for chunk in self._handle_sync_streaming(result):
+                yield chunk
+        elif is_async_streaming_response(result):
+            async for chunk in self._handle_async_streaming(result):
+                yield chunk
+        else:
+            async for chunk in self._handle_non_streaming(result, state):
+                yield chunk
+
+    async def _handle_sync_streaming(self, result: Any) -> AsyncIterator[StreamChunk]:
+        """Handle synchronous streaming response."""
+        for chunk in result:
+            if hasattr(chunk, "choices") and len(chunk.choices) > 0:
+                choice = chunk.choices[0]
+                delta_content = ""
+
+                if hasattr(choice, "delta") and choice.delta:
+                    delta_content = getattr(choice.delta, "content", "") or ""
+
+                finish_reason = getattr(choice, "finish_reason", None)
+
+                yield StreamChunk(
+                    delta=delta_content,
+                    finish_reason=finish_reason,
+                    is_final=finish_reason is not None,
+                )
+
+    async def _handle_async_streaming(self, result: Any) -> AsyncIterator[StreamChunk]:
+        """Handle asynchronous streaming response."""
+        async for chunk in result:
+            if hasattr(chunk, "choices") and len(chunk.choices) > 0:
+                choice = chunk.choices[0]
+                delta_content = ""
+
+                if hasattr(choice, "delta") and choice.delta:
+                    delta_content = getattr(choice.delta, "content", "") or ""
+
+                finish_reason = getattr(choice, "finish_reason", None)
+
+                yield StreamChunk(
+                    delta=delta_content,
+                    finish_reason=finish_reason,
+                    is_final=finish_reason is not None,
+                )
+
+    async def _handle_non_streaming(
+        self, result: Any, state: AgentState
+    ) -> AsyncIterator[StreamChunk]:
+        """Handle non-streaming response by simulating streaming."""
+        # Extract content for streaming (don't process the result again here)
+        content = extract_content_from_response(result)
+
+        # Simulate streaming of the extracted content
+        if content:
+            async for chunk in simulate_async_streaming(content, delay=0.05):
+                yield chunk
+        else:
+            # Empty response
+            yield StreamChunk(content="", delta="", is_final=True, finish_reason="stop")
 
     async def _load_or_create_state(
         self,
