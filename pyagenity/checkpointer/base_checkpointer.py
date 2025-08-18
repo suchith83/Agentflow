@@ -1,8 +1,8 @@
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Any, Generic, TypeVar
 
-from pyagenity.graph.state import AgentState
-from pyagenity.graph.utils import Message
+from pyagenity.state import AgentState
+from pyagenity.utils import Message
 
 
 # Generic type variable bound to AgentState for checkpointer subtyping

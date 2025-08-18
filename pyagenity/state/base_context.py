@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 from collections.abc import Awaitable
 from typing import Generic, TypeVar
 
-from pyagenity.graph.state import AgentState
+from .agent_state import AgentState
 
 
 S = TypeVar("S", bound=AgentState)

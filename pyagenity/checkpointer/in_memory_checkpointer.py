@@ -1,7 +1,7 @@
 from typing import Any, TypeVar
 
-from pyagenity.graph.state import AgentState
-from pyagenity.graph.utils import Message
+from pyagenity.state import AgentState
+from pyagenity.utils import Message
 
 from .base_checkpointer import BaseCheckpointer
 

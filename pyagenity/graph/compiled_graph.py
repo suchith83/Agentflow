@@ -1,37 +1,37 @@
+from __future__ import annotations
+
 import asyncio
 from collections.abc import AsyncIterator, Generator
-from typing import TYPE_CHECKING, Any, Generic, TypeVar
+from typing import TYPE_CHECKING, Any, TypeVar, cast
 
 from litellm.types.utils import ModelResponse
 
-from pyagenity.graph.checkpointer import BaseCheckpointer, BaseStore
-from pyagenity.graph.exceptions import GraphRecursionError
-from pyagenity.graph.state import AgentState
-from pyagenity.graph.state.execution_state import ExecutionStatus
-from pyagenity.graph.utils import (
+from pyagenity.checkpointer import BaseCheckpointer, BaseStore
+from pyagenity.exceptions import GraphRecursionError
+from pyagenity.state import AgentState, ExecutionStatus
+from pyagenity.utils import (
     END,
     Command,
     Message,
     ResponseGranularity,
     StreamChunk,
     add_messages,
+    call_sync_or_async,
     extract_content_from_response,
     is_async_streaming_response,
     is_streaming_response,
     simulate_async_streaming,
 )
-from pyagenity.graph.utils.callable_utils import call_sync_or_async
 
 
-# Generic type variable bound to AgentState for compiled graph subtyping
-StateT = TypeVar("StateT", bound=AgentState)
-
-
+# Import StateGraph only for typing to avoid circular import at runtime
 if TYPE_CHECKING:
     from .state_graph import StateGraph
 
+StateT = TypeVar("StateT", bound=AgentState)
 
-class CompiledGraph(Generic[StateT]):
+
+class CompiledGraph[StateT]:
     """A compiled graph ready for execution.
 
     Generic over state types to support custom AgentState subclasses.
@@ -39,8 +39,8 @@ class CompiledGraph(Generic[StateT]):
 
     def __init__(
         self,
-        state_graph: "StateGraph[StateT]",
-        checkpointer: BaseCheckpointer[StateT] | None = None,
+        state_graph: StateGraph,
+        checkpointer: BaseCheckpointer | None = None,
         store: BaseStore | None = None,
         debug: bool = False,
         interrupt_before: list[str] | None = None,
@@ -402,14 +402,20 @@ class CompiledGraph(Generic[StateT]):
         input_data: dict[str, Any],
         config: dict[str, Any],
     ) -> StateT:
-        """Load existing state from checkpointer or create new state."""
+        """Load existing state from checkpointer or create new state.
+
+        Attempts to fetch a realtime-synced state first, then falls back to
+        the persistent checkpointer. If no existing state is found, creates
+        a new state from the `StateGraph`'s prototype state and merges any
+        incoming messages.
+        """
         # Try to load existing state if checkpointer is available
         if self.checkpointer:
-            # now first check we have state in realtime sync options
-            existing_state = self.checkpointer.get_sync_state(config)
+            # first check realtime-synced state
+            existing_state = await call_sync_or_async(self.checkpointer.get_sync_state, config)
             if not existing_state:
-                # If no synced state, try to get from checkpointer
-                existing_state = self.checkpointer.get_state(config)
+                # If no synced state, try to get from persistent checkpointer
+                existing_state = await call_sync_or_async(self.checkpointer.get_state, config)
 
             if existing_state:
                 # Merge new messages with existing context
@@ -418,8 +424,9 @@ class CompiledGraph(Generic[StateT]):
                     existing_state.context = add_messages(existing_state.context, new_messages)
                 return existing_state
 
-        # Create new state
-        state: AgentState = self.state_graph.state
+        # Create new state from the graph's prototype state
+        state: StateT = cast(StateT, self.state_graph.state)
+
         # Set thread_id in execution metadata
         thread_id = config.get("thread_id", "default")
         state.execution_meta.thread_id = thread_id

@@ -3,10 +3,29 @@ name = "pyagenity"
 version = "0.1.0"
 description = "PyAgenity is a Python framework for building, orchestrating, and managing multi-agent systems. Designed for flexibility and scalability, PyAgenity enables developers to create intelligent agents that collaborate, communicate, and solve complex tasks together."
 readme = "README.md"
-requires-python = ">=3.13"
+license = {file = "LICENSE"}
+requires-python = ">=3.8"
 dependencies = [
     "litellm>=1.75.0",
     "python-dotenv>=1.0.0",
+]
+authors = [
+    {name = "Iamsdt", email = "iamsdt@gmail.com"}
+]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Intended Audience :: Developers",
+    "Development Status :: 3 - Alpha",
+    "Topic :: Software Development :: Libraries :: Application Frameworks",
+    "Topic :: Software Development :: Libraries :: Python Modules",
 ]
 
 [build-system]

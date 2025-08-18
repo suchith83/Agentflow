@@ -1,4 +1,5 @@
 # Export from command.py
+from .callable_utils import call_sync_or_async
 from .command import Command
 
 # Export from constants.py
@@ -40,10 +41,10 @@ from .streaming import (
 
 
 __all__ = [
-    "DependencyContainer",
     "END",
     "START",
     "Command",
+    "DependencyContainer",
     "ExecutionState",
     "InjectCheckpointer",
     "InjectConfig",
@@ -59,6 +60,7 @@ __all__ = [
     "add_messages",
     "append_items",
     "astream_from_litellm_response",
+    "call_sync_or_async",
     "convert_messages",
     "extract_content_from_response",
     "get_injectable_param_name",

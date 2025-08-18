@@ -7,7 +7,7 @@ from uuid import uuid4
 
 from litellm.types.utils import ModelResponse
 
-from pyagenity.graph.utils import Message
+from .message import Message
 
 
 class StreamChunk:
@@ -32,7 +32,7 @@ class StreamChunk:
     def to_message(self) -> Message:
         """Convert chunk to a Message object."""
         return Message(
-            role=self.role,
+            role=self.role,  # type: ignore
             content=self.content,
             tools_calls=self.tool_calls,
             message_id=str(uuid4()),

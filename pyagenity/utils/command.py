@@ -11,7 +11,7 @@ from litellm.types.utils import ModelResponse
 
 if TYPE_CHECKING:
     # Import only for type checking to avoid circular imports at runtime
-    from pyagenity.graph.state import AgentState
+    from pyagenity.state import AgentState
 
 
 T = TypeVar("T")

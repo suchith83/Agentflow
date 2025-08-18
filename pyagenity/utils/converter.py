@@ -4,7 +4,7 @@ from .message import Message
 
 
 if TYPE_CHECKING:
-    from pyagenity.graph.state import AgentState
+    from pyagenity.state import AgentState
 
 
 def _convert_dict(message: Message) -> dict[str, Any]:
