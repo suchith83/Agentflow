@@ -1,0 +1,11 @@
+ruff>=0.28.0
+black
+isort
+pylint
+pytest
+pytest-cov
+pre-commit
+sphinx
+sphinx-rtd-theme
+aiosmtplib
+yagmail

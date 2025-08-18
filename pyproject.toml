@@ -10,7 +10,7 @@ dependencies = [
     "python-dotenv>=1.0.0",
 ]
 authors = [
-    {name = "Iamsdt", email = "iamsdt@gmail.com"}
+    {name = "Shudipto", email = "shudipto.trafder@gmail.com"}
 ]
 classifiers = [
     "Programming Language :: Python :: 3",
