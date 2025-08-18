@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import AsyncIterator, Generator
-from typing import TYPE_CHECKING, Any, TypeVar, cast
+from typing import TYPE_CHECKING, Any
 
 from litellm.types.utils import ModelResponse
 
@@ -28,10 +28,8 @@ from pyagenity.utils import (
 if TYPE_CHECKING:
     from .state_graph import StateGraph
 
-StateT = TypeVar("StateT", bound=AgentState)
 
-
-class CompiledGraph[StateT]:
+class CompiledGraph:
     """A compiled graph ready for execution.
 
     Generic over state types to support custom AgentState subclasses.
@@ -235,7 +233,6 @@ class CompiledGraph[StateT]:
         # Get current execution info from state
         current_node = state.execution_meta.current_node
         step = state.execution_meta.step
-
         try:
             while current_node != END and step < max_steps:
                 # Update execution metadata
@@ -301,7 +298,11 @@ class CompiledGraph[StateT]:
                     )
                     return
 
-                current_node = next_node
+                # Get next node (only if no explicit navigation from Command)
+                if next_node is None:
+                    current_node = self._get_next_node(current_node, state)
+                else:
+                    current_node = next_node
 
                 # Advance step after successful node execution
                 step += 1
@@ -401,7 +402,7 @@ class CompiledGraph[StateT]:
         self,
         input_data: dict[str, Any],
         config: dict[str, Any],
-    ) -> StateT:
+    ) -> AgentState:
         """Load existing state from checkpointer or create new state.
 
         Attempts to fetch a realtime-synced state first, then falls back to
@@ -425,7 +426,7 @@ class CompiledGraph[StateT]:
                 return existing_state
 
         # Create new state from the graph's prototype state
-        state: StateT = cast(StateT, self.state_graph.state)
+        state = self.state_graph.state
 
         # Set thread_id in execution metadata
         thread_id = config.get("thread_id", "default")
