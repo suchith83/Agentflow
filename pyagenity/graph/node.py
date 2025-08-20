@@ -150,6 +150,7 @@ class Node:
                 result = await call_sync_or_async(self.func, **kwargs)
             return result  # pyright: ignore[reportReturnType]
         except Exception as e:
+            print("Error occurred while executing node function", e)
             raise NodeError(f"Error in node '{self.name}': {e!s}") from e
 
     def _prepare_function_kwargs(

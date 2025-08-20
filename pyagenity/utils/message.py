@@ -60,7 +60,7 @@ class Message:
         if self.metadata is None:
             self.metadata = {}
 
-    def to_dict(self) -> dict[str, Any]:
+    def to_dict(self, include_raw: bool = False) -> dict[str, Any]:
         """Convert to dictionary with all fields."""
         return {
             "message_id": self.message_id,
@@ -70,7 +70,7 @@ class Message:
             "timestamp": self.timestamp.isoformat() if self.timestamp else None,
             "metadata": self.metadata,
             "usages": self.usages.to_dict() if self.usages else None,
-            "raw": self.raw,
+            "raw": self.raw if include_raw else None,
         }
 
     @staticmethod

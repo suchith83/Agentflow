@@ -1,7 +1,10 @@
+import asyncio
 from typing import Any
 
 from dotenv import load_dotenv
-from litellm import acompletion
+from fastmcp import Client
+from litellm import acompletion, completion
+from mcp import Tool
 
 from pyagenity.checkpointer import InMemoryCheckpointer
 from pyagenity.graph import StateGraph, ToolNode
@@ -16,30 +19,19 @@ load_dotenv()
 
 checkpointer = InMemoryCheckpointer()
 
-
-def get_weather(
-    location: str,
-    tool_call_id: InjectToolCallID,
-    state: InjectState,
-) -> Message:
-    """
-    Get the current weather for a specific location.
-    This demo shows injectable parameters: tool_call_id and state are automatically injected.
-    """
-    # You can access injected parameters here
-    if tool_call_id:
-        print(f"Tool call ID: {tool_call_id}")
-    if state and hasattr(state, "context"):
-        print(f"Number of messages in context: {len(state.context)}")  # type: ignore
-
-    res = f"The weather in {location} is sunny."
-    return Message.tool_message(
-        content=res,
-        tool_call_id=tool_call_id,  # type: ignore
-    )
+config = {
+    "mcpServers": {
+        "weather": {
+            "url": "http://127.0.0.1:8000/mcp",
+            "transport": "streamable-http",
+        }
+    }
+}
 
 
-tool_node = ToolNode([get_weather])
+client_http = Client(config)
+
+tool_node = ToolNode(functions=[], client=client_http)
 
 
 async def main_agent(
@@ -58,29 +50,14 @@ async def main_agent(
         state=state,
     )
 
-    mcp_tools = []
-
     # Check if the last message is a tool result - if so, make final response without tools
-    if (
-        state.context
-        and len(state.context) > 0
-        and state.context[-1].role == "tool"
-        and state.context[-1].tool_call_id is not None
-    ):
-        # Make final response without tools since we just got tool results
-        response = await acompletion(
-            model="gemini/gemini-2.5-flash",
-            messages=messages,
-        )
-    else:
-        # Regular response with tools available
-        tools = await tool_node.all_tools()
-        response = await acompletion(
-            model="gemini/gemini-2.5-flash",
-            messages=messages,
-            tools=tools + mcp_tools,
-        )
-
+    tools = await tool_node.all_tools()
+    print("**** List of tools", len(tools), tools)
+    response = await acompletion(
+        model="gemini/gemini-2.0-flash",
+        messages=messages,
+        tools=tools,
+    )
     return response
 
 
@@ -136,4 +113,6 @@ config = {"thread_id": "12345", "recursion_limit": 10}
 
 res = app.invoke(inp, config=config)
 
-print(res)
+for i in res["messages"]:
+    print(i)
+    print("\n")

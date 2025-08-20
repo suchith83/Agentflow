@@ -23,10 +23,6 @@ class BaseCheckpointer(Generic[StateT], ABC):
     - put_state: Store complete AgentState (including execution metadata)
     - get_state: Retrieve complete AgentState
     - clear_state: Remove stored state
-
-    Legacy API (for backward compatibility):
-    - put_execution_state/get_execution_state: Now implemented via combined state
-    - Other methods remain for messages, threads, etc.
     """
 
     # Realtime Sync of state Recommended to use faster database

@@ -7,7 +7,14 @@ descriptions suitable for function-calling LLMs and a simple execute API.
 from __future__ import annotations
 
 import inspect
+import json
 import typing as t
+
+from fastmcp import Client
+from fastmcp.client.client import CallToolResult
+from mcp import Tool
+
+from pyagenity.utils.message import Message
 
 
 if t.TYPE_CHECKING:
@@ -21,14 +28,17 @@ from pyagenity.utils.injectable import get_injectable_param_name, is_injectable_
 class ToolNode:
     """Registry for callables that exports function specs and executes them."""
 
-    def __init__(self, functions: t.Iterable[t.Callable]):
+    def __init__(self, functions: t.Iterable[t.Callable], client: Client | None = None):
         self._funcs: dict[str, t.Callable] = {}
+        self._client: Client | None = client
         for fn in functions:
             if not callable(fn):
                 raise TypeError("ToolNode only accepts callables")
             self._funcs[fn.__name__] = fn
 
-    def all_tools(self) -> list[dict]:
+        self.mcp_tools = []
+
+    async def all_tools(self) -> list[dict]:
         """Return function descriptions for all registered callables."""
 
         tools: list[dict] = []
@@ -71,7 +81,110 @@ class ToolNode:
                 }
             )
 
+        # get the tools from client
+        if self._client:
+            async with self._client:
+                # check ping
+                res = await self._client.ping()
+                # Ping not working, so no need to
+                # do anything, return old one
+                if not res:
+                    return tools
+
+                mcp_tools: list[Tool] = await self._client.list_tools()
+                for i in mcp_tools:
+                    # also save the names
+                    self.mcp_tools.append(i.name)
+                    tools.append(
+                        {
+                            "type": "function",
+                            "function": {
+                                "name": i.name,
+                                "description": i.description,
+                                "parameters": i.inputSchema,
+                            },
+                        }
+                    )
+
         return tools
+
+    async def _internal_execute(
+        self,
+        name: str,
+        args: dict,
+        tool_call_id: str,
+        config: dict[str, t.Any],
+        state: AgentState | None = None,
+        checkpointer: BaseCheckpointer | None = None,
+        store: BaseStore | None = None,
+        dependency_container=None,
+    ):
+        fn = self._funcs[name]
+        sig = inspect.signature(fn)
+
+        # Available injectable parameters
+        injectable_params = {
+            "tool_call_id": tool_call_id,
+            "state": state,
+            "checkpointer": checkpointer,
+            "store": store,
+            "config": config,
+        }
+
+        kwargs = self._prepare_kwargs(sig, args, injectable_params, dependency_container)
+        return await call_sync_or_async(fn, **kwargs)
+
+    async def _mcp_execute(
+        self,
+        name: str,
+        args: dict,
+        tool_call_id: str,
+        config: dict[str, t.Any],
+        state: AgentState | None = None,
+        checkpointer: BaseCheckpointer | None = None,
+        store: BaseStore | None = None,
+        dependency_container=None,
+    ) -> Message:
+        """
+        Execute the MCP tool registered under `name` with `args` kwargs.
+        Returns a Message with the result or error.
+        """
+        if not self._client:
+            return Message.tool_message(
+                tool_call_id=tool_call_id,
+                content="MCP Client not Setup",
+                is_error=True,
+            )
+
+        async with self._client:
+            # TODO: Allow Injectable
+            if not await self._client.ping():
+                return Message.tool_message(
+                    tool_call_id=tool_call_id,
+                    content="MCP Server not available. Ping failed.",
+                    is_error=True,
+                )
+
+            res: CallToolResult = await self._client.call_tool(name, args)
+            result = res.data or res.structured_content
+
+            def serialize_result(val):
+                if isinstance(val, dict):
+                    return json.dumps(val)
+                if isinstance(val, list):
+                    return json.dumps({"items": val})
+
+                if val is not None:
+                    return str(val)
+                return "No valid result returned."
+
+            final_res = serialize_result(result)
+
+            return Message.tool_message(
+                tool_call_id=tool_call_id,
+                content=final_res,
+                is_error=bool(res.is_error),
+            )
 
     async def execute(
         self,
@@ -94,23 +207,36 @@ class ToolNode:
         - dependency_container: Container with custom dependencies
         """
 
-        if name not in self._funcs:
-            raise KeyError(f"Function '{name}' is not registered in ToolNode")
+        # check in mcp
+        if name in self.mcp_tools:
+            return await self._mcp_execute(
+                name,
+                args,
+                tool_call_id,
+                config,
+                state,
+                checkpointer,
+                store,
+                dependency_container,
+            )
 
-        fn = self._funcs[name]
-        sig = inspect.signature(fn)
+        if name in self._funcs:
+            return await self._internal_execute(
+                name,
+                args,
+                tool_call_id,
+                config,
+                state,
+                checkpointer,
+                store,
+                dependency_container,
+            )
 
-        # Available injectable parameters
-        injectable_params = {
-            "tool_call_id": tool_call_id,
-            "state": state,
-            "checkpointer": checkpointer,
-            "store": store,
-            "config": config,
-        }
-
-        kwargs = self._prepare_kwargs(sig, args, injectable_params, dependency_container)
-        return await call_sync_or_async(fn, **kwargs)
+        return Message.tool_message(
+            content=f"Tool '{name}' not found.",
+            tool_call_id=tool_call_id,
+            is_error=True,
+        )
 
     def _prepare_kwargs(
         self,
