@@ -1,14 +1,15 @@
 [project]
 name = "pyagenity"
-version = "0.1.0"
+version = "0.1.1"
 description = "PyAgenity is a Python framework for building, orchestrating, and managing multi-agent systems. Designed for flexibility and scalability, PyAgenity enables developers to create intelligent agents that collaborate, communicate, and solve complex tasks together."
 readme = "README.md"
 license = {file = "LICENSE"}
 requires-python = ">=3.10"
 dependencies = [
+    "fastmcp>=2.11.3",
     "litellm>=1.75.0",
+    "mcp>=1.13.0",
     "python-dotenv>=1.0.0",
-    "fast
 ]
 authors = [
     {name = "Shudipto", email = "shudipto.trafder@gmail.com"}
@@ -79,13 +80,13 @@ lint.ignore = [
     "B008",
     "ISC001",# flake8-implicit-str-concat
 ]
+# Allow unused variables when underscore-prefixed.
+lint.dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
 exclude = [
     "migrations/*",  # Exclude the migrations folder
     "venv/*",
     "example/*",
 ]
-# Allow unused variables when underscore-prefixed.
-lint.dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
 
 
 [tool.ruff.lint.mccabe]
