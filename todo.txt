@@ -1,6 +1,10 @@
 Task In library
-1. Dependency Injection
-2. streaming response
+1. Logging and Comments and Code Restructure
+2. Event Publish
+3. Security Checking on Prompt
+4. Testing Coverage
+5. API Documentation
+6. Tutorial
 
 API with python
 with workflow run
