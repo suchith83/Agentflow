@@ -1,13 +1,13 @@
 Task In library
-1. Allow Partial State Update
-1. Logging and Comments and Code Restructure
-2. Event Publish
-3. Security Checking on Prompt
-4. Release asyncpg and otpimize it
-5. redis async pg
-6. Testing Coverage
-7. API Documentation
-8. Tutorial
+1. Allow Partial State Update -> DONE
+2. Logging and Comments and Code Restructure
+3. Event Publish
+4. Security Checking on Prompt
+5. Release asyncpg and otpimize it
+6. redis async pg
+7. Testing Coverage
+8. API Documentation
+9. Tutorial
 
 API with python
 with workflow run
