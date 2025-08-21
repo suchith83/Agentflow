@@ -17,7 +17,7 @@ if TYPE_CHECKING:
 StateT = TypeVar("StateT", bound="AgentState")
 
 
-class Command[StateT]:
+class Command[StateT: AgentState]:
     """
     Command object that combines state updates with control flow.
 

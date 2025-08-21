@@ -6,14 +6,14 @@ from pyagenity.utils import Message
 
 
 # Generic type variable bound to AgentState for checkpointer subtyping
-StateT = TypeVar("StateT", bound=AgentState)
+StateT = TypeVar("StateT", bound="AgentState")
 
 
 if TYPE_CHECKING:
     pass
 
 
-class BaseCheckpointer[StateT](ABC):
+class BaseCheckpointer[StateT: AgentState](ABC):
     """
     Base class for checkpointer implementations.
 

@@ -1,12 +1,12 @@
 from abc import ABC, abstractmethod
-from typing import Any, Generic, TypeVar
+from typing import Any, TypeVar
 
 
 # Generic type variable for extensible data types
 DataT = TypeVar("DataT")
 
 
-class BaseStore(Generic[DataT], ABC):
+class BaseStore[DataT: Any](ABC):
     """Base class for message storage implementations.
 
     Generic over data types to support extensible storage formats.
