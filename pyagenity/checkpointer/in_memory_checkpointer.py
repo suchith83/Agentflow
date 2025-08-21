@@ -10,26 +10,26 @@ from .base_checkpointer import BaseCheckpointer
 StateT = TypeVar("StateT", bound=AgentState)
 
 
-class InMemoryCheckpointer(BaseCheckpointer[AgentState]):
+class InMemoryCheckpointer(BaseCheckpointer[StateT]):
     """In-memory checkpointer that persists combined AgentState (including execution metadata)."""
 
     def __init__(self):
         # Use dicts for in-memory storage
-        self._state_store: dict[str, AgentState] = {}
+        self._state_store: dict[str, StateT] = {}
         self._messages_store: dict[str, list[Message]] = {}
         self._threads_store: dict[str, dict[str, Any]] = {}
-        self._sync_state_store: dict[str, AgentState] = {}
+        self._sync_state_store: dict[str, StateT] = {}
 
     def _config_key(self, config: dict[str, Any]) -> str:
         # Use a string key for config; simple str() for demo, customize as needed
         return str(sorted(config.items()))
 
     # === PRIMARY API: Combined State Management ===
-    def put_state(self, config: dict[str, Any], state: AgentState) -> None:
+    def put_state(self, config: dict[str, Any], state: StateT) -> None:
         key = self._config_key(config)
         self._state_store[key] = state
 
-    def get_state(self, config: dict[str, Any]) -> AgentState | None:
+    def get_state(self, config: dict[str, Any]) -> StateT | None:
         key = self._config_key(config)
         return self._state_store.get(key)
 
@@ -38,11 +38,11 @@ class InMemoryCheckpointer(BaseCheckpointer[AgentState]):
         self._state_store.pop(key, None)
 
     # === Realtime Sync State ===
-    def sync_state(self, config: dict[str, Any], state: AgentState) -> None:
+    def sync_state(self, config: dict[str, Any], state: StateT) -> None:
         key = self._config_key(config)
         self._sync_state_store[key] = state
 
-    def get_sync_state(self, config: dict[str, Any]) -> AgentState | None:
+    def get_sync_state(self, config: dict[str, Any]) -> StateT | None:
         key = self._config_key(config)
         return self._sync_state_store.get(key)
 

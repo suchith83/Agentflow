@@ -108,3 +108,7 @@ class ExecutionState:
         """Mark execution as errored."""
         self.status = ExecutionStatus.ERROR
         self._internal_data["error"] = error_msg
+
+    def is_running(self) -> bool:
+        """Check if execution is currently running."""
+        return self.status == ExecutionStatus.RUNNING

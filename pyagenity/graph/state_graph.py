@@ -70,6 +70,17 @@ class StateGraph[StateT: AgentState]:
             START and END nodes are automatically added to the graph upon
             initialization and accept the full node signature including
             dependencies.
+
+        Example:
+            # Basic usage with default AgentState
+            >>> graph = StateGraph()
+
+            # With custom state
+            >>> custom_state = MyCustomState()
+            >>> graph = StateGraph(custom_state)
+
+            # Or using type hints for clarity
+            >>> graph = StateGraph[MyCustomState](MyCustomState())
         """
         # Initialize state and structure
         self.state = state or AgentState()  # type: ignore[assignment]

@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Any, Generic, TypeVar
+from typing import TYPE_CHECKING, Any, TypeVar
 
 from pyagenity.state import AgentState
 from pyagenity.utils import Message
@@ -13,7 +13,7 @@ if TYPE_CHECKING:
     pass
 
 
-class BaseCheckpointer(Generic[StateT], ABC):
+class BaseCheckpointer[StateT](ABC):
     """
     Base class for checkpointer implementations.
 

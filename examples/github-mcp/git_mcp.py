@@ -124,7 +124,7 @@ inp = {
 }
 # inp = {"messages": [Message.from_text("Please call the get_weather function for New York City")]}
 config = {"thread_id": "12345", "recursion_limit": 10}
-
+# todo pass data to state directly
 res = app.invoke(inp, config=config)
 
 import json

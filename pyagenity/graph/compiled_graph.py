@@ -1,16 +1,19 @@
 from __future__ import annotations
 
 import asyncio
+import dataclasses
 from collections.abc import AsyncIterator, Generator
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, TypeVar
 
 from litellm.types.utils import ModelResponse
 
 from pyagenity.checkpointer import BaseCheckpointer, BaseStore
 from pyagenity.exceptions import GraphRecursionError
 from pyagenity.state import AgentState, ExecutionStatus
+from pyagenity.state.execution_state import ExecutionState as ExecMeta
 from pyagenity.utils import (
     END,
+    START,
     Command,
     Message,
     ResponseGranularity,
@@ -29,7 +32,10 @@ if TYPE_CHECKING:
     from .state_graph import StateGraph
 
 
-class CompiledGraph:
+StateT = TypeVar("StateT", bound=AgentState)
+
+
+class CompiledGraph[StateT: AgentState]:
     """A compiled graph ready for execution.
 
     Generic over state types to support custom AgentState subclasses.
@@ -63,7 +69,7 @@ class CompiledGraph:
         Auto-detects whether to start fresh execution or resume from interrupted state.
 
         Args:
-            input_data: Input dict (no longer accepts AgentState directly)
+            input_data: Input dict
             config: Configuration dictionary
 
         Returns:
@@ -118,7 +124,7 @@ class CompiledGraph:
 
     async def _parse_response(
         self,
-        state: AgentState,
+        state: StateT,
         messages: list[Message],
         response_granularity: ResponseGranularity = ResponseGranularity.LOW,
     ) -> dict[str, Any]:
@@ -154,7 +160,7 @@ class CompiledGraph:
         If nodes return complete responses, simulates streaming by chunking.
 
         Args:
-            input_data: Input dict (no longer accepts AgentState directly)
+            input_data: Input dict
             config: Configuration dictionary
             response_granularity: Response parsing granularity
 
@@ -195,7 +201,7 @@ class CompiledGraph:
         If nodes return complete responses, simulates streaming by chunking.
 
         Args:
-            input_data: Input dict (no longer accepts AgentState directly)
+            input_data: Input dict
             config: Configuration dictionary
             response_granularity: Response parsing granularity
 
@@ -224,7 +230,7 @@ class CompiledGraph:
 
     async def _execute_graph_streaming(
         self,
-        state: AgentState,
+        state: StateT,
         config: dict[str, Any],
     ) -> AsyncIterator[StreamChunk]:
         """Execute the entire graph with streaming support."""
@@ -333,7 +339,9 @@ class CompiledGraph:
             raise
 
     async def _process_node_result_streaming(
-        self, result: Any, state: AgentState
+        self,
+        result: Any,
+        state: StateT,
     ) -> AsyncIterator[StreamChunk]:
         """Process node result with streaming support."""
         # Check if result is a streaming response
@@ -384,7 +392,9 @@ class CompiledGraph:
                 )
 
     async def _handle_non_streaming(
-        self, result: Any, state: AgentState
+        self,
+        result: Any,
+        state: StateT,
     ) -> AsyncIterator[StreamChunk]:
         """Handle non-streaming response by simulating streaming."""
         # Extract content for streaming (don't process the result again here)
@@ -402,7 +412,7 @@ class CompiledGraph:
         self,
         input_data: dict[str, Any],
         config: dict[str, Any],
-    ) -> AgentState:
+    ) -> StateT:
         """Load existing state from checkpointer or create new state.
 
         Attempts to fetch a realtime-synced state first, then falls back to
@@ -426,7 +436,18 @@ class CompiledGraph:
                 return existing_state
 
         # Create new state from the graph's prototype state
-        state = self.state_graph.state
+        # Get the state class and create a fresh instance
+        StateClass = type(self.state_graph.state)
+        state = StateClass()  # This should properly initialize dataclass fields
+
+        # Ensure core AgentState fields are properly initialized
+        if hasattr(state, "context") and not isinstance(state.context, list):
+            state.context = []
+        if hasattr(state, "context_summary") and state.context_summary is None:
+            state.context_summary = None
+        if hasattr(state, "execution_meta"):
+            # Create a fresh execution metadata
+            state.execution_meta = ExecMeta(current_node=START)
 
         # Set thread_id in execution metadata
         thread_id = config.get("thread_id", "default")
@@ -436,11 +457,11 @@ class CompiledGraph:
         new_messages = input_data.get("messages", [])
         if new_messages:
             state.context = add_messages(state.context, new_messages)
-        return state
+        return state  # type: ignore[return-value]
 
     async def _call_realtime_sync(
         self,
-        state: AgentState,
+        state: StateT,
         config: dict[str, Any],
     ) -> None:
         """Call the realtime state sync hook if provided."""
@@ -449,7 +470,7 @@ class CompiledGraph:
 
     async def _sync_data(
         self,
-        state: AgentState,
+        state: StateT,
         config: dict[str, Any],
         messages: list[Message],
         trim: bool = False,
@@ -475,9 +496,9 @@ class CompiledGraph:
 
     async def _execute_graph(
         self,
-        state: AgentState,
+        state: StateT,
         config: dict[str, Any],
-    ) -> tuple[AgentState, list[Message]]:
+    ) -> tuple[StateT, list[Message]]:
         """Execute the entire graph with support for interrupts and resuming."""
         messages: list[Message] = []
         max_steps = config.get("recursion_limit", 25)
@@ -561,8 +582,8 @@ class CompiledGraph:
             raise
 
     async def _process_node_result(
-        self, result: Any, state: AgentState, messages: list[Message]
-    ) -> tuple[AgentState, list[Message], str | None]:
+        self, result: Any, state: StateT, messages: list[Message]
+    ) -> tuple[StateT, list[Message], str | None]:
         """Process result from node execution and return updated state, messages, and next node."""
         next_node = None
 
@@ -574,7 +595,8 @@ class CompiledGraph:
                     messages.append(lm)
                     state.context = add_messages(state.context, [lm])
                 elif isinstance(result.update, AgentState):
-                    state = result.update
+                    # Check if it's an AgentState or subclass - cast to StateT
+                    state = result.update  # type: ignore[assignment]
                     messages.append(
                         state.context[-1] if state.context else Message.from_text("Unknown")
                     )
@@ -587,7 +609,8 @@ class CompiledGraph:
             state.context = add_messages(state.context, [result])
 
         elif isinstance(result, AgentState):
-            state = result
+            # Check if result is an AgentState or subclass - cast to StateT
+            state = result  # type: ignore[assignment]
             messages.append(state.context[-1] if state.context else Message.from_text("Unknown"))
 
         elif isinstance(result, dict):
@@ -611,7 +634,7 @@ class CompiledGraph:
         self,
         current_node: str,
         interrupt_type: str,
-        state: AgentState,
+        state: StateT,
         config: dict[str, Any],
     ) -> bool:
         """Check for interrupts and save state if needed. Returns True if interrupted."""
@@ -638,7 +661,7 @@ class CompiledGraph:
     def _get_next_node(
         self,
         current_node: str,
-        state: AgentState,
+        state: StateT,
     ) -> str:
         """Get the next node to execute based on edges."""
         # Find outgoing edges from current node

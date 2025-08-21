@@ -4,7 +4,7 @@ Command API for AgentGraph.
 Allows combining state updates with control flow similar to LangGraph's Command.
 """
 
-from typing import TYPE_CHECKING, Generic, Literal, TypeVar, Union
+from typing import TYPE_CHECKING, TypeVar, Union
 
 from litellm.types.utils import ModelResponse
 
@@ -14,10 +14,10 @@ if TYPE_CHECKING:
     from pyagenity.state import AgentState
 
 
-T = TypeVar("T")
+StateT = TypeVar("StateT", bound="AgentState")
 
 
-class Command(Generic[T]):
+class Command[StateT]:
     """
     Command object that combines state updates with control flow.
 
@@ -29,8 +29,8 @@ class Command(Generic[T]):
 
     def __init__(
         self,
-        update: Union["AgentState", None, ModelResponse] = None,
-        goto: T | None = None,
+        update: Union["StateT", None, ModelResponse] = None,
+        goto: str | None = None,
         graph: str | None = None,
     ):
         """
@@ -47,8 +47,3 @@ class Command(Generic[T]):
 
     def __repr__(self) -> str:
         return f"Command(update={self.update}, goto={self.goto}, graph={self.graph})"
-
-
-# Type aliases for common command return types
-CommandLiteral = Command[Literal]
-CommandStr = Command[str]

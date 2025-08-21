@@ -77,9 +77,10 @@ class Message:
     def from_text(
         data: str,
         role: Literal["user", "assistant", "system", "tool"] = "user",
+        message_id: str | None = None,
     ) -> "Message":
         return Message(
-            message_id=str(uuid4()),  # Generate a new UUID
+            message_id=message_id or str(uuid4()),  # Generate a new UUID
             role=role,
             content=data,
             timestamp=datetime.now(),
@@ -96,7 +97,7 @@ class Message:
             raise ValueError("Missing required fields: 'role' and 'content'")
 
         return Message(
-            message_id=data.get("message_id", ""),
+            message_id=data.get("message_id", str(uuid4())),
             role=data.get("role", ""),
             content=data.get("content", ""),
             reasoning=data.get("reasoning"),
@@ -162,13 +163,14 @@ class Message:
         tool_call_id: str,
         content: str,
         is_error: bool = False,
+        message_id: str | None = None,
     ):
         res = content
         if is_error:
             res = '{"success": False, "error": content}'
 
         return Message(
-            message_id=str(uuid4()),
+            message_id=message_id or str(uuid4()),
             role="tool",
             content=res,
             timestamp=datetime.now(),

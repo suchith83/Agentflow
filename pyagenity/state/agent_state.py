@@ -57,6 +57,9 @@ class AgentState:
     def clear_interrupt(self) -> None:
         self.execution_meta.clear_interrupt()
 
+    def is_running(self) -> bool:
+        return self.execution_meta.is_running()
+
     def is_interrupted(self) -> bool:
         return self.execution_meta.is_interrupted()
 
