@@ -61,13 +61,22 @@ class Message:
             self.metadata = {}
 
     def to_dict(self, include_raw: bool = False) -> dict[str, Any]:
-        """Convert to dictionary with all fields."""
+        """Convert to dictionary with all fields. Handles both datetime and int timestamps."""
+        ts = self.timestamp
+        if ts is None:
+            ts_val = None
+        elif hasattr(ts, "isoformat"):
+            ts_val = ts.isoformat()
+        elif isinstance(ts, int):
+            ts_val = ts  # leave as int (epoch)
+        else:
+            ts_val = str(ts)
         return {
             "message_id": self.message_id,
             "role": self.role,
             "content": self.content,
             "reasoning": self.reasoning,
-            "timestamp": self.timestamp.isoformat() if self.timestamp else None,
+            "timestamp": ts_val,
             "metadata": self.metadata,
             "usages": self.usages.to_dict() if self.usages else None,
             "raw": self.raw if include_raw else None,

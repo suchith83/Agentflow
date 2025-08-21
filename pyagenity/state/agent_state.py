@@ -36,18 +36,21 @@ class AgentState:
     execution_meta: ExecMeta = field(default_factory=lambda: ExecMeta(current_node=START))
 
     def to_dict(self, include_internal: bool = False) -> dict[str, Any]:
-        """Serialize state to dict.
+        """Serialize state to dict, including all dataclass fields (custom fields too)."""
+        import dataclasses  # noqa: PLC0415
 
-        By default internal execution metadata is excluded unless include_internal=True.
-        """
-        d = {
-            "context": [m.to_dict() for m in self.context],
-            "context_summary": self.context_summary,
-            "active_node": self.execution_meta.current_node,
-            "step": self.execution_meta.step,
-        }
+        d = dataclasses.asdict(self)
+        # Overwrite context with serialized messages
+        d["context"] = [m.to_dict() for m in self.context]
+        # Optionally add execution_meta as dict
         if include_internal:
             d["execution_meta"] = self.execution_meta.to_dict()
+        else:
+            # Remove execution_meta if not requested
+            d.pop("execution_meta", None)
+        # Add convenience fields for compatibility
+        d["active_node"] = self.execution_meta.current_node
+        d["step"] = self.execution_meta.step
         return d
 
     # Convenience delegation methods for execution meta so callers can use the same API

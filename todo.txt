@@ -1,4 +1,5 @@
 Task In library
+1. Allow Partial State Update
 1. Logging and Comments and Code Restructure
 2. Event Publish
 3. Security Checking on Prompt

@@ -34,6 +34,17 @@ if TYPE_CHECKING:
 StateT = TypeVar("StateT", bound=AgentState)
 
 
+# Utility to update only provided fields in state
+def _update_state_fields(state, partial: dict):
+    """Update only the provided fields in the state object."""
+    for k, v in partial.items():
+        # Avoid updating special fields
+        if k in ("context", "context_summary", "execution_meta"):
+            continue
+        if hasattr(state, k):
+            setattr(state, k, v)
+
+
 class CompiledGraph[StateT: AgentState]:
     """A compiled graph ready for execution.
 
@@ -417,12 +428,14 @@ class CompiledGraph[StateT: AgentState]:
         Attempts to fetch a realtime-synced state first, then falls back to
         the persistent checkpointer. If no existing state is found, creates
         a new state from the `StateGraph`'s prototype state and merges any
-        incoming messages.
+        incoming messages. Supports partial state update via 'state' in input_data.
         """
         # Try to load existing state if checkpointer is available
         if self.checkpointer:
             # first check realtime-synced state
-            existing_state = await call_sync_or_async(self.checkpointer.get_sync_state, config)
+            existing_state: StateT = await call_sync_or_async(
+                self.checkpointer.get_sync_state, config
+            )
             if not existing_state:
                 # If no synced state, try to get from persistent checkpointer
                 existing_state = await call_sync_or_async(self.checkpointer.get_state, config)
@@ -432,12 +445,16 @@ class CompiledGraph[StateT: AgentState]:
                 new_messages = input_data.get("messages", [])
                 if new_messages:
                     existing_state.context = add_messages(existing_state.context, new_messages)
+                # Merge partial state fields if provided
+                partial_state = input_data.get("state")
+                if partial_state and isinstance(partial_state, dict):
+                    _update_state_fields(existing_state, partial_state)
                 return existing_state
 
-        # Create new state from the graph's prototype state
-        # Get the state class and create a fresh instance
-        StateClass = type(self.state_graph.state)
-        state = StateClass()  # This should properly initialize dataclass fields
+        # Create new state by deep copying the graph's prototype state
+        import copy  # noqa: PLC0415
+
+        state = copy.deepcopy(self.state_graph.state)
 
         # Ensure core AgentState fields are properly initialized
         if hasattr(state, "context") and not isinstance(state.context, list):
@@ -456,6 +473,10 @@ class CompiledGraph[StateT: AgentState]:
         new_messages = input_data.get("messages", [])
         if new_messages:
             state.context = add_messages(state.context, new_messages)
+        # Merge partial state fields if provided
+        partial_state = input_data.get("state")
+        if partial_state and isinstance(partial_state, dict):
+            _update_state_fields(state, partial_state)
         return state  # type: ignore[return-value]
 
     async def _call_realtime_sync(
