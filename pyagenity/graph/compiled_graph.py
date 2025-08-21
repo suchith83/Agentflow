@@ -110,13 +110,13 @@ class CompiledGraph:
         # Execute graph
         final_state, messages = await self._execute_graph(state, config)
 
-        return await self.parse_response(
+        return await self._parse_response(
             final_state,
             messages,
             response_granularity,
         )
 
-    async def parse_response(
+    async def _parse_response(
         self,
         state: AgentState,
         messages: list[Message],
@@ -318,7 +318,7 @@ class CompiledGraph:
 
             # Execution completed successfully
             state.complete()
-            await self.sync_data(state, config, [], trim=True)
+            await self._sync_data(state, config, [], trim=True)
 
             # Yield final completion chunk
             yield StreamChunk(content="", delta="", is_final=True, finish_reason="stop")
@@ -326,7 +326,7 @@ class CompiledGraph:
         except Exception as e:
             # Handle execution errors
             state.error(str(e))
-            await self.sync_data(state, config, [], trim=True)
+            await self._sync_data(state, config, [], trim=True)
 
             # Yield error chunk
             yield StreamChunk(content=str(e), delta=str(e), is_final=True, finish_reason="error")
@@ -447,7 +447,7 @@ class CompiledGraph:
         if self.checkpointer:
             await call_sync_or_async(self.checkpointer.sync_state, config, state)
 
-    async def sync_data(
+    async def _sync_data(
         self,
         state: AgentState,
         config: dict[str, Any],
@@ -551,13 +551,13 @@ class CompiledGraph:
 
             # Execution completed successfully
             state.complete()
-            await self.sync_data(state, config, messages, trim=True)
+            await self._sync_data(state, config, messages, trim=True)
             return state, messages
 
         except Exception as e:
             # Handle execution errors
             state.error(str(e))
-            await self.sync_data(state, config, messages, trim=True)
+            await self._sync_data(state, config, messages, trim=True)
             raise
 
     async def _process_node_result(
@@ -631,7 +631,7 @@ class CompiledGraph:
                 status,
             )
             # Save state and interrupt
-            await self.sync_data(state, config, [])
+            await self._sync_data(state, config, [])
             return True
         return False
 

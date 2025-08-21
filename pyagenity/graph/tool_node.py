@@ -13,6 +13,7 @@ import typing as t
 from fastmcp import Client
 from fastmcp.client.client import CallToolResult
 from mcp import Tool
+from mcp.types import ContentBlock
 
 from pyagenity.utils.message import Message
 
@@ -134,6 +135,49 @@ class ToolNode:
         kwargs = self._prepare_kwargs(sig, args, injectable_params, dependency_container)
         return await call_sync_or_async(fn, **kwargs)
 
+    def _serialize_result(self, res: CallToolResult) -> str:
+        def try_parse_json(val):
+            if isinstance(val, str):
+                try:
+                    return json.loads(val)
+                except Exception:
+                    return val
+            return val
+
+        def to_obj(val):
+            if isinstance(val, dict):
+                return val
+            if isinstance(val, list):
+                return {"items": val}
+            if isinstance(val, ContentBlock):
+                obj = val.model_dump()
+                # Try to parse the 'text' field if it looks like JSON
+                if "text" in obj:
+                    obj["text"] = try_parse_json(obj["text"])
+                return obj
+            if val is not None:
+                return val
+            return None
+
+        result = []
+        if res.content and isinstance(res.content, list):
+            for i in res.content:
+                ir = to_obj(i)
+                if ir is not None:
+                    result.append(ir)
+
+        if not result:
+            ir = to_obj(res.structured_content)
+            if ir is not None:
+                result.append(ir)
+
+        if not result:
+            ir = to_obj(res.data)
+            if ir is not None:
+                result.append(ir)
+
+        return json.dumps(result)
+
     async def _mcp_execute(
         self,
         name: str,
@@ -166,19 +210,7 @@ class ToolNode:
                 )
 
             res: CallToolResult = await self._client.call_tool(name, args)
-            result = res.data or res.structured_content
-
-            def serialize_result(val):
-                if isinstance(val, dict):
-                    return json.dumps(val)
-                if isinstance(val, list):
-                    return json.dumps({"items": val})
-
-                if val is not None:
-                    return str(val)
-                return "No valid result returned."
-
-            final_res = serialize_result(result)
+            final_res = self._serialize_result(res)
 
             return Message.tool_message(
                 tool_call_id=tool_call_id,
