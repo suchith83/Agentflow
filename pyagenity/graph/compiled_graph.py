@@ -634,7 +634,10 @@ class CompiledGraph[StateT: AgentState]:
             messages.append(state.context[-1] if state.context else Message.from_text("Unknown"))
 
         elif isinstance(result, dict):
-            lm = Message.from_dict(result)
+            try:
+                lm = Message.from_dict(result)
+            except Exception as e:
+                raise ValueError(f"Invalid message dict: {e}") from e
             messages.append(lm)
             state.context = add_messages(state.context, [lm])
 

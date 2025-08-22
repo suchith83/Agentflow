@@ -32,7 +32,7 @@ def get_weather(
     if state and hasattr(state, "context"):
         print(f"Number of messages in context: {len(state.context)}")  # type: ignore
 
-    res = f"The weather in {location} is sunny."
+    res = f"The weather in {location} is sunny. raw"
     return Message.tool_message(
         content=res,
         tool_call_id=tool_call_id,  # type: ignore
@@ -136,4 +136,6 @@ config = {"thread_id": "12345", "recursion_limit": 10}
 
 res = app.invoke(inp, config=config)
 
-print(res)
+for i in res["messages"]:
+    print(i)
+    print("\n\n")

@@ -133,7 +133,9 @@ class ToolNode:
         }
 
         kwargs = self._prepare_kwargs(sig, args, injectable_params, dependency_container)
-        return await call_sync_or_async(fn, **kwargs)
+        res = await call_sync_or_async(fn, **kwargs)
+        print("**** RES", res)
+        return res
 
     def _serialize_result(self, res: CallToolResult) -> str:
         def try_parse_json(val):
@@ -193,11 +195,16 @@ class ToolNode:
         Execute the MCP tool registered under `name` with `args` kwargs.
         Returns a Message with the result or error.
         """
+        meta= {
+            "function_name": name,
+            "function_argument": args
+        }
         if not self._client:
             return Message.tool_message(
                 tool_call_id=tool_call_id,
                 content="MCP Client not Setup",
                 is_error=True,
+                meta=meta
             )
 
         async with self._client:
@@ -207,6 +214,7 @@ class ToolNode:
                     tool_call_id=tool_call_id,
                     content="MCP Server not available. Ping failed.",
                     is_error=True,
+                    meta=meta
                 )
 
             res: CallToolResult = await self._client.call_tool(name, args)
@@ -216,6 +224,7 @@ class ToolNode:
                 tool_call_id=tool_call_id,
                 content=final_res,
                 is_error=bool(res.is_error),
+                meta=meta
             )
 
     async def execute(

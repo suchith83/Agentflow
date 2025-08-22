@@ -173,6 +173,7 @@ class Message:
         content: str,
         is_error: bool = False,
         message_id: str | None = None,
+        meta: dict[str, Any] | None = None,
     ):
         res = content
         if is_error:
@@ -183,6 +184,6 @@ class Message:
             role="tool",
             content=res,
             timestamp=datetime.now(),
-            metadata={},
+            metadata=meta,
             tool_call_id=tool_call_id,
         )
