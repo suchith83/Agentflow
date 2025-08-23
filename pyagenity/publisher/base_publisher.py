@@ -1,11 +1,13 @@
 from typing import Any
 
+from .events import Event
+
 
 class BasePublisher:
     def __init__(self, config: dict[str, Any]):
         self.config = config
 
-    async def publish(self, info: dict[str, Any]) -> Any:
+    async def publish(self, event: Event) -> Any:
         pass
 
     def close(self):

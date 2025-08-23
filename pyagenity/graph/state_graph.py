@@ -1,4 +1,3 @@
-from asyncio import log
 import logging
 from collections.abc import Callable
 from typing import TYPE_CHECKING, TypeVar, Union
@@ -7,7 +6,7 @@ from pyagenity.checkpointer import BaseCheckpointer
 from pyagenity.exceptions import GraphError
 from pyagenity.state import AgentState, BaseContextManager
 from pyagenity.store import BaseStore
-from pyagenity.utils import END, START, DependencyContainer, CallbackManager
+from pyagenity.utils import END, START, CallbackManager, DependencyContainer
 
 from .edge import Edge
 from .node import Node
@@ -15,6 +14,8 @@ from .tool_node import ToolNode
 
 
 if TYPE_CHECKING:
+    from pyagenity.publisher import BasePublisher
+
     from .compiled_graph import CompiledGraph
 
 
@@ -59,6 +60,7 @@ class StateGraph[StateT: AgentState]:
         state: StateT | None = None,
         context_manager: BaseContextManager[StateT] | None = None,
         dependency_container: DependencyContainer | None = None,
+        publisher: "BasePublisher | None" = None,
     ):
         """Initialize a new StateGraph instance.
 
@@ -70,6 +72,7 @@ class StateGraph[StateT: AgentState]:
             dependency_container: Container for managing dependencies that can
                 be injected into node functions. If None, a new empty container
                 will be created.
+            publisher: Publisher for emitting events during execution
 
         Note:
             START and END nodes are automatically added to the graph upon
@@ -100,6 +103,7 @@ class StateGraph[StateT: AgentState]:
         self.nodes: dict[str, Node] = {}
         self.edges: list[Edge] = []
         self.entry_point: str | None = None
+        self.publisher = publisher
         self.context_manager: BaseContextManager[StateT] | None = context_manager
         self.dependency_container = dependency_container or DependencyContainer()
         self.compiled = False
@@ -157,7 +161,7 @@ class StateGraph[StateT: AgentState]:
             logger.error(error_msg)
             raise ValueError(error_msg)
 
-        self.nodes[name] = Node(name, func)
+        self.nodes[name] = Node(name, func, self.publisher)
         logger.info("Added node '%s' to graph (total nodes: %d)", name, len(self.nodes))
         return self
 
@@ -279,7 +283,6 @@ class StateGraph[StateT: AgentState]:
         self,
         checkpointer: BaseCheckpointer[StateT] | None = None,
         store: BaseStore | None = None,
-        debug: bool = False,
         interrupt_before: list[str] | None = None,
         interrupt_after: list[str] | None = None,
         callback_manager: CallbackManager | None = None,
@@ -301,8 +304,7 @@ class StateGraph[StateT: AgentState]:
             self.entry_point,
         )
         logger.debug(
-            "Compile options: debug=%s, interrupt_before=%s, interrupt_after=%s",
-            debug,
+            "Compile options: interrupt_before=%s, interrupt_after=%s",
             interrupt_before,
             interrupt_after,
         )
@@ -339,10 +341,10 @@ class StateGraph[StateT: AgentState]:
             state_graph=self,
             checkpointer=checkpointer,
             store=store,
-            debug=debug,
             interrupt_before=interrupt_before,
             interrupt_after=interrupt_after,
             callback_manager=callback_manager,
+            publisher=self.publisher,
         )
 
     def _validate_graph(self):

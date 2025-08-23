@@ -22,6 +22,7 @@ from .tool_node import ToolNode
 
 if TYPE_CHECKING:
     from pyagenity.checkpointer import BaseCheckpointer
+    from pyagenity.publisher import BasePublisher, Event, EventType, SourceType
     from pyagenity.state import AgentState
     from pyagenity.store import BaseStore
 
@@ -54,6 +55,7 @@ class Node:
         self,
         name: str,
         func: Union[Callable, "ToolNode"],
+        publisher: "BasePublisher | None" = None,
     ):
         """Initialize a new Node instance.
 
@@ -70,6 +72,23 @@ class Node:
         )
         self.name = name
         self.func = func
+        self.publisher = publisher
+        self.event = Event(
+            source=SourceType.NODE,
+            event_type=EventType.INITIALIZE,
+        )
+
+    async def _publish_event(
+        self,
+        event: Event,
+    ) -> None:
+        """Publish an event if publisher is configured."""
+        if self.publisher:
+            try:
+                await self.publisher.publish(event)
+                logger.debug("Published event: %s", event)
+            except Exception as e:
+                logger.error("Failed to publish event: %s", e)
 
     async def _call_tools(
         self,
@@ -178,6 +197,17 @@ class Node:
         )
 
         callback_mgr = callback_manager or default_callback_manager
+
+        await self._publish_event(
+            Event(
+                source=SourceType.NODE,
+                event_type=EventType.RUNNING,
+                payload={
+                    "state": state.to_dict(),
+                    "config": config,
+                },
+            )
+        )
 
         try:
             if isinstance(self.func, ToolNode):

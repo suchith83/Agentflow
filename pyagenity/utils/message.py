@@ -1,18 +1,17 @@
 # Default message representation
 import logging
-from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Literal
 from uuid import uuid4
 
 from litellm.types.utils import ModelResponse
+from pydantic import BaseModel, Field
 
 
 logger = logging.getLogger(__name__)
 
 
-@dataclass
-class TokenUsages:
+class TokenUsages(BaseModel):
     completion_tokens: int
     prompt_tokens: int
     total_tokens: int
@@ -22,28 +21,15 @@ class TokenUsages:
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary."""
-        return {
-            "completion_tokens": self.completion_tokens,
-            "prompt_tokens": self.prompt_tokens,
-            "total_tokens": self.total_tokens,
-            "cache_creation_input_tokens": self.cache_creation_input_tokens,
-            "cache_read_input_tokens": self.cache_read_input_tokens,
-        }
+        return self.model_dump()
 
-    @staticmethod
-    def from_dict(data: dict[str, Any]) -> "TokenUsages":
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "TokenUsages":
         """Create from dictionary."""
-        return TokenUsages(
-            completion_tokens=data.get("completion_tokens", 0),
-            prompt_tokens=data.get("prompt_tokens", 0),
-            total_tokens=data.get("total_tokens", 0),
-            cache_creation_input_tokens=data.get("cache_creation_input_tokens", 0),
-            cache_read_input_tokens=data.get("cache_read_input_tokens", 0),
-        )
+        return cls(**data)
 
 
-@dataclass
-class Message:
+class Message(BaseModel):
     """A message in the conversation."""
 
     message_id: str
@@ -53,20 +39,17 @@ class Message:
     tool_call_id: str | None = None
     function_call: dict[str, Any] | None = None
     reasoning: str | None = None
-    timestamp: datetime | None = None
-    metadata: dict[str, Any] | None = None
+    timestamp: datetime | None = Field(default_factory=datetime.now)
+    metadata: dict[str, Any] = Field(default_factory=dict)
     usages: TokenUsages | None = None
     raw: dict[str, Any] | None = None
 
-    def __post_init__(self):
-        if self.timestamp is None:
-            self.timestamp = datetime.now()
-        if self.metadata is None:
-            self.metadata = {}
-
     def to_dict(self, include_raw: bool = False) -> dict[str, Any]:
         """Convert to dictionary with all fields. Handles both datetime and int timestamps."""
-        ts = self.timestamp
+        data = self.model_dump()
+
+        # Handle timestamp formatting
+        ts = data.get("timestamp")
         if ts is None:
             ts_val = None
         elif hasattr(ts, "isoformat"):
@@ -75,25 +58,31 @@ class Message:
             ts_val = ts  # leave as int (epoch)
         else:
             ts_val = str(ts)
-        return {
-            "message_id": self.message_id,
-            "role": self.role,
-            "content": self.content,
-            "reasoning": self.reasoning,
+
+        result = {
+            "message_id": data["message_id"],
+            "role": data["role"],
+            "content": data["content"],
+            "reasoning": data["reasoning"],
             "timestamp": ts_val,
-            "metadata": self.metadata,
+            "metadata": data["metadata"],
             "usages": self.usages.to_dict() if self.usages else None,
-            "raw": self.raw if include_raw else None,
         }
 
-    @staticmethod
+        if include_raw:
+            result["raw"] = data["raw"]
+
+        return result
+
+    @classmethod
     def from_text(
+        cls,
         data: str,
         role: Literal["user", "assistant", "system", "tool"] = "user",
         message_id: str | None = None,
     ) -> "Message":
         logger.debug("Creating message from text with role: %s", role)
-        return Message(
+        return cls(
             message_id=message_id or str(uuid4()),  # Generate a new UUID
             role=role,
             content=data,
@@ -101,8 +90,9 @@ class Message:
             metadata={},
         )
 
-    @staticmethod
+    @classmethod
     def from_dict(
+        cls,
         data: dict[str, Any],
     ) -> "Message":
         """Create from dictionary."""
@@ -112,21 +102,30 @@ class Message:
             raise ValueError("Missing required fields: 'role' and 'content'")
 
         logger.debug("Creating message from dict with role: %s", data.get("role"))
-        return Message(
+
+        # Handle timestamp parsing
+        timestamp = None
+        if data.get("timestamp"):
+            timestamp = datetime.fromisoformat(data["timestamp"])
+
+        # Handle usages parsing
+        usages = None
+        if "usages" in data:
+            usages = TokenUsages.from_dict(data["usages"])
+
+        return cls(
             message_id=data.get("message_id", str(uuid4())),
             role=data.get("role", ""),
             content=data.get("content", ""),
             reasoning=data.get("reasoning"),
-            timestamp=datetime.fromisoformat(data["timestamp"])
-            if data.get("timestamp")
-            else datetime.now(),
+            timestamp=timestamp,
             metadata=data.get("metadata", {}),
-            usages=TokenUsages.from_dict(data["usages"]) if "usages" in data else None,
+            usages=usages,
             raw=data.get("raw"),
         )
 
-    @staticmethod
-    def from_response(response: ModelResponse):
+    @classmethod
+    def from_response(cls, response: ModelResponse):
         data = response.model_dump()
 
         usages_data = data.get("usage", {})
@@ -152,7 +151,7 @@ class Message:
 
         logger.debug("Creating message from model response with id: %s", response.id)
         # TODO: replace this with int id
-        return Message(
+        return cls(
             message_id=response.id,
             role="assistant",
             content=data.get("choices", [{}])[0]
@@ -176,8 +175,9 @@ class Message:
             tool_call_id=tool_call_id,
         )
 
-    @staticmethod
+    @classmethod
     def tool_message(
+        cls,
         tool_call_id: str,
         content: str,
         is_error: bool = False,
@@ -189,11 +189,11 @@ class Message:
             res = '{"success": False, "error": content}'
 
         logger.debug("Creating tool message with tool_call_id: %s", tool_call_id)
-        return Message(
+        return cls(
             message_id=message_id or str(uuid4()),
             role="tool",
             content=res,
             timestamp=datetime.now(),
-            metadata=meta,
+            metadata=meta or {},
             tool_call_id=tool_call_id,
         )

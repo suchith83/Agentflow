@@ -30,6 +30,7 @@ from pyagenity.utils.message import Message
 
 if t.TYPE_CHECKING:
     from pyagenity.checkpointer import BaseCheckpointer
+    from pyagenity.publisher import BasePublisher
     from pyagenity.state import AgentState
     from pyagenity.store import BaseStore
 
@@ -39,12 +40,18 @@ logger = logging.getLogger(__name__)
 class ToolNode:
     """Registry for callables that exports function specs and executes them."""
 
-    def __init__(self, functions: t.Iterable[t.Callable], client: Client | None = None):
+    def __init__(
+        self,
+        functions: t.Iterable[t.Callable],
+        client: Client | None = None,
+        publisher: BasePublisher | None = None,
+    ):
         logger.info("Initializing ToolNode with %d functions", len(list(functions)))
         if client:
             logger.debug("ToolNode initialized with MCP client")
         self._funcs: dict[str, t.Callable] = {}
         self._client: Client | None = client
+        self._publisher: BasePublisher | None = publisher
         for fn in functions:
             if not callable(fn):
                 error_msg = "ToolNode only accepts callables"
