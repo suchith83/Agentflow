@@ -9,6 +9,7 @@ dependencies = [
     "fastmcp>=2.11.3",
     "litellm>=1.75.0",
     "mcp>=1.13.0",
+    "pydantic>=2.0.0",
     "python-dotenv>=1.0.0",
 ]
 authors = [

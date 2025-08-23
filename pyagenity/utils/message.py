@@ -12,6 +12,14 @@ logger = logging.getLogger(__name__)
 
 
 class TokenUsages(BaseModel):
+    """
+    Tracks token usage statistics for a message or model response.
+
+    Example:
+        >>> usage = TokenUsages(completion_tokens=10, prompt_tokens=20, total_tokens=30)
+        {'completion_tokens': 10, 'prompt_tokens': 20, 'total_tokens': 30, ...}
+    """
+
     completion_tokens: int
     prompt_tokens: int
     total_tokens: int
@@ -19,18 +27,28 @@ class TokenUsages(BaseModel):
     cache_creation_input_tokens: int = 0
     cache_read_input_tokens: int = 0
 
-    def to_dict(self) -> dict[str, Any]:
-        """Convert to dictionary."""
-        return self.model_dump()
-
-    @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "TokenUsages":
-        """Create from dictionary."""
-        return cls(**data)
-
 
 class Message(BaseModel):
-    """A message in the conversation."""
+    """
+    Represents a message in a conversation, including content, role, metadata, and token usage.
+
+    Example:
+        >>> msg = Message(message_id="abc123", role="user", content="Hello!")
+        {'message_id': 'abc123', 'role': 'user', 'content': 'Hello!', ...}
+
+    Attributes:
+        message_id (str): Unique identifier for the message.
+        role (Literal["user", "assistant", "system", "tool"]): The role of the message sender.
+        content (str): The message content.
+        tools_calls (list[dict[str, Any]] | None): Tool call information, if any.
+        tool_call_id (str | None): Tool call identifier, if any.
+        function_call (dict[str, Any] | None): Function call information, if any.
+        reasoning (str | None): Reasoning or explanation, if any.
+        timestamp (datetime | None): Timestamp of the message.
+        metadata (dict[str, Any]): Additional metadata.
+        usages (TokenUsages | None): Token usage statistics.
+        raw (dict[str, Any] | None): Raw data, if any.
+    """
 
     message_id: str
     role: Literal["user", "assistant", "system", "tool"]
@@ -44,35 +62,43 @@ class Message(BaseModel):
     usages: TokenUsages | None = None
     raw: dict[str, Any] | None = None
 
-    def to_dict(self, include_raw: bool = False) -> dict[str, Any]:
-        """Convert to dictionary with all fields. Handles both datetime and int timestamps."""
-        data = self.model_dump()
+    # def to_dict(self, include_raw: bool = False) -> dict[str, Any]:
+    #     """
+    #     Convert the Message instance to a dictionary with all fields.
 
-        # Handle timestamp formatting
-        ts = data.get("timestamp")
-        if ts is None:
-            ts_val = None
-        elif hasattr(ts, "isoformat"):
-            ts_val = ts.isoformat()
-        elif isinstance(ts, int):
-            ts_val = ts  # leave as int (epoch)
-        else:
-            ts_val = str(ts)
+    #     Args:
+    #         include_raw (bool): Whether to include the raw field in the output.
 
-        result = {
-            "message_id": data["message_id"],
-            "role": data["role"],
-            "content": data["content"],
-            "reasoning": data["reasoning"],
-            "timestamp": ts_val,
-            "metadata": data["metadata"],
-            "usages": self.usages.to_dict() if self.usages else None,
-        }
+    #     Returns:
+    #         dict[str, Any]: Dictionary representation of the message.
+    #     """
+    #     data = self.model_dump()
 
-        if include_raw:
-            result["raw"] = data["raw"]
+    #     # Handle timestamp formatting
+    #     ts = data.get("timestamp")
+    #     if ts is None:
+    #         ts_val = None
+    #     elif hasattr(ts, "isoformat"):
+    #         ts_val = ts.isoformat()
+    #     elif isinstance(ts, int):
+    #         ts_val = ts  # leave as int (epoch)
+    #     else:
+    #         ts_val = str(ts)
 
-        return result
+    #     result = {
+    #         "message_id": data["message_id"],
+    #         "role": data["role"],
+    #         "content": data["content"],
+    #         "reasoning": data["reasoning"],
+    #         "timestamp": ts_val,
+    #         "metadata": data["metadata"],
+    #         "usages": self.usages.to_dict() if self.usages else None,
+    #     }
+
+    #     if include_raw:
+    #         result["raw"] = data["raw"]
+
+    #     return result
 
     @classmethod
     def from_text(
@@ -81,6 +107,17 @@ class Message(BaseModel):
         role: Literal["user", "assistant", "system", "tool"] = "user",
         message_id: str | None = None,
     ) -> "Message":
+        """
+        Create a Message instance from plain text.
+
+        Args:
+            data (str): The message content.
+            role (Literal["user", "assistant", "system", "tool"]): The role of the sender.
+            message_id (str | None): Optional message ID.
+
+        Returns:
+            Message: The created Message instance.
+        """
         logger.debug("Creating message from text with role: %s", role)
         return cls(
             message_id=message_id or str(uuid4()),  # Generate a new UUID
@@ -95,7 +132,18 @@ class Message(BaseModel):
         cls,
         data: dict[str, Any],
     ) -> "Message":
-        """Create from dictionary."""
+        """
+        Create a Message instance from a dictionary.
+
+        Args:
+            data (dict[str, Any]): Dictionary containing message data.
+
+        Returns:
+            Message: The created Message instance.
+
+        Raises:
+            ValueError: If required fields are missing.
+        """
         # add Checks for required fields
         if "role" not in data or "content" not in data:
             logger.error("Missing required fields in data: %s", data)
@@ -111,7 +159,7 @@ class Message(BaseModel):
         # Handle usages parsing
         usages = None
         if "usages" in data:
-            usages = TokenUsages.from_dict(data["usages"])
+            usages = TokenUsages.model_validate(data["usages"])
 
         return cls(
             message_id=data.get("message_id", str(uuid4())),
@@ -126,6 +174,15 @@ class Message(BaseModel):
 
     @classmethod
     def from_response(cls, response: ModelResponse):
+        """
+        Create a Message instance from a ModelResponse object.
+
+        Args:
+            response (ModelResponse): The model response object.
+
+        Returns:
+            Message: The created Message instance.
+        """
         data = response.model_dump()
 
         usages_data = data.get("usage", {})
@@ -141,7 +198,6 @@ class Message(BaseModel):
             ),
         )
 
-        # 1734366691
         created_date = data.get("created", datetime.now())
 
         # check tools calls
@@ -150,7 +206,6 @@ class Message(BaseModel):
         tool_call_id = tools_calls[0].get("id") if tools_calls else None
 
         logger.debug("Creating message from model response with id: %s", response.id)
-        # TODO: replace this with int id
         return cls(
             message_id=response.id,
             role="assistant",
@@ -184,6 +239,19 @@ class Message(BaseModel):
         message_id: str | None = None,
         meta: dict[str, Any] | None = None,
     ):
+        """
+        Create a tool message, optionally marking it as an error.
+
+        Args:
+            tool_call_id (str): The tool call identifier.
+            content (str): The message content.
+            is_error (bool): Whether this message represents an error.
+            message_id (str | None): Optional message ID.
+            meta (dict[str, Any] | None): Optional metadata.
+
+        Returns:
+            Message: The created tool message instance.
+        """
         res = content
         if is_error:
             res = '{"success": False, "error": content}'

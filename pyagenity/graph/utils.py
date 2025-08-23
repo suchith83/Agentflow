@@ -101,10 +101,13 @@ async def load_or_create_state[StateT: AgentState](
                 logger.debug("Merging %d new messages with existing context", len(new_messages))
                 existing_state.context = add_messages(existing_state.context, new_messages)
             # Merge partial state fields if provided
-            partial_state = input_data.get("state")
+            partial_state = input_data.get("state", {})
             if partial_state and isinstance(partial_state, dict):
                 logger.debug("Merging partial state with %d fields", len(partial_state))
                 _update_state_fields(existing_state, partial_state)
+            # Update current node if available
+            if "current_node" in partial_state and partial_state["current_node"] is not None:
+                existing_state.set_current_node(partial_state["current_node"])
             return existing_state
     else:
         logger.debug("No checkpointer available, will create new state")
@@ -138,7 +141,7 @@ async def load_or_create_state[StateT: AgentState](
         logger.debug("Adding %d new messages to fresh state", len(new_messages))
         state.context = add_messages(state.context, new_messages)
     # Merge partial state fields if provided
-    partial_state = input_data.get("state")
+    partial_state = input_data.get("state", {})
     if partial_state and isinstance(partial_state, dict):
         logger.debug("Merging partial state with %d fields", len(partial_state))
         _update_state_fields(state, partial_state)
@@ -146,6 +149,8 @@ async def load_or_create_state[StateT: AgentState](
     logger.info(
         "Created new state with %d context messages", len(state.context) if state.context else 0
     )
+    if "current_node" in partial_state and partial_state["current_node"] is not None:
+        state.set_current_node(partial_state["current_node"])
     return state  # type: ignore[return-value]
 
 

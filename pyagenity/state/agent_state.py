@@ -1,6 +1,7 @@
 import logging
-from dataclasses import dataclass, field
-from typing import Annotated, Any, TypeVar
+from typing import Annotated, TypeVar
+
+from pydantic import BaseModel, Field
 
 from pyagenity.state.execution_state import ExecutionState as ExecMeta
 from pyagenity.utils import START, Message, add_messages
@@ -12,8 +13,7 @@ StateT = TypeVar("StateT", bound="AgentState")
 logger = logging.getLogger(__name__)
 
 
-@dataclass
-class AgentState:
+class AgentState(BaseModel):
     """Common state schema that includes messages, context and internal execution metadata.
 
     This class can be subclassed to add application-specific fields while maintaining
@@ -27,34 +27,15 @@ class AgentState:
     - When subclassing, add your fields but keep the core fields intact.
 
     Example:
-        @dataclass
         class MyCustomState(AgentState):
-            user_data: dict = field(default_factory=dict)
+            user_data: dict = Field(default_factory=dict)
             custom_field: str = "default"
     """
 
-    context: Annotated[list[Message], add_messages] = field(default_factory=list)
+    context: Annotated[list[Message], add_messages] = Field(default_factory=list)
     context_summary: str | None = None
     # Internal execution metadata (kept private-ish but accessible to runtime)
-    execution_meta: ExecMeta = field(default_factory=lambda: ExecMeta(current_node=START))
-
-    def to_dict(self, include_internal: bool = False) -> dict[str, Any]:
-        """Serialize state to dict, including all dataclass fields (custom fields too)."""
-        import dataclasses  # noqa: PLC0415
-
-        d = dataclasses.asdict(self)
-        # Overwrite context with serialized messages
-        d["context"] = [m.to_dict() for m in self.context]
-        # Optionally add execution_meta as dict
-        if include_internal:
-            d["execution_meta"] = self.execution_meta.to_dict()
-        else:
-            # Remove execution_meta if not requested
-            d.pop("execution_meta", None)
-        # Add convenience fields for compatibility
-        d["active_node"] = self.execution_meta.current_node
-        d["step"] = self.execution_meta.step
-        return d
+    execution_meta: ExecMeta = Field(default_factory=lambda: ExecMeta(current_node=START))
 
     # Convenience delegation methods for execution meta so callers can use the same API
     def set_interrupt(self, node: str, reason: str, status, data: dict | None = None) -> None:

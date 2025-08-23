@@ -3,9 +3,11 @@ Execution state management for graph execution with pause/resume functionality.
 """
 
 import logging
-from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
+
+from pydantic import BaseModel, Field
+
 
 logger = logging.getLogger(__name__)
 
@@ -20,8 +22,7 @@ class ExecutionStatus(Enum):
     ERROR = "error"
 
 
-@dataclass
-class ExecutionState:
+class ExecutionState(BaseModel):
     """
     Tracks the internal execution state of a graph.
 
@@ -43,33 +44,22 @@ class ExecutionState:
     thread_id: str | None = None
 
     # Internal execution data (hidden from user)
-    _internal_data: dict[str, Any] = field(default_factory=dict)
-
-    def to_dict(self) -> dict[str, Any]:
-        """Convert to dictionary for serialization."""
-        return {
-            "current_node": self.current_node,
-            "step": self.step,
-            "status": self.status.value,
-            "interrupted_node": self.interrupted_node,
-            "interrupt_reason": self.interrupt_reason,
-            "interrupt_data": self.interrupt_data,
-            "thread_id": self.thread_id,
-            "_internal_data": self._internal_data,
-        }
+    internal_data: dict[str, Any] = Field(default_factory=dict)
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "ExecutionState":
         """Create from dictionary for deserialization."""
-        return cls(
-            current_node=data["current_node"],
-            step=data.get("step", 0),
-            status=ExecutionStatus(data.get("status", "running")),
-            interrupted_node=data.get("interrupted_node"),
-            interrupt_reason=data.get("interrupt_reason"),
-            interrupt_data=data.get("interrupt_data"),
-            thread_id=data.get("thread_id"),
-            _internal_data=data.get("_internal_data", {}),
+        return cls.model_validate(
+            {
+                "current_node": data["current_node"],
+                "step": data.get("step", 0),
+                "status": ExecutionStatus(data.get("status", "running")),
+                "interrupted_node": data.get("interrupted_node"),
+                "interrupt_reason": data.get("interrupt_reason"),
+                "interrupt_data": data.get("interrupt_data"),
+                "thread_id": data.get("thread_id"),
+                "internal_data": data.get("_internal_data", {}),
+            }
         )
 
     def set_interrupt(
@@ -125,7 +115,7 @@ class ExecutionState:
         """Mark execution as errored."""
         logger.error("Marking execution as errored: %s", error_msg)
         self.status = ExecutionStatus.ERROR
-        self._internal_data["error"] = error_msg
+        self.internal_data["error"] = error_msg
 
     def is_running(self) -> bool:
         """Check if execution is currently running."""

@@ -5,6 +5,7 @@ from collections.abc import Callable
 from typing import TYPE_CHECKING, Any, Union
 
 from pyagenity.exceptions import NodeError
+from pyagenity.publisher import Event, EventType, SourceType
 from pyagenity.utils import (
     CallbackContext,
     CallbackManager,
@@ -22,7 +23,7 @@ from .tool_node import ToolNode
 
 if TYPE_CHECKING:
     from pyagenity.checkpointer import BaseCheckpointer
-    from pyagenity.publisher import BasePublisher, Event, EventType, SourceType
+    from pyagenity.publisher import BasePublisher
     from pyagenity.state import AgentState
     from pyagenity.store import BaseStore
 
@@ -203,7 +204,10 @@ class Node:
                 source=SourceType.NODE,
                 event_type=EventType.RUNNING,
                 payload={
-                    "state": state.to_dict(),
+                    "state": state.model_dump(
+                        exclude={"execution_meta"},
+                        exclude_none=True,
+                    ),
                     "config": config,
                 },
             )
