@@ -1,10 +1,14 @@
 # Default message representation
+import logging
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Literal
 from uuid import uuid4
 
 from litellm.types.utils import ModelResponse
+
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -88,6 +92,7 @@ class Message:
         role: Literal["user", "assistant", "system", "tool"] = "user",
         message_id: str | None = None,
     ) -> "Message":
+        logger.debug("Creating message from text with role: %s", role)
         return Message(
             message_id=message_id or str(uuid4()),  # Generate a new UUID
             role=role,
@@ -103,8 +108,10 @@ class Message:
         """Create from dictionary."""
         # add Checks for required fields
         if "role" not in data or "content" not in data:
+            logger.error("Missing required fields in data: %s", data)
             raise ValueError("Missing required fields: 'role' and 'content'")
 
+        logger.debug("Creating message from dict with role: %s", data.get("role"))
         return Message(
             message_id=data.get("message_id", str(uuid4())),
             role=data.get("role", ""),
@@ -143,6 +150,8 @@ class Message:
 
         tool_call_id = tools_calls[0].get("id") if tools_calls else None
 
+        logger.debug("Creating message from model response with id: %s", response.id)
+        # TODO: replace this with int id
         return Message(
             message_id=response.id,
             role="assistant",
@@ -179,6 +188,7 @@ class Message:
         if is_error:
             res = '{"success": False, "error": content}'
 
+        logger.debug("Creating tool message with tool_call_id: %s", tool_call_id)
         return Message(
             message_id=message_id or str(uuid4()),
             role="tool",

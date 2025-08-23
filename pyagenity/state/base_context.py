@@ -1,14 +1,17 @@
+import logging
 from abc import ABC, abstractmethod
 from collections.abc import Awaitable
-from typing import Generic, TypeVar
+from typing import TypeVar
 
 from .agent_state import AgentState
 
 
 S = TypeVar("S", bound=AgentState)
 
+logger = logging.getLogger(__name__)
 
-class BaseContextManager(Generic[S], ABC):
+
+class BaseContextManager[S](ABC):
     """
     Abstract base class for context management in AI interactions.
 

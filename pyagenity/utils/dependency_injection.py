@@ -4,10 +4,13 @@ This module provides a container for managing dependencies that can be injected
 into node functions during graph execution.
 """
 
+import logging
 from typing import Any, TypeVar
 
 
 T = TypeVar("T")
+
+logger = logging.getLogger(__name__)
 
 
 class DependencyContainer:
@@ -37,6 +40,11 @@ class DependencyContainer:
             name: The name to register the dependency under
             dependency: The dependency instance to register
         """
+        logger.debug(
+            "Registering dependency '%s' of type %s",
+            name,
+            type(dependency).__name__,
+        )
         self._dependencies[name] = dependency
 
     def get(self, name: str) -> Any:
@@ -52,7 +60,10 @@ class DependencyContainer:
             KeyError: If the dependency is not registered
         """
         if name not in self._dependencies:
-            raise KeyError(f"Dependency '{name}' not registered")
+            error_msg = f"Dependency '{name}' not registered"
+            logger.error(error_msg)
+            raise KeyError(error_msg)
+        logger.debug("Retrieved dependency '%s'", name)
         return self._dependencies[name]
 
     def has(self, name: str) -> bool:
@@ -64,6 +75,7 @@ class DependencyContainer:
         Returns:
             True if the dependency is registered, False otherwise
         """
+        logger.debug("Checking if dependency '%s' is registered", name)
         return name in self._dependencies
 
     def unregister(self, name: str) -> None:
@@ -75,17 +87,22 @@ class DependencyContainer:
         if name in self._dependencies:
             del self._dependencies[name]
 
+        logger.debug("Unregistered dependency '%s'", name)
+
     def list_dependencies(self) -> list[str]:
         """List all registered dependency names.
 
         Returns:
             List of registered dependency names
         """
-        return list(self._dependencies.keys())
+        res = list(self._dependencies.keys())
+        logger.debug("Listing all registered dependencies: %s", res)
+        return res
 
     def clear(self) -> None:
         """Clear all registered dependencies."""
         self._dependencies.clear()
+        logger.debug("Cleared all registered dependencies")
 
     def copy(self) -> "DependencyContainer":
         """Create a copy of this container.
@@ -95,4 +112,5 @@ class DependencyContainer:
         """
         new_container = DependencyContainer()
         new_container._dependencies = self._dependencies.copy()
+        logger.debug("Created a copy of the dependency container")
         return new_container

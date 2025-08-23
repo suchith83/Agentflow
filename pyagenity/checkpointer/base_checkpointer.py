@@ -1,3 +1,4 @@
+import logging
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Any, TypeVar
 
@@ -7,6 +8,8 @@ from pyagenity.utils import Message
 
 # Generic type variable bound to AgentState for checkpointer subtyping
 StateT = TypeVar("StateT", bound="AgentState")
+
+logger = logging.getLogger(__name__)
 
 
 if TYPE_CHECKING:

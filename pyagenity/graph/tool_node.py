@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import inspect
 import json
+import logging
 import typing as t
 
 from fastmcp import Client
@@ -32,24 +33,34 @@ if t.TYPE_CHECKING:
     from pyagenity.state import AgentState
     from pyagenity.store import BaseStore
 
+logger = logging.getLogger(__name__)
+
 
 class ToolNode:
     """Registry for callables that exports function specs and executes them."""
 
     def __init__(self, functions: t.Iterable[t.Callable], client: Client | None = None):
+        logger.info("Initializing ToolNode with %d functions", len(list(functions)))
+        if client:
+            logger.debug("ToolNode initialized with MCP client")
         self._funcs: dict[str, t.Callable] = {}
         self._client: Client | None = client
         for fn in functions:
             if not callable(fn):
-                raise TypeError("ToolNode only accepts callables")
+                error_msg = "ToolNode only accepts callables"
+                logger.error(error_msg)
+                raise TypeError(error_msg)
             self._funcs[fn.__name__] = fn
+            logger.debug("Registered function '%s' in ToolNode", fn.__name__)
 
         self.mcp_tools = []
+        logger.debug("ToolNode initialized with %d local functions", len(self._funcs))
 
     async def all_tools(self) -> list[dict]:
         """Return function descriptions for all registered callables."""
 
         tools: list[dict] = []
+        logger.debug("Collecting tool descriptions")
         for name, fn in self._funcs.items():
             sig = inspect.signature(fn)
             params_schema: dict = {"type": "object", "properties": {}, "required": []}
@@ -89,8 +100,12 @@ class ToolNode:
                 }
             )
 
+        logger.debug("Collected %d local tool descriptions", len(tools))
+
         # get the tools from client
+        logger.debug("Collecting MCP tool descriptions")
         if self._client:
+            logger.debug("MCP client is set, fetching tools from MCP server")
             async with self._client:
                 # check ping
                 res = await self._client.ping()
@@ -114,6 +129,7 @@ class ToolNode:
                         }
                     )
 
+        logger.debug("Collected %d MCP tool descriptions", len(self.mcp_tools))
         return tools
 
     async def _internal_execute(
@@ -130,6 +146,8 @@ class ToolNode:
     ):
         """Execute internal tool function with callback hooks."""
         callback_mgr = callback_manager or default_callback_manager
+        logger.debug("Executing internal tool '%s' with %d arguments", name, len(args))
+        logger.info("Executing internal tool '%s'", name)
 
         # Create callback context for TOOL invocation
         context = CallbackContext(
@@ -169,18 +187,23 @@ class ToolNode:
             modified_kwargs = input_data.get("kwargs", kwargs)
 
             # Execute the actual tool function
+            logger.debug("Invoking tool function '%s' with kwargs: %s", name, modified_kwargs)
             result = await call_sync_or_async(fn, **modified_kwargs)
+            logger.debug("Tool function '%s' returned: %s", name, result)
 
             # Execute after_invoke callbacks
             return await callback_mgr.execute_after_invoke(context, input_data, result)
 
         except Exception as e:
             # Execute error callbacks
+            logger.error("Error occurred while executing tool '%s': %s", name, e)
             recovery_result = await callback_mgr.execute_on_error(context, input_data, e)
 
             if recovery_result is not None:
+                logger.info("Recovery result obtained for tool '%s': %s", name, recovery_result)
                 return recovery_result
             # Re-raise the original error
+            logger.error("No recovery result for tool '%s', re-raising error", name)
             raise
 
     def _serialize_result(self, res: CallToolResult) -> str:
@@ -258,6 +281,8 @@ class ToolNode:
         )
 
         meta = {"function_name": name, "function_argument": args}
+        logger.debug("Executing MCP tool '%s' with %d arguments", name, len(args))
+        logger.info("Executing MCP tool '%s'", name)
 
         # Prepare input data for callbacks
         input_data = {
@@ -277,6 +302,7 @@ class ToolNode:
             modified_meta = input_data.get("meta", meta)
 
             if not self._client:
+                logger.error("MCP client not set for MCP tool execution")
                 error_result = Message.tool_message(
                     tool_call_id=tool_call_id,
                     content="MCP Client not Setup",
@@ -287,7 +313,9 @@ class ToolNode:
                 return await callback_mgr.execute_after_invoke(context, input_data, error_result)
 
             async with self._client:
+                logger.debug("Pinging MCP server")
                 if not await self._client.ping():
+                    logger.error("MCP server not available. Ping failed.")
                     error_result = Message.tool_message(
                         tool_call_id=tool_call_id,
                         content="MCP Server not available. Ping failed.",
@@ -299,7 +327,9 @@ class ToolNode:
                         context, input_data, error_result
                     )
 
+                logger.debug("Calling MCP tool '%s' with args: %s", modified_name, modified_args)
                 res: CallToolResult = await self._client.call_tool(modified_name, modified_args)
+                logger.debug("MCP tool '%s' returned: %s", modified_name, res)
                 final_res = self._serialize_result(res)
 
                 result = Message.tool_message(
@@ -315,11 +345,14 @@ class ToolNode:
         except Exception as e:
             # Execute error callbacks
             recovery_result = await callback_mgr.execute_on_error(context, input_data, e)
+            logger.error("Error occurred while executing MCP tool '%s': %s", name, e)
 
             if recovery_result is not None:
+                logger.info("Recovery result obtained for tool '%s': %s", name, recovery_result)
                 return recovery_result
 
             # Return error message if no recovery
+            logger.error("No recovery result for tool '%s', re-raising error", name)
             return Message.tool_message(
                 tool_call_id=tool_call_id,
                 content=f"MCP execution error: {e}",
@@ -349,9 +382,12 @@ class ToolNode:
         - dependency_container: Container with custom dependencies
         - callback_manager: Callback manager for executing hooks
         """
+        logger.info("Executing tool '%s' with %d arguments", name, len(args))
+        logger.debug("Tool arguments: %s", args)
 
         # check in mcp
         if name in self.mcp_tools:
+            logger.debug("Tool '%s' found in MCP tools, executing via MCP", name)
             return await self._mcp_execute(
                 name,
                 args,
@@ -365,6 +401,7 @@ class ToolNode:
             )
 
         if name in self._funcs:
+            logger.debug("Tool '%s' found in local functions, executing internally", name)
             return await self._internal_execute(
                 name,
                 args,
@@ -377,8 +414,10 @@ class ToolNode:
                 callback_manager,
             )
 
+        error_msg = f"Tool '{name}' not found."
+        logger.warning(error_msg)
         return Message.tool_message(
-            content=f"Tool '{name}' not found.",
+            content=error_msg,
             tool_call_id=tool_call_id,
             is_error=True,
         )

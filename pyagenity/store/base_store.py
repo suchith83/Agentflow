@@ -1,9 +1,12 @@
+import logging
 from abc import ABC, abstractmethod
 from typing import Any, TypeVar
 
 
 # Generic type variable for extensible data types
 DataT = TypeVar("DataT")
+
+logger = logging.getLogger(__name__)
 
 
 class BaseStore[DataT: Any](ABC):

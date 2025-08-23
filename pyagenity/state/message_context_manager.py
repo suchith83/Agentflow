@@ -1,3 +1,4 @@
+import logging
 from typing import TypeVar
 
 from pyagenity.utils import Message
@@ -7,6 +8,8 @@ from .base_context import BaseContextManager
 
 
 S = TypeVar("S", bound=AgentState)
+
+logger = logging.getLogger(__name__)
 
 
 class MessageContextManager(BaseContextManager[S]):
@@ -27,19 +30,22 @@ class MessageContextManager(BaseContextManager[S]):
                 user messages to keep in context. Default is 10.
         """
         self.max_messages = max_messages
+        logger.debug("Initialized MessageContextManager with max_messages=%d", max_messages)
 
     def _trim(self, messages: list[Message]) -> list[Message] | None:
         # check context is empty
         if not messages:
+            logger.debug("No messages to trim; context is empty")
             return None
 
         if len(messages) <= self.max_messages:
             # no trimming needed
+            logger.debug("No trimming needed; context is within limits")
             return None
 
         # Keep first message (usually system prompt)
         # and recent messages
-        first_message = messages[0]
+        system_messages = [msg for msg in messages if msg.role == "system"]
         # now keep last messages from user set values
         # but we have to count from the user message
         final_messages = []
@@ -54,7 +60,9 @@ class MessageContextManager(BaseContextManager[S]):
 
             final_messages.append(messages[i])
 
-        return [first_message, *final_messages]
+        logger.debug("Trimmed messages: %s", final_messages)
+        logger.debug("Preserved system messages: %s", system_messages)
+        return system_messages + final_messages
 
     async def trim_context(self, state: S) -> S:
         """

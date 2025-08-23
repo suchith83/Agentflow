@@ -1,3 +1,5 @@
+from asyncio import log
+import logging
 from collections.abc import Callable
 from typing import TYPE_CHECKING, TypeVar, Union
 
@@ -18,6 +20,8 @@ if TYPE_CHECKING:
 
 # Generic type variable bound to AgentState for state subtyping
 StateT = TypeVar("StateT", bound=AgentState)
+
+logger = logging.getLogger(__name__)
 
 
 class StateGraph[StateT: AgentState]:
@@ -83,6 +87,14 @@ class StateGraph[StateT: AgentState]:
             # Or using type hints for clarity
             >>> graph = StateGraph[MyCustomState](MyCustomState())
         """
+        logger.info("Initializing StateGraph")
+        logger.debug(
+            "StateGraph init with state=%s, context_manager=%s, dependency_container=%s",
+            type(state).__name__ if state else "default AgentState",
+            type(context_manager).__name__ if context_manager else None,
+            "provided" if dependency_container else "default",
+        )
+
         # Initialize state and structure
         self.state = state or AgentState()  # type: ignore[assignment]
         self.nodes: dict[str, Node] = {}
@@ -93,8 +105,10 @@ class StateGraph[StateT: AgentState]:
         self.compiled = False
 
         # Add START and END nodes (accept full node signature including dependencies)
+        logger.debug("Adding default START and END nodes")
         self.nodes[START] = Node(START, lambda state, config, **deps: state)
         self.nodes[END] = Node(END, lambda state, config, **deps: state)
+        logger.debug("StateGraph initialized with %d nodes", len(self.nodes))
 
     def add_node(
         self,
@@ -129,13 +143,22 @@ class StateGraph[StateT: AgentState]:
             # Function passed as first argument
             name = name_or_func.__name__
             func = name_or_func
+            logger.debug("Adding node '%s' with inferred name from function", name)
         elif isinstance(name_or_func, str) and (callable(func) or isinstance(func, ToolNode)):
             # Name and function passed separately
             name = name_or_func
+            logger.debug(
+                "Adding node '%s' with explicit name and %s",
+                name,
+                "ToolNode" if isinstance(func, ToolNode) else "callable",
+            )
         else:
-            raise ValueError("Invalid arguments for add_node")
+            error_msg = "Invalid arguments for add_node"
+            logger.error(error_msg)
+            raise ValueError(error_msg)
 
         self.nodes[name] = Node(name, func)
+        logger.info("Added node '%s' to graph (total nodes: %d)", name, len(self.nodes))
         return self
 
     def add_edge(
@@ -159,10 +182,13 @@ class StateGraph[StateT: AgentState]:
             >>> graph.add_edge("node1", "node2")
             >>> graph.add_edge(START, "entry_node")  # Sets entry point
         """
+        logger.debug("Adding edge from '%s' to '%s'", from_node, to_node)
         # Set entry point if edge is from START
         if from_node == START:
             self.entry_point = to_node
+            logger.info("Set entry point to '%s'", to_node)
         self.edges.append(Edge(from_node, to_node))
+        logger.debug("Added edge (total edges: %d)", len(self.edges))
         return self
 
     def add_conditional_edges(
@@ -198,13 +224,22 @@ class StateGraph[StateT: AgentState]:
             ... )
         """
         # Create edges based on possible returns from condition function
+        logger.debug(
+            "Node '%s' adding conditional edges with path_map: %s",
+            from_node,
+            path_map,
+        )
         if path_map:
+            logger.debug(
+                "Node '%s' adding conditional edges with path_map: %s", from_node, path_map
+            )
             for condition_result, target_node in path_map.items():
                 edge = Edge(from_node, target_node, condition)
                 edge.condition_result = condition_result
                 self.edges.append(edge)
         else:
             # Single conditional edge
+            logger.debug("Node '%s' adding single conditional edge", from_node)
             self.edges.append(Edge(from_node, "", condition))
         return self
 
@@ -214,6 +249,7 @@ class StateGraph[StateT: AgentState]:
     ) -> "StateGraph":
         """Add a sequence of nodes with automatic edges."""
         processed_nodes = []
+        logger.debug("Adding sequence of nodes: %s", nodes)
 
         for node in nodes:
             if callable(node):
@@ -226,6 +262,7 @@ class StateGraph[StateT: AgentState]:
                 raise ValueError(f"Invalid node type: {type(node)}")
 
         # Add edges between consecutive nodes
+        logger.debug("Creating edges for node sequence")
         for i in range(len(processed_nodes) - 1):
             self.add_edge(processed_nodes[i], processed_nodes[i + 1])
 
@@ -235,6 +272,7 @@ class StateGraph[StateT: AgentState]:
         """Set the entry point for the graph."""
         self.entry_point = node_name
         self.add_edge(START, node_name)
+        logger.info("Set entry point to '%s'", node_name)
         return self
 
     def compile(
@@ -256,11 +294,28 @@ class StateGraph[StateT: AgentState]:
             interrupt_after: List of node names to interrupt after execution
             callback_manager: Callback manager for executing hooks
         """
+        logger.info(
+            "Compiling graph with %d nodes, %d edges, entry_point='%s'",
+            len(self.nodes),
+            len(self.edges),
+            self.entry_point,
+        )
+        logger.debug(
+            "Compile options: debug=%s, interrupt_before=%s, interrupt_after=%s",
+            debug,
+            interrupt_before,
+            interrupt_after,
+        )
+
         if not self.entry_point:
-            raise GraphError("No entry point set. Use set_entry_point() or add an edge from START.")
+            error_msg = "No entry point set. Use set_entry_point() or add an edge from START."
+            logger.error(error_msg)
+            raise GraphError(error_msg)
 
         # Validate graph structure
+        logger.debug("Validating graph structure")
         self._validate_graph()
+        logger.debug("Graph structure validated successfully")
 
         # Validate interrupt node names
         interrupt_before = interrupt_before or []
@@ -269,11 +324,12 @@ class StateGraph[StateT: AgentState]:
         all_interrupt_nodes = set(interrupt_before + interrupt_after)
         invalid_nodes = all_interrupt_nodes - set(self.nodes.keys())
         if invalid_nodes:
-            raise GraphError(
-                f"Invalid interrupt nodes: {invalid_nodes}. Must be existing node names."
-            )
+            error_msg = f"Invalid interrupt nodes: {invalid_nodes}. Must be existing node names."
+            logger.error(error_msg)
+            raise GraphError(error_msg)
 
         self.compiled = True
+        logger.info("Graph compilation completed successfully")
         # Import here to avoid circular import at module import time
 
         # Import the CompiledGraph class
@@ -300,9 +356,11 @@ class StateGraph[StateT: AgentState]:
         all_nodes = set(self.nodes.keys())
         orphaned = all_nodes - connected_nodes
         if orphaned - {START, END}:  # START and END can be orphaned
+            logger.error("Orphaned nodes detected: %s", orphaned - {START, END})
             raise GraphError(f"Orphaned nodes detected: {orphaned - {START, END}}")
 
         # Check that all edge targets exist
         for edge in self.edges:
             if edge.to_node and edge.to_node not in self.nodes:
+                logger.error("Edge '%s' targets non-existent node: %s", edge, edge.to_node)
                 raise GraphError(f"Edge targets non-existent node: {edge.to_node}")

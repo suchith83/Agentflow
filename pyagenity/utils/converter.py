@@ -1,3 +1,4 @@
+import logging
 from typing import TYPE_CHECKING, Any, Union
 
 from .message import Message
@@ -5,6 +6,9 @@ from .message import Message
 
 if TYPE_CHECKING:
     from pyagenity.state import AgentState
+
+
+logger = logging.getLogger(__name__)
 
 
 def _convert_dict(message: Message) -> dict[str, Any]:
@@ -31,6 +35,7 @@ def convert_messages(
     extra_messages: list[Message] | None = None,
 ) -> list[dict[str, Any]]:
     if system_prompts is None:
+        logger.error("System prompts are None")
         raise ValueError("System prompts cannot be None")
 
     res = []
@@ -52,4 +57,5 @@ def convert_messages(
         for msg in extra_messages:
             res.append(_convert_dict(msg))
 
+    logger.debug("Number of Converted messages: %s", len(res))
     return res

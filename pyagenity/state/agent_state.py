@@ -1,3 +1,4 @@
+import logging
 from dataclasses import dataclass, field
 from typing import Annotated, Any, TypeVar
 
@@ -7,6 +8,8 @@ from pyagenity.utils import START, Message, add_messages
 
 # Generic type variable for state subclassing
 StateT = TypeVar("StateT", bound="AgentState")
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -55,25 +58,37 @@ class AgentState:
 
     # Convenience delegation methods for execution meta so callers can use the same API
     def set_interrupt(self, node: str, reason: str, status, data: dict | None = None) -> None:
+        logger.debug("Setting interrupt at node '%s' with reason: %s", node, reason)
         self.execution_meta.set_interrupt(node, reason, status, data)
 
     def clear_interrupt(self) -> None:
+        logger.debug("Clearing interrupt")
         self.execution_meta.clear_interrupt()
 
     def is_running(self) -> bool:
-        return self.execution_meta.is_running()
+        running = self.execution_meta.is_running()
+        logger.debug("State is_running: %s", running)
+        return running
 
     def is_interrupted(self) -> bool:
-        return self.execution_meta.is_interrupted()
+        interrupted = self.execution_meta.is_interrupted()
+        logger.debug("State is_interrupted: %s", interrupted)
+        return interrupted
 
     def advance_step(self) -> None:
+        old_step = self.execution_meta.step
         self.execution_meta.advance_step()
+        logger.debug("Advanced step from %d to %d", old_step, self.execution_meta.step)
 
     def set_current_node(self, node: str) -> None:
+        old_node = self.execution_meta.current_node
         self.execution_meta.set_current_node(node)
+        logger.debug("Changed current node from '%s' to '%s'", old_node, node)
 
     def complete(self) -> None:
+        logger.info("Marking state as completed")
         self.execution_meta.complete()
 
     def error(self, error_msg: str) -> None:
+        logger.error("Setting state error: %s", error_msg)
         self.execution_meta.error(error_msg)
