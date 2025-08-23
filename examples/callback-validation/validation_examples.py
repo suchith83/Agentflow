@@ -192,7 +192,7 @@ async def run_example():
     callback_manager = setup_callback_manager()
 
     # Create state graph with callback manager
-    graph = StateGraph(AgentState)
+    graph = StateGraph()
 
     # Add nodes
     graph.add_node("ai_node", example_ai_function)
