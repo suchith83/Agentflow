@@ -35,6 +35,10 @@ classifiers = [
 requires = ["setuptools", "wheel"]
 build-backend = "setuptools.build_meta"
 
+[tool.setuptools.packages.find]
+include = ["pyagenity*"]
+exclude = ["normal_tests*", "tests*", "examples*", "docs*"]
+
 
 [tool.ruff]
 line-length = 100
@@ -131,12 +135,70 @@ env = [
     "ENVIRONMENT=pytest",
 ]
 testpaths = [
-    "src/tests/*",
+    "tests/",
 ]
 filterwarnings = [
     "ignore::DeprecationWarning"
 ]
+# Only collect tests from the tests directory
+python_files = ["test_*.py", "*_test.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+# Exclude other directories from test discovery
+norecursedirs = [
+    "normal_tests",
+    "examples", 
+    "docs",
+    ".git",
+    ".tox",
+    "dist",
+    "build",
+    "pyagenity.egg-info",
+    "__pycache__",
+    ".venv"
+]
+addopts = [
+    "--cov=pyagenity",
+    "--cov-report=html",
+    "--cov-report=term-missing",
+    "--cov-report=xml",
+    "--cov-fail-under=0",
+    "--strict-markers",
+    "-v"
+]
+markers = [
+    "asyncio: mark test as async test",
+]
+
+[tool.coverage.run]
+source = ["pyagenity"]
+omit = [
+    "*/tests/*",
+    "*/test_*",
+    "*/__pycache__/*",
+    "normal_tests/*",
+    "examples/*",
+    "docs/*"
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+]
 
 [tool.pytest-env]
 ENVIRONMENT = "pytest"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.4.1",
+    "pytest-asyncio>=1.1.0",
+    "pytest-cov>=6.2.1",
+    "pytest-env>=1.1.5",
+]
 

@@ -1,0 +1,123 @@
+"""Comprehensive tests for the checkpointer module."""
+
+import pytest
+
+from pyagenity.checkpointer import BaseCheckpointer, InMemoryCheckpointer
+from pyagenity.utils import Message
+
+
+class TestInMemoryCheckpointer:
+    """Test the InMemoryCheckpointer class."""
+
+    def test_in_memory_checkpointer_creation(self):
+        """Test creating an InMemoryCheckpointer."""
+        checkpointer = InMemoryCheckpointer()
+        assert checkpointer is not None  # noqa: S101
+
+    @pytest.mark.asyncio
+    async def test_save_checkpoint(self):
+        """Test saving a checkpoint."""
+        checkpointer = InMemoryCheckpointer()
+
+        state_data = {"messages": ["Hello"], "step": 1}
+        checkpoint_config = {"thread_id": "test_checkpoint_1"}
+
+        # Should not raise an exception
+        checkpointer.put_state(checkpoint_config, state_data)
+
+    @pytest.mark.asyncio
+    async def test_load_checkpoint(self):
+        """Test loading a checkpoint."""
+        checkpointer = InMemoryCheckpointer()
+
+        state_data = {"messages": ["Hello"], "step": 1}
+        checkpoint_config = {"thread_id": "test_checkpoint_1"}
+
+        # Save first
+        checkpointer.put_state(checkpoint_config, state_data)
+
+        # Then load
+        loaded_data = checkpointer.get_state(checkpoint_config)
+        assert loaded_data == state_data  # noqa: S101
+
+    @pytest.mark.asyncio
+    async def test_load_nonexistent_checkpoint(self):
+        """Test loading a checkpoint that doesn't exist."""
+        checkpointer = InMemoryCheckpointer()
+
+        # Should return None for non-existent checkpoint
+        loaded_data = checkpointer.get_state({"thread_id": "non_existent"})
+        assert loaded_data is None  # noqa: S101
+
+    @pytest.mark.asyncio
+    async def test_list_checkpoints(self):
+        """Test listing checkpoints."""
+        checkpointer = InMemoryCheckpointer()
+
+        # Save multiple checkpoints with thread info
+        checkpoints = {
+            "checkpoint_1": {"step": 1},
+            "checkpoint_2": {"step": 2},
+            "checkpoint_3": {"step": 3},
+        }
+
+        for checkpoint_id, data in checkpoints.items():
+            config = {"thread_id": checkpoint_id}
+            # Save state
+            checkpointer.put_state(config, data)
+            # Save thread info so list_threads can find it
+            checkpointer.put_thread(config, {"thread_id": checkpoint_id, "name": checkpoint_id})
+
+        # List checkpoints - this tests threads functionality
+        thread_list = checkpointer.list_threads()
+
+        # Should contain all saved checkpoints as thread info
+        expected_count = 3
+        assert len(thread_list) >= expected_count  # noqa: S101
+
+    @pytest.mark.asyncio
+    async def test_put_get_messages(self):
+        """Test putting and getting messages."""
+        checkpointer = InMemoryCheckpointer()
+
+        thread_config = {"thread_id": "test_thread"}
+        messages = [Message.from_text("Hello", "user")]
+
+        # Put messages
+        checkpointer.put_messages(thread_config, messages)
+
+        # Get messages
+        retrieved_messages = checkpointer.get_message(thread_config)
+        assert retrieved_messages is not None  # noqa: S101
+
+    @pytest.mark.asyncio
+    async def test_clear_state(self):
+        """Test clearing state."""
+        checkpointer = InMemoryCheckpointer()
+
+        config = {"thread_id": "test_thread"}
+
+        # Save some state
+        checkpointer.put_state(config, {"data": "test"})
+
+        # Clear state for this config
+        checkpointer.clear_state(config)
+
+        # Verify it's gone
+        loaded_data = checkpointer.get_state(config)
+        assert loaded_data is None  # noqa: S101
+
+
+class TestBaseCheckpointer:
+    """Test the BaseCheckpointer abstract class."""
+
+    def test_base_checkpointer_is_abstract(self):
+        """Test that BaseCheckpointer cannot be instantiated directly."""
+        with pytest.raises(TypeError):
+            BaseCheckpointer()  # Should raise TypeError for abstract class
+
+
+def test_checkpointer_module_imports():
+    """Test that checkpointer module imports work correctly."""
+    assert BaseCheckpointer is not None  # noqa: S101
+    assert InMemoryCheckpointer is not None  # noqa: S101
