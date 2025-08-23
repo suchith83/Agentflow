@@ -14,12 +14,14 @@ from pyagenity.store import BaseStore
 from pyagenity.utils import (
     END,
     START,
+    CallbackManager,
     Command,
     Message,
     ResponseGranularity,
     StreamChunk,
     add_messages,
     call_sync_or_async,
+    default_callback_manager,
     extract_content_from_response,
     is_async_streaming_response,
     is_streaming_response,
@@ -60,6 +62,7 @@ class CompiledGraph[StateT: AgentState]:
         debug: bool = False,
         interrupt_before: list[str] | None = None,
         interrupt_after: list[str] | None = None,
+        callback_manager: CallbackManager | None = None,
     ):
         self.state_graph = state_graph
         self.checkpointer = checkpointer
@@ -68,6 +71,7 @@ class CompiledGraph[StateT: AgentState]:
         self.context_manager = state_graph.context_manager
         self.interrupt_before = interrupt_before or []
         self.interrupt_after = interrupt_after or []
+        self.callback_manager = callback_manager or default_callback_manager
 
     def invoke(
         self,
@@ -273,6 +277,7 @@ class CompiledGraph[StateT: AgentState]:
                     self.checkpointer,
                     self.store,
                     self.state_graph.dependency_container,
+                    self.callback_manager,
                 )
 
                 # Process result using the regular logic to get proper next_node
@@ -547,6 +552,7 @@ class CompiledGraph[StateT: AgentState]:
                     self.checkpointer,
                     self.store,
                     self.state_graph.dependency_container,
+                    self.callback_manager,
                 )
 
                 # Process result and get next node

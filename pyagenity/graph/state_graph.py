@@ -5,7 +5,7 @@ from pyagenity.checkpointer import BaseCheckpointer
 from pyagenity.exceptions import GraphError
 from pyagenity.state import AgentState, BaseContextManager
 from pyagenity.store import BaseStore
-from pyagenity.utils import END, START, DependencyContainer
+from pyagenity.utils import END, START, DependencyContainer, CallbackManager
 
 from .edge import Edge
 from .node import Node
@@ -244,6 +244,7 @@ class StateGraph[StateT: AgentState]:
         debug: bool = False,
         interrupt_before: list[str] | None = None,
         interrupt_after: list[str] | None = None,
+        callback_manager: CallbackManager | None = None,
     ) -> "CompiledGraph[StateT]":
         """Compile the graph for execution.
 
@@ -253,7 +254,7 @@ class StateGraph[StateT: AgentState]:
             debug: Enable debug mode
             interrupt_before: List of node names to interrupt before execution
             interrupt_after: List of node names to interrupt after execution
-            realtime_state_sync: Hook for frequent state sync (sync or async callable)
+            callback_manager: Callback manager for executing hooks
         """
         if not self.entry_point:
             raise GraphError("No entry point set. Use set_entry_point() or add an edge from START.")
@@ -285,6 +286,7 @@ class StateGraph[StateT: AgentState]:
             debug=debug,
             interrupt_before=interrupt_before,
             interrupt_after=interrupt_after,
+            callback_manager=callback_manager,
         )
 
     def _validate_graph(self):

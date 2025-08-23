@@ -5,10 +5,14 @@ from typing import TYPE_CHECKING, Any, Union
 
 from pyagenity.exceptions import NodeError
 from pyagenity.utils import (
+    CallbackContext,
+    CallbackManager,
     Command,
     DependencyContainer,
+    InvocationType,
     Message,
     call_sync_or_async,
+    default_callback_manager,
     get_injectable_param_name,
 )
 
@@ -67,6 +71,7 @@ class Node:
         checkpointer: "BaseCheckpointer | None" = None,
         store: "BaseStore | None" = None,
         dependency_container: DependencyContainer | None = None,
+        callback_manager: CallbackManager | None = None,
     ) -> Message:
         if (
             hasattr(last_message, "tools_calls")
@@ -91,6 +96,7 @@ class Node:
                     store=store,
                     config=config,
                     dependency_container=dependency_container,
+                    callback_manager=callback_manager,
                 )
 
                 # TODO: Allow state also
@@ -133,11 +139,14 @@ class Node:
         checkpointer: "BaseCheckpointer | None" = None,
         store: "BaseStore | None" = None,
         dependency_container: DependencyContainer | None = None,
+        callback_manager: CallbackManager | None = None,
     ) -> dict[str, Any] | Command:
-        """Execute the node function with dependency injection support."""
+        """Execute the node function with dependency injection support and callback hooks."""
+        callback_mgr = callback_manager or default_callback_manager
+
         try:
             if isinstance(self.func, ToolNode):
-                # Look for tool calls in the last message that need execution
+                # This is tool execution - handled separately in ToolNode
                 if state.context and len(state.context) > 0:
                     last_message = state.context[-1]
                     result = await self._call_tools(
@@ -147,6 +156,7 @@ class Node:
                         checkpointer=checkpointer,
                         store=store,
                         dependency_container=dependency_container,
+                        callback_manager=callback_manager,
                     )
                     # Check if last message has tool calls to execute
                 else:
@@ -154,14 +164,58 @@ class Node:
                     raise NodeError("No context available for tool execution")
 
             else:
-                # Inject dependencies based on function signature
+                # This is a regular function - likely AI function
+                # Create callback context for AI invocation
+                context = CallbackContext(
+                    invocation_type=InvocationType.AI,
+                    node_name=self.name,
+                    function_name=getattr(self.func, "__name__", str(self.func)),
+                    metadata={"config": config},
+                )
+
+                # Prepare function arguments
                 kwargs = self._prepare_function_kwargs(
                     state, config, checkpointer, store, dependency_container
                 )
-                result = await call_sync_or_async(self.func, **kwargs)
+
+                # Execute before_invoke callbacks
+                input_data = {"state": state, "kwargs": kwargs, "config": config}
+
+                try:
+                    # Execute before_invoke callbacks
+                    input_data = await callback_mgr.execute_before_invoke(context, input_data)
+
+                    # Extract potentially modified data
+                    modified_state = input_data.get("state", state)
+                    modified_kwargs = input_data.get("kwargs", kwargs)
+                    modified_config = input_data.get("config", config)
+
+                    # Update kwargs with potentially modified state and config
+                    if "state" in modified_kwargs:
+                        modified_kwargs["state"] = modified_state
+                    if "config" in modified_kwargs:
+                        modified_kwargs["config"] = modified_config
+
+                    # Execute the actual function
+                    result = await call_sync_or_async(self.func, **modified_kwargs)
+
+                    # Execute after_invoke callbacks
+                    result = await callback_mgr.execute_after_invoke(context, input_data, result)
+
+                except Exception as e:
+                    # Execute error callbacks
+                    recovery_result = await callback_mgr.execute_on_error(context, input_data, e)
+
+                    if recovery_result is not None:
+                        # Use recovery result instead of raising the error
+                        result = recovery_result
+                    else:
+                        # Re-raise the original error
+                        raise
+
             return result  # pyright: ignore[reportReturnType]
         except Exception as e:
-            print("Error occurred while executing node function", e)
+            # This is the final catch-all for node execution errors
             raise NodeError(f"Error in node '{self.name}': {e!s}") from e
 
     def _prepare_function_kwargs(

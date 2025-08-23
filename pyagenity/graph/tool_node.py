@@ -15,6 +15,15 @@ from fastmcp.client.client import CallToolResult
 from mcp import Tool
 from mcp.types import ContentBlock
 
+from pyagenity.utils import (
+    CallbackContext,
+    CallbackManager,
+    InvocationType,
+    call_sync_or_async,
+    default_callback_manager,
+    get_injectable_param_name,
+    is_injectable_type,
+)
 from pyagenity.utils.message import Message
 
 
@@ -22,9 +31,6 @@ if t.TYPE_CHECKING:
     from pyagenity.checkpointer import BaseCheckpointer
     from pyagenity.state import AgentState
     from pyagenity.store import BaseStore
-
-from pyagenity.utils.callable_utils import call_sync_or_async
-from pyagenity.utils.injectable import get_injectable_param_name, is_injectable_type
 
 
 class ToolNode:
@@ -120,7 +126,19 @@ class ToolNode:
         checkpointer: BaseCheckpointer | None = None,
         store: BaseStore | None = None,
         dependency_container=None,
+        callback_manager: CallbackManager | None = None,
     ):
+        """Execute internal tool function with callback hooks."""
+        callback_mgr = callback_manager or default_callback_manager
+
+        # Create callback context for TOOL invocation
+        context = CallbackContext(
+            invocation_type=InvocationType.TOOL,
+            node_name="ToolNode",
+            function_name=name,
+            metadata={"tool_call_id": tool_call_id, "args": args, "config": config},
+        )
+
         fn = self._funcs[name]
         sig = inspect.signature(fn)
 
@@ -134,9 +152,36 @@ class ToolNode:
         }
 
         kwargs = self._prepare_kwargs(sig, args, injectable_params, dependency_container)
-        res = await call_sync_or_async(fn, **kwargs)
-        print("**** RES", res)
-        return res
+
+        # Prepare input data for callbacks
+        input_data = {
+            "function_name": name,
+            "args": args,
+            "kwargs": kwargs,
+            "tool_call_id": tool_call_id,
+        }
+
+        try:
+            # Execute before_invoke callbacks
+            input_data = await callback_mgr.execute_before_invoke(context, input_data)
+
+            # Extract potentially modified data
+            modified_kwargs = input_data.get("kwargs", kwargs)
+
+            # Execute the actual tool function
+            result = await call_sync_or_async(fn, **modified_kwargs)
+
+            # Execute after_invoke callbacks
+            return await callback_mgr.execute_after_invoke(context, input_data, result)
+
+        except Exception as e:
+            # Execute error callbacks
+            recovery_result = await callback_mgr.execute_on_error(context, input_data, e)
+
+            if recovery_result is not None:
+                return recovery_result
+            # Re-raise the original error
+            raise
 
     def _serialize_result(self, res: CallToolResult) -> str:
         def try_parse_json(val):
@@ -191,32 +236,95 @@ class ToolNode:
         checkpointer: BaseCheckpointer | None = None,
         store: BaseStore | None = None,
         dependency_container=None,
+        callback_manager: CallbackManager | None = None,
     ) -> Message:
         """
         Execute the MCP tool registered under `name` with `args` kwargs.
         Returns a Message with the result or error.
         """
-        meta = {"function_name": name, "function_argument": args}
-        if not self._client:
-            return Message.tool_message(
-                tool_call_id=tool_call_id, content="MCP Client not Setup", is_error=True, meta=meta
-            )
+        callback_mgr = callback_manager or default_callback_manager
 
-        async with self._client:
-            # TODO: Allow Injectable
-            if not await self._client.ping():
-                return Message.tool_message(
+        # Create callback context for MCP invocation
+        context = CallbackContext(
+            invocation_type=InvocationType.MCP,
+            node_name="ToolNode",
+            function_name=name,
+            metadata={
+                "tool_call_id": tool_call_id,
+                "args": args,
+                "config": config,
+                "mcp_client": bool(self._client),
+            },
+        )
+
+        meta = {"function_name": name, "function_argument": args}
+
+        # Prepare input data for callbacks
+        input_data = {
+            "function_name": name,
+            "args": args,
+            "tool_call_id": tool_call_id,
+            "meta": meta,
+        }
+
+        try:
+            # Execute before_invoke callbacks
+            input_data = await callback_mgr.execute_before_invoke(context, input_data)
+
+            # Extract potentially modified data
+            modified_name = input_data.get("function_name", name)
+            modified_args = input_data.get("args", args)
+            modified_meta = input_data.get("meta", meta)
+
+            if not self._client:
+                error_result = Message.tool_message(
                     tool_call_id=tool_call_id,
-                    content="MCP Server not available. Ping failed.",
+                    content="MCP Client not Setup",
                     is_error=True,
-                    meta=meta,
+                    meta=modified_meta,
+                )
+                # Execute after_invoke callbacks even for errors
+                return await callback_mgr.execute_after_invoke(context, input_data, error_result)
+
+            async with self._client:
+                if not await self._client.ping():
+                    error_result = Message.tool_message(
+                        tool_call_id=tool_call_id,
+                        content="MCP Server not available. Ping failed.",
+                        is_error=True,
+                        meta=modified_meta,
+                    )
+                    # Execute after_invoke callbacks even for errors
+                    return await callback_mgr.execute_after_invoke(
+                        context, input_data, error_result
+                    )
+
+                res: CallToolResult = await self._client.call_tool(modified_name, modified_args)
+                final_res = self._serialize_result(res)
+
+                result = Message.tool_message(
+                    tool_call_id=tool_call_id,
+                    content=final_res,
+                    is_error=bool(res.is_error),
+                    meta=modified_meta,
                 )
 
-            res: CallToolResult = await self._client.call_tool(name, args)
-            final_res = self._serialize_result(res)
+                # Execute after_invoke callbacks
+                return await callback_mgr.execute_after_invoke(context, input_data, result)
 
+        except Exception as e:
+            # Execute error callbacks
+            recovery_result = await callback_mgr.execute_on_error(context, input_data, e)
+
+            if recovery_result is not None:
+                return recovery_result
+
+            # Return error message if no recovery
             return Message.tool_message(
-                tool_call_id=tool_call_id, content=final_res, is_error=bool(res.is_error), meta=meta
+                tool_call_id=tool_call_id,
+                content=f"MCP execution error: {e}",
+                is_error=True,
+                meta=meta,
             )
 
     async def execute(
@@ -229,6 +337,7 @@ class ToolNode:
         checkpointer: BaseCheckpointer | None = None,
         store: BaseStore | None = None,
         dependency_container=None,
+        callback_manager: CallbackManager | None = None,
     ) -> t.Any:
         """Execute the callable registered under `name` with `args` kwargs.
 
@@ -238,6 +347,7 @@ class ToolNode:
         - checkpointer: Checkpointer instance (can be injected into function if needed)
         - store: Store instance (can be injected into function if needed)
         - dependency_container: Container with custom dependencies
+        - callback_manager: Callback manager for executing hooks
         """
 
         # check in mcp
@@ -251,6 +361,7 @@ class ToolNode:
                 checkpointer,
                 store,
                 dependency_container,
+                callback_manager,
             )
 
         if name in self._funcs:
@@ -263,6 +374,7 @@ class ToolNode:
                 checkpointer,
                 store,
                 dependency_container,
+                callback_manager,
             )
 
         return Message.tool_message(
