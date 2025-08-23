@@ -1,9 +1,10 @@
 from collections.abc import Callable
 from typing import TYPE_CHECKING, TypeVar, Union
 
-from pyagenity.checkpointer import BaseCheckpointer, BaseStore
+from pyagenity.checkpointer import BaseCheckpointer
 from pyagenity.exceptions import GraphError
 from pyagenity.state import AgentState, BaseContextManager
+from pyagenity.store import BaseStore
 from pyagenity.utils import END, START, DependencyContainer
 
 from .edge import Edge
@@ -275,7 +276,7 @@ class StateGraph[StateT: AgentState]:
         # Import here to avoid circular import at module import time
 
         # Import the CompiledGraph class
-        from .compiled_graph import CompiledGraph
+        from .compiled_graph import CompiledGraph  # noqa: PLC0415
 
         return CompiledGraph(
             state_graph=self,

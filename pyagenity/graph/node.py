@@ -1,4 +1,3 @@
-from curses import meta
 import inspect
 import json
 from collections.abc import Callable
@@ -17,8 +16,9 @@ from .tool_node import ToolNode
 
 
 if TYPE_CHECKING:
-    from pyagenity.checkpointer import BaseCheckpointer, BaseStore
+    from pyagenity.checkpointer import BaseCheckpointer
     from pyagenity.state import AgentState
+    from pyagenity.store import BaseStore
 
 
 class Node:
@@ -78,10 +78,7 @@ class Node:
             function_name = tool_call.get("function", {}).get("name", "")
             function_args = json.loads(tool_call.get("function", {}).get("arguments", "{}"))
             tool_call_id = tool_call.get("id", "")
-            meta = {
-                    "function_name": function_name,
-                    "function_argument": function_args
-                }
+            meta = {"function_name": function_name, "function_argument": function_args}
 
             try:
                 # Execute the tool function with injectable parameters
@@ -95,7 +92,7 @@ class Node:
                     config=config,
                     dependency_container=dependency_container,
                 )
-                
+
                 # TODO: Allow state also
 
                 # Handle different return types
@@ -107,8 +104,9 @@ class Node:
                     result = tool_result
                 elif isinstance(tool_result, str):
                     # Convert string result to tool message with tool_call_id
-                    result = Message.tool_message(tool_call_id=tool_call_id, content=tool_result,
-                                                  meta=meta)
+                    result = Message.tool_message(
+                        tool_call_id=tool_call_id, content=tool_result, meta=meta
+                    )
                 else:
                     # Convert other types to string then to tool message
                     result = Message.tool_message(
@@ -120,7 +118,7 @@ class Node:
                     tool_call_id=tool_call_id,
                     content=f"Error executing tool: {e}",
                     is_error=True,
-                    meta=meta
+                    meta=meta,
                 )
         else:
             # No tool calls to execute, return available tools

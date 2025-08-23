@@ -19,8 +19,9 @@ from pyagenity.utils.message import Message
 
 
 if t.TYPE_CHECKING:
-    from pyagenity.checkpointer import BaseCheckpointer, BaseStore
+    from pyagenity.checkpointer import BaseCheckpointer
     from pyagenity.state import AgentState
+    from pyagenity.store import BaseStore
 
 from pyagenity.utils.callable_utils import call_sync_or_async
 from pyagenity.utils.injectable import get_injectable_param_name, is_injectable_type
@@ -195,16 +196,10 @@ class ToolNode:
         Execute the MCP tool registered under `name` with `args` kwargs.
         Returns a Message with the result or error.
         """
-        meta= {
-            "function_name": name,
-            "function_argument": args
-        }
+        meta = {"function_name": name, "function_argument": args}
         if not self._client:
             return Message.tool_message(
-                tool_call_id=tool_call_id,
-                content="MCP Client not Setup",
-                is_error=True,
-                meta=meta
+                tool_call_id=tool_call_id, content="MCP Client not Setup", is_error=True, meta=meta
             )
 
         async with self._client:
@@ -214,17 +209,14 @@ class ToolNode:
                     tool_call_id=tool_call_id,
                     content="MCP Server not available. Ping failed.",
                     is_error=True,
-                    meta=meta
+                    meta=meta,
                 )
 
             res: CallToolResult = await self._client.call_tool(name, args)
             final_res = self._serialize_result(res)
 
             return Message.tool_message(
-                tool_call_id=tool_call_id,
-                content=final_res,
-                is_error=bool(res.is_error),
-                meta=meta
+                tool_call_id=tool_call_id, content=final_res, is_error=bool(res.is_error), meta=meta
             )
 
     async def execute(

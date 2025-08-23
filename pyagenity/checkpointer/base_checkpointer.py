@@ -122,12 +122,35 @@ class BaseCheckpointer[StateT: AgentState](ABC):
         offset: int | None = None,
         limit: int | None = None,
     ) -> list[dict[str, Any]]:
-        """List all threads."""
+        """
+        Lists all threads with optional search and pagination parameters.
+
+        Args:
+            search (str, optional): A search string to filter threads by name or content.
+            offset (int, optional): The number of threads to skip before starting to collect the result set.
+            limit (int, optional): The maximum number of threads to return.
+
+        Returns:
+            list[dict[str, Any]]: A list of dictionaries, each representing a thread.
+
+        Raises:
+            NotImplementedError: If the method is not implemented by a subclass.
+        """
         raise NotImplementedError("list_threads method must be implemented")
 
     def cleanup(
         self,
         config: dict[str, Any],
     ) -> None:
-        """Cleanup resources if needed, This will delete all checkpoints for a thread."""
+        """
+        Cleans up resources associated with the given configuration.
+        This method should be implemented to delete all checkpoints related to a specific thread or configuration.
+        It is intended to free up any resources or storage used by the checkpointing process.
+
+        Args:
+            config (dict[str, Any]): The configuration dictionary containing information about the resources to clean up.
+
+        Raises:
+            NotImplementedError: If the method is not implemented by a subclass.
+        """
         raise NotImplementedError("cleanup method must be implemented")

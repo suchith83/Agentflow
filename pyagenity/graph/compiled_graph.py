@@ -6,10 +6,11 @@ from typing import TYPE_CHECKING, Any, TypeVar
 
 from litellm.types.utils import ModelResponse
 
-from pyagenity.checkpointer import BaseCheckpointer, BaseStore
+from pyagenity.checkpointer import BaseCheckpointer
 from pyagenity.exceptions import GraphRecursionError
 from pyagenity.state import AgentState, ExecutionStatus
 from pyagenity.state.execution_state import ExecutionState as ExecMeta
+from pyagenity.store import BaseStore
 from pyagenity.utils import (
     END,
     START,
