@@ -168,6 +168,7 @@ class TestBaseContextManager:
 
     def test_base_context_manager_creation(self):
         """Test creating a BaseContextManager."""
+
         # Since BaseContextManager is abstract, test via mock implementation
         class MockContextManager(BaseContextManager):
             def trim_context(self, state):
@@ -178,6 +179,7 @@ class TestBaseContextManager:
 
     def test_base_context_manager_methods(self):
         """Test BaseContextManager has expected methods."""
+
         class MockContextManager(BaseContextManager):
             def trim_context(self, state):
                 return state
