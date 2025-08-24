@@ -1,6 +1,5 @@
 import logging
 from abc import ABC, abstractmethod
-from collections.abc import Awaitable
 from typing import TypeVar
 
 from .agent_state import AgentState
@@ -20,7 +19,7 @@ class BaseContextManager[S](ABC):
     """
 
     @abstractmethod
-    def trim_context(self, state: S) -> S | Awaitable[S]:
+    def trim_context(self, state: S) -> S:
         """
         Trim context based on message count. Can be sync or async.
 
@@ -33,3 +32,16 @@ class BaseContextManager[S](ABC):
             The state with trimmed context, either directly or as an awaitable.
         """
         raise NotImplementedError("Subclasses must implement this method (sync or async)")
+
+    @abstractmethod
+    async def atrim_context(self, state: S) -> S:
+        """
+        Trim context based on message count asynchronously.
+
+        Args:
+            state: The state containing context to be trimmed.
+
+        Returns:
+            The state with trimmed context.
+        """
+        raise NotImplementedError("Subclasses must implement this method")

@@ -82,11 +82,11 @@ async def load_or_create_state[StateT: AgentState](
     if checkpointer:
         logger.debug("Attempting to load existing state from checkpointer")
         # first check realtime-synced state
-        existing_state: StateT = await call_sync_or_async(checkpointer.get_sync_state, config)
+        existing_state: StateT | None = await checkpointer.aget_state_cache(config)
         if not existing_state:
             logger.debug("No synced state found, trying persistent checkpointer")
             # If no synced state, try to get from persistent checkpointer
-            existing_state = await call_sync_or_async(checkpointer.get_state, config)
+            existing_state = await checkpointer.aget_state(config)
 
         if existing_state:
             logger.info(
@@ -315,7 +315,8 @@ async def call_realtime_sync(
     """Call the realtime state sync hook if provided."""
     if checkpointer:
         logger.debug("Calling realtime state sync hook")
-        await call_sync_or_async(checkpointer.sync_state, config, state)
+        # await call_sync_or_async(checkpointer.a, config, state)
+        await checkpointer.aput_state_cache(config, state)
 
 
 async def sync_data(
@@ -336,15 +337,12 @@ async def sync_data(
     new_state = copy.deepcopy(state)
     # if context manager is available then utilize it
     if context_manager and trim:
-        new_state = await call_sync_or_async(
-            context_manager.trim_context,
-            state,
-        )
+        new_state = await context_manager.atrim_context(state)
 
     # first sync with realtime then main db
-    await call_sync_or_async(checkpointer.sync_state, config, state)
+    await call_realtime_sync(checkpointer, state, config)
     logger.debug("Persisting state and %d messages to checkpointer", len(messages))
 
-    await call_sync_or_async(checkpointer.put_state, config, new_state)
+    await checkpointer.aput_state(config, new_state)
     if messages:
-        await call_sync_or_async(checkpointer.put_messages, config, messages)
+        await checkpointer.aput_messages(config, messages)

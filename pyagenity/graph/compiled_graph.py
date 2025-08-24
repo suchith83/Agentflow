@@ -214,3 +214,40 @@ class CompiledGraph[StateT: AgentState]:
             config,
             response_granularity,
         )
+
+    async def aclose(self) -> dict[str, str]:
+        """Close the graph and release any resources."""
+        # close checkpointer
+        stats = {}
+        try:
+            if self.checkpointer:
+                await self.checkpointer.arelease()
+                logger.info("Checkpointer closed successfully")
+                stats["checkpointer"] = "closed"
+        except Exception as e:
+            stats["checkpointer"] = f"error: {e}"
+            logger.error(f"Error closing graph: {e}")
+
+        # Close Publisher
+        try:
+            if self.publisher:
+                await self.publisher.close()
+                logger.info("Publisher closed successfully")
+                stats["publisher"] = "closed"
+        except Exception as e:
+            stats["publisher"] = f"error: {e}"
+            logger.error(f"Error closing publisher: {e}")
+
+        # Close Store
+        try:
+            if self.store:
+                await self.store.arelease()
+                logger.info("Store closed successfully")
+                stats["store"] = "closed"
+        except Exception as e:
+            stats["store"] = f"error: {e}"
+            logger.error(f"Error closing store: {e}")
+
+        logger.info(f"Graph close stats: {stats}")
+        # You can also return or process the stats as needed
+        return stats

@@ -1,10 +1,7 @@
 import asyncio
+import inspect
 from collections.abc import Callable
-from concurrent.futures import ThreadPoolExecutor
 from typing import Any
-
-
-_executor = ThreadPoolExecutor()
 
 
 def _is_async_callable(func: Callable[..., Any]) -> bool:
@@ -20,5 +17,10 @@ async def call_sync_or_async(func: Callable[..., Any], *args, **kwargs) -> Any:
     """
     if _is_async_callable(func):
         return await func(*args, **kwargs)
-    loop = asyncio.get_running_loop()
-    return await loop.run_in_executor(_executor, lambda: func(*args, **kwargs))
+
+    # Call sync function in a thread pool
+    result = await asyncio.to_thread(func, *args, **kwargs)
+    # If the result is awaitable, await it
+    if inspect.isawaitable(result):
+        return await result
+    return result

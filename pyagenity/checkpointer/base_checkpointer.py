@@ -6,184 +6,117 @@ from pyagenity.state import AgentState
 from pyagenity.utils import Message
 
 
-# Generic type variable bound to AgentState for checkpointer subtyping
-StateT = TypeVar("StateT", bound="AgentState")
-
 logger = logging.getLogger(__name__)
 
-
 if TYPE_CHECKING:
-    pass
+    from pyagenity.state import AgentState
+    from pyagenity.utils import Message
+
+
+StateT = TypeVar("StateT", bound="AgentState")
 
 
 class BaseCheckpointer[StateT: AgentState](ABC):
     """
-    Abstract base class for implementing checkpointing mechanisms for agent state management.
+    Abstract base class for checkpointing agent state.
 
-    This class provides a generic interface for storing, retrieving, and managing agent state,
-    messages, and threads. It is designed to be subclassed for specific storage backends
-    (e.g., databases, filesystems, cloud storage).
-
-    The class is generic over state types to support custom `AgentState` subclasses.
-
-    Example:
-        ```python
-        from pyagenity.checkpointer.base_checkpointer import BaseCheckpointer
-        from pyagenity.state import AgentState
-
-
-        class MyCheckpointer(BaseCheckpointer[AgentState]):
-            def put_state(self, config, state):
-                # Store state in your backend
-                pass
-
-            def get_state(self, config):
-                # Retrieve state from your backend
-                pass
-
-            def clear_state(self, config):
-                # Remove state from your backend
-                pass
-
-            # Implement other required methods...
-
-
-        # Usage
-        config = {"thread_id": "abc123"}
-        state = AgentState(...)
-        checkpointer = MyCheckpointer()
-        checkpointer.put_state(config, state)
-        restored_state = checkpointer.get_state(config)
-        ```
-
-    Attributes:
-        None (all methods are intended to be implemented by subclasses).
+    - Async-first design: subclasses should implement `async def` methods.
+    - If a subclass provides only a sync `def`, it will be executed in a worker
+      thread automatically using `asyncio.to_thread`.
+    - Callers always use the async APIs (`await cp.put_state(...)`, etc.).
     """
 
-    def sync_state(self, config: dict[str, Any], state: StateT) -> None:
-        """
-        Sync the current state to a faster database for real-time access.
-
-        This method is recommended for use with high-performance databases (e.g., Redis)
-        to enable real-time state synchronization.
-
-        Args:
-            config (dict[str, Any]): Configuration dictionary identifying the state context.
-            state (StateT): The agent state to be synced.
-
-        Raises:
-            NotImplementedError: If the method is not implemented by a subclass.
-        """
-        raise NotImplementedError("sync_state method must be implemented")
-
-    def get_sync_state(self, config: dict[str, Any]) -> StateT | None:
-        """
-        Retrieve the synced state from the faster database.
-
-        Args:
-            config (dict[str, Any]): Configuration dictionary identifying the state context.
-
-        Returns:
-            StateT | None: The synced agent state, or None if not found.
-
-        Raises:
-            NotImplementedError: If the method is not implemented by a subclass.
-        """
-        raise NotImplementedError("get_sync_state method must be implemented")
+    # -------------------------
+    # State methods Async
+    # -------------------------
+    @abstractmethod
+    async def aput_state(self, config: dict[str, Any], state: StateT):
+        raise NotImplementedError
 
     @abstractmethod
-    def put_state(
-        self,
-        config: dict[str, Any],
-        state: StateT,
-    ) -> None:
-        """
-        Store the complete AgentState (including execution metadata) atomically.
+    async def aget_state(self, config: dict[str, Any]) -> StateT | None:
+        raise NotImplementedError
 
-        This is the primary method for persisting state in the new design.
-        State includes both user data and internal execution metadata.
+    @abstractmethod
+    async def aclear_state(self, config: dict[str, Any]):
+        raise NotImplementedError
 
-        Args:
-            config (dict[str, Any]): Configuration dictionary identifying the state context.
-            state (StateT): The agent state to be stored.
+    @abstractmethod
+    async def aput_state_cache(self, config: dict[str, Any], state: StateT) -> None:
+        raise NotImplementedError
 
-        Raises:
-            NotImplementedError: If the method is not implemented by a subclass.
-        """
-        raise NotImplementedError("put_state method must be implemented")
+    @abstractmethod
+    async def aget_state_cache(self, config: dict[str, Any]) -> StateT | None:
+        raise NotImplementedError
+
+    # -------------------------
+    # State methods Sync
+    # -------------------------
+    @abstractmethod
+    def put_state(self, config: dict[str, Any], state: StateT):
+        raise NotImplementedError
 
     @abstractmethod
     def get_state(self, config: dict[str, Any]) -> StateT | None:
-        """
-        Retrieve the complete AgentState (including execution metadata).
-
-        This is the primary method for retrieving state in the new design.
-        Returns None if no state exists for the given config.
-
-        Args:
-            config (dict[str, Any]): Configuration dictionary identifying the state context.
-
-        Returns:
-            StateT | None: The retrieved agent state, or None if not found.
-
-        Raises:
-            NotImplementedError: If the method is not implemented by a subclass.
-        """
-        raise NotImplementedError("get_state method must be implemented")
+        raise NotImplementedError
 
     @abstractmethod
-    def clear_state(
+    def clear_state(self, config: dict[str, Any]):
+        raise NotImplementedError
+
+    @abstractmethod
+    def put_state_cache(self, config: dict[str, Any], state: StateT) -> None:
+        raise NotImplementedError
+
+    @abstractmethod
+    def get_state_cache(self, config: dict[str, Any]) -> StateT | None:
+        raise NotImplementedError
+
+    # -------------------------
+    # Message methods async
+    # -------------------------
+    @abstractmethod
+    async def aput_messages(
         self,
         config: dict[str, Any],
-    ) -> None:
-        """
-        Clear the complete AgentState for the given config.
+        messages: list[Message],
+        metadata: dict[str, Any] | None = None,
+    ):
+        raise NotImplementedError
 
-        This is the primary method for cleaning up state in the new design.
+    @abstractmethod
+    async def aget_message(self, config: dict[str, Any]) -> Message:
+        raise NotImplementedError
 
-        Args:
-            config (dict[str, Any]): Configuration dictionary identifying the state context.
+    @abstractmethod
+    async def alist_messages(
+        self,
+        config: dict[str, Any],
+        search: str | None = None,
+        offset: int | None = None,
+        limit: int | None = None,
+    ) -> list[Message]:
+        raise NotImplementedError
 
-        Raises:
-            NotImplementedError: If the method is not implemented by a subclass.
-        """
-        raise NotImplementedError("clear_state method must be implemented")
+    @abstractmethod
+    async def adelete_message(self, config: dict[str, Any]) -> None:
+        raise NotImplementedError
 
+    # -------------------------
+    # Message methods sync
+    # -------------------------
     @abstractmethod
     def put_messages(
         self,
         config: dict[str, Any],
         messages: list[Message],
         metadata: dict[str, Any] | None = None,
-    ) -> None:
-        """
-        Store a list of messages as a checkpoint.
-
-        Args:
-            config (dict[str, Any]): Configuration dictionary identifying the message context.
-            messages (list[Message]): List of messages to store.
-            metadata (dict[str, Any], optional): Additional metadata for the messages.
-
-        Raises:
-            NotImplementedError: If the method is not implemented by a subclass.
-        """
-        raise NotImplementedError("put method must be implemented")
+    ):
+        raise NotImplementedError
 
     @abstractmethod
     def get_message(self, config: dict[str, Any]) -> Message:
-        """
-        Retrieve a checkpointed message.
-
-        Args:
-            config (dict[str, Any]): Configuration dictionary identifying the message context.
-
-        Returns:
-            Message: The retrieved message.
-
-        Raises:
-            NotImplementedError: If the method is not implemented by a subclass.
-        """
-        raise NotImplementedError("get method must be implemented")
+        raise NotImplementedError
 
     @abstractmethod
     def list_messages(
@@ -193,109 +126,74 @@ class BaseCheckpointer[StateT: AgentState](ABC):
         offset: int | None = None,
         limit: int | None = None,
     ) -> list[Message]:
-        """
-        List checkpoints for a thread.
+        raise NotImplementedError
 
-        Args:
-            config (dict[str, Any]): Configuration dictionary identifying the thread context.
-            search (str, optional): Search string to filter messages.
-            offset (int, optional): Number of messages to skip.
-            limit (int, optional): Maximum number of messages to return.
-
-        Returns:
-            list[Message]: List of messages matching the criteria.
-
-        Raises:
-            NotImplementedError: If the method is not implemented by a subclass.
-        """
-        raise NotImplementedError("list method must be implemented")
-
+    @abstractmethod
     def delete_message(self, config: dict[str, Any]) -> None:
-        """
-        Delete a checkpointed message.
+        raise NotImplementedError
 
-        Args:
-            config (dict[str, Any]): Configuration dictionary identifying the message context.
-
-        Raises:
-            NotImplementedError: If the method is not implemented by a subclass.
-        """
-        raise NotImplementedError("delete method must be implemented")
-
-    def put_thread(
+    # -------------------------
+    # Thread methods async
+    # -------------------------
+    @abstractmethod
+    async def aput_thread(
         self,
         config: dict[str, Any],
         thread_info: dict[str, Any],
     ) -> None:
-        """
-        Store a new thread.
+        raise NotImplementedError
 
-        Args:
-            config (dict[str, Any]): Configuration dictionary identifying the thread context.
-            thread_info (dict[str, Any]): Information about the thread to store.
-
-        Raises:
-            NotImplementedError: If the method is not implemented by a subclass.
-        """
-        raise NotImplementedError("put_thread method must be implemented")
-
-    def get_thread(
+    @abstractmethod
+    async def aget_thread(
         self,
         config: dict[str, Any],
     ) -> dict[str, Any] | None:
-        """
-        Retrieve a thread by its ID.
+        raise NotImplementedError
 
-        Args:
-            config (dict[str, Any]): Configuration dictionary identifying the thread context.
+    @abstractmethod
+    async def alist_threads(
+        self,
+        search: str | None = None,
+        offset: int | None = None,
+        limit: int | None = None,
+    ) -> list[dict[str, Any]]:
+        raise NotImplementedError
 
-        Returns:
-            dict[str, Any] | None: The thread information, or None if not found.
+    @abstractmethod
+    async def aclean_thread(self, config: dict[str, Any]) -> None:
+        raise NotImplementedError
 
-        Raises:
-            NotImplementedError: If the method is not implemented by a subclass.
-        """
-        raise NotImplementedError("get_thread method must be implemented")
+    # -------------------------
+    # Thread methods sync
+    # -------------------------
+    @abstractmethod
+    def put_thread(self, config: dict[str, Any], thread_info: dict[str, Any]) -> None:
+        raise NotImplementedError
 
+    @abstractmethod
+    def get_thread(self, config: dict[str, Any]) -> dict[str, Any] | None:
+        raise NotImplementedError
+
+    @abstractmethod
     def list_threads(
         self,
         search: str | None = None,
         offset: int | None = None,
         limit: int | None = None,
     ) -> list[dict[str, Any]]:
-        """
-        List all threads with optional search and pagination parameters.
+        raise NotImplementedError
 
-        Args:
-            search (str, optional): A search string to filter threads by name or content.
-            offset (int, optional): The number of threads to skip before starting to
-                collect the result set.
-            limit (int, optional): The maximum number of threads to return.
+    @abstractmethod
+    def clean_thread(self, config: dict[str, Any]) -> None:
+        raise NotImplementedError
 
-        Returns:
-            list[dict[str, Any]]: A list of dictionaries, each representing a thread.
+    # -------------------------
+    # Clean Resources
+    # -------------------------
+    @abstractmethod
+    def release(self) -> None:
+        raise NotImplementedError
 
-        Raises:
-            NotImplementedError: If the method is not implemented by a subclass.
-        """
-        raise NotImplementedError("list_threads method must be implemented")
-
-    def cleanup(
-        self,
-        config: dict[str, Any],
-    ) -> None:
-        """
-        Clean up resources associated with the given configuration.
-
-        This method should be implemented to delete all checkpoints related to a specific thread
-        or configuration. It is intended to free up any resources or storage used by the
-        checkpointing process.
-
-        Args:
-            config (dict[str, Any]): The configuration dictionary containing information about
-            the resources to clean up.
-
-        Raises:
-            NotImplementedError: If the method is not implemented by a subclass.
-        """
-        raise NotImplementedError("cleanup method must be implemented")
+    @abstractmethod
+    async def arelease(self) -> None:
+        raise NotImplementedError

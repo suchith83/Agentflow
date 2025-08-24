@@ -174,6 +174,9 @@ class TestBaseContextManager:
             def trim_context(self, state):
                 return state
 
+            async def atrim_context(self, state):
+                return state
+
         manager = MockContextManager()
         assert manager is not None  # noqa: S101
 
@@ -182,6 +185,9 @@ class TestBaseContextManager:
 
         class MockContextManager(BaseContextManager):
             def trim_context(self, state):
+                return state
+
+            async def atrim_context(self, state):
                 return state
 
         manager = MockContextManager()

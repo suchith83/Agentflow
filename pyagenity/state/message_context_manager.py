@@ -33,38 +33,56 @@ class MessageContextManager(BaseContextManager[S]):
         logger.debug("Initialized MessageContextManager with max_messages=%d", max_messages)
 
     def _trim(self, messages: list[Message]) -> list[Message] | None:
+        """
+        Trim messages keeping system messages and most recent user messages.
+
+        Returns None if no trimming is needed, otherwise returns the trimmed list.
+        """
         # check context is empty
         if not messages:
             logger.debug("No messages to trim; context is empty")
             return None
 
-        if len(messages) <= self.max_messages:
+        # Count user messages
+        user_message_count = sum(1 for msg in messages if msg.role == "user")
+
+        if user_message_count <= self.max_messages:
             # no trimming needed
-            logger.debug("No trimming needed; context is within limits")
+            logger.debug(
+                "No trimming needed; context is within limits (%d user messages)",
+                user_message_count,
+            )
             return None
 
-        # Keep first message (usually system prompt)
-        # and recent messages
+        # Separate system messages (usually at the beginning)
         system_messages = [msg for msg in messages if msg.role == "system"]
-        # now keep last messages from user set values
-        # but we have to count from the user message
-        final_messages = []
-        user_message_count = 0
+        non_system_messages = [msg for msg in messages if msg.role != "system"]
 
-        for i in range(len(messages)):
-            if messages[i].role == "user":
-                user_message_count += 1
+        # Keep only the most recent messages that include max_messages user messages
+        final_non_system = []
+        user_count = 0
 
-            if user_message_count > self.max_messages:
-                break
+        # Iterate from the end to keep most recent messages
+        for msg in reversed(non_system_messages):
+            if msg.role == "user":
+                if user_count >= self.max_messages:
+                    break
+                user_count += 1
+            final_non_system.insert(0, msg)  # Insert at beginning to maintain order
 
-            final_messages.append(messages[i])
+        # Combine system messages (at start) with trimmed conversation
+        trimmed_messages = system_messages + final_non_system
 
-        logger.debug("Trimmed messages: %s", final_messages)
-        logger.debug("Preserved system messages: %s", system_messages)
-        return system_messages + final_messages
+        logger.debug(
+            "Trimmed from %d to %d messages (%d user messages kept)",
+            len(messages),
+            len(trimmed_messages),
+            user_count,
+        )
 
-    async def trim_context(self, state: S) -> S:
+        return trimmed_messages
+
+    def trim_context(self, state: S) -> S:
         """
         Trim the context in the given AgentState based on the maximum number of user messages.
 
@@ -79,7 +97,22 @@ class MessageContextManager(BaseContextManager[S]):
         """
         messages = state.context
         trimmed_messages = self._trim(messages)
-        if trimmed_messages is None:
-            return state
-        state.context = trimmed_messages
+        if trimmed_messages is not None:
+            state.context = trimmed_messages
+        return state
+
+    async def atrim_context(self, state: S) -> S:
+        """
+        Asynchronous version of trim_context.
+
+        Args:
+            state (AgentState): The agent state containing the context to trim.
+
+        Returns:
+            S: The updated agent state with trimmed context.
+        """
+        messages = state.context
+        trimmed_messages = self._trim(messages)
+        if trimmed_messages is not None:
+            state.context = trimmed_messages
         return state

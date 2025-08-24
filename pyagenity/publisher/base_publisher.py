@@ -45,7 +45,7 @@ class BasePublisher:
         """
         pass
 
-    def close(self):
+    async def close(self):
         """
         Close the publisher and release any resources.
 
