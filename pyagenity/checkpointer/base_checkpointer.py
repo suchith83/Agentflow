@@ -85,7 +85,7 @@ class BaseCheckpointer[StateT: AgentState](ABC):
         raise NotImplementedError
 
     @abstractmethod
-    async def aget_message(self, config: dict[str, Any]) -> Message:
+    async def aget_message(self, config: dict[str, Any], message_id: str | int) -> Message:
         raise NotImplementedError
 
     @abstractmethod
@@ -99,7 +99,7 @@ class BaseCheckpointer[StateT: AgentState](ABC):
         raise NotImplementedError
 
     @abstractmethod
-    async def adelete_message(self, config: dict[str, Any]) -> None:
+    async def adelete_message(self, config: dict[str, Any], message_id: str | int) -> None:
         raise NotImplementedError
 
     # -------------------------
@@ -129,7 +129,7 @@ class BaseCheckpointer[StateT: AgentState](ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def delete_message(self, config: dict[str, Any]) -> None:
+    def delete_message(self, config: dict[str, Any], message_id: str | int) -> None:
         raise NotImplementedError
 
     # -------------------------
@@ -153,6 +153,7 @@ class BaseCheckpointer[StateT: AgentState](ABC):
     @abstractmethod
     async def alist_threads(
         self,
+        config: dict[str, Any],
         search: str | None = None,
         offset: int | None = None,
         limit: int | None = None,

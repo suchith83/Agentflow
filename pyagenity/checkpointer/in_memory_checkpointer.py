@@ -143,14 +143,15 @@ class InMemoryCheckpointer[StateT: AgentState](BaseCheckpointer[StateT]):
                 self._message_metadata[key] = metadata
             logger.debug(f"Stored {len(messages)} messages for key: {key}")
 
-    async def aget_message(self, config: dict[str, Any]) -> Message:
-        """Retrieve the latest message asynchronously."""
+    async def aget_message(self, config: dict[str, Any], message_id: str | int) -> Message:
+        """Retrieve a specific message asynchronously."""
         key = self._get_config_key(config)
         async with self._messages_lock:
             messages = self._messages.get(key, [])
-            if not messages:
-                raise IndexError(f"No messages found for config key: {key}")
-            return messages[-1]
+            for msg in messages:
+                if msg.message_id == message_id:
+                    return msg
+            raise IndexError(f"Message with ID {message_id} not found for config key: {key}")
 
     async def alist_messages(
         self,
@@ -178,14 +179,17 @@ class InMemoryCheckpointer[StateT: AgentState](BaseCheckpointer[StateT]):
             end = (start + limit) if limit else None
             return messages[start:end]
 
-    async def adelete_message(self, config: dict[str, Any]) -> None:
-        """Delete the latest message asynchronously."""
+    async def adelete_message(self, config: dict[str, Any], message_id: str | int) -> None:
+        """Delete a specific message asynchronously."""
         key = self._get_config_key(config)
         async with self._messages_lock:
             messages = self._messages.get(key, [])
-            if messages:
-                messages.pop()
-                logger.debug(f"Deleted latest message for key: {key}")
+            for msg in messages:
+                if msg.message_id == message_id:
+                    messages.remove(msg)
+                    logger.debug(f"Deleted message with ID {message_id} for key: {key}")
+                    return
+            raise IndexError(f"Message with ID {message_id} not found for config key: {key}")
 
     # -------------------------
     # Message methods sync
@@ -235,13 +239,16 @@ class InMemoryCheckpointer[StateT: AgentState](BaseCheckpointer[StateT]):
         end = (start + limit) if limit else None
         return messages[start:end]
 
-    def delete_message(self, config: dict[str, Any]) -> None:
-        """Delete the latest message synchronously."""
+    def delete_message(self, config: dict[str, Any], message_id: str | int) -> None:
+        """Delete a specific message synchronously."""
         key = self._get_config_key(config)
         messages = self._messages.get(key, [])
-        if messages:
-            messages.pop()
-            logger.debug(f"Deleted latest message for key: {key}")
+        for msg in messages:
+            if msg.message_id == message_id:
+                messages.remove(msg)
+                logger.debug(f"Deleted message with ID {message_id} for key: {key}")
+                return
+        raise IndexError(f"Message with ID {message_id} not found for config key: {key}")
 
     # -------------------------
     # Thread methods async
@@ -270,6 +277,7 @@ class InMemoryCheckpointer[StateT: AgentState](BaseCheckpointer[StateT]):
 
     async def alist_threads(
         self,
+        config: dict[str, Any],
         search: str | None = None,
         offset: int | None = None,
         limit: int | None = None,
