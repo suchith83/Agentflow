@@ -1,9 +1,10 @@
+from abc import ABC, abstractmethod
 from typing import Any
 
 from .events import Event
 
 
-class BasePublisher:
+class BasePublisher(ABC):
     """
     Abstract base class for event publishers.
 
@@ -33,6 +34,7 @@ class BasePublisher:
         """
         self.config = config
 
+    @abstractmethod
     async def publish(self, event: Event) -> Any:
         """
         Publish an event.
@@ -43,8 +45,9 @@ class BasePublisher:
         Returns:
             Any: The result of the publish operation.
         """
-        pass
+        raise NotImplementedError
 
+    @abstractmethod
     async def close(self):
         """
         Close the publisher and release any resources.
@@ -52,7 +55,9 @@ class BasePublisher:
         This method should be overridden by subclasses to provide specific cleanup logic.
         It will be called externally.
         """
+        raise NotImplementedError
 
+    @abstractmethod
     def sync_close(self):
         """
         Close the publisher and release any resources (synchronous version).
@@ -60,3 +65,4 @@ class BasePublisher:
         This method should be overridden by subclasses to provide specific cleanup logic.
         It will be called externally.
         """
+        raise NotImplementedError

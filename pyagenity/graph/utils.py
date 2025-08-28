@@ -178,57 +178,171 @@ def get_default_event(
     )
 
 
+# OLD One
+# def process_node_result[StateT: AgentState](
+#     result: Any,
+#     state: StateT,
+#     messages: list[Message],
+# ) -> tuple[StateT, list[Message], str | None]:
+#     """Process result from node execution and return updated state, messages, and next node."""
+#     next_node = None
+#     existing_ids = {msg.message_id for msg in messages}
+
+#     if isinstance(result, Command):
+#         # Apply state updates
+#         if result.update:
+#             if isinstance(result.update, ModelResponse):
+#                 lm = Message.from_response(result.update)
+#                 messages.append(lm)
+#                 state.context = add_messages(state.context, [lm])
+#             elif isinstance(result.update, AgentState):
+#                 # Check if it's an AgentState or subclass - cast to StateT
+#                 state = result.update  # type: ignore[assignment]
+#                 messages.append(
+#                     state.context[-1] if state.context else Message.from_text("Unknown")
+#                 )
+#         # Handle navigation
+#         if result.goto:
+#             next_node = result.goto
+
+#     elif isinstance(result, Message):
+#         messages.append(result)
+#         state.context = add_messages(state.context, [result])
+
+#     elif isinstance(result, AgentState):
+#         # Check if result is an AgentState or subclass - cast to StateT
+#         state = result  # type: ignore[assignment]
+#         messages.append(state.context[-1] if state.context else Message.from_text("Unknown"))
+
+#     elif isinstance(result, dict):
+#         try:
+#             lm = Message.from_dict(result)
+#         except Exception as e:
+#             raise ValueError(f"Invalid message dict: {e}") from e
+#         messages.append(lm)
+#         state.context = add_messages(state.context, [lm])
+
+#     elif isinstance(result, str):
+#         lm = Message.from_text(result)
+#         messages.append(lm)
+#         state.context = add_messages(state.context, [lm])
+
+#     elif isinstance(result, ModelResponse):
+#         lm = Message.from_response(result)
+#         messages.append(lm)
+#         state.context = add_messages(state.context, [lm])
+#     elif isinstance(result, list):
+#         # check if all the message
+#         for item in result:
+#             lm = Message.from_text(item)
+#             messages.append(lm)
+#             state.context = add_messages(state.context, [lm])
+
+#     return state, messages, next_node
+
+
 def process_node_result[StateT: AgentState](
     result: Any,
     state: StateT,
     messages: list[Message],
 ) -> tuple[StateT, list[Message], str | None]:
-    """Process result from node execution and return updated state, messages, and next node."""
+    """
+    Processes the result from a node execution, updating the agent state, message list,
+    and determining the next node.
+
+    Supports:
+        - Handling results of type Command, AgentState, Message, list, str, dict, ModelResponse,
+            or other types.
+        - Deduplicating messages by message_id.
+        - Updating the agent state and its context with new messages.
+        - Extracting navigation information (next node) from Command results.
+
+    Args:
+        result (Any): The output from a node execution. Can be a Command, AgentState, Message,
+            list, str, dict, ModelResponse, or other types.
+        state (StateT): The current agent state.
+        messages (list[Message]): The list of messages accumulated so far.
+
+    Returns:
+        tuple[StateT, list[Message], str | None]:
+            - The updated agent state.
+            - The updated list of messages (with new, unique messages added).
+            - The identifier of the next node to execute, if specified; otherwise, None.
+    """
     next_node = None
+    existing_ids = {msg.message_id for msg in messages}
+    new_messages = []
 
+    def add_unique_message(msg: Message) -> None:
+        """Add message only if it doesn't already exist."""
+        if msg.message_id not in existing_ids:
+            new_messages.append(msg)
+            existing_ids.add(msg.message_id)
+
+    def create_and_add_message(content: Any) -> Message:
+        """Create message from content and add if unique."""
+        if isinstance(content, str):
+            msg = Message.from_text(content)
+        elif isinstance(content, dict):
+            try:
+                msg = Message.from_dict(content)
+            except Exception as e:
+                raise ValueError(f"Invalid message dict: {e}") from e
+        elif isinstance(content, ModelResponse):
+            msg = Message.from_response(content)
+        else:
+            msg = Message.from_text(str(content))
+
+        add_unique_message(msg)
+        return msg
+
+    def handle_state_message(old_state: StateT, new_state: StateT) -> None:
+        """Handle state messages by updating the context."""
+        old_messages = {}
+        if old_state.context:
+            old_messages = {msg.message_id: msg for msg in old_state.context}
+
+        if not new_state.context:
+            return
+        # now save all the new messages
+        for msg in new_state.context:
+            if msg.message_id in old_messages:
+                continue
+            # otherwise save it
+            add_unique_message(msg)
+
+    # Process different result types
     if isinstance(result, Command):
-        # Apply state updates
+        # Handle state updates
         if result.update:
-            if isinstance(result.update, ModelResponse):
-                lm = Message.from_response(result.update)
-                messages.append(lm)
-                state.context = add_messages(state.context, [lm])
-            elif isinstance(result.update, AgentState):
-                # Check if it's an AgentState or subclass - cast to StateT
+            if isinstance(result.update, AgentState):
+                handle_state_message(state, result.update)  # type: ignore[assignment]
                 state = result.update  # type: ignore[assignment]
-                messages.append(
-                    state.context[-1] if state.context else Message.from_text("Unknown")
-                )
-        # Handle navigation
-        if result.goto:
-            next_node = result.goto
+            else:
+                create_and_add_message(result.update)
 
-    elif isinstance(result, Message):
-        messages.append(result)
-        state.context = add_messages(state.context, [result])
+        # Handle navigation
+        next_node = result.goto
 
     elif isinstance(result, AgentState):
-        # Check if result is an AgentState or subclass - cast to StateT
+        handle_state_message(state, result)  # type: ignore[assignment]
         state = result  # type: ignore[assignment]
-        messages.append(state.context[-1] if state.context else Message.from_text("Unknown"))
 
-    elif isinstance(result, dict):
-        try:
-            lm = Message.from_dict(result)
-        except Exception as e:
-            raise ValueError(f"Invalid message dict: {e}") from e
-        messages.append(lm)
-        state.context = add_messages(state.context, [lm])
+    elif isinstance(result, Message):
+        add_unique_message(result)
 
-    elif isinstance(result, str):
-        lm = Message.from_text(result)
-        messages.append(lm)
-        state.context = add_messages(state.context, [lm])
+    elif isinstance(result, list):
+        # Handle list of items (convert each to message)
+        for item in result:
+            create_and_add_message(item)
+    else:
+        # Handle single items (str, dict, ModelResponse, or other)
+        create_and_add_message(result)
 
-    elif isinstance(result, ModelResponse):
-        lm = Message.from_response(result)
-        messages.append(lm)
-        state.context = add_messages(state.context, [lm])
+    # Add new messages to the main list and state context
+    if new_messages:
+        messages.extend(new_messages)
+        state.context = add_messages(state.context, new_messages)
 
     return state, messages, next_node
 

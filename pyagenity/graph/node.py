@@ -91,6 +91,82 @@ class Node:
             except Exception as e:
                 logger.error("Failed to publish event: %s", e)
 
+    async def _handle_single_tool(
+        self,
+        tool_call: dict[str, Any],
+        state: "AgentState",
+        config: dict[str, Any],
+        checkpointer: "BaseCheckpointer | None" = None,
+        store: "BaseStore | None" = None,
+        dependency_container: DependencyContainer | None = None,
+        callback_manager: CallbackManager | None = None,
+    ) -> Message:
+        function_name = tool_call.get("function", {}).get("name", "")
+        function_args = json.loads(tool_call.get("function", {}).get("arguments", "{}"))
+        tool_call_id = tool_call.get("id", "")
+        meta = {"function_name": function_name, "function_argument": function_args}
+
+        logger.info(
+            "Node '%s' executing tool '%s' with %d arguments",
+            self.name,
+            function_name,
+            len(function_args),
+        )
+        logger.debug("Tool arguments: %s", function_args)
+
+        try:
+            # Execute the tool function with injectable parameters
+            tool_result = await self.func.execute(  # type: ignore
+                function_name,
+                function_args,
+                tool_call_id=tool_call_id,
+                state=state,
+                checkpointer=checkpointer,
+                store=store,
+                config=config,
+                dependency_container=dependency_container,
+                callback_manager=callback_manager,
+            )
+            logger.debug("Node '%s' tool execution completed successfully", self.name)
+
+            # TODO: Allow state also
+
+            # Handle different return types
+            if isinstance(tool_result, Message):
+                logger.debug("Node '%s' tool execution returned a Message", self.name)
+                # lets update the meta
+                meta_data = tool_result.metadata or {}
+                meta.update(meta_data)
+                tool_result.metadata = meta
+                result = tool_result
+            elif isinstance(tool_result, str):
+                logger.debug("Node '%s' tool execution returned a string", self.name)
+                # Convert string result to tool message with tool_call_id
+                result = Message.tool_message(
+                    tool_call_id=tool_call_id, content=tool_result, meta=meta
+                )
+            else:
+                # Convert other types to string then to tool message
+                logger.debug(
+                    "Node '%s' tool execution returned an unexpected type: %s",
+                    self.name,
+                    type(tool_result),
+                )
+                result = Message.tool_message(
+                    tool_call_id=tool_call_id, content=str(tool_result), meta=meta
+                )
+        except Exception as e:
+            # Return error message
+            logger.exception("Node '%s' tool execution failed: %s", self.name, e)
+            result = Message.tool_message(
+                tool_call_id=tool_call_id,
+                content=f"Error executing tool: {e}",
+                is_error=True,
+                meta=meta,
+            )
+
+        return result
+
     async def _call_tools(
         self,
         last_message: Message,
@@ -100,8 +176,9 @@ class Node:
         store: "BaseStore | None" = None,
         dependency_container: DependencyContainer | None = None,
         callback_manager: CallbackManager | None = None,
-    ) -> Message:
+    ) -> list[Message]:
         logger.debug("Node '%s' calling tools from message", self.name)
+        result: list[Message] = []
         if (
             hasattr(last_message, "tools_calls")
             and last_message.tools_calls
@@ -109,69 +186,17 @@ class Node:
         ):
             # Execute the first tool call for now
             tool_call = last_message.tools_calls[0]
-            function_name = tool_call.get("function", {}).get("name", "")
-            function_args = json.loads(tool_call.get("function", {}).get("arguments", "{}"))
-            tool_call_id = tool_call.get("id", "")
-            meta = {"function_name": function_name, "function_argument": function_args}
-
-            logger.info(
-                "Node '%s' executing tool '%s' with %d arguments",
-                self.name,
-                function_name,
-                len(function_args),
-            )
-            logger.debug("Tool arguments: %s", function_args)
-
-            try:
-                # Execute the tool function with injectable parameters
-                tool_result = await self.func.execute(  # type: ignore
-                    function_name,
-                    function_args,
-                    tool_call_id=tool_call_id,
-                    state=state,
+            for tool_call in last_message.tools_calls:
+                res = await self._handle_single_tool(
+                    tool_call,
+                    state,
+                    config,
                     checkpointer=checkpointer,
                     store=store,
-                    config=config,
                     dependency_container=dependency_container,
                     callback_manager=callback_manager,
                 )
-                logger.debug("Node '%s' tool execution completed successfully", self.name)
-
-                # TODO: Allow state also
-
-                # Handle different return types
-                if isinstance(tool_result, Message):
-                    logger.debug("Node '%s' tool execution returned a Message", self.name)
-                    # lets update the meta
-                    meta_data = tool_result.metadata or {}
-                    meta.update(meta_data)
-                    tool_result.metadata = meta
-                    result = tool_result
-                elif isinstance(tool_result, str):
-                    logger.debug("Node '%s' tool execution returned a string", self.name)
-                    # Convert string result to tool message with tool_call_id
-                    result = Message.tool_message(
-                        tool_call_id=tool_call_id, content=tool_result, meta=meta
-                    )
-                else:
-                    # Convert other types to string then to tool message
-                    logger.debug(
-                        "Node '%s' tool execution returned an unexpected type: %s",
-                        self.name,
-                        type(tool_result),
-                    )
-                    result = Message.tool_message(
-                        tool_call_id=tool_call_id, content=str(tool_result), meta=meta
-                    )
-            except Exception as e:
-                # Return error message
-                logger.exception("Node '%s' tool execution failed: %s", self.name, e)
-                result = Message.tool_message(
-                    tool_call_id=tool_call_id,
-                    content=f"Error executing tool: {e}",
-                    is_error=True,
-                    meta=meta,
-                )
+                result.append(res)
         else:
             # No tool calls to execute, return available tools
             logger.exception("Node '%s': No tool calls to execute", self.name)

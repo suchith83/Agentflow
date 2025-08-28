@@ -56,11 +56,12 @@ class ConsolePublisher(BasePublisher):
         msg += f" -> {event.config} and {event.meta}"
         print("msg")  # noqa: T201
 
-    def close(self):
+    async def close(self):
         """
         Close the publisher and release any resources.
 
-        ConsolePublisher does not require cleanup, but this method is provided for interface compatibility.
+        ConsolePublisher does not require cleanup, but this method is provided for
+        interface compatibility.
         """
         logger.debug("ConsolePublisher closed")
 
@@ -68,6 +69,7 @@ class ConsolePublisher(BasePublisher):
         """
         Synchronously close the publisher and release any resources.
 
-        ConsolePublisher does not require cleanup, but this method is provided for interface compatibility.
+        ConsolePublisher does not require cleanup, but this method is provided for
+        interface compatibility.
         """
         logger.debug("ConsolePublisher sync closed")

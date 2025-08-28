@@ -8,6 +8,8 @@ from typing import TYPE_CHECKING, TypeVar, Union
 
 from litellm.types.utils import ModelResponse
 
+from pyagenity.utils.message import Message
+
 
 if TYPE_CHECKING:
     # Import only for type checking to avoid circular imports at runtime
@@ -29,7 +31,7 @@ class Command[StateT: AgentState]:
 
     def __init__(
         self,
-        update: Union["StateT", None, ModelResponse] = None,
+        update: Union["StateT", None, ModelResponse, Message, str] = None,
         goto: str | None = None,
         graph: str | None = None,
     ):

@@ -41,6 +41,12 @@ class InMemoryCheckpointer[StateT: AgentState](BaseCheckpointer[StateT]):
         self._messages_lock = asyncio.Lock()
         self._threads_lock = asyncio.Lock()
 
+    def setup(self, config: dict[str, Any]) -> Any:
+        logger.debug("InMemoryCheckpointer setup not required")
+
+    async def asetup(self, config: dict[str, Any]) -> Any:
+        logger.debug("InMemoryCheckpointer async setup not required")
+
     def _get_config_key(self, config: dict[str, Any]) -> str:
         """Generate a string key from config dict for storage indexing."""
         # Sort keys for consistent hashing
@@ -50,12 +56,13 @@ class InMemoryCheckpointer[StateT: AgentState](BaseCheckpointer[StateT]):
     # -------------------------
     # State methods Async
     # -------------------------
-    async def aput_state(self, config: dict[str, Any], state: StateT):
+    async def aput_state(self, config: dict[str, Any], state: StateT) -> StateT:
         """Store state asynchronously."""
         key = self._get_config_key(config)
         async with self._state_lock:
             self._states[key] = state
             logger.debug(f"Stored state for key: {key}")
+            return state
 
     async def aget_state(self, config: dict[str, Any]) -> StateT | None:
         """Retrieve state asynchronously."""
@@ -65,20 +72,22 @@ class InMemoryCheckpointer[StateT: AgentState](BaseCheckpointer[StateT]):
             logger.debug(f"Retrieved state for key: {key}, found: {state is not None}")
             return state
 
-    async def aclear_state(self, config: dict[str, Any]):
+    async def aclear_state(self, config: dict[str, Any]) -> bool:
         """Clear state asynchronously."""
         key = self._get_config_key(config)
         async with self._state_lock:
             if key in self._states:
                 del self._states[key]
                 logger.debug(f"Cleared state for key: {key}")
+            return True
 
-    async def aput_state_cache(self, config: dict[str, Any], state: StateT) -> None:
+    async def aput_state_cache(self, config: dict[str, Any], state: StateT) -> StateT:
         """Store state cache asynchronously."""
         key = self._get_config_key(config)
         async with self._state_lock:
             self._state_cache[key] = state
             logger.debug(f"Stored state cache for key: {key}")
+            return state
 
     async def aget_state_cache(self, config: dict[str, Any]) -> StateT | None:
         """Retrieve state cache asynchronously."""
@@ -91,13 +100,14 @@ class InMemoryCheckpointer[StateT: AgentState](BaseCheckpointer[StateT]):
     # -------------------------
     # State methods Sync
     # -------------------------
-    def put_state(self, config: dict[str, Any], state: StateT):
+    def put_state(self, config: dict[str, Any], state: StateT) -> StateT:
         """Store state synchronously."""
         key = self._get_config_key(config)
         # For sync methods, we'll use a simple approach without locks
         # In a real async-first system, sync methods might not be used
         self._states[key] = state
         logger.debug(f"Stored state for key: {key}")
+        return state
 
     def get_state(self, config: dict[str, Any]) -> StateT | None:
         """Retrieve state synchronously."""
@@ -106,18 +116,20 @@ class InMemoryCheckpointer[StateT: AgentState](BaseCheckpointer[StateT]):
         logger.debug(f"Retrieved state for key: {key}, found: {state is not None}")
         return state
 
-    def clear_state(self, config: dict[str, Any]):
+    def clear_state(self, config: dict[str, Any]) -> bool:
         """Clear state synchronously."""
         key = self._get_config_key(config)
         if key in self._states:
             del self._states[key]
             logger.debug(f"Cleared state for key: {key}")
+        return True
 
-    def put_state_cache(self, config: dict[str, Any], state: StateT) -> None:
+    def put_state_cache(self, config: dict[str, Any], state: StateT) -> StateT:
         """Store state cache synchronously."""
         key = self._get_config_key(config)
         self._state_cache[key] = state
         logger.debug(f"Stored state cache for key: {key}")
+        return state
 
     def get_state_cache(self, config: dict[str, Any]) -> StateT | None:
         """Retrieve state cache synchronously."""
@@ -134,7 +146,7 @@ class InMemoryCheckpointer[StateT: AgentState](BaseCheckpointer[StateT]):
         config: dict[str, Any],
         messages: list[Message],
         metadata: dict[str, Any] | None = None,
-    ):
+    ) -> bool:
         """Store messages asynchronously."""
         key = self._get_config_key(config)
         async with self._messages_lock:
@@ -142,6 +154,7 @@ class InMemoryCheckpointer[StateT: AgentState](BaseCheckpointer[StateT]):
             if metadata:
                 self._message_metadata[key] = metadata
             logger.debug(f"Stored {len(messages)} messages for key: {key}")
+            return True
 
     async def aget_message(self, config: dict[str, Any], message_id: str | int) -> Message:
         """Retrieve a specific message asynchronously."""
@@ -179,7 +192,7 @@ class InMemoryCheckpointer[StateT: AgentState](BaseCheckpointer[StateT]):
             end = (start + limit) if limit else None
             return messages[start:end]
 
-    async def adelete_message(self, config: dict[str, Any], message_id: str | int) -> None:
+    async def adelete_message(self, config: dict[str, Any], message_id: str | int) -> bool:
         """Delete a specific message asynchronously."""
         key = self._get_config_key(config)
         async with self._messages_lock:
@@ -188,7 +201,7 @@ class InMemoryCheckpointer[StateT: AgentState](BaseCheckpointer[StateT]):
                 if msg.message_id == message_id:
                     messages.remove(msg)
                     logger.debug(f"Deleted message with ID {message_id} for key: {key}")
-                    return
+                    return True
             raise IndexError(f"Message with ID {message_id} not found for config key: {key}")
 
     # -------------------------
@@ -199,13 +212,15 @@ class InMemoryCheckpointer[StateT: AgentState](BaseCheckpointer[StateT]):
         config: dict[str, Any],
         messages: list[Message],
         metadata: dict[str, Any] | None = None,
-    ):
+    ) -> bool:
         """Store messages synchronously."""
         key = self._get_config_key(config)
         self._messages[key].extend(messages)
         if metadata:
             self._message_metadata[key] = metadata
+
         logger.debug(f"Stored {len(messages)} messages for key: {key}")
+        return True
 
     def get_message(self, config: dict[str, Any]) -> Message:
         """Retrieve the latest message synchronously."""
@@ -239,7 +254,7 @@ class InMemoryCheckpointer[StateT: AgentState](BaseCheckpointer[StateT]):
         end = (start + limit) if limit else None
         return messages[start:end]
 
-    def delete_message(self, config: dict[str, Any], message_id: str | int) -> None:
+    def delete_message(self, config: dict[str, Any], message_id: str | int) -> bool:
         """Delete a specific message synchronously."""
         key = self._get_config_key(config)
         messages = self._messages.get(key, [])
@@ -247,7 +262,7 @@ class InMemoryCheckpointer[StateT: AgentState](BaseCheckpointer[StateT]):
             if msg.message_id == message_id:
                 messages.remove(msg)
                 logger.debug(f"Deleted message with ID {message_id} for key: {key}")
-                return
+                return True
         raise IndexError(f"Message with ID {message_id} not found for config key: {key}")
 
     # -------------------------
@@ -257,12 +272,13 @@ class InMemoryCheckpointer[StateT: AgentState](BaseCheckpointer[StateT]):
         self,
         config: dict[str, Any],
         thread_info: dict[str, Any],
-    ) -> None:
+    ) -> bool:
         """Store thread info asynchronously."""
         key = self._get_config_key(config)
         async with self._threads_lock:
             self._threads[key] = thread_info.copy()
             logger.debug(f"Stored thread info for key: {key}")
+            return True
 
     async def aget_thread(
         self,
@@ -299,22 +315,25 @@ class InMemoryCheckpointer[StateT: AgentState](BaseCheckpointer[StateT]):
             end = (start + limit) if limit else None
             return [thread.copy() for thread in threads[start:end]]
 
-    async def aclean_thread(self, config: dict[str, Any]) -> None:
+    async def aclean_thread(self, config: dict[str, Any]) -> bool:
         """Clean/delete thread asynchronously."""
         key = self._get_config_key(config)
         async with self._threads_lock:
             if key in self._threads:
                 del self._threads[key]
                 logger.debug(f"Cleaned thread for key: {key}")
+                return True
+        return False
 
     # -------------------------
     # Thread methods sync
     # -------------------------
-    def put_thread(self, config: dict[str, Any], thread_info: dict[str, Any]) -> None:
+    def put_thread(self, config: dict[str, Any], thread_info: dict[str, Any]) -> bool:
         """Store thread info synchronously."""
         key = self._get_config_key(config)
         self._threads[key] = thread_info.copy()
         logger.debug(f"Stored thread info for key: {key}")
+        return True
 
     def get_thread(self, config: dict[str, Any]) -> dict[str, Any] | None:
         """Retrieve thread info synchronously."""
@@ -345,17 +364,19 @@ class InMemoryCheckpointer[StateT: AgentState](BaseCheckpointer[StateT]):
         end = (start + limit) if limit else None
         return [thread.copy() for thread in threads[start:end]]
 
-    def clean_thread(self, config: dict[str, Any]) -> None:
+    def clean_thread(self, config: dict[str, Any]) -> bool:
         """Clean/delete thread synchronously."""
         key = self._get_config_key(config)
         if key in self._threads:
             del self._threads[key]
             logger.debug(f"Cleaned thread for key: {key}")
+            return True
+        return False
 
     # -------------------------
     # Clean Resources
     # -------------------------
-    async def arelease(self) -> None:
+    async def arelease(self) -> bool:
         """Release resources asynchronously."""
         async with self._state_lock, self._messages_lock, self._threads_lock:
             self._states.clear()
@@ -364,8 +385,9 @@ class InMemoryCheckpointer[StateT: AgentState](BaseCheckpointer[StateT]):
             self._message_metadata.clear()
             self._threads.clear()
             logger.info("Released all in-memory resources")
+            return True
 
-    def release(self) -> None:
+    def release(self) -> bool:
         """Release resources synchronously."""
         self._states.clear()
         self._state_cache.clear()
@@ -373,3 +395,4 @@ class InMemoryCheckpointer[StateT: AgentState](BaseCheckpointer[StateT]):
         self._message_metadata.clear()
         self._threads.clear()
         logger.info("Released all in-memory resources")
+        return True

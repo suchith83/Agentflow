@@ -227,7 +227,7 @@ class ToolNode:
                 return val
             if isinstance(val, list):
                 return {"items": val}
-            if isinstance(val, ContentBlock):
+            if isinstance(val, ContentBlock):  # type: ignore
                 obj = val.model_dump()
                 # Try to parse the 'text' field if it looks like JSON
                 if "text" in obj:

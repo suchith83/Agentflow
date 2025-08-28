@@ -139,3 +139,8 @@ res = app.invoke(inp, config=config)
 for i in res["messages"]:
     print(i)
     print("\n\n")
+
+
+grp = app.generate_graph()
+
+print(grp)

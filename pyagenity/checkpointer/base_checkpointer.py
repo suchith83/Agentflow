@@ -26,11 +26,20 @@ class BaseCheckpointer[StateT: AgentState](ABC):
     - Callers always use the async APIs (`await cp.put_state(...)`, etc.).
     """
 
+    ###########################
+    #### SETUP ################
+    ###########################
+    def setup(self, config: dict[str, Any]) -> Any:
+        raise NotImplementedError
+
+    async def asetup(self, config: dict[str, Any]) -> Any:
+        raise NotImplementedError
+
     # -------------------------
     # State methods Async
     # -------------------------
     @abstractmethod
-    async def aput_state(self, config: dict[str, Any], state: StateT):
+    async def aput_state(self, config: dict[str, Any], state: StateT) -> StateT:
         raise NotImplementedError
 
     @abstractmethod
@@ -38,11 +47,11 @@ class BaseCheckpointer[StateT: AgentState](ABC):
         raise NotImplementedError
 
     @abstractmethod
-    async def aclear_state(self, config: dict[str, Any]):
+    async def aclear_state(self, config: dict[str, Any]) -> Any:
         raise NotImplementedError
 
     @abstractmethod
-    async def aput_state_cache(self, config: dict[str, Any], state: StateT) -> None:
+    async def aput_state_cache(self, config: dict[str, Any], state: StateT) -> Any | None:
         raise NotImplementedError
 
     @abstractmethod
@@ -53,7 +62,7 @@ class BaseCheckpointer[StateT: AgentState](ABC):
     # State methods Sync
     # -------------------------
     @abstractmethod
-    def put_state(self, config: dict[str, Any], state: StateT):
+    def put_state(self, config: dict[str, Any], state: StateT) -> StateT:
         raise NotImplementedError
 
     @abstractmethod
@@ -61,11 +70,11 @@ class BaseCheckpointer[StateT: AgentState](ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def clear_state(self, config: dict[str, Any]):
+    def clear_state(self, config: dict[str, Any]) -> Any:
         raise NotImplementedError
 
     @abstractmethod
-    def put_state_cache(self, config: dict[str, Any], state: StateT) -> None:
+    def put_state_cache(self, config: dict[str, Any], state: StateT) -> Any | None:
         raise NotImplementedError
 
     @abstractmethod
@@ -81,7 +90,7 @@ class BaseCheckpointer[StateT: AgentState](ABC):
         config: dict[str, Any],
         messages: list[Message],
         metadata: dict[str, Any] | None = None,
-    ):
+    ) -> Any:
         raise NotImplementedError
 
     @abstractmethod
@@ -99,7 +108,7 @@ class BaseCheckpointer[StateT: AgentState](ABC):
         raise NotImplementedError
 
     @abstractmethod
-    async def adelete_message(self, config: dict[str, Any], message_id: str | int) -> None:
+    async def adelete_message(self, config: dict[str, Any], message_id: str | int) -> Any | None:
         raise NotImplementedError
 
     # -------------------------
@@ -111,7 +120,7 @@ class BaseCheckpointer[StateT: AgentState](ABC):
         config: dict[str, Any],
         messages: list[Message],
         metadata: dict[str, Any] | None = None,
-    ):
+    ) -> Any:
         raise NotImplementedError
 
     @abstractmethod
@@ -129,7 +138,7 @@ class BaseCheckpointer[StateT: AgentState](ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def delete_message(self, config: dict[str, Any], message_id: str | int) -> None:
+    def delete_message(self, config: dict[str, Any], message_id: str | int) -> Any | None:
         raise NotImplementedError
 
     # -------------------------
@@ -140,7 +149,7 @@ class BaseCheckpointer[StateT: AgentState](ABC):
         self,
         config: dict[str, Any],
         thread_info: dict[str, Any],
-    ) -> None:
+    ) -> Any | None:
         raise NotImplementedError
 
     @abstractmethod
@@ -161,14 +170,14 @@ class BaseCheckpointer[StateT: AgentState](ABC):
         raise NotImplementedError
 
     @abstractmethod
-    async def aclean_thread(self, config: dict[str, Any]) -> None:
+    async def aclean_thread(self, config: dict[str, Any]) -> Any | None:
         raise NotImplementedError
 
     # -------------------------
     # Thread methods sync
     # -------------------------
     @abstractmethod
-    def put_thread(self, config: dict[str, Any], thread_info: dict[str, Any]) -> None:
+    def put_thread(self, config: dict[str, Any], thread_info: dict[str, Any]) -> Any | None:
         raise NotImplementedError
 
     @abstractmethod
@@ -185,16 +194,16 @@ class BaseCheckpointer[StateT: AgentState](ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def clean_thread(self, config: dict[str, Any]) -> None:
+    def clean_thread(self, config: dict[str, Any]) -> Any | None:
         raise NotImplementedError
 
     # -------------------------
     # Clean Resources
     # -------------------------
     @abstractmethod
-    def release(self) -> None:
+    def release(self) -> Any | None:
         raise NotImplementedError
 
     @abstractmethod
-    async def arelease(self) -> None:
+    async def arelease(self) -> Any | None:
         raise NotImplementedError

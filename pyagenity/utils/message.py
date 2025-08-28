@@ -206,15 +206,13 @@ class Message(BaseModel):
         tool_call_id = tools_calls[0].get("id") if tools_calls else None
 
         logger.debug("Creating message from model response with id: %s", response.id)
+        content = data.get("choices", [{}])[0].get("message", {}).get("content", "")
+        if not content:
+            content = ""
         return cls(
             message_id=response.id,
             role="assistant",
-            content=data.get("choices", [{}])[0]
-            .get("message", {})
-            .get(
-                "content",
-                "",
-            ),
+            content=content,
             reasoning=data.get("choices", [{}])[0].get("message", {}).get("reasoning_content", ""),
             timestamp=created_date,
             metadata={

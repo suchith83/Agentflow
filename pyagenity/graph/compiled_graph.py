@@ -4,6 +4,7 @@ import asyncio
 import logging
 from collections.abc import AsyncIterator, Generator
 from typing import TYPE_CHECKING, Any, TypeVar
+from uuid import uuid4
 
 from pyagenity.checkpointer import BaseCheckpointer
 from pyagenity.publisher import BasePublisher
@@ -251,3 +252,45 @@ class CompiledGraph[StateT: AgentState]:
         logger.info(f"Graph close stats: {stats}")
         # You can also return or process the stats as needed
         return stats
+
+    def generate_graph(self) -> dict[str, Any]:
+        """Generate the graph representation.
+
+        Returns:
+            A dictionary representing the graph structure.
+        """
+        graph = {
+            "info": {},
+            "nodes": [],
+            "edges": [],
+        }
+        # Populate the graph with nodes and edges
+        for node_name in self.state_graph.nodes:
+            graph["nodes"].append(
+                {
+                    "id": str(uuid4()),
+                    "name": node_name,
+                }
+            )
+
+        for edge in self.state_graph.edges:
+            graph["edges"].append(
+                {
+                    "id": str(uuid4()),
+                    "source": edge.from_node,
+                    "target": edge.to_node,
+                }
+            )
+
+        # Add few more extra info
+        graph["info"] = {
+            "node_count": len(graph["nodes"]),
+            "edge_count": len(graph["edges"]),
+            "checkpointer": self.checkpointer is not None,
+            "checkpointer_type": type(self.checkpointer).__name__ if self.checkpointer else None,
+            "publisher": self.publisher is not None,
+            "store": self.store is not None,
+            "interrupt_before": self.interrupt_before,
+            "interrupt_after": self.interrupt_after,
+        }
+        return graph
