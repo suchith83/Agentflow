@@ -151,8 +151,8 @@ def test_state_serialization():
     state.metadata = {"key": "value", "nested": {"inner": True}}
     state.score = 3.14
 
-    # Test to_dict
-    state_dict = state.to_dict()
+    # Test model_dump
+    state_dict = state.model_dump()
     assert "context" in state_dict
     assert "context_summary" in state_dict
     assert "active_node" in state_dict

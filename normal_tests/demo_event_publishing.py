@@ -58,11 +58,11 @@ class CustomPublisher(BasePublisher):
 
         return True
 
-    def close(self):
+    async def close(self):
         print(f"📊 Publisher closed. Total events processed: {self.event_count}")
 
     def sync_close(self):
-        self.close()
+        pass
 
 
 async def weather_agent(state: AgentState, **kwargs) -> str:
@@ -102,7 +102,7 @@ async def demo_event_publishing():
 
     # Execute the graph
     input_data = {
-        "messages": [Message.from_text("What's the weather like?", role="user").to_dict()]
+        "messages": [Message.from_text("What's the weather like?", role="user").model_dump()]
     }
 
     try:
@@ -117,7 +117,7 @@ async def demo_event_publishing():
     except Exception as e:
         print(f"💥 Error during execution: {e}")
     finally:
-        custom_publisher.close()
+        await custom_publisher.close()
 
     print("\\n" + "=" * 50)
     print("✅ Event publishing demo completed!")

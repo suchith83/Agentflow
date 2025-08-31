@@ -21,6 +21,8 @@ class StreamChunk:
         tool_calls: list | None = None,
         role: str = "assistant",
         is_final: bool = False,
+        meta: dict | None = None,
+        state: dict | None = None,
     ):
         self.content = content  # Full content so far
         self.delta = delta  # New content in this chunk
@@ -28,6 +30,9 @@ class StreamChunk:
         self.tool_calls = tool_calls
         self.role = role
         self.is_final = is_final
+        # Extra metadata container (run_id, message_id, node, step, event, data, etc.)
+        self.meta = meta or {}
+        self.state = state
 
     def to_message(self) -> Message:
         """Convert chunk to a Message object."""
@@ -35,7 +40,7 @@ class StreamChunk:
             role=self.role,  # type: ignore
             content=self.content,
             tools_calls=self.tool_calls,
-            message_id=str(uuid4()),
+            message_id=self.meta.get("message_id") or str(uuid4()),
         )
 
 

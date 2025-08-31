@@ -72,7 +72,7 @@ async def test_event_publishing():
     print("\\n📋 Test 1: Normal Graph Execution")
     print("-" * 30)
 
-    input_data = {"messages": [Message.from_text("Test input", role="user").to_dict()]}
+    input_data = {"messages": [Message.from_text("Test input", role="user").model_dump()]}
 
     try:
         result = await compiled_graph.ainvoke(input_data)
@@ -145,10 +145,10 @@ async def test_event_publishing():
     )
 
     print(f"✅ Event created: {test_event.id}")
-    print(f"📝 Event dict: {test_event.to_dict()}")
+    print(f"📝 Event dict: {test_event.model_dump()}")
 
     # Test Event from dict
-    event_dict = test_event.to_dict()
+    event_dict = test_event.model_dump()
     restored_event = Event.from_dict(event_dict)
     print(f"✅ Event restored from dict: {restored_event.id == test_event.id}")
 

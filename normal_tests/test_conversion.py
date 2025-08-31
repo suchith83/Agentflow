@@ -13,7 +13,7 @@ def test_execution_state():
     print(f"Current node: {exec_state.current_node}")
 
     # Test serialization
-    state_dict = exec_state.to_dict()
+    state_dict = exec_state.model_dump()
     print(f"Serialized keys: {list(state_dict.keys())}")
 
     # Test deserialization
@@ -37,7 +37,7 @@ def test_agent_state():
     print(f"After set_current_node: {agent_state.execution_meta.current_node}")
 
     # Test serialization
-    state_dict = agent_state.to_dict()
+    state_dict = agent_state.model_dump()
     print(f"State dict keys: {list(state_dict.keys())}")
 
 
