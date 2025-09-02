@@ -7,6 +7,7 @@ from pyagenity.exceptions import GraphError
 from pyagenity.state import AgentState, BaseContextManager
 from pyagenity.store import BaseStore
 from pyagenity.utils import END, START, CallbackManager, DependencyContainer
+from pyagenity.utils.id_generator import BaseIDGenerator, UUIDGenerator
 
 from .edge import Edge
 from .node import Node
@@ -58,9 +59,10 @@ class StateGraph[StateT: AgentState]:
     def __init__(
         self,
         state: StateT | None = None,
-        context_manager: BaseContextManager[StateT] | None = None,
+        callback_manager: CallbackManager | None = None,
         dependency_container: DependencyContainer | None = None,
         publisher: "BasePublisher | None" = None,
+        id_generator: BaseIDGenerator | None = None,
     ):
         """Initialize a new StateGraph instance.
 
@@ -92,9 +94,8 @@ class StateGraph[StateT: AgentState]:
         """
         logger.info("Initializing StateGraph")
         logger.debug(
-            "StateGraph init with state=%s, context_manager=%s, dependency_container=%s",
+            "StateGraph init with state=%s, dependency_container=%s",
             type(state).__name__ if state else "default AgentState",
-            type(context_manager).__name__ if context_manager else None,
             "provided" if dependency_container else "default",
         )
 
@@ -104,14 +105,15 @@ class StateGraph[StateT: AgentState]:
         self.edges: list[Edge] = []
         self.entry_point: str | None = None
         self.publisher = publisher
-        self.context_manager: BaseContextManager[StateT] | None = context_manager
+        self.id_generator = id_generator or UUIDGenerator()  # Default to UUID if none provided
         self.dependency_container = dependency_container or DependencyContainer()
+        self.callback_manager = callback_manager or CallbackManager()
         self.compiled = False
 
         # Add START and END nodes (accept full node signature including dependencies)
         logger.debug("Adding default START and END nodes")
-        self.nodes[START] = Node(START, lambda state, config, **deps: state)
-        self.nodes[END] = Node(END, lambda state, config, **deps: state)
+        self.nodes[START] = Node(START, lambda state, config, **deps: state, self.publisher)
+        self.nodes[END] = Node(END, lambda state, config, **deps: state, self.publisher)
         logger.debug("StateGraph initialized with %d nodes", len(self.nodes))
 
     def add_node(
@@ -283,9 +285,9 @@ class StateGraph[StateT: AgentState]:
         self,
         checkpointer: BaseCheckpointer[StateT] | None = None,
         store: BaseStore | None = None,
+        context_manager: BaseContextManager[StateT] | None = None,
         interrupt_before: list[str] | None = None,
         interrupt_after: list[str] | None = None,
-        callback_manager: CallbackManager | None = None,
     ) -> "CompiledGraph[StateT]":
         """Compile the graph for execution.
 
@@ -343,8 +345,7 @@ class StateGraph[StateT: AgentState]:
             store=store,
             interrupt_before=interrupt_before,
             interrupt_after=interrupt_after,
-            callback_manager=callback_manager,
-            publisher=self.publisher,
+            context_manager=context_manager,
         )
 
     def _validate_graph(self):

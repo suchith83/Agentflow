@@ -9,6 +9,7 @@ from uuid import uuid4
 from pyagenity.checkpointer import BaseCheckpointer
 from pyagenity.publisher import BasePublisher
 from pyagenity.state import AgentState
+from pyagenity.state.base_context import BaseContextManager
 from pyagenity.store import BaseStore
 from pyagenity.utils import (
     CallbackManager,
@@ -44,8 +45,7 @@ class CompiledGraph[StateT: AgentState]:
         store: BaseStore | None = None,
         interrupt_before: list[str] | None = None,
         interrupt_after: list[str] | None = None,
-        callback_manager: CallbackManager | None = None,
-        publisher: BasePublisher | None = None,
+        context_manager: BaseContextManager[StateT] | None = None,
     ):
         logger.info(
             "Initializing CompiledGraph with %d nodes, checkpointer=%s, store=%s",
@@ -56,11 +56,11 @@ class CompiledGraph[StateT: AgentState]:
         self.state_graph = state_graph
         self.checkpointer = checkpointer
         self.store = store
-        self.context_manager = state_graph.context_manager
+        self.context_manager = context_manager
         self.interrupt_before = interrupt_before or []
         self.interrupt_after = interrupt_after or []
-        self.callback_manager = callback_manager or default_callback_manager
-        self.publisher = publisher
+        self.callback_manager = state_graph.callback_manager or default_callback_manager
+        self.publisher = state_graph.publisher
 
         logger.debug(
             "CompiledGraph configured with interrupt_before=%s, interrupt_after=%s",
@@ -140,10 +140,13 @@ class CompiledGraph[StateT: AgentState]:
         Returns:
             Response dict based on granularity
         """
+        # add is_streaming flag to config
+        cfg = config or {}
+        cfg["is_streaming"] = False
 
         return await self.invoke_handler.invoke(
             input_data,
-            config,
+            cfg,
             response_granularity,
         )
 
@@ -210,9 +213,13 @@ class CompiledGraph[StateT: AgentState]:
         Yields:
             StreamChunk objects with incremental content
         """
+        # Add is_streaming flag to config
+        cfg = config or {}
+        cfg["is_streaming"] = True
+
         return self.stream_handler.stream(
             input_data,
-            config,
+            cfg,
             response_granularity,
         )
 
