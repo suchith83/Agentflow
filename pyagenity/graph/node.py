@@ -4,6 +4,8 @@ import logging
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any, Union
 
+from injectq import Inject
+
 from pyagenity.exceptions import NodeError
 from pyagenity.publisher import Event, EventType, SourceType
 from pyagenity.utils import (
@@ -56,7 +58,7 @@ class Node:
         self,
         name: str,
         func: Union[Callable, "ToolNode"],
-        publisher: "BasePublisher | None" = None,
+        publisher: "BasePublisher | None" = Inject[BasePublisher],  # type: ignore
     ):
         """Initialize a new Node instance.
 
@@ -206,12 +208,11 @@ class Node:
 
     async def execute(
         self,
-        state: "AgentState",
         config: dict[str, Any],
-        checkpointer: "BaseCheckpointer | None" = None,
-        store: "BaseStore | None" = None,
-        dependency_container: DependencyContainer | None = None,
-        callback_manager: CallbackManager | None = None,
+        state: "AgentState" = Inject[AgentState],  # type: ignore
+        checkpointer: "BaseCheckpointer | None" = Inject[BaseCheckpointer | None],  # type: ignore
+        store: "BaseStore | None" = Inject[BaseStore | None],  # type: ignore
+        callback_manager: CallbackManager | None = Inject[CallbackManager | None],  # type: ignore
     ) -> dict[str, Any] | Command:
         """Execute the node function with dependency injection support and callback hooks."""
         logger.info("Executing node '%s'", self.name)

@@ -3,6 +3,8 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Any, TypeVar
 
+from injectq import inject, singleton
+
 from pyagenity.checkpointer import BaseCheckpointer
 from pyagenity.exceptions import GraphRecursionError
 from pyagenity.publisher import BasePublisher, Event, EventType, SourceType
@@ -37,7 +39,9 @@ StateT = TypeVar("StateT", bound=AgentState)
 logger = logging.getLogger(__name__)
 
 
+@singleton
 class InvokeHandler[StateT: AgentState]:
+    @inject
     def __init__(
         self,
         state_graph: StateGraph,
@@ -203,7 +207,6 @@ class InvokeHandler[StateT: AgentState]:
                     config,
                     self.checkpointer,
                     self.store,
-                    self.state_graph.dependency_container,
                     self.callback_manager,
                 )
 

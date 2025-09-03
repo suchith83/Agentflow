@@ -6,22 +6,21 @@ from collections.abc import AsyncIterator, Generator
 from typing import TYPE_CHECKING, Any, TypeVar
 from uuid import uuid4
 
-from pyagenity.checkpointer import BaseCheckpointer
-from pyagenity.publisher import BasePublisher
+from injectq import inject
+
+from pyagenity.checkpointer.base_checkpointer import BaseCheckpointer
+from pyagenity.publisher.base_publisher import BasePublisher
 from pyagenity.state import AgentState
-from pyagenity.store import BaseStore
+from pyagenity.store.base_store import BaseStore
 from pyagenity.utils import (
-    CallbackManager,
     ResponseGranularity,
     StreamChunk,
-    default_callback_manager,
 )
 
 from .invoke_handler import InvokeHandler
 from .steam_handler import StreamHandler
 
 
-# Import StateGraph only for typing to avoid circular import at runtime
 if TYPE_CHECKING:
     from .state_graph import StateGraph
 
@@ -37,55 +36,31 @@ class CompiledGraph[StateT: AgentState]:
     Generic over state types to support custom AgentState subclasses.
     """
 
+    @inject
     def __init__(
         self,
-        state_graph: StateGraph,
-        checkpointer: BaseCheckpointer | None = None,
-        store: BaseStore | None = None,
-        interrupt_before: list[str] | None = None,
-        interrupt_after: list[str] | None = None,
-        callback_manager: CallbackManager | None = None,
-        publisher: BasePublisher | None = None,
+        invoke_handler: InvokeHandler[StateT],
+        stream_handler: StreamHandler[StateT],
+        checkpointer: BaseCheckpointer,
+        publisher: BasePublisher,
+        store: BaseStore,
+        state_graph: StateGraph[StateT],
+        interrupt_before: list[str],
+        interrupt_after: list[str],
     ):
         logger.info(
-            "Initializing CompiledGraph with %d nodes, checkpointer=%s, store=%s",
-            len(state_graph.nodes) if state_graph else 0,
-            type(checkpointer).__name__ if checkpointer else None,
-            type(store).__name__ if store else None,
+            f"Initializing CompiledGraph with nodes: {list(state_graph.nodes.keys())}",
         )
-        self.state_graph = state_graph
-        self.checkpointer = checkpointer
-        self.store = store
-        self.context_manager = state_graph.context_manager
-        self.interrupt_before = interrupt_before or []
-        self.interrupt_after = interrupt_after or []
-        self.callback_manager = callback_manager or default_callback_manager
-        self.publisher = publisher
 
-        logger.debug(
-            "CompiledGraph configured with interrupt_before=%s, interrupt_after=%s",
-            self.interrupt_before,
-            self.interrupt_after,
-        )
-        # create handler
-        self.invoke_handler = InvokeHandler[StateT](
-            state_graph=self.state_graph,
-            checkpointer=self.checkpointer,
-            store=self.store,
-            interrupt_before=self.interrupt_before,
-            interrupt_after=self.interrupt_after,
-            callback_manager=self.callback_manager,
-            publisher=self.publisher,
-        )
-        self.stream_handler = StreamHandler[StateT](
-            state_graph=self.state_graph,
-            checkpointer=self.checkpointer,
-            store=self.store,
-            interrupt_before=self.interrupt_before,
-            interrupt_after=self.interrupt_after,
-            callback_manager=self.callback_manager,
-            publisher=self.publisher,
-        )
+        # create handlers
+        self.invoke_handler: InvokeHandler[StateT] = invoke_handler
+        self.stream_handler: StreamHandler[StateT] = stream_handler
+        self.checkpointer: BaseCheckpointer = checkpointer
+        self.publisher: BasePublisher = publisher
+        self.store: BaseStore = store
+        self.state_graph: StateGraph[StateT] = state_graph
+        self.interrupt_before: list[str] = interrupt_before
+        self.interrupt_after: list[str] = interrupt_after
 
     def invoke(
         self,
@@ -216,6 +191,7 @@ class CompiledGraph[StateT: AgentState]:
             response_granularity,
         )
 
+    @inject
     async def aclose(self) -> dict[str, str]:
         """Close the graph and release any resources."""
         # close checkpointer

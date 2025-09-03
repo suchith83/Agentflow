@@ -426,14 +426,7 @@ class StreamHandler[StateT: AgentState]:
                         }
                     )
 
-                result = await node.execute(
-                    state,
-                    config,
-                    self.checkpointer,
-                    self.store,
-                    self.state_graph.dependency_container,
-                    self.callback_manager,
-                )
+                result = await node.execute(config)
                 ###############################################
                 ##### Node Execution Done #####################
                 ###############################################

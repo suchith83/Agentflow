@@ -11,6 +11,12 @@ Task In library
 9. Tutorial
 
 
+Add config
+1. Allow stream
+2. ID type
+3. ID generator
+
+
 Left:
 Publish Left in Node and Tool Node files
 
