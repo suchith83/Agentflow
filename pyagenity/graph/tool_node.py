@@ -11,11 +11,28 @@ import json
 import logging
 import typing as t
 
-from fastmcp import Client
-from fastmcp.client.client import CallToolResult
+
+try:
+    from fastmcp import Client
+    from fastmcp.client.client import CallToolResult
+
+    HAS_FASTMCP = True
+except ImportError:
+    HAS_FASTMCP = False
+    Client = None  # type: ignore
+    CallToolResult = None  # type: ignore
+
+try:
+    from mcp import Tool
+    from mcp.types import ContentBlock
+
+    HAS_MCP = True
+except ImportError:
+    HAS_MCP = False
+    Tool = None  # type: ignore
+    ContentBlock = None  # type: ignore
+
 from injectq import inject
-from mcp import Tool
-from mcp.types import ContentBlock
 
 from pyagenity.state import AgentState
 from pyagenity.utils import (
@@ -44,18 +61,29 @@ INJECTABLE_PARAMS = {
 
 
 class ToolNode:
-    """Registry for callables that exports function specs and executes them."""
+    """Registry for callables that exports function specs and executes them.
+
+    MCP support requires: pip install pyagenity[mcp]
+    """
 
     def __init__(
         self,
         functions: t.Iterable[t.Callable],
-        client: Client | None = None,
+        client: t.Any | None = None,
     ):
         logger.info("Initializing ToolNode with %d functions", len(list(functions)))
-        if client:
+
+        # Check MCP dependencies if client is provided
+        if client is not None:
+            if not HAS_FASTMCP or not HAS_MCP:
+                raise ImportError(
+                    "MCP client functionality requires 'fastmcp' and 'mcp' packages. "
+                    "Install with: pip install pyagenity[mcp]"
+                )
             logger.debug("ToolNode initialized with MCP client")
+
         self._funcs: dict[str, t.Callable] = {}
-        self._client: Client | None = client
+        self._client: t.Any | None = client
         for fn in functions:
             if not callable(fn):
                 error_msg = "ToolNode only accepts callables"
@@ -126,7 +154,7 @@ class ToolNode:
                     logger.error("MCP server not available. Ping failed.")
                     return tools
 
-                mcp_tools: list[Tool] = await self._client.list_tools()
+                mcp_tools: list[t.Any] = await self._client.list_tools()
                 for i in mcp_tools:
                     # also save the names
                     self.mcp_tools.append(i.name)
@@ -228,7 +256,7 @@ class ToolNode:
             logger.error("No recovery result for tool '%s', re-raising error", name)
             raise
 
-    def _serialize_result(self, res: CallToolResult) -> str:
+    def _serialize_result(self, res: t.Any) -> str:
         def try_parse_json(val):
             if isinstance(val, str):
                 try:
@@ -338,7 +366,7 @@ class ToolNode:
                 ############################################
                 ############ Call the MCP tool #############
                 ############################################
-                res: CallToolResult = await self._client.call_tool(name, input_data)
+                res: t.Any = await self._client.call_tool(name, input_data)
                 logger.debug("MCP tool '%s' returned: %s", name, res)
                 ############################################
                 ############ Call the MCP tool #############

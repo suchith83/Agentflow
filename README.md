@@ -27,7 +27,7 @@ PyAgenity is a lightweight Python framework for building intelligent agents and 
 
 ## Installation
 
-**With [uv](https://github.com/astral-sh/uv) (recommended):**
+**Basic installation with [uv](https://github.com/astral-sh/uv) (recommended):**
 
 ```bash
 uv pip install pyagenity
@@ -37,6 +37,26 @@ Or with pip:
 
 ```bash
 pip install pyagenity
+```
+
+**Optional Dependencies:**
+
+PyAgenity supports optional dependencies for specific functionality:
+
+```bash
+# PostgreSQL + Redis checkpointing
+pip install pyagenity[pg_checkpoint]
+
+# MCP (Model Context Protocol) support
+pip install pyagenity[mcp]
+
+# Individual publishers
+pip install pyagenity[redis]     # Redis publisher
+pip install pyagenity[kafka]     # Kafka publisher  
+pip install pyagenity[rabbitmq]  # RabbitMQ publisher
+
+# Multiple extras
+pip install pyagenity[pg_checkpoint,mcp]
 ```
 
 ---

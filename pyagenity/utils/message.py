@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import Any, Literal
 from uuid import uuid4
 
-from injectq import inject, injectq
+from injectq import injectq
 from litellm.types.utils import ModelResponse
 from pydantic import BaseModel, Field
 
@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 
 def generate_id(default_id: str | int | None) -> str | int:
-    id_type = injectq.try_get("id_type", "string")
+    id_type = injectq.try_get("generated_id_type", "string")
     generated_id = injectq.try_get("generated_id", None)
     if generated_id:
         return generated_id

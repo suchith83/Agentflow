@@ -1,4 +1,5 @@
 import asyncio
+import json
 import logging
 from collections import defaultdict
 from typing import TYPE_CHECKING, Any, TypeVar
@@ -41,17 +42,18 @@ class InMemoryCheckpointer[StateT: AgentState](BaseCheckpointer[StateT]):
         self._messages_lock = asyncio.Lock()
         self._threads_lock = asyncio.Lock()
 
-    def setup(self, config: dict[str, Any]) -> Any:
+    def setup(self) -> Any:
         logger.debug("InMemoryCheckpointer setup not required")
 
-    async def asetup(self, config: dict[str, Any]) -> Any:
+    async def asetup(self) -> Any:
         logger.debug("InMemoryCheckpointer async setup not required")
 
     def _get_config_key(self, config: dict[str, Any]) -> str:
         """Generate a string key from config dict for storage indexing."""
         # Sort keys for consistent hashing
         items = sorted(config.items())
-        return str(hash(tuple(items)))
+        rs = json.dumps(items)
+        return str(hash(rs))
 
     # -------------------------
     # State methods Async
@@ -344,6 +346,7 @@ class InMemoryCheckpointer[StateT: AgentState](BaseCheckpointer[StateT]):
 
     def list_threads(
         self,
+        config: dict[str, Any],
         search: str | None = None,
         offset: int | None = None,
         limit: int | None = None,

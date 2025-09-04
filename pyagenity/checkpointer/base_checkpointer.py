@@ -29,10 +29,10 @@ class BaseCheckpointer[StateT: AgentState](ABC):
     ###########################
     #### SETUP ################
     ###########################
-    def setup(self, config: dict[str, Any]) -> Any:
+    def setup(self) -> Any:
         raise NotImplementedError
 
-    async def asetup(self, config: dict[str, Any]) -> Any:
+    async def asetup(self) -> Any:
         raise NotImplementedError
 
     # -------------------------
@@ -187,6 +187,7 @@ class BaseCheckpointer[StateT: AgentState](ABC):
     @abstractmethod
     def list_threads(
         self,
+        config: dict[str, Any],
         search: str | None = None,
         offset: int | None = None,
         limit: int | None = None,
