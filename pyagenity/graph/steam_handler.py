@@ -3,21 +3,19 @@ from __future__ import annotations
 
 from collections.abc import AsyncIterator
 import logging
-from typing import TYPE_CHECKING, Any, TypeVar
+from typing import Any, TypeVar
 from uuid import uuid4
 
-from pyagenity.checkpointer import BaseCheckpointer
+from injectq import inject
+
 from pyagenity.exceptions import GraphRecursionError
 from pyagenity.publisher import BasePublisher, Event, EventType
 from pyagenity.state import AgentState, ExecutionStatus
-from pyagenity.store import BaseStore
 from pyagenity.utils import (
     END,
-    CallbackManager,
     Message,
     ResponseGranularity,
     StreamChunk,
-    default_callback_manager,
     extract_content_from_response,
     is_async_streaming_response,
     is_streaming_response,
@@ -33,10 +31,8 @@ from .utils import (
     sync_data,
 )
 
-
-# Import StateGraph only for typing to avoid circular import at runtime
-if TYPE_CHECKING:
-    from .state_graph import StateGraph
+from .edge import Edge
+from .node import Node
 
 
 StateT = TypeVar("StateT", bound=AgentState)
@@ -45,24 +41,20 @@ logger = logging.getLogger(__name__)
 
 
 class StreamHandler[StateT: AgentState]:
+    @inject
     def __init__(
         self,
-        state_graph: StateGraph,
-        checkpointer: BaseCheckpointer | None = None,
-        store: BaseStore | None = None,
-        debug: bool = False,
+        nodes: dict[str, Node],
+        edges: list[Edge],
         interrupt_before: list[str] | None = None,
         interrupt_after: list[str] | None = None,
-        callback_manager: CallbackManager | None = None,
         publisher: BasePublisher | None = None,
     ):
-        self.state_graph = state_graph
-        self.checkpointer = checkpointer
-        self.store = store
-        self.debug = debug
+        self.nodes: dict[str, Node] = nodes
+        self.edges: list[Edge] = edges
+
         self.interrupt_before = interrupt_before or []
         self.interrupt_after = interrupt_after or []
-        self.callback_manager = callback_manager or default_callback_manager
         self.publisher = publisher
 
     async def _publish_event(
@@ -129,8 +121,6 @@ class StreamHandler[StateT: AgentState]:
             )
             # Save state and interrupt
             await sync_data(
-                checkpointer=self.checkpointer,
-                context_manager=self.state_graph.context_manager,
                 state=state,
                 config=config,
                 messages=[],
@@ -369,7 +359,10 @@ class StreamHandler[StateT: AgentState]:
                 )
                 state.set_current_node(current_node)
                 state.execution_meta.step = step
-                await call_realtime_sync(self.checkpointer, state, config)
+                await call_realtime_sync(
+                    state=state,
+                    config=config,
+                )
                 logger.debug("Realtime sync called")
 
                 # Step event: calling main node
@@ -403,7 +396,7 @@ class StreamHandler[StateT: AgentState]:
                 ###############################################
                 ##### Node Execution Started ##################
                 ###############################################
-                node = self.state_graph.nodes[current_node]
+                node = self.nodes[current_node]
                 # Emit tool/ai call events
                 if hasattr(node, "func") and node.func.__class__.__name__ == "ToolNode":
                     yield StreamChunk(
@@ -426,7 +419,7 @@ class StreamHandler[StateT: AgentState]:
                         }
                     )
 
-                result = await node.execute(config)
+                result = await node.execute(config, state)
                 ###############################################
                 ##### Node Execution Done #####################
                 ###############################################
@@ -445,7 +438,7 @@ class StreamHandler[StateT: AgentState]:
 
                     # If _process_node_result didn't return a next_node, use _get_next_node
                     if next_node is None and current_node:
-                        next_node = get_next_node(current_node, state, self.state_graph.edges)
+                        next_node = get_next_node(current_node, state, self.edges)
 
                 except Exception:
                     # Log error silently and continue
@@ -558,7 +551,7 @@ class StreamHandler[StateT: AgentState]:
                 ):
                     # For interrupt_after, advance to next node before pausing
                     if next_node is None and current_node:
-                        next_node = get_next_node(current_node, state, self.state_graph.edges)
+                        next_node = get_next_node(current_node, state, self.edges)
                     if next_node:
                         state.set_current_node(next_node)
                     yield StreamChunk(
@@ -578,7 +571,7 @@ class StreamHandler[StateT: AgentState]:
 
                 # Get next node (only if no explicit navigation from Command)
                 if next_node is None:
-                    current_node = get_next_node(current_node, state, self.state_graph.edges)
+                    current_node = get_next_node(current_node, state, self.edges)
                 else:
                     current_node = next_node
 
@@ -591,7 +584,10 @@ class StreamHandler[StateT: AgentState]:
                 # Advance step after successful node execution
                 step += 1
                 state.advance_step()
-                await call_realtime_sync(self.checkpointer, state, config)
+                await call_realtime_sync(
+                    state=state,
+                    config=config,
+                )
                 logger.info(
                     "Graph execution progressed to step %d",
                     step,
@@ -600,7 +596,6 @@ class StreamHandler[StateT: AgentState]:
                 if step >= max_steps:
                     state.error("Graph execution exceeded maximum steps")
                     logger.error("Graph execution exceeded maximum steps: %d", max_steps)
-                    await call_realtime_sync(self.checkpointer, state, config)
                     raise GraphRecursionError(
                         f"Graph execution exceeded recursion limit: {max_steps}"
                     )
@@ -620,8 +615,6 @@ class StreamHandler[StateT: AgentState]:
             # Execution completed successfully
             state.complete()
             await sync_data(
-                checkpointer=self.checkpointer,
-                context_manager=self.state_graph.context_manager,
                 state=state,
                 config=config,
                 messages=[],
@@ -653,8 +646,6 @@ class StreamHandler[StateT: AgentState]:
             logger.exception("Graph execution failed: %s", e)
             state.error(str(e))
             await sync_data(
-                checkpointer=self.checkpointer,
-                context_manager=self.state_graph.context_manager,
                 state=state,
                 config=config,
                 messages=[],
@@ -674,7 +665,8 @@ class StreamHandler[StateT: AgentState]:
     async def stream(
         self,
         input_data: dict[str, Any],
-        config: dict[str, Any] | None = None,
+        config: dict[str, Any],
+        default_state: StateT,
         response_granularity: ResponseGranularity = ResponseGranularity.LOW,
     ) -> AsyncIterator[StreamChunk]:
         """Execute the graph asynchronously with streaming support.
@@ -696,10 +688,9 @@ class StreamHandler[StateT: AgentState]:
 
         # Load or initialize state
         new_state = await load_or_create_state(
-            self.checkpointer,
             input_data,
             config,
-            self.state_graph.state,
+            default_state,
         )
         state: StateT = new_state  # type: ignore[assignment]
         logger.debug("Graph state loaded ")
@@ -716,7 +707,11 @@ class StreamHandler[StateT: AgentState]:
         await self._publish_event(event)
 
         # Execute graph with streaming
-        async for chunk in self._execute_graph_streaming(state, config, response_granularity):
+        async for chunk in self._execute_graph_streaming(
+            state,
+            config,
+            response_granularity,
+        ):
             yield chunk
 
         # if response_granularity

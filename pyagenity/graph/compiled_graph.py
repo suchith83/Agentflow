@@ -6,8 +6,6 @@ from collections.abc import AsyncIterator, Generator
 from typing import TYPE_CHECKING, Any, TypeVar
 from uuid import uuid4
 
-from injectq import inject
-
 from pyagenity.checkpointer.base_checkpointer import BaseCheckpointer
 from pyagenity.publisher.base_publisher import BasePublisher
 from pyagenity.state import AgentState
@@ -36,14 +34,12 @@ class CompiledGraph[StateT: AgentState]:
     Generic over state types to support custom AgentState subclasses.
     """
 
-    @inject
     def __init__(
         self,
-        invoke_handler: InvokeHandler[StateT],
-        stream_handler: StreamHandler[StateT],
-        checkpointer: BaseCheckpointer,
-        publisher: BasePublisher,
-        store: BaseStore,
+        state: StateT,
+        checkpointer: BaseCheckpointer[StateT] | None,
+        publisher: BasePublisher | None,
+        store: BaseStore[StateT] | None,
         state_graph: StateGraph[StateT],
         interrupt_before: list[str],
         interrupt_after: list[str],
@@ -52,15 +48,26 @@ class CompiledGraph[StateT: AgentState]:
             f"Initializing CompiledGraph with nodes: {list(state_graph.nodes.keys())}",
         )
 
+        # Save initial state
+        self._state = state
+
         # create handlers
-        self.invoke_handler: InvokeHandler[StateT] = invoke_handler
-        self.stream_handler: StreamHandler[StateT] = stream_handler
-        self.checkpointer: BaseCheckpointer = checkpointer
-        self.publisher: BasePublisher = publisher
-        self.store: BaseStore = store
+        self.invoke_handler: InvokeHandler[StateT] = InvokeHandler[StateT](
+            nodes=state_graph.nodes,
+            edges=state_graph.edges,
+        )
+        self.stream_handler: StreamHandler[StateT] = StreamHandler[StateT](
+            nodes=state_graph.nodes,
+            edges=state_graph.edges,
+        )
+
+        self.checkpointer: BaseCheckpointer[StateT] | None = checkpointer
+        self.publisher: BasePublisher | None = publisher
+        self.store: BaseStore[StateT] | None = store
         self.state_graph: StateGraph[StateT] = state_graph
         self.interrupt_before: list[str] = interrupt_before
         self.interrupt_after: list[str] = interrupt_after
+        self.state = state
 
     def invoke(
         self,
@@ -115,10 +122,13 @@ class CompiledGraph[StateT: AgentState]:
         Returns:
             Response dict based on granularity
         """
+        cfg = config or {}
+        cfg["is_stream"] = False
 
         return await self.invoke_handler.invoke(
             input_data,
-            config,
+            cfg,
+            self._state,
             response_granularity,
         )
 
@@ -185,13 +195,17 @@ class CompiledGraph[StateT: AgentState]:
         Yields:
             StreamChunk objects with incremental content
         """
+
+        cfg = config or {}
+        cfg["is_stream"] = False
+
         return self.stream_handler.stream(
             input_data,
-            config,
+            cfg,
+            self._state,
             response_granularity,
         )
 
-    @inject
     async def aclose(self) -> dict[str, str]:
         """Close the graph and release any resources."""
         # close checkpointer
@@ -268,5 +282,10 @@ class CompiledGraph[StateT: AgentState]:
             "store": self.store is not None,
             "interrupt_before": self.interrupt_before,
             "interrupt_after": self.interrupt_after,
+            "context_type": self.state_graph._context_manager.__class__.__name__,
+            "id_generator": self.state_graph._id_generator.__class__.__name__,
+            "id_type": self.state_graph._id_generator.id_type.value,
+            "state_type": self._state.__class__.__name__,
+            "state_fields": list(self._state.model_dump().keys()),
         }
         return graph

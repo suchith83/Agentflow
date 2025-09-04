@@ -4,6 +4,7 @@ import logging
 from collections.abc import Callable
 from typing import Any, TypeVar
 
+from injectq import inject
 from litellm.types.utils import ModelResponse
 
 from pyagenity.checkpointer import BaseCheckpointer
@@ -18,7 +19,6 @@ from pyagenity.utils import (
     Message,
     ResponseGranularity,
     add_messages,
-    call_sync_or_async,
 )
 
 
@@ -63,11 +63,12 @@ def _update_state_fields(state, partial: dict):
             setattr(state, k, v)
 
 
+@inject
 async def load_or_create_state[StateT: AgentState](
-    checkpointer: BaseCheckpointer | None,
     input_data: dict[str, Any],
     config: dict[str, Any],
     old_state: StateT,
+    checkpointer: BaseCheckpointer | None = None,  # will be auto-injected
 ) -> StateT:
     """Load existing state from checkpointer or create new state.
 
@@ -176,69 +177,6 @@ def get_default_event(
         meta=metadata,
         config=config or {},
     )
-
-
-# OLD One
-# def process_node_result[StateT: AgentState](
-#     result: Any,
-#     state: StateT,
-#     messages: list[Message],
-# ) -> tuple[StateT, list[Message], str | None]:
-#     """Process result from node execution and return updated state, messages, and next node."""
-#     next_node = None
-#     existing_ids = {msg.message_id for msg in messages}
-
-#     if isinstance(result, Command):
-#         # Apply state updates
-#         if result.update:
-#             if isinstance(result.update, ModelResponse):
-#                 lm = Message.from_response(result.update)
-#                 messages.append(lm)
-#                 state.context = add_messages(state.context, [lm])
-#             elif isinstance(result.update, AgentState):
-#                 # Check if it's an AgentState or subclass - cast to StateT
-#                 state = result.update  # type: ignore[assignment]
-#                 messages.append(
-#                     state.context[-1] if state.context else Message.from_text("Unknown")
-#                 )
-#         # Handle navigation
-#         if result.goto:
-#             next_node = result.goto
-
-#     elif isinstance(result, Message):
-#         messages.append(result)
-#         state.context = add_messages(state.context, [result])
-
-#     elif isinstance(result, AgentState):
-#         # Check if result is an AgentState or subclass - cast to StateT
-#         state = result  # type: ignore[assignment]
-#         messages.append(state.context[-1] if state.context else Message.from_text("Unknown"))
-
-#     elif isinstance(result, dict):
-#         try:
-#             lm = Message.from_dict(result)
-#         except Exception as e:
-#             raise ValueError(f"Invalid message dict: {e}") from e
-#         messages.append(lm)
-#         state.context = add_messages(state.context, [lm])
-
-#     elif isinstance(result, str):
-#         lm = Message.from_text(result)
-#         messages.append(lm)
-#         state.context = add_messages(state.context, [lm])
-
-#     elif isinstance(result, ModelResponse):
-#         lm = Message.from_response(result)
-#         messages.append(lm)
-#         state.context = add_messages(state.context, [lm])
-#     elif isinstance(result, list):
-#         # check if all the message
-#         for item in result:
-#             lm = Message.from_text(item)
-#             messages.append(lm)
-#             state.context = add_messages(state.context, [lm])
-
-#     return state, messages, next_node
 
 
 def process_node_result[StateT: AgentState](
@@ -421,10 +359,11 @@ def get_next_node(
     return END
 
 
+@inject
 async def call_realtime_sync(
-    checkpointer: BaseCheckpointer | None,
     state: AgentState,
     config: dict[str, Any],
+    checkpointer: BaseCheckpointer | None = None,  # will be auto-injected
 ) -> None:
     """Call the realtime state sync hook if provided."""
     if checkpointer:
@@ -433,13 +372,14 @@ async def call_realtime_sync(
         await checkpointer.aput_state_cache(config, state)
 
 
+@inject
 async def sync_data(
-    checkpointer: BaseCheckpointer | None,
-    context_manager: BaseContextManager | None,
     state: AgentState,
     config: dict[str, Any],
     messages: list[Message],
     trim: bool = False,
+    checkpointer: BaseCheckpointer | None = None,  # will be auto-injected
+    context_manager: BaseContextManager | None = None,  # will be auto-injected
 ) -> None:
     """Sync the current state and messages to the checkpointer."""
     if not checkpointer:
@@ -454,7 +394,7 @@ async def sync_data(
         new_state = await context_manager.atrim_context(state)
 
     # first sync with realtime then main db
-    await call_realtime_sync(checkpointer, state, config)
+    await call_realtime_sync(state, config, checkpointer)
     logger.debug("Persisting state and %d messages to checkpointer", len(messages))
 
     await checkpointer.aput_state(config, new_state)

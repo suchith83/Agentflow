@@ -1,15 +1,13 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Any, TypeVar
+from typing import Any, TypeVar
 
-from injectq import inject, singleton
+from injectq import inject
 
-from pyagenity.checkpointer import BaseCheckpointer
 from pyagenity.exceptions import GraphRecursionError
 from pyagenity.publisher import BasePublisher, Event, EventType, SourceType
 from pyagenity.state import AgentState, ExecutionStatus
-from pyagenity.store import BaseStore
 from pyagenity.utils import (
     END,
     CallbackManager,
@@ -18,6 +16,8 @@ from pyagenity.utils import (
     default_callback_manager,
 )
 
+from .edge import Edge
+from .node import Node
 from .utils import (
     call_realtime_sync,
     get_default_event,
@@ -29,35 +29,25 @@ from .utils import (
 )
 
 
-# Import StateGraph only for typing to avoid circular import at runtime
-if TYPE_CHECKING:
-    from .state_graph import StateGraph
-
-
 StateT = TypeVar("StateT", bound=AgentState)
 
 logger = logging.getLogger(__name__)
 
 
-@singleton
 class InvokeHandler[StateT: AgentState]:
     @inject
     def __init__(
         self,
-        state_graph: StateGraph,
-        checkpointer: BaseCheckpointer | None = None,
-        store: BaseStore | None = None,
+        nodes: dict[str, Node],
+        edges: list[Edge],
+        publisher: BasePublisher | None = None,
         interrupt_before: list[str] | None = None,
         interrupt_after: list[str] | None = None,
-        callback_manager: CallbackManager | None = None,
-        publisher: BasePublisher | None = None,
     ):
-        self.state_graph = state_graph
-        self.checkpointer = checkpointer
-        self.store = store
+        self.nodes: dict[str, Node] = nodes
+        self.edges: list[Edge] = edges
         self.interrupt_before = interrupt_before or []
         self.interrupt_after = interrupt_after or []
-        self.callback_manager = callback_manager or default_callback_manager
         self.publisher = publisher
 
     async def _publish_event(
@@ -103,7 +93,7 @@ class InvokeHandler[StateT: AgentState]:
         self,
         current_node: str,
         interrupt_type: str,
-        state: AgentState,
+        state: StateT,
         config: dict[str, Any],
     ) -> bool:
         """Check for interrupts and save state if needed. Returns True if interrupted."""
@@ -124,8 +114,6 @@ class InvokeHandler[StateT: AgentState]:
             )
             # Save state and interrupt
             await sync_data(
-                checkpointer=self.checkpointer,
-                context_manager=self.state_graph.context_manager,
                 state=state,
                 config=config,
                 messages=[],
@@ -172,7 +160,7 @@ class InvokeHandler[StateT: AgentState]:
                 # Update execution metadata
                 state.set_current_node(current_node)
                 state.execution_meta.step = step
-                await call_realtime_sync(self.checkpointer, state, config)
+                await call_realtime_sync(state, config)
                 event.payload["step"] = step
                 event.payload["current_node"] = current_node
                 event.event_type = EventType.RUNNING
@@ -193,7 +181,7 @@ class InvokeHandler[StateT: AgentState]:
 
                 # Execute current node
                 logger.debug("Executing node '%s'", current_node)
-                node = self.state_graph.nodes[current_node]
+                node = self.nodes[current_node]
 
                 # Publish node invocation event
                 await self._publish_event(event)
@@ -202,13 +190,7 @@ class InvokeHandler[StateT: AgentState]:
                 ##### Node Execution Started ##################
                 ###############################################
 
-                result = await node.execute(
-                    state,
-                    config,
-                    self.checkpointer,
-                    self.store,
-                    self.callback_manager,
-                )
+                result = await node.execute(config, state)
 
                 ###############################################
                 ##### Node Execution Finished #################
@@ -233,7 +215,7 @@ class InvokeHandler[StateT: AgentState]:
                 )
 
                 # Call realtime sync after node execution (if state/messages changed)
-                await call_realtime_sync(self.checkpointer, state, config)
+                await call_realtime_sync(state, config)
 
                 # Check for interrupt_after
                 if await self._check_and_handle_interrupt(
@@ -245,7 +227,7 @@ class InvokeHandler[StateT: AgentState]:
                     logger.info("Graph execution interrupted after node '%s'", current_node)
                     # For interrupt_after, advance to next node before pausing
                     if next_node is None:
-                        next_node = get_next_node(current_node, state, self.state_graph.edges)
+                        next_node = get_next_node(current_node, state, self.edges)
                     state.set_current_node(next_node)
 
                     event.event_type = EventType.INTERRUPTED
@@ -255,7 +237,7 @@ class InvokeHandler[StateT: AgentState]:
 
                 # Get next node (only if no explicit navigation from Command)
                 if next_node is None:
-                    current_node = get_next_node(current_node, state, self.state_graph.edges)
+                    current_node = get_next_node(current_node, state, self.edges)
                     logger.debug("Next node determined by graph logic: '%s'", current_node)
                 else:
                     current_node = next_node
@@ -264,7 +246,7 @@ class InvokeHandler[StateT: AgentState]:
                 # Advance step after successful node execution
                 step += 1
                 state.advance_step()
-                await call_realtime_sync(self.checkpointer, state, config)
+                await call_realtime_sync(state, config)
                 event.event_type = EventType.CHANGED
 
                 event.payload["State_Updated"] = "State Updated"
@@ -274,7 +256,7 @@ class InvokeHandler[StateT: AgentState]:
                     error_msg = "Graph execution exceeded maximum steps"
                     logger.error(error_msg)
                     state.error(error_msg)
-                    await call_realtime_sync(self.checkpointer, state, config)
+                    await call_realtime_sync(state, config)
                     raise GraphRecursionError(
                         f"Graph execution exceeded recursion limit: {max_steps}"
                     )
@@ -287,8 +269,6 @@ class InvokeHandler[StateT: AgentState]:
             )
             state.complete()
             await sync_data(
-                checkpointer=self.checkpointer,
-                context_manager=self.state_graph.context_manager,
                 state=state,
                 config=config,
                 messages=messages,
@@ -307,8 +287,6 @@ class InvokeHandler[StateT: AgentState]:
 
             state.error(str(e))
             await sync_data(
-                checkpointer=self.checkpointer,
-                context_manager=self.state_graph.context_manager,
                 state=state,
                 config=config,
                 messages=messages,
@@ -319,7 +297,8 @@ class InvokeHandler[StateT: AgentState]:
     async def invoke(
         self,
         input_data: dict[str, Any],
-        config: dict[str, Any] | None = None,
+        config: dict[str, Any],
+        default_state: StateT,
         response_granularity: ResponseGranularity = ResponseGranularity.LOW,
     ):
         """Execute the graph asynchronously.
@@ -347,10 +326,9 @@ class InvokeHandler[StateT: AgentState]:
         # Load or initialize state
         logger.debug("Loading or creating state from input data")
         new_state = await load_or_create_state(
-            self.checkpointer,
             input_data,
             config,
-            self.state_graph.state,
+            default_state,
         )
         state: StateT = new_state  # type: ignore[assignment]
         logger.debug(

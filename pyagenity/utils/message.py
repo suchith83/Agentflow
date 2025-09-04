@@ -4,11 +4,38 @@ from datetime import datetime
 from typing import Any, Literal
 from uuid import uuid4
 
+from injectq import inject, injectq
 from litellm.types.utils import ModelResponse
 from pydantic import BaseModel, Field
 
 
 logger = logging.getLogger(__name__)
+
+
+def generate_id(default_id: str | int | None) -> str | int:
+    id_type = injectq.try_get("id_type", "string")
+    generated_id = injectq.try_get("generated_id", None)
+    if generated_id:
+        return generated_id
+
+    if default_id:
+        if id_type == "string" and isinstance(default_id, str):
+            return default_id
+        if id_type in ("int", "bigint") and isinstance(default_id, int):
+            return default_id
+
+    # if not matched or default_id is None, generate new id
+    logger.debug(
+        "Generating new id of type: %s. Default ID not provided or not matched %s",
+        id_type,
+        default_id,
+    )
+
+    if id_type == "int":
+        return uuid4().int >> 32
+    if id_type == "bigint":
+        return uuid4().int >> 64
+    return str(uuid4())
 
 
 class TokenUsages(BaseModel):
@@ -50,7 +77,7 @@ class Message(BaseModel):
         raw (dict[str, Any] | None): Raw data, if any.
     """
 
-    message_id: str
+    message_id: str | int
     role: Literal["user", "assistant", "system", "tool"]
     content: str
     tools_calls: list[dict[str, Any]] | None = None
@@ -120,7 +147,7 @@ class Message(BaseModel):
         """
         logger.debug("Creating message from text with role: %s", role)
         return cls(
-            message_id=message_id or str(uuid4()),  # Generate a new UUID
+            message_id=generate_id(message_id),
             role=role,
             content=data,
             timestamp=datetime.now(),
@@ -162,7 +189,7 @@ class Message(BaseModel):
             usages = TokenUsages.model_validate(data["usages"])
 
         return cls(
-            message_id=data.get("message_id", str(uuid4())),
+            message_id=generate_id(data.get("message_id")),
             role=data.get("role", ""),
             content=data.get("content", ""),
             reasoning=data.get("reasoning"),
@@ -210,7 +237,7 @@ class Message(BaseModel):
         if not content:
             content = ""
         return cls(
-            message_id=response.id,
+            message_id=generate_id(response.id),
             role="assistant",
             content=content,
             reasoning=data.get("choices", [{}])[0].get("message", {}).get("reasoning_content", ""),
@@ -255,8 +282,9 @@ class Message(BaseModel):
             res = '{"success": False, "error": content}'
 
         logger.debug("Creating tool message with tool_call_id: %s", tool_call_id)
+        msg_id = generate_id(message_id)
         return cls(
-            message_id=message_id or str(uuid4()),
+            message_id=msg_id,
             role="tool",
             content=res,
             timestamp=datetime.now(),

@@ -24,7 +24,7 @@ class TestBasicIntegration:
     def test_simple_graph_creation_and_execution(self):
         """Test creating a simple graph and basic operations."""
         # Create a state graph
-        graph = StateGraph(AgentState)
+        graph = StateGraph(AgentState())
 
         # Add nodes
         graph.add_node("ai_agent", dummy_ai_agent)
@@ -68,14 +68,14 @@ class TestBasicIntegration:
         publisher = ConsolePublisher(config={"verbose": True})
 
         # Create graph with publisher
-        graph = StateGraph(AgentState, publisher=publisher)
+        graph = StateGraph(AgentState(), publisher=publisher)
 
         # Test graph creation with publisher
         assert graph is not None  # noqa: S101
 
     def test_complex_graph_with_multiple_nodes(self):
         """Test creating a more complex graph."""
-        graph = StateGraph(AgentState)
+        graph = StateGraph(AgentState())
 
         # Add multiple nodes
         graph.add_node("start_node", dummy_ai_agent)
@@ -103,7 +103,7 @@ class TestBasicIntegration:
                 return "long_path"
             return "short_path"
 
-        graph = StateGraph(AgentState)
+        graph = StateGraph(AgentState())
 
         # Add nodes
         graph.add_node("router", dummy_ai_agent)
@@ -153,23 +153,6 @@ class TestBasicIntegration:
         copied_msg = user_msg.copy()
         assert copied_msg.content == user_msg.content  # noqa: S101
         assert copied_msg.role == user_msg.role  # noqa: S101
-
-    def test_dependency_injection_usage(self):
-        """Test dependency injection container usage."""
-        from pyagenity.utils import DependencyContainer
-
-        container = DependencyContainer()
-
-        # Test dependency registration and retrieval
-        test_service = {"name": "test_service", "version": "1.0"}
-        container.register("service", test_service)
-
-        retrieved = container.get("service")
-        assert retrieved == test_service  # noqa: S101
-
-        # Test dependency listing
-        deps = container.list_dependencies()
-        assert "service" in deps  # noqa: S101
 
     def test_callback_system_usage(self):
         """Test callback system usage."""
