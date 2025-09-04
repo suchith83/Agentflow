@@ -123,8 +123,8 @@ class StateGraph[StateT: AgentState]:
 
         # Add START and END nodes (accept full node signature including dependencies)
         logger.debug("Adding default START and END nodes")
-        self.nodes[START] = Node(START, lambda state, config, **deps: state)
-        self.nodes[END] = Node(END, lambda state, config, **deps: state)
+        self.nodes[START] = Node(START, lambda state, config, **deps: state, self.publisher)
+        self.nodes[END] = Node(END, lambda state, config, **deps: state, self.publisher)
         logger.debug("StateGraph initialized with %d nodes", len(self.nodes))
 
     def _setup(self, dependencies: dict):
@@ -296,9 +296,9 @@ class StateGraph[StateT: AgentState]:
         self,
         checkpointer: BaseCheckpointer[StateT] | None = None,
         store: BaseStore | None = None,
+        context_manager: BaseContextManager[StateT] | None = None,
         interrupt_before: list[str] | None = None,
         interrupt_after: list[str] | None = None,
-        callback_manager: CallbackManager | None = None,
     ) -> "CompiledGraph[StateT]":
         """Compile the graph for execution.
 
