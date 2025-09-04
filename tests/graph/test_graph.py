@@ -119,7 +119,7 @@ class TestToolNode:
     def test_tool_node_invalid_function(self):
         """Test ToolNode with invalid function."""
         with pytest.raises(TypeError):
-            ToolNode(["not_a_function"])
+            ToolNode(["not_a_function"])  # type: ignore
 
 
 class TestStateGraph:
@@ -128,8 +128,8 @@ class TestStateGraph:
     def test_state_graph_creation(self):
         """Test creating a StateGraph."""
         graph = StateGraph[AgentState](AgentState())
-        assert graph.state is not None  # noqa: S101
-        assert isinstance(graph.state, AgentState)  # noqa: S101
+        assert graph._state is not None  # noqa: S101
+        assert isinstance(graph._state, AgentState)  # noqa: S101
 
     def test_state_graph_creation_with_publisher(self):
         """Test creating a StateGraph with publisher."""
@@ -137,7 +137,7 @@ class TestStateGraph:
 
         publisher = ConsolePublisher()
         graph = StateGraph[AgentState](AgentState(), publisher=publisher)
-        assert graph.publisher is not None  # noqa: S101
+        assert graph._publisher is not None  # noqa: S101
 
     def test_add_node(self):
         """Test adding nodes to the graph."""

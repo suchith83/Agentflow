@@ -13,28 +13,34 @@ import typing as t
 
 from fastmcp import Client
 from fastmcp.client.client import CallToolResult
+from injectq import inject
 from mcp import Tool
 from mcp.types import ContentBlock
 
+from pyagenity.state import AgentState
 from pyagenity.utils import (
     CallbackContext,
     CallbackManager,
     InvocationType,
     call_sync_or_async,
     default_callback_manager,
-    get_injectable_param_name,
-    is_injectable_type,
 )
 from pyagenity.utils.message import Message
 
 
-if t.TYPE_CHECKING:
-    from pyagenity.checkpointer import BaseCheckpointer
-    from pyagenity.publisher import BasePublisher
-    from pyagenity.state import AgentState
-    from pyagenity.store import BaseStore
-
 logger = logging.getLogger(__name__)
+
+
+INJECTABLE_PARAMS = {
+    "tool_call_id",
+    "state",
+    "config",
+    "generated_id",
+    "context_manager",
+    "publisher",
+    "checkpointer",
+    "store",
+}
 
 
 class ToolNode:
@@ -44,14 +50,12 @@ class ToolNode:
         self,
         functions: t.Iterable[t.Callable],
         client: Client | None = None,
-        publisher: BasePublisher | None = None,
     ):
         logger.info("Initializing ToolNode with %d functions", len(list(functions)))
         if client:
             logger.debug("ToolNode initialized with MCP client")
         self._funcs: dict[str, t.Callable] = {}
         self._client: Client | None = client
-        self._publisher: BasePublisher | None = publisher
         for fn in functions:
             if not callable(fn):
                 error_msg = "ToolNode only accepts callables"
@@ -63,9 +67,7 @@ class ToolNode:
         self.mcp_tools = []
         logger.debug("ToolNode initialized with %d local functions", len(self._funcs))
 
-    async def all_tools(self) -> list[dict]:
-        """Return function descriptions for all registered callables."""
-
+    async def _get_local_tool(self) -> list[dict]:
         tools: list[dict] = []
         logger.debug("Collecting tool descriptions")
         for name, fn in self._funcs.items():
@@ -81,10 +83,10 @@ class ToolNode:
                     continue
 
                 # Skip injectable parameters - they shouldn't be in the LLM tool spec
-                annotation = p.annotation if p.annotation is not inspect._empty else str
-                if is_injectable_type(annotation):
+                if p_name in INJECTABLE_PARAMS:
                     continue
 
+                annotation = p.annotation if p.annotation is not inspect._empty else str
                 prop = self._annotation_to_schema(annotation, p.default)
                 params_schema["properties"][p_name] = prop
 
@@ -108,8 +110,10 @@ class ToolNode:
             )
 
         logger.debug("Collected %d local tool descriptions", len(tools))
+        return tools
 
-        # get the tools from client
+    async def _get_mcp_tool(self) -> list[dict]:
+        tools: list[dict] = []
         logger.debug("Collecting MCP tool descriptions")
         if self._client:
             logger.debug("MCP client is set, fetching tools from MCP server")
@@ -119,6 +123,7 @@ class ToolNode:
                 # Ping not working, so no need to
                 # do anything, return old one
                 if not res:
+                    logger.error("MCP server not available. Ping failed.")
                     return tools
 
                 mcp_tools: list[Tool] = await self._client.list_tools()
@@ -139,20 +144,22 @@ class ToolNode:
         logger.debug("Collected %d MCP tool descriptions", len(self.mcp_tools))
         return tools
 
+    async def all_tools(self) -> list[dict]:
+        """Return function descriptions for all registered callables."""
+        tools: list[dict] = await self._get_local_tool()
+        tools.extend(await self._get_mcp_tool())
+        return tools
+
     async def _internal_execute(
         self,
         name: str,
         args: dict,
         tool_call_id: str,
         config: dict[str, t.Any],
-        state: AgentState | None = None,
-        checkpointer: BaseCheckpointer | None = None,
-        store: BaseStore | None = None,
-        dependency_container=None,
-        callback_manager: CallbackManager | None = None,
+        state: AgentState,
+        callback_mgr: CallbackManager,
     ):
         """Execute internal tool function with callback hooks."""
-        callback_mgr = callback_manager or default_callback_manager
         logger.debug("Executing internal tool '%s' with %d arguments", name, len(args))
         logger.info("Executing internal tool '%s'", name)
 
@@ -166,36 +173,44 @@ class ToolNode:
 
         fn = self._funcs[name]
         sig = inspect.signature(fn)
-
-        # Available injectable parameters
-        injectable_params = {
+        input_data = {}
+        default_data = {
             "tool_call_id": tool_call_id,
             "state": state,
-            "checkpointer": checkpointer,
-            "store": store,
             "config": config,
         }
 
-        kwargs = self._prepare_kwargs(sig, args, injectable_params, dependency_container)
+        # # Get injectable parameters to determine which ones to exclude from manual passing
+        # # Prepare function arguments (excluding injectable parameters)
+        for param_name, param in sig.parameters.items():
+            # Skip *args/**kwargs
+            if param.kind in (
+                inspect.Parameter.VAR_POSITIONAL,
+                inspect.Parameter.VAR_KEYWORD,
+            ):
+                continue
 
-        # Prepare input data for callbacks
-        input_data = {
-            "function_name": name,
-            "args": args,
-            "kwargs": kwargs,
-            "tool_call_id": tool_call_id,
-        }
+            # check its state, config, tool_call_id
+            if param_name in ["state", "config", "tool_call_id"]:
+                input_data[param_name] = default_data[param_name]
+                continue
+
+            # Skip injectable parameters - they will be handled by injectq
+            if param_name in INJECTABLE_PARAMS:
+                continue
+
+            # Include regular function arguments
+            if param_name in args:
+                input_data[param_name] = args[param_name]
+            elif param.default is inspect.Parameter.empty:
+                raise TypeError(f"Missing required parameter '{param_name}' for function '{name}'")
 
         try:
             # Execute before_invoke callbacks
             input_data = await callback_mgr.execute_before_invoke(context, input_data)
-
-            # Extract potentially modified data
-            modified_kwargs = input_data.get("kwargs", kwargs)
-
-            # Execute the actual tool function
-            logger.debug("Invoking tool function '%s' with kwargs: %s", name, modified_kwargs)
-            result = await call_sync_or_async(fn, **modified_kwargs)
+            # Execute the actual tool function with injectq handling dependency injection
+            logger.debug("Invoking tool function '%s'", name)
+            result = await call_sync_or_async(fn, **input_data)
             logger.debug("Tool function '%s' returned: %s", name, result)
 
             # Execute after_invoke callbacks
@@ -262,17 +277,12 @@ class ToolNode:
         args: dict,
         tool_call_id: str,
         config: dict[str, t.Any],
-        state: AgentState | None = None,
-        checkpointer: BaseCheckpointer | None = None,
-        store: BaseStore | None = None,
-        dependency_container=None,
-        callback_manager: CallbackManager | None = None,
+        callback_mgr: CallbackManager,
     ) -> Message:
         """
         Execute the MCP tool registered under `name` with `args` kwargs.
         Returns a Message with the result or error.
         """
-        callback_mgr = callback_manager or default_callback_manager
 
         # Create callback context for MCP invocation
         context = CallbackContext(
@@ -287,26 +297,16 @@ class ToolNode:
             },
         )
 
-        meta = {"function_name": name, "function_argument": args}
+        meta = {"function_name": name, "function_argument": args, "tool_call_id": tool_call_id}
         logger.debug("Executing MCP tool '%s' with %d arguments", name, len(args))
         logger.info("Executing MCP tool '%s'", name)
 
         # Prepare input data for callbacks
-        input_data = {
-            "function_name": name,
-            "args": args,
-            "tool_call_id": tool_call_id,
-            "meta": meta,
-        }
+        input_data = {**args}
 
         try:
             # Execute before_invoke callbacks
             input_data = await callback_mgr.execute_before_invoke(context, input_data)
-
-            # Extract potentially modified data
-            modified_name = input_data.get("function_name", name)
-            modified_args = input_data.get("args", args)
-            modified_meta = input_data.get("meta", meta)
 
             if not self._client:
                 logger.error("MCP client not set for MCP tool execution")
@@ -314,7 +314,7 @@ class ToolNode:
                     tool_call_id=tool_call_id,
                     content="MCP Client not Setup",
                     is_error=True,
-                    meta=modified_meta,
+                    meta=meta,
                 )
                 # Execute after_invoke callbacks even for errors
                 return await callback_mgr.execute_after_invoke(context, input_data, error_result)
@@ -327,23 +327,30 @@ class ToolNode:
                         tool_call_id=tool_call_id,
                         content="MCP Server not available. Ping failed.",
                         is_error=True,
-                        meta=modified_meta,
+                        meta=meta,
                     )
                     # Execute after_invoke callbacks even for errors
                     return await callback_mgr.execute_after_invoke(
                         context, input_data, error_result
                     )
 
-                logger.debug("Calling MCP tool '%s' with args: %s", modified_name, modified_args)
-                res: CallToolResult = await self._client.call_tool(modified_name, modified_args)
-                logger.debug("MCP tool '%s' returned: %s", modified_name, res)
+                logger.debug("Calling MCP tool '%s'", name)
+                ############################################
+                ############ Call the MCP tool #############
+                ############################################
+                res: CallToolResult = await self._client.call_tool(name, input_data)
+                logger.debug("MCP tool '%s' returned: %s", name, res)
+                ############################################
+                ############ Call the MCP tool #############
+                ############################################
+
                 final_res = self._serialize_result(res)
 
                 result = Message.tool_message(
                     tool_call_id=tool_call_id,
                     content=final_res,
                     is_error=bool(res.is_error),
-                    meta=modified_meta,
+                    meta=meta,
                 )
 
                 # Execute after_invoke callbacks
@@ -367,17 +374,15 @@ class ToolNode:
                 meta=meta,
             )
 
+    @inject
     async def execute(
         self,
         name: str,
         args: dict,
         tool_call_id: str,
         config: dict[str, t.Any],
-        state: AgentState | None = None,
-        checkpointer: BaseCheckpointer | None = None,
-        store: BaseStore | None = None,
-        dependency_container=None,
-        callback_manager: CallbackManager | None = None,
+        state: AgentState,
+        callback_manager: CallbackManager | None = None,  # type: ignore
     ) -> t.Any:
         """Execute the callable registered under `name` with `args` kwargs.
 
@@ -392,6 +397,8 @@ class ToolNode:
         logger.info("Executing tool '%s' with %d arguments", name, len(args))
         logger.debug("Tool arguments: %s", args)
 
+        callback_manager = callback_manager or default_callback_manager
+
         # check in mcp
         if name in self.mcp_tools:
             logger.debug("Tool '%s' found in MCP tools, executing via MCP", name)
@@ -400,10 +407,6 @@ class ToolNode:
                 args,
                 tool_call_id,
                 config,
-                state,
-                checkpointer,
-                store,
-                dependency_container,
                 callback_manager,
             )
 
@@ -415,9 +418,6 @@ class ToolNode:
                 tool_call_id,
                 config,
                 state,
-                checkpointer,
-                store,
-                dependency_container,
                 callback_manager,
             )
 
@@ -467,20 +467,15 @@ class ToolNode:
         dependency_container,
     ) -> t.Any | None:
         """Get the value for a parameter from various sources."""
-        # Check if this parameter should be injected based on type annotation
-        annotation = param.annotation if param.annotation is not inspect._empty else None
-
-        if annotation and is_injectable_type(annotation):
+        # Check if this parameter should be injected based on parameter name
+        if p_name in injectable_params:
             return self._handle_injectable_parameter(
-                p_name, param, annotation, injectable_params, dependency_container
+                p_name, param, injectable_params, dependency_container
             )
 
         # Try different value sources in order of priority
         value_sources = [
             lambda: args.get(p_name),  # Function arguments
-            lambda: (
-                injectable_params.get(p_name) if injectable_params.get(p_name) is not None else None
-            ),  # Injectable params
             lambda: (
                 dependency_container.get(p_name)
                 if dependency_container and dependency_container.has(p_name)
@@ -503,26 +498,25 @@ class ToolNode:
         self,
         p_name: str,
         param: inspect.Parameter,
-        annotation: t.Any,
         injectable_params: dict,
         dependency_container,
     ) -> t.Any | None:
-        """Handle parameter injection based on type annotation."""
-        injectable_param_name = get_injectable_param_name(annotation)
-
-        if injectable_param_name == "dependency":
-            if dependency_container and dependency_container.has(p_name):
-                return dependency_container.get(p_name)
-            if param.default is inspect._empty:
-                raise TypeError(f"Required dependency '{p_name}' not found in container")
-            return None  # Use default
-
-        if injectable_param_name and injectable_param_name in injectable_params:
-            injectable_value = injectable_params[injectable_param_name]
+        """Handle parameter injection based on parameter name."""
+        # Check if it's a known injectable parameter
+        if p_name in injectable_params:
+            injectable_value = injectable_params[p_name]
             if injectable_value is not None:
                 return injectable_value
 
-        return None
+        # Check if it's a dependency that should be injected from the container
+        if dependency_container and dependency_container.has(p_name):
+            return dependency_container.get(p_name)
+
+        # If no value found and parameter has no default, raise error
+        if param.default is inspect._empty:
+            raise TypeError(f"Required injectable parameter '{p_name}' not found")
+
+        return None  # Use default
 
     @staticmethod
     def _annotation_to_schema(annotation: t.Any, default: t.Any) -> dict:

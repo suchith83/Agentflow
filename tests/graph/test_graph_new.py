@@ -72,8 +72,8 @@ class TestStateGraph:
     def test_state_graph_creation(self):
         """Test creating a StateGraph."""
         graph = StateGraph[AgentState](AgentState())
-        assert graph.state is not None  # noqa: S101
-        assert isinstance(graph.state, AgentState)  # noqa: S101
+        assert graph._state is not None  # noqa: S101
+        assert isinstance(graph._state, AgentState)  # noqa: S101
 
     def test_add_node(self):
         """Test adding nodes to the graph."""

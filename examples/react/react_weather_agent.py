@@ -1,6 +1,7 @@
 from typing import Any
 
 from dotenv import load_dotenv
+from injectq import inject
 from litellm import acompletion
 
 from pyagenity.checkpointer import InMemoryCheckpointer
@@ -9,7 +10,6 @@ from pyagenity.state.agent_state import AgentState
 from pyagenity.utils import Message
 from pyagenity.utils.constants import END
 from pyagenity.utils.converter import convert_messages
-from pyagenity.utils.injectable import InjectState, InjectToolCallID
 
 
 load_dotenv()
@@ -17,10 +17,11 @@ load_dotenv()
 checkpointer = InMemoryCheckpointer()
 
 
+@inject
 def get_weather(
     location: str,
-    tool_call_id: InjectToolCallID,
-    state: InjectState,
+    tool_call_id: str | None = None,
+    state: AgentState | None = None,
 ) -> Message:
     """
     Get the current weather for a specific location.
@@ -32,7 +33,7 @@ def get_weather(
     if state and hasattr(state, "context"):
         print(f"Number of messages in context: {len(state.context)}")  # type: ignore
 
-    res = f"The weather in {location} is sunny. raw"
+    res = f"The weather in {location} is sunny"
     return Message.tool_message(
         content=res,
         tool_call_id=tool_call_id,  # type: ignore
@@ -44,9 +45,6 @@ tool_node = ToolNode([get_weather])
 
 async def main_agent(
     state: AgentState,
-    config: dict[str, Any],
-    checkpointer: Any | None = None,
-    store: Any | None = None,
 ):
     prompts = """
         You are a helpful assistant.
@@ -137,10 +135,13 @@ config = {"thread_id": "12345", "recursion_limit": 10}
 res = app.invoke(inp, config=config)
 
 for i in res["messages"]:
+    print("**********************")
+    print("Message Type: ", i.role)
     print(i)
+    print("**********************")
     print("\n\n")
 
 
-grp = app.generate_graph()
+# grp = app.generate_graph()
 
-print(grp)
+# print(grp)

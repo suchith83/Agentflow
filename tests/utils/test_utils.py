@@ -4,7 +4,6 @@ from pyagenity.utils import (
     CallbackContext,
     CallbackManager,
     Command,
-    DependencyContainer,
     InvocationType,
     Message,
     add_messages,
@@ -125,69 +124,6 @@ class TestInvocationType:
         assert InvocationType.AI  # noqa: S101
         assert InvocationType.TOOL  # noqa: S101
         assert InvocationType.MCP  # noqa: S101
-
-
-class TestDependencyContainer:
-    """Test the DependencyContainer class."""
-
-    def test_dependency_container_creation(self):
-        """Test creating a DependencyContainer."""
-        container = DependencyContainer()
-        assert container is not None  # noqa: S101
-
-    def test_dependency_container_register_get(self):
-        """Test registering and getting dependencies."""
-        container = DependencyContainer()
-        test_obj = {"test": "value"}
-
-        container.register("test_dep", test_obj)
-        retrieved = container.get("test_dep")
-        assert retrieved == test_obj  # noqa: S101
-
-    def test_dependency_container_has(self):
-        """Test checking if dependency exists."""
-        container = DependencyContainer()
-        container.register("test_dep", "test_value")
-
-        assert container.has("test_dep")  # noqa: S101
-        assert not container.has("non_existent")  # noqa: S101
-
-    def test_dependency_container_list_dependencies(self):
-        """Test listing dependencies."""
-        container = DependencyContainer()
-        container.register("dep1", "value1")
-        container.register("dep2", "value2")
-
-        deps = container.list_dependencies()
-        assert "dep1" in deps  # noqa: S101
-        assert "dep2" in deps  # noqa: S101
-
-    def test_dependency_container_unregister(self):
-        """Test unregistering dependencies."""
-        container = DependencyContainer()
-        container.register("test_dep", "test_value")
-        assert container.has("test_dep")  # noqa: S101
-
-        container.unregister("test_dep")
-        assert not container.has("test_dep")  # noqa: S101
-
-    def test_dependency_container_clear(self):
-        """Test clearing all dependencies."""
-        container = DependencyContainer()
-        container.register("dep1", "value1")
-        container.register("dep2", "value2")
-
-        container.clear()
-        assert len(container.list_dependencies()) == 0  # noqa: S101
-
-    def test_dependency_container_copy(self):
-        """Test copying container."""
-        container = DependencyContainer()
-        container.register("test_dep", "test_value")
-
-        copied = container.copy()
-        assert copied.has("test_dep")  # noqa: S101
-        assert copied.get("test_dep") == "test_value"  # noqa: S101
 
 
 class TestAddMessages:

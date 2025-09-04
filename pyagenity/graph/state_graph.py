@@ -2,12 +2,15 @@ import logging
 from collections.abc import Callable
 from typing import TYPE_CHECKING, TypeVar, Union
 
+from injectq import InjectQ
+
 from pyagenity.checkpointer import BaseCheckpointer
 from pyagenity.exceptions import GraphError
+from pyagenity.publisher import BasePublisher
 from pyagenity.state import AgentState, BaseContextManager
 from pyagenity.store import BaseStore
-from pyagenity.utils import END, START, CallbackManager, DependencyContainer
-from pyagenity.utils.id_generator import BaseIDGenerator, UUIDGenerator
+from pyagenity.utils import END, START, CallbackManager
+from pyagenity.utils.id_generator import BaseIDGenerator, DefaultIDGenerator
 
 from .edge import Edge
 from .node import Node
@@ -15,12 +18,10 @@ from .tool_node import ToolNode
 
 
 if TYPE_CHECKING:
-    from pyagenity.publisher import BasePublisher
-
     from .compiled_graph import CompiledGraph
 
 
-# Generic type variable bound to AgentState for state subtyping
+# Generic type variable bound to AgentState for state
 StateT = TypeVar("StateT", bound=AgentState)
 
 logger = logging.getLogger(__name__)
@@ -59,10 +60,11 @@ class StateGraph[StateT: AgentState]:
     def __init__(
         self,
         state: StateT | None = None,
-        callback_manager: CallbackManager | None = None,
-        dependency_container: DependencyContainer | None = None,
+        context_manager: BaseContextManager[StateT] | None = None,
         publisher: "BasePublisher | None" = None,
-        id_generator: BaseIDGenerator | None = None,
+        id_generator: BaseIDGenerator = DefaultIDGenerator(),
+        container: InjectQ | None = None,
+        dependencies: dict | None = None,
     ):
         """Initialize a new StateGraph instance.
 
@@ -94,27 +96,61 @@ class StateGraph[StateT: AgentState]:
         """
         logger.info("Initializing StateGraph")
         logger.debug(
-            "StateGraph init with state=%s, dependency_container=%s",
+            "StateGraph init with state=%s, context_manager=%s",
             type(state).__name__ if state else "default AgentState",
-            "provided" if dependency_container else "default",
+            type(context_manager).__name__ if context_manager else None,
         )
 
-        # Initialize state and structure
-        self.state = state or AgentState()  # type: ignore[assignment]
+        # State handling
+        self._state: StateT = state if state else AgentState()  # type: ignore[assignment]
+
+        # Graph structure
         self.nodes: dict[str, Node] = {}
         self.edges: list[Edge] = []
         self.entry_point: str | None = None
-        self.publisher = publisher
-        self.id_generator = id_generator or UUIDGenerator()  # Default to UUID if none provided
-        self.dependency_container = dependency_container or DependencyContainer()
-        self.callback_manager = callback_manager or CallbackManager()
-        self.compiled = False
+
+        # Services
+        self._publisher = publisher
+        self._id_generator = id_generator
+        self._context_manager = context_manager
+        self._container = container if container else InjectQ.get_instance()
+
+        # Lifecycle
+        self._compiled = False
+
+        # now setup the graph
+        self._setup(dependencies or {})
 
         # Add START and END nodes (accept full node signature including dependencies)
         logger.debug("Adding default START and END nodes")
         self.nodes[START] = Node(START, lambda state, config, **deps: state, self.publisher)
         self.nodes[END] = Node(END, lambda state, config, **deps: state, self.publisher)
         logger.debug("StateGraph initialized with %d nodes", len(self.nodes))
+
+    def _setup(self, dependencies: dict):
+        """Setup the graph before compilation.
+
+        This method can be used to perform any necessary setup or validation
+        before compiling the graph for execution.
+        """
+        logger.info("Setting up StateGraph before compilation")
+        # Placeholder for any setup logic needed before compilation
+        # register dependencies
+        if dependencies:
+            for key, value in dependencies.items():
+                self._container.bind(key, value)
+
+        # register state and context manager as singletons
+        self._container.bind(BaseContextManager, self._context_manager)
+        self._container.bind(BasePublisher, self._publisher)
+
+        # register id generator as factory
+        self._container.bind(BaseIDGenerator, self._id_generator)
+        self._container.bind("generated_id_type", self._id_generator.id_type)
+        self._container.bind_factory(
+            "generated_id",
+            lambda: self._id_generator.generate(),
+        )
 
     def add_node(
         self,
@@ -163,7 +199,7 @@ class StateGraph[StateT: AgentState]:
             logger.error(error_msg)
             raise ValueError(error_msg)
 
-        self.nodes[name] = Node(name, func, self.publisher)
+        self.nodes[name] = Node(name, func)
         logger.info("Added node '%s' to graph (total nodes: %d)", name, len(self.nodes))
         return self
 
@@ -249,31 +285,6 @@ class StateGraph[StateT: AgentState]:
             self.edges.append(Edge(from_node, "", condition))
         return self
 
-    def add_sequence(
-        self,
-        nodes: list[str | Callable],
-    ) -> "StateGraph":
-        """Add a sequence of nodes with automatic edges."""
-        processed_nodes = []
-        logger.debug("Adding sequence of nodes: %s", nodes)
-
-        for node in nodes:
-            if callable(node):
-                name = node.__name__
-                self.add_node(name, node)
-                processed_nodes.append(name)
-            elif isinstance(node, str):
-                processed_nodes.append(node)
-            else:
-                raise ValueError(f"Invalid node type: {type(node)}")
-
-        # Add edges between consecutive nodes
-        logger.debug("Creating edges for node sequence")
-        for i in range(len(processed_nodes) - 1):
-            self.add_edge(processed_nodes[i], processed_nodes[i + 1])
-
-        return self
-
     def set_entry_point(self, node_name: str) -> "StateGraph":
         """Set the entry point for the graph."""
         self.entry_point = node_name
@@ -339,14 +350,26 @@ class StateGraph[StateT: AgentState]:
         # Import the CompiledGraph class
         from .compiled_graph import CompiledGraph  # noqa: PLC0415
 
-        return CompiledGraph(
+        # Setup dependencies
+        self._container.bind(BaseCheckpointer, checkpointer)
+        self._container.bind(BaseStore, store)
+        self._container.bind(CallbackManager, callback_manager)
+        self._container.bind("interrupt_before", interrupt_before)
+        self._container.bind("interrupt_after", interrupt_after)
+        self._container.bind(StateGraph, self)
+
+        app = CompiledGraph(
+            state=self._state,
+            interrupt_after=interrupt_after,
+            interrupt_before=interrupt_before,
             state_graph=self,
             checkpointer=checkpointer,
+            publisher=self._publisher,
             store=store,
-            interrupt_before=interrupt_before,
-            interrupt_after=interrupt_after,
-            context_manager=context_manager,
         )
+
+        self._container.bind(CompiledGraph, app)
+        return app
 
     def _validate_graph(self):
         """Validate the graph structure."""

@@ -6,23 +6,19 @@ from collections.abc import AsyncIterator, Generator
 from typing import TYPE_CHECKING, Any, TypeVar
 from uuid import uuid4
 
-from pyagenity.checkpointer import BaseCheckpointer
-from pyagenity.publisher import BasePublisher
+from pyagenity.checkpointer.base_checkpointer import BaseCheckpointer
+from pyagenity.publisher.base_publisher import BasePublisher
 from pyagenity.state import AgentState
-from pyagenity.state.base_context import BaseContextManager
-from pyagenity.store import BaseStore
+from pyagenity.store.base_store import BaseStore
 from pyagenity.utils import (
-    CallbackManager,
     ResponseGranularity,
     StreamChunk,
-    default_callback_manager,
 )
 
 from .invoke_handler import InvokeHandler
 from .steam_handler import StreamHandler
 
 
-# Import StateGraph only for typing to avoid circular import at runtime
 if TYPE_CHECKING:
     from .state_graph import StateGraph
 
@@ -40,52 +36,38 @@ class CompiledGraph[StateT: AgentState]:
 
     def __init__(
         self,
-        state_graph: StateGraph,
-        checkpointer: BaseCheckpointer | None = None,
-        store: BaseStore | None = None,
-        interrupt_before: list[str] | None = None,
-        interrupt_after: list[str] | None = None,
-        context_manager: BaseContextManager[StateT] | None = None,
+        state: StateT,
+        checkpointer: BaseCheckpointer[StateT] | None,
+        publisher: BasePublisher | None,
+        store: BaseStore[StateT] | None,
+        state_graph: StateGraph[StateT],
+        interrupt_before: list[str],
+        interrupt_after: list[str],
     ):
         logger.info(
-            "Initializing CompiledGraph with %d nodes, checkpointer=%s, store=%s",
-            len(state_graph.nodes) if state_graph else 0,
-            type(checkpointer).__name__ if checkpointer else None,
-            type(store).__name__ if store else None,
+            f"Initializing CompiledGraph with nodes: {list(state_graph.nodes.keys())}",
         )
-        self.state_graph = state_graph
-        self.checkpointer = checkpointer
-        self.store = store
-        self.context_manager = context_manager
-        self.interrupt_before = interrupt_before or []
-        self.interrupt_after = interrupt_after or []
-        self.callback_manager = state_graph.callback_manager or default_callback_manager
-        self.publisher = state_graph.publisher
 
-        logger.debug(
-            "CompiledGraph configured with interrupt_before=%s, interrupt_after=%s",
-            self.interrupt_before,
-            self.interrupt_after,
+        # Save initial state
+        self._state = state
+
+        # create handlers
+        self.invoke_handler: InvokeHandler[StateT] = InvokeHandler[StateT](
+            nodes=state_graph.nodes,
+            edges=state_graph.edges,
         )
-        # create handler
-        self.invoke_handler = InvokeHandler[StateT](
-            state_graph=self.state_graph,
-            checkpointer=self.checkpointer,
-            store=self.store,
-            interrupt_before=self.interrupt_before,
-            interrupt_after=self.interrupt_after,
-            callback_manager=self.callback_manager,
-            publisher=self.publisher,
+        self.stream_handler: StreamHandler[StateT] = StreamHandler[StateT](
+            nodes=state_graph.nodes,
+            edges=state_graph.edges,
         )
-        self.stream_handler = StreamHandler[StateT](
-            state_graph=self.state_graph,
-            checkpointer=self.checkpointer,
-            store=self.store,
-            interrupt_before=self.interrupt_before,
-            interrupt_after=self.interrupt_after,
-            callback_manager=self.callback_manager,
-            publisher=self.publisher,
-        )
+
+        self.checkpointer: BaseCheckpointer[StateT] | None = checkpointer
+        self.publisher: BasePublisher | None = publisher
+        self.store: BaseStore[StateT] | None = store
+        self.state_graph: StateGraph[StateT] = state_graph
+        self.interrupt_before: list[str] = interrupt_before
+        self.interrupt_after: list[str] = interrupt_after
+        self.state = state
 
     def invoke(
         self,
@@ -140,13 +122,13 @@ class CompiledGraph[StateT: AgentState]:
         Returns:
             Response dict based on granularity
         """
-        # add is_streaming flag to config
         cfg = config or {}
-        cfg["is_streaming"] = False
+        cfg["is_stream"] = False
 
         return await self.invoke_handler.invoke(
             input_data,
             cfg,
+            self._state,
             response_granularity,
         )
 
@@ -213,13 +195,14 @@ class CompiledGraph[StateT: AgentState]:
         Yields:
             StreamChunk objects with incremental content
         """
-        # Add is_streaming flag to config
+
         cfg = config or {}
-        cfg["is_streaming"] = True
+        cfg["is_stream"] = False
 
         return self.stream_handler.stream(
             input_data,
             cfg,
+            self._state,
             response_granularity,
         )
 
@@ -299,5 +282,10 @@ class CompiledGraph[StateT: AgentState]:
             "store": self.store is not None,
             "interrupt_before": self.interrupt_before,
             "interrupt_after": self.interrupt_after,
+            "context_type": self.state_graph._context_manager.__class__.__name__,
+            "id_generator": self.state_graph._id_generator.__class__.__name__,
+            "id_type": self.state_graph._id_generator.id_type.value,
+            "state_type": self._state.__class__.__name__,
+            "state_fields": list(self._state.model_dump().keys()),
         }
         return graph

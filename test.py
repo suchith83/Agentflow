@@ -149,14 +149,10 @@ messages = [
     {"role": "user", "content": "HI, I am ready"},
 ]
 
-response = completion(model="gemini/gemini-2.5-flash", messages=messages, tools=tools, stream=True)
+response = completion(
+    model="gemini/gemini-2.5-flash",
+    messages=messages,
+    # tools=tools,
+)
 # Add any assertions, here to check response args
 # print(response.model_dump_json())  # Disabled for production
-for i in response:
-    print(i)
-
-
-# ModelResponseStream(id='yPm2aIf-FYO4mtkP2d3PyQc', created=1756821960, model='gemini-2.5-flash', object='chat.completion.chunk', system_fingerprint=None, choices=[StreamingChoices(finish_reason=None, index=0, delta=Delta(provider_specific_fields=None, content='Hello', role='assistant', function_call=None, tool_calls=None, audio=None), logprobs=None)], provider_specific_fields=None, citations=None, vertex_ai_grounding_metadata=[], vertex_ai_url_context_metadata=[], vertex_ai_safety_ratings=[], vertex_ai_citation_metadata=[])
-# ModelResponseStream(id='yPm2aIf-FYO4mtkP2d3PyQc', created=1756821960, model='gemini-2.5-flash', object='chat.completion.chunk', system_fingerprint=None, choices=[StreamingChoices(finish_reason=None, index=0, delta=Delta(provider_specific_fields=None, content="! I'm here to help. What can I do for you today?", role=None, function_call=None, tool_calls=None, audio=None), logprobs=None)], provider_specific_fields=None, citations=None, vertex_ai_grounding_metadata=[], vertex_ai_url_context_metadata=[], vertex_ai_safety_ratings=[], vertex_ai_citation_metadata=[])
-# ModelResponseStream(id='yPm2aIf-FYO4mtkP2d3PyQc', created=1756821960, model='gemini-2.5-flash', object='chat.completion.chunk', system_fingerprint=None, choices=[StreamingChoices(finish_reason=None, index=0, delta=Delta(provider_specific_fields=None, content=' \n', role=None, function_call=None, tool_calls=None, audio=None), logprobs=None)], provider_specific_fields=None, citations=None, vertex_ai_grounding_metadata=[], vertex_ai_url_context_metadata=[], vertex_ai_safety_ratings=[], vertex_ai_citation_metadata=[])
-# ModelResponseStream(id='yPm2aIf-FYO4mtkP2d3PyQc', created=1756821960, model='gemini-2.5-flash', object='chat.completion.chunk', system_fingerprint=None, choices=[StreamingChoices(finish_reason='stop', index=0, delta=Delta(provider_specific_fields=None, content=None, role=None, function_call=None, tool_calls=None, audio=None), logprobs=None)], provider_specific_fields=None)
