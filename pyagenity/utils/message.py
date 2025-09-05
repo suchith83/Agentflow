@@ -89,44 +89,6 @@ class Message(BaseModel):
     usages: TokenUsages | None = None
     raw: dict[str, Any] | None = None
 
-    # def to_dict(self, include_raw: bool = False) -> dict[str, Any]:
-    #     """
-    #     Convert the Message instance to a dictionary with all fields.
-
-    #     Args:
-    #         include_raw (bool): Whether to include the raw field in the output.
-
-    #     Returns:
-    #         dict[str, Any]: Dictionary representation of the message.
-    #     """
-    #     data = self.model_dump()
-
-    #     # Handle timestamp formatting
-    #     ts = data.get("timestamp")
-    #     if ts is None:
-    #         ts_val = None
-    #     elif hasattr(ts, "isoformat"):
-    #         ts_val = ts.isoformat()
-    #     elif isinstance(ts, int):
-    #         ts_val = ts  # leave as int (epoch)
-    #     else:
-    #         ts_val = str(ts)
-
-    #     result = {
-    #         "message_id": data["message_id"],
-    #         "role": data["role"],
-    #         "content": data["content"],
-    #         "reasoning": data["reasoning"],
-    #         "timestamp": ts_val,
-    #         "metadata": data["metadata"],
-    #         "usages": self.usages.to_dict() if self.usages else None,
-    #     }
-
-    #     if include_raw:
-    #         result["raw"] = data["raw"]
-
-    #     return result
-
     @classmethod
     def from_text(
         cls,

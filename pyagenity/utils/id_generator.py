@@ -13,6 +13,9 @@ import uuid
 from abc import ABC, abstractmethod
 
 
+# TODO: Allow async also
+
+
 class IDType(enum.StrEnum):
     """Enumeration of supported ID types."""
 

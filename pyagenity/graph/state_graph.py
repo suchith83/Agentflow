@@ -147,6 +147,7 @@ class StateGraph[StateT: AgentState]:
         # register id generator as factory
         self._container.bind(BaseIDGenerator, self._id_generator)
         self._container.bind("generated_id_type", self._id_generator.id_type)
+        # Allow async method also
         self._container.bind_factory(
             "generated_id",
             lambda: self._id_generator.generate(),
@@ -296,7 +297,6 @@ class StateGraph[StateT: AgentState]:
         self,
         checkpointer: BaseCheckpointer[StateT] | None = None,
         store: BaseStore | None = None,
-        context_manager: BaseContextManager[StateT] | None = None,
         interrupt_before: list[str] | None = None,
         interrupt_after: list[str] | None = None,
     ) -> "CompiledGraph[StateT]":
