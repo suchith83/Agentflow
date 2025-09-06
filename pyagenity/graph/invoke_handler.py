@@ -10,10 +10,8 @@ from pyagenity.publisher import BasePublisher, Event, EventType, SourceType
 from pyagenity.state import AgentState, ExecutionStatus
 from pyagenity.utils import (
     END,
-    CallbackManager,
     Message,
     ResponseGranularity,
-    default_callback_manager,
 )
 
 from .edge import Edge
@@ -190,7 +188,7 @@ class InvokeHandler[StateT: AgentState]:
                 ##### Node Execution Started ##################
                 ###############################################
 
-                result = await node.execute(config, state)
+                result = await node.execute(config, state)  # type: ignore
 
                 ###############################################
                 ##### Node Execution Finished #################

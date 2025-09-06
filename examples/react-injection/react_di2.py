@@ -1,10 +1,12 @@
 from dotenv import load_dotenv
+from injectq import Inject
 from litellm import acompletion
 
 from pyagenity.checkpointer import InMemoryCheckpointer
 from pyagenity.graph import StateGraph, ToolNode
 from pyagenity.state.agent_state import AgentState
 from pyagenity.utils import Message
+from pyagenity.utils.callbacks import CallbackManager
 from pyagenity.utils.constants import END
 from pyagenity.utils.converter import convert_messages
 
@@ -18,12 +20,14 @@ def get_weather(
     location: str,
     tool_call_id: str | None = None,
     state: AgentState | None = None,
+    checkpointer: InMemoryCheckpointer = Inject[InMemoryCheckpointer],
 ) -> Message:
     """
     Get the current weather for a specific location.
     This demo shows injectable parameters: tool_call_id and state are automatically injected.
     """
     # You can access injected parameters here
+    print("***** Checkpointer instance:", checkpointer)
     if tool_call_id:
         print(f"Tool call ID: {tool_call_id}")
     if state and hasattr(state, "context"):
@@ -41,6 +45,8 @@ tool_node = ToolNode([get_weather])
 
 async def main_agent(
     state: AgentState,
+    checkpointer: InMemoryCheckpointer = Inject[InMemoryCheckpointer],
+    callback: CallbackManager = Inject[CallbackManager],
 ):
     prompts = """
         You are a helpful assistant.
@@ -51,6 +57,12 @@ async def main_agent(
         system_prompts=[{"role": "system", "content": prompts}],
         state=state,
     )
+
+    list_of_messages = await checkpointer.aget_thread(config)
+    print("Messages from checkpointer:", list_of_messages)
+
+    print("Checkpointer in main_agent:", checkpointer)
+    print("CallbackManager in main_agent:", callback)
 
     mcp_tools = []
 
@@ -128,14 +140,17 @@ app = graph.compile(
 inp = {"messages": [Message.from_text("Please call the get_weather function for New York City")]}
 config = {"thread_id": "12345", "recursion_limit": 10}
 
-res = app.invoke(inp, config=config)
+res = app.stream(inp, config=config)
 
-for i in res["messages"]:
-    print("**********************")
-    print("Message Type: ", i.role)
-    print(i)
-    print("**********************")
-    print("\n\n")
+for chunk in res:
+    print(chunk)
+
+# for i in res["messages"]:
+#     print("**********************")
+#     print("Message Type: ", i.role)
+#     print(i)
+#     print("**********************")
+#     print("\n\n")
 
 
 # grp = app.generate_graph()

@@ -19,6 +19,7 @@ from typing import Any
 from .base_publisher import BasePublisher
 from .events import Event
 
+
 logger = logging.getLogger(__name__)
 
 

@@ -1,10 +1,14 @@
 from dotenv import load_dotenv
-from litellm import acompletion
+from injectq import Inject, InjectQ, inject, injectq
+from injectq.core.context import ContainerContext
 
 from pyagenity.checkpointer import InMemoryCheckpointer
+from pyagenity.checkpointer.base_checkpointer import BaseCheckpointer
 from pyagenity.graph import StateGraph, ToolNode
 from pyagenity.state.agent_state import AgentState
+from pyagenity.store.base_store import BaseStore
 from pyagenity.utils import Message
+from pyagenity.utils.callbacks import CallbackManager
 from pyagenity.utils.constants import END
 from pyagenity.utils.converter import convert_messages
 
@@ -12,12 +16,15 @@ from pyagenity.utils.converter import convert_messages
 load_dotenv()
 
 checkpointer = InMemoryCheckpointer()
+container = InjectQ.get_instance()
 
 
 def get_weather(
     location: str,
-    tool_call_id: str | None = None,
-    state: AgentState | None = None,
+    tool_call_id: str,
+    state: AgentState,
+    config: dict,
+    checkpointer: InMemoryCheckpointer = Inject[InMemoryCheckpointer],
 ) -> Message:
     """
     Get the current weather for a specific location.
@@ -41,41 +48,42 @@ tool_node = ToolNode([get_weather])
 
 async def main_agent(
     state: AgentState,
+    config: dict,
+    callback: CallbackManager = Inject[CallbackManager],
+    checkpointer: InMemoryCheckpointer = Inject[InMemoryCheckpointer],
+    store: BaseStore | None = Inject[BaseStore],
 ):
-    prompts = """
-        You are a helpful assistant.
-        Your task is to assist the user in finding information and answering questions.
-    """
+    inq = InjectQ.get_instance()
+    message_id = inq.get("generated_id")
+    message_id2 = inq.try_get("generated_id2", "final-response-579898")
+    print("Generated Message ID: ", message_id)
+    print("Generated Message ID 2: ", message_id2)
+    print("checkpointer", checkpointer)
+    print("state", len(state.context))
+    print("config", config)
+    # print("State", len(state.context))
+    # print("Store", store)
+    # print("Callback", callback)
 
-    messages = convert_messages(
-        system_prompts=[{"role": "system", "content": prompts}],
-        state=state,
-    )
-
-    mcp_tools = []
-
-    # Check if the last message is a tool result - if so, make final response without tools
-    if (
-        state.context
-        and len(state.context) > 0
-        and state.context[-1].role == "tool"
-        and state.context[-1].tool_call_id is not None
-    ):
-        # Make final response without tools since we just got tool results
-        response = await acompletion(
-            model="gemini/gemini-2.5-flash",
-            messages=messages,
+    if len(state.context) == 1:
+        return Message(
+            message_id="final-response-579898",
+            content="This is example final response from main agent.",
+            role="assistant",
+            tools_calls=[
+                {
+                    "name": "get_weather",
+                    "tool_call_id": "weather-tool-123",
+                    "arguments": {"location": "San Francisco"},
+                }
+            ],
         )
     else:
-        # Regular response with tools available
-        tools = await tool_node.all_tools()
-        response = await acompletion(
-            model="gemini/gemini-2.5-flash",
-            messages=messages,
-            tools=tools + mcp_tools,
+        return Message(
+            message_id="main-response-12345",
+            content="Thanks you for your message",
+            role="assistant",
         )
-
-    return response
 
 
 def should_use_tools(state: AgentState) -> str:
@@ -102,7 +110,9 @@ def should_use_tools(state: AgentState) -> str:
     return END
 
 
-graph = StateGraph()
+container["generated_id2"] = "main-response-12345"
+
+graph = StateGraph(container=container)
 graph.add_node("MAIN", main_agent)
 graph.add_node("TOOL", tool_node)
 
@@ -128,6 +138,7 @@ app = graph.compile(
 inp = {"messages": [Message.from_text("Please call the get_weather function for New York City")]}
 config = {"thread_id": "12345", "recursion_limit": 10}
 
+print("***** GRAPH", container.get_dependency_graph())
 res = app.invoke(inp, config=config)
 
 for i in res["messages"]:

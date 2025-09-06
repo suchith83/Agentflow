@@ -4,7 +4,7 @@ import logging
 from collections.abc import Callable
 from typing import Any, Union
 
-from injectq import inject
+from injectq import Inject, inject
 
 from pyagenity.exceptions import NodeError
 from pyagenity.publisher import BasePublisher, Event, EventType, SourceType
@@ -16,7 +16,6 @@ from pyagenity.utils import (
     InvocationType,
     Message,
     call_sync_or_async,
-    default_callback_manager,
 )
 
 from .tool_node import ToolNode
@@ -47,12 +46,11 @@ class Node:
         >>> result = await node.execute(state, config)
     """
 
-    @inject
     def __init__(
         self,
         name: str,
         func: Union[Callable, "ToolNode"],
-        publisher: BasePublisher | None = None,  # type: ignore
+        publisher: BasePublisher | None = Inject[BasePublisher],
     ):
         """Initialize a new Node instance.
 
@@ -109,7 +107,7 @@ class Node:
         try:
             # Execute the tool function with injectable parameters
             tool_result = await self.func.execute(  # type: ignore
-                function_name,
+                function_name,  # type: ignore
                 function_args,
                 tool_call_id=tool_call_id,
                 state=state,
@@ -272,8 +270,8 @@ class Node:
     async def execute(
         self,
         config: dict[str, Any],
-        state: "AgentState",
-        callback_manager: CallbackManager | None = None,  # type: ignore
+        state: AgentState,
+        callback_mgr: CallbackManager,
     ) -> dict[str, Any] | Command:
         """Execute the node function with dependency injection support and callback hooks."""
         logger.info("Executing node '%s'", self.name)
@@ -283,8 +281,6 @@ class Node:
             len(state.context) if state.context else 0,
             list(config.keys()) if config else [],
         )
-
-        callback_mgr = callback_manager or default_callback_manager
 
         await self._publish_event(
             Event(

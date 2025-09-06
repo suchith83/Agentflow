@@ -1,10 +1,12 @@
 # Default message representation
+import asyncio
 import logging
+from collections.abc import Awaitable
 from datetime import datetime
 from typing import Any, Literal
 from uuid import uuid4
 
-from injectq import injectq
+from injectq import InjectQ
 from litellm.types.utils import ModelResponse
 from pydantic import BaseModel, Field
 
@@ -13,8 +15,17 @@ logger = logging.getLogger(__name__)
 
 
 def generate_id(default_id: str | int | None) -> str | int:
-    id_type = injectq.try_get("generated_id_type", "string")
-    generated_id = injectq.try_get("generated_id", None)
+    id_type = InjectQ.get_instance().try_get("generated_id_type", "string")
+    generated_id = InjectQ.get_instance().try_get("generated_id", None)
+
+    # if user provided an awaitable, resolve it
+    if isinstance(generated_id, Awaitable):
+
+        async def wait_for_id():
+            return await generated_id
+
+        generated_id = asyncio.run(wait_for_id())
+
     if generated_id:
         return generated_id
 
@@ -88,44 +99,6 @@ class Message(BaseModel):
     metadata: dict[str, Any] = Field(default_factory=dict)
     usages: TokenUsages | None = None
     raw: dict[str, Any] | None = None
-
-    # def to_dict(self, include_raw: bool = False) -> dict[str, Any]:
-    #     """
-    #     Convert the Message instance to a dictionary with all fields.
-
-    #     Args:
-    #         include_raw (bool): Whether to include the raw field in the output.
-
-    #     Returns:
-    #         dict[str, Any]: Dictionary representation of the message.
-    #     """
-    #     data = self.model_dump()
-
-    #     # Handle timestamp formatting
-    #     ts = data.get("timestamp")
-    #     if ts is None:
-    #         ts_val = None
-    #     elif hasattr(ts, "isoformat"):
-    #         ts_val = ts.isoformat()
-    #     elif isinstance(ts, int):
-    #         ts_val = ts  # leave as int (epoch)
-    #     else:
-    #         ts_val = str(ts)
-
-    #     result = {
-    #         "message_id": data["message_id"],
-    #         "role": data["role"],
-    #         "content": data["content"],
-    #         "reasoning": data["reasoning"],
-    #         "timestamp": ts_val,
-    #         "metadata": data["metadata"],
-    #         "usages": self.usages.to_dict() if self.usages else None,
-    #     }
-
-    #     if include_raw:
-    #         result["raw"] = data["raw"]
-
-    #     return result
 
     @classmethod
     def from_text(
