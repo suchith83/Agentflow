@@ -2,7 +2,7 @@ import logging
 from collections.abc import Callable
 from typing import TYPE_CHECKING, TypeVar, Union
 
-from injectq import InjectQ, injectq
+from injectq import InjectQ
 from injectq.core.context import ContainerContext
 
 from pyagenity.checkpointer import BaseCheckpointer
@@ -116,11 +116,13 @@ class StateGraph[StateT: AgentState]:
         # save container for dependency injection
         # if any container is passed then we will activate that
         # otherwise we can skip it and use the default one
-        if container:
-            self._container = container
-            ContainerContext.set_current(container)
+        if container is None:
+            self._container = InjectQ.get_instance()
+            logger.debug("No container provided, using global singleton instance")
         else:
-            self._container = injectq
+            logger.debug("Using provided dependency container instance")
+            self._container = container
+            ContainerContext.set_current(self._container)
 
         # now setup the graph
         self._setup()
