@@ -1,7 +1,4 @@
-from typing import Any
-
 from dotenv import load_dotenv
-from injectq import inject
 from litellm import acompletion
 
 from pyagenity.checkpointer import InMemoryCheckpointer
@@ -17,7 +14,6 @@ load_dotenv()
 checkpointer = InMemoryCheckpointer()
 
 
-@inject
 def get_weather(
     location: str,
     tool_call_id: str | None = None,

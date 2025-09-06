@@ -11,7 +11,6 @@ from pyagenity.state.agent_state import AgentState
 from pyagenity.utils import Message, ResponseGranularity
 from pyagenity.utils.constants import END
 from pyagenity.utils.converter import convert_messages
-from pyagenity.utils.injectable import InjectState, InjectToolCallID
 
 
 load_dotenv()
@@ -21,8 +20,8 @@ checkpointer = InMemoryCheckpointer()
 
 def get_weather(
     location: str,
-    tool_call_id: InjectToolCallID,
-    state: InjectState,
+    tool_call_id: str,
+    state: AgentState,
 ) -> Message:
     """
     Get the current weather for a specific location.
@@ -109,7 +108,7 @@ async def main_agent(
             model="gemini/gemini-2.5-flash",
             messages=messages,
             tools=tools + mcp_tools,
-            stream=False,
+            stream=True,
         )
 
     return response
