@@ -40,7 +40,6 @@ from pyagenity.utils import (
     CallbackManager,
     InvocationType,
     call_sync_or_async,
-    default_callback_manager,
 )
 from pyagenity.utils.message import Message
 
@@ -410,7 +409,7 @@ class ToolNode:
         tool_call_id: str,
         config: dict[str, t.Any],
         state: AgentState,
-        callback_manager: CallbackManager | None = None,  # type: ignore
+        callback_manager: CallbackManager,  # type: ignore
     ) -> t.Any:
         """Execute the callable registered under `name` with `args` kwargs.
 
@@ -424,8 +423,6 @@ class ToolNode:
         """
         logger.info("Executing tool '%s' with %d arguments", name, len(args))
         logger.debug("Tool arguments: %s", args)
-
-        callback_manager = callback_manager or default_callback_manager
 
         # check in mcp
         if name in self.mcp_tools:

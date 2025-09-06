@@ -9,6 +9,7 @@ import enum
 import secrets
 import string
 import time
+from typing import Awaitable
 import uuid
 from abc import ABC, abstractmethod
 
@@ -41,7 +42,7 @@ class BaseIDGenerator(ABC):
         raise NotImplementedError("id_type method must be implemented")
 
     @abstractmethod
-    def generate(self) -> str | int:
+    def generate(self) -> str | int | Awaitable[str | int]:
         """Generate a new unique ID.
 
         Returns:
@@ -203,3 +204,26 @@ class ShortIDGenerator(BaseIDGenerator):
         """
         alphabet = string.ascii_letters + string.digits
         return "".join(secrets.choice(alphabet) for _ in range(8))
+
+
+class AsyncIDGenerator(BaseIDGenerator):
+    """ID generator that produces UUID version 4 strings asynchronously.
+
+    UUIDs are 128-bit identifiers that are virtually guaranteed to be unique
+    across space and time. The generated strings are 36 characters long
+    (32 hexadecimal digits + 4 hyphens in the format xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx).
+    This generator provides an asynchronous interface for generating UUIDs.
+    """
+
+    @property
+    def id_type(self) -> IDType:
+        return IDType.STRING
+
+    async def generate(self) -> str:
+        """Asynchronously generate a new UUID4 string.
+
+        Returns:
+            str: A 36-character UUID string (e.g., '550e8400-e29b-41d4-a716-446655440000').
+        """
+        # Simulate async operation (e.g., if fetching from an external service)
+        return str(uuid.uuid4())

@@ -2,7 +2,8 @@ import logging
 from collections.abc import Callable
 from typing import TYPE_CHECKING, TypeVar, Union
 
-from injectq import InjectQ
+from injectq import InjectQ, injectq
+from injectq.core.context import ContainerContext
 
 from pyagenity.checkpointer import BaseCheckpointer
 from pyagenity.exceptions import GraphError
@@ -61,10 +62,9 @@ class StateGraph[StateT: AgentState]:
         self,
         state: StateT | None = None,
         context_manager: BaseContextManager[StateT] | None = None,
-        publisher: "BasePublisher | None" = None,
+        publisher: BasePublisher | None = None,
         id_generator: BaseIDGenerator = DefaultIDGenerator(),
         container: InjectQ | None = None,
-        dependencies: dict | None = None,
     ):
         """Initialize a new StateGraph instance.
 
@@ -110,24 +110,28 @@ class StateGraph[StateT: AgentState]:
         self.entry_point: str | None = None
 
         # Services
-        self._publisher = publisher
-        self._id_generator = id_generator
-        self._context_manager = context_manager
-        self._container = container if container else InjectQ.get_instance()
-
-        # Lifecycle
-        self._compiled = False
+        self._publisher: BasePublisher | None = publisher
+        self._id_generator: BaseIDGenerator = id_generator
+        self._context_manager: BaseContextManager[StateT] | None = context_manager
+        # save container for dependency injection
+        # if any container is passed then we will activate that
+        # otherwise we can skip it and use the default one
+        if container:
+            self._container = container
+            ContainerContext.set_current(container)
+        else:
+            self._container = injectq
 
         # now setup the graph
-        self._setup(dependencies or {})
+        self._setup()
 
         # Add START and END nodes (accept full node signature including dependencies)
         logger.debug("Adding default START and END nodes")
-        self.nodes[START] = Node(START, lambda state, config, **deps: state, self._publisher)
+        self.nodes[START] = Node(START, lambda state, config, **deps: state, self._publisher)  # type: ignore
         self.nodes[END] = Node(END, lambda state, config, **deps: state, self._publisher)
         logger.debug("StateGraph initialized with %d nodes", len(self.nodes))
 
-    def _setup(self, dependencies: dict):
+    def _setup(self):
         """Setup the graph before compilation.
 
         This method can be used to perform any necessary setup or validation
@@ -136,16 +140,28 @@ class StateGraph[StateT: AgentState]:
         logger.info("Setting up StateGraph before compilation")
         # Placeholder for any setup logic needed before compilation
         # register dependencies
-        if dependencies:
-            for key, value in dependencies.items():
-                self._container.bind(key, value)
 
-        # register state and context manager as singletons
-        self._container.bind(BaseContextManager, self._context_manager)
-        self._container.bind(BasePublisher, self._publisher)
+        # register state and context manager as singletons (these are nullable)
+        self._container.bind_instance(
+            BaseContextManager,
+            self._context_manager,
+            allow_none=True,
+            allow_concrete=True,
+        )
+        self._container.bind_instance(
+            BasePublisher,
+            self._publisher,
+            allow_none=True,
+            allow_concrete=True,
+        )
 
         # register id generator as factory
-        self._container.bind(BaseIDGenerator, self._id_generator)
+        self._container.bind_instance(
+            BaseIDGenerator,
+            self._id_generator,
+            allow_none=True,
+            allow_concrete=True,
+        )
         self._container.bind("generated_id_type", self._id_generator.id_type)
         # Allow async method also
         self._container.bind_factory(
@@ -299,6 +315,7 @@ class StateGraph[StateT: AgentState]:
         store: BaseStore | None = None,
         interrupt_before: list[str] | None = None,
         interrupt_after: list[str] | None = None,
+        callback_manager: CallbackManager = CallbackManager(),
     ) -> "CompiledGraph[StateT]":
         """Compile the graph for execution.
 
@@ -346,17 +363,36 @@ class StateGraph[StateT: AgentState]:
         self.compiled = True
         logger.info("Graph compilation completed successfully")
         # Import here to avoid circular import at module import time
+        # Now update Checkpointer
+        if checkpointer is None:
+            from pyagenity.checkpointer import InMemoryCheckpointer  # noqa: PLC0415
+
+            checkpointer = InMemoryCheckpointer[StateT]()
+            logger.debug("No checkpointer provided, using InMemoryCheckpointer")
 
         # Import the CompiledGraph class
         from .compiled_graph import CompiledGraph  # noqa: PLC0415
 
         # Setup dependencies
-        self._container.bind(BaseCheckpointer, checkpointer)
-        self._container.bind(BaseStore, store)
-        self._container.bind(CallbackManager, self._context_manager)
+        self._container.bind_instance(
+            BaseCheckpointer,
+            checkpointer,
+            allow_concrete=True,
+        )  # not null as we set default
+        self._container.bind_instance(
+            BaseStore,
+            store,
+            allow_none=True,
+            allow_concrete=True,
+        )
+        self._container.bind_instance(
+            CallbackManager,
+            callback_manager,
+            allow_concrete=True,
+        )  # not null as we set default
         self._container.bind("interrupt_before", interrupt_before)
         self._container.bind("interrupt_after", interrupt_after)
-        self._container.bind(StateGraph, self)
+        self._container.bind_instance(StateGraph, self)
 
         app = CompiledGraph(
             state=self._state,
@@ -369,6 +405,8 @@ class StateGraph[StateT: AgentState]:
         )
 
         self._container.bind(CompiledGraph, app)
+        # Compile the Graph, so it will optimize the dependency graph
+        # injectq.compile()
         return app
 
     def _validate_graph(self):

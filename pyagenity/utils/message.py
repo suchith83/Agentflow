@@ -1,5 +1,7 @@
 # Default message representation
+import asyncio
 import logging
+from collections.abc import Awaitable
 from datetime import datetime
 from typing import Any, Literal
 from uuid import uuid4
@@ -15,6 +17,15 @@ logger = logging.getLogger(__name__)
 def generate_id(default_id: str | int | None) -> str | int:
     id_type = injectq.try_get("generated_id_type", "string")
     generated_id = injectq.try_get("generated_id", None)
+
+    # if user provided an awaitable, resolve it
+    if isinstance(generated_id, Awaitable):
+
+        async def wait_for_id():
+            return await generated_id
+
+        generated_id = asyncio.run(wait_for_id())
+
     if generated_id:
         return generated_id
 

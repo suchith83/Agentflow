@@ -124,6 +124,8 @@ class CompiledGraph[StateT: AgentState]:
         """
         cfg = config or {}
         cfg["is_stream"] = False
+        if "user_id" not in cfg:
+            cfg["user_id"] = "test_user"
 
         return await self.invoke_handler.invoke(
             input_data,
@@ -198,6 +200,8 @@ class CompiledGraph[StateT: AgentState]:
 
         cfg = config or {}
         cfg["is_stream"] = False
+        if "user_id" not in cfg:
+            cfg["user_id"] = "test_user"
 
         return self.stream_handler.stream(
             input_data,

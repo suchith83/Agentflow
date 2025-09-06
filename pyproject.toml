@@ -6,7 +6,7 @@ readme = "README.md"
 license = {file = "LICENSE"}
 requires-python = ">=3.10"
 dependencies = [
-    "injectq>=0.1.0",
+    "injectq==0.2.0",
     "litellm>=1.75.0",
     "pydantic>=2.0.0",
     "python-dotenv>=1.0.0",
