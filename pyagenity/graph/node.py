@@ -4,7 +4,7 @@ import logging
 from collections.abc import Callable
 from typing import Any, Union
 
-from injectq import Inject, inject, injectq
+from injectq import Inject, inject
 
 from pyagenity.exceptions import NodeError
 from pyagenity.publisher import BasePublisher, Event, EventType, SourceType
@@ -107,7 +107,7 @@ class Node:
         try:
             # Execute the tool function with injectable parameters
             tool_result = await self.func.execute(  # type: ignore
-                function_name,
+                function_name,  # type: ignore
                 function_args,
                 tool_call_id=tool_call_id,
                 state=state,
@@ -235,7 +235,6 @@ class Node:
             input_data = await callback_mgr.execute_before_invoke(context, input_data)
             logger.debug("Node '%s' executing function", self.name)
             # Execute the actual function
-            print("*** Input Data", input_data)
             result = await call_sync_or_async(
                 self.func,  # type: ignore
                 **input_data,
