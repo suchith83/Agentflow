@@ -62,7 +62,7 @@ INJECTABLE_PARAMS = {
 class ToolNode:
     """Registry for callables that exports function specs and executes them.
 
-    MCP support requires: pip install pyagenity[mcp]
+    MCP support requires: pip install pyagenity[fastapi]
     """
 
     def __init__(

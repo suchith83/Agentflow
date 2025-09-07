@@ -408,7 +408,7 @@ class StateGraph[StateT: AgentState]:
 
         self._container.bind(CompiledGraph, app)
         # Compile the Graph, so it will optimize the dependency graph
-        # injectq.compile()
+        self._container.compile()
         return app
 
     def _validate_graph(self):

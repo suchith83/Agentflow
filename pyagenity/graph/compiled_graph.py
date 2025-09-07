@@ -53,12 +53,12 @@ class CompiledGraph[StateT: AgentState]:
 
         # create handlers
         self.invoke_handler: InvokeHandler[StateT] = InvokeHandler[StateT](
-            nodes=state_graph.nodes,
-            edges=state_graph.edges,
+            nodes=state_graph.nodes,  # type: ignore
+            edges=state_graph.edges,  # type: ignore
         )
         self.stream_handler: StreamHandler[StateT] = StreamHandler[StateT](
-            nodes=state_graph.nodes,
-            edges=state_graph.edges,
+            nodes=state_graph.nodes,  # type: ignore
+            edges=state_graph.edges,  # type: ignore
         )
 
         self.checkpointer: BaseCheckpointer[StateT] | None = checkpointer
