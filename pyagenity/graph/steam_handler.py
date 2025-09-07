@@ -368,7 +368,7 @@ class StreamHandler[StateT: AgentState]:
                 # Step event: calling main node
                 yield StreamChunk(
                     meta={
-                        "event": "calling_main_node",
+                        "event": "BEFOR",
                         "node": current_node,
                         "step": step,
                         "run_id": run_id,

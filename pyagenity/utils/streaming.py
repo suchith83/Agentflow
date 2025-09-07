@@ -1,6 +1,7 @@
 """Streaming utilities for handling both streamable and non-streamable responses."""
 
 import asyncio
+import enum
 import time
 from collections.abc import AsyncIterator, Generator
 from uuid import uuid4
@@ -8,6 +9,15 @@ from uuid import uuid4
 from litellm.types.utils import ModelResponse
 
 from .message import Message
+
+
+class StreamEvent(enum.StrEnum):
+    """Enumeration of streaming events."""
+
+    START_NODE_EXECUTION = "start_node_execution"
+    END_NODE_EXECUTION = "end_node_execution"
+    BEFORE_INTERRUPTION = "before_interruption"
+    AFTER_INTERRUPTION = "after_interruption"
 
 
 class StreamChunk:

@@ -199,7 +199,7 @@ class CompiledGraph[StateT: AgentState]:
         """
 
         cfg = config or {}
-        cfg["is_stream"] = False
+        cfg["is_stream"] = True
         if "user_id" not in cfg:
             cfg["user_id"] = "test_user"
 

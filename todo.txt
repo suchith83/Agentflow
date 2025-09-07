@@ -1,43 +1,40 @@
-Task In library
-1. Allow Partial State Update -> DONE
-2. Logging and Comments and Code Restructure
-3. Event Publish -> Done
-4. Security Checking on Prompt -> Done
+Cancel Current Call, that need to be allowed
 
-6. redis async pg -> In Progress
-8. Vector DB -> Not Started
-7. Testing Coverage -> 62
-8. API Documentation
-9. Tutorial
-
-
-Add config
-1. Allow stream
-2. ID type
-3. ID generator
+Plan -> Streaming
+It should support model native streaming...
+How can we do that?
+-  In config, we can have a flag is_streaming, so developer can set it True or False on the main model call
+- As its a litellm we are using, so they can return direct response
+- In Node class, we can have a seperate method for stream function that will return async generator
+- We can read from it, from that, and also emit tokens as they come
+And collect all the tokens to return the final response and put that message in the chat history
 
 
-Left:
-Publish Left in Node and Tool Node files
+Type of Streaming Event:
+1. NODE_EXECUTION -> Before Node Execution 
+2. Token -> Streaming Tokens
+3. Message -> Final Message
 
+5. TOOL_EXECUTION -> Before Tool Execution
+7. TOOL_RESULT -> Tool Result
 
-API with python
-with workflow run
-1. invoke
-2. stream
-3. sse
+8. MCP_TOOL_EXECUTION -> Before MCP Tool Execution
+10. MCP_TOOL_RESULT -> MCP Tool Result
 
-# threads
-1. v1/threads -> GET
-2. v1/threads/{thread_id} -> GET
-3. v1/threads/{thread_id} -> PATCH
-4. v1/threads/{thread_id} -> DELETE
+11. INTERRUPTED -> Before Interrupted
 
-# Messages
-1. v1/threads/{thread_id}/messages -> GET
-2. v1/threads/{thread_id}/messages/{message_id} -> GET
-3. v1/threads/{thread_id}/messages/{message_id} -> DELETE
+13. NODE -> Which node is being executed or when changed
+14. STATE -> Current State
+15. CONTEXT_TRIMMING -> When context is being trimmed
 
-# State
-1. v1/threads/{thread_id}/state -> GET
-2. v1/threads/{thread_id}/state -> PATCH
+16. ERROR -> If any error occurs
+17. COMPLETE -> When everything is done
+
+class StreamingChunk:
+    event = StreamingEvent
+    event_type: str [Before or After]
+    data: dict
+
+    reference_id: str -> during token emit, it will be same id
+    timestamp: float
+    metadata: dict

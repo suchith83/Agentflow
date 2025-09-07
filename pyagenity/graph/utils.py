@@ -4,7 +4,7 @@ import logging
 from collections.abc import Callable
 from typing import Any, TypeVar
 
-from injectq import inject
+from injectq import Inject
 from litellm.types.utils import ModelResponse
 
 from pyagenity.checkpointer import BaseCheckpointer
@@ -63,12 +63,11 @@ def _update_state_fields(state, partial: dict):
             setattr(state, k, v)
 
 
-@inject
 async def load_or_create_state[StateT: AgentState](
     input_data: dict[str, Any],
     config: dict[str, Any],
     old_state: StateT,
-    checkpointer: BaseCheckpointer | None = None,  # will be auto-injected
+    checkpointer: BaseCheckpointer = Inject[BaseCheckpointer],  # will be auto-injected
 ) -> StateT:
     """Load existing state from checkpointer or create new state.
 
@@ -359,11 +358,10 @@ def get_next_node(
     return END
 
 
-@inject
 async def call_realtime_sync(
     state: AgentState,
     config: dict[str, Any],
-    checkpointer: BaseCheckpointer | None = None,  # will be auto-injected
+    checkpointer: BaseCheckpointer = Inject[BaseCheckpointer],  # will be auto-injected
 ) -> None:
     """Call the realtime state sync hook if provided."""
     if checkpointer:
@@ -372,14 +370,15 @@ async def call_realtime_sync(
         await checkpointer.aput_state_cache(config, state)
 
 
-@inject
 async def sync_data(
     state: AgentState,
     config: dict[str, Any],
     messages: list[Message],
     trim: bool = False,
-    checkpointer: BaseCheckpointer | None = None,  # will be auto-injected
-    context_manager: BaseContextManager | None = None,  # will be auto-injected
+    checkpointer: BaseCheckpointer = Inject[BaseCheckpointer],  # will be auto-injected
+    context_manager: BaseContextManager | None = Inject[
+        BaseContextManager
+    ],  # will be auto-injected
 ) -> None:
     """Sync the current state and messages to the checkpointer."""
     if not checkpointer:

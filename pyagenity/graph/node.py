@@ -4,7 +4,7 @@ import logging
 from collections.abc import Callable
 from typing import Any, Union
 
-from injectq import Inject, inject
+from injectq import Inject
 
 from pyagenity.exceptions import NodeError
 from pyagenity.publisher import BasePublisher, Event, EventType, SourceType
@@ -266,12 +266,11 @@ class Node:
 
         return result
 
-    @inject
     async def execute(
         self,
         config: dict[str, Any],
         state: AgentState,
-        callback_mgr: CallbackManager,
+        callback_mgr: CallbackManager = Inject[CallbackManager],
     ) -> dict[str, Any] | Command:
         """Execute the node function with dependency injection support and callback hooks."""
         logger.info("Executing node '%s'", self.name)

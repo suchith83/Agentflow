@@ -1,5 +1,4 @@
 import logging
-import os
 from typing import Any
 
 from dotenv import load_dotenv
@@ -58,37 +57,7 @@ async def main_agent(
         state=state,
     )
 
-    mcp_tools = []
-
-    # # Allow offline mock streaming when env var is set (no external calls)
-    # if os.getenv("MOCK_STREAM", "0") in ("1", "true", "True"):
-
-    #     class MockDelta:
-    #         def __init__(self, content: str):
-    #             self.content = content
-
-    #     class MockChoice:
-    #         def __init__(self, delta: MockDelta | None, finish_reason: str | None):
-    #             self.delta = delta
-    #             self.finish_reason = finish_reason
-
-    #     class MockChunk:
-    #         def __init__(self, delta_text: str | None, finish: str | None = None):
-    #             delta = MockDelta(delta_text) if delta_text is not None else None
-    #             self.choices = [MockChoice(delta, finish)]
-
-    #     async def mock_stream():
-    #         parts = [
-    #             "The ",
-    #             "weather in ",
-    #             "Tokyo is ",
-    #             "sunny today.",
-    #         ]
-    #         for p in parts:
-    #             yield MockChunk(p)
-    #         yield MockChunk(None, "stop")
-
-    #     return mock_stream()
+    is_stream = config.get("is_stream", False)
 
     if (
         state.context
@@ -99,7 +68,7 @@ async def main_agent(
         response = await acompletion(
             model="gemini/gemini-2.5-flash",
             messages=messages,
-            stream=True,
+            stream=is_stream,
         )
     else:
         tools = await tool_node.all_tools()
@@ -107,8 +76,8 @@ async def main_agent(
         response = await acompletion(
             model="gemini/gemini-2.5-flash",
             messages=messages,
-            tools=tools + mcp_tools,
-            stream=True,
+            tools=tools,
+            stream=is_stream,
         )
 
     return response
