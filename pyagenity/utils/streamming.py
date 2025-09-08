@@ -30,7 +30,7 @@ class StreamEvent(enum.StrEnum):
     COMPLETE = "complete"  # When everything is done
 
 
-class StreamChunks(BaseModel):
+class StreamChunk(BaseModel):
     """Represents chunks of streamed data with event information.
 
     Defaults are provided via Pydantic Field with default_factory to avoid
@@ -48,6 +48,7 @@ class StreamChunks(BaseModel):
     event: StreamEvent = Field(default=StreamEvent.MESSAGE)
     event_type: Literal["Before", "After"] = Field(default="Before")
     data: dict[str, Any] = Field(default_factory=dict)
-    reference_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    is_error: bool = Field(default=False)
+    run_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     timestamp: float = Field(default_factory=time.time)
     metadata: dict[str, Any] = Field(default_factory=dict)

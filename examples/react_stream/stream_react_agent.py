@@ -141,7 +141,7 @@ async def run_stream_test() -> None:
         step = meta.get("step")
         if event == "delta":
             logging.info(
-                "[delta] run=%s node=%s step=%s msg=%s delta=%r",
+                "****** [delta] run=%s node=%s step=%s msg=%s delta=%r",
                 run_id,
                 node,
                 step,
@@ -150,7 +150,7 @@ async def run_stream_test() -> None:
             )
         else:
             logging.info(
-                "[event] %s run=%s node=%s step=%s msg=%s",
+                "***** [event] %s run=%s node=%s step=%s msg=%s",
                 event,
                 run_id,
                 node,
@@ -158,7 +158,7 @@ async def run_stream_test() -> None:
                 msg_id,
             )
             if event == "graph_completed":
-                logging.info("result: %s", meta.get("result"))
+                logging.info("**** result: %s", meta.get("result"))
     logging.info("--- streaming end ---")
 
 

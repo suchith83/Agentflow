@@ -31,8 +31,8 @@ from .utils import (
     sync_data,
 )
 
-from .edge import Edge
-from .node import Node
+from ..edge import Edge
+from ..node import Node
 
 
 StateT = TypeVar("StateT", bound=AgentState)

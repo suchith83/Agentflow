@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+import inspect
 import logging
 from collections.abc import Callable
-from typing import Any, TypeVar
+from typing import Any, AsyncIterable, TypeVar
 
 from injectq import Inject
 from litellm.types.utils import ModelResponse
@@ -20,6 +21,7 @@ from pyagenity.utils import (
     ResponseGranularity,
     add_messages,
 )
+from pyagenity.utils.streamming import StreamChunk
 
 
 StateT = TypeVar("StateT", bound=AgentState)

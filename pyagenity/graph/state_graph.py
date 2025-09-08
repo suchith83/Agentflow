@@ -3,7 +3,6 @@ from collections.abc import Callable
 from typing import TYPE_CHECKING, TypeVar, Union
 
 from injectq import InjectQ
-from injectq.core.context import ContainerContext
 
 from pyagenity.checkpointer import BaseCheckpointer
 from pyagenity.exceptions import GraphError
@@ -122,7 +121,7 @@ class StateGraph[StateT: AgentState]:
         else:
             logger.debug("Using provided dependency container instance")
             self._container = container
-            ContainerContext.set_current(self._container)
+            self._container.activate()
 
         # now setup the graph
         self._setup()
