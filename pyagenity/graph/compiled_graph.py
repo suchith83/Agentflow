@@ -1,10 +1,14 @@
 from __future__ import annotations
 
 import asyncio
+from datetime import date
+import datetime
 import logging
 from collections.abc import AsyncIterator, Generator
 from typing import TYPE_CHECKING, Any, TypeVar
 from uuid import uuid4
+
+from injectq import InjectQ
 
 from pyagenity.checkpointer.base_checkpointer import BaseCheckpointer
 from pyagenity.publisher.base_publisher import BasePublisher
@@ -69,6 +73,24 @@ class CompiledGraph[StateT: AgentState]:
         self.interrupt_after: list[str] = interrupt_after
         self.state = state
 
+    def _prepare_config(
+        self,
+        config: dict[str, Any] | None,
+        is_stream: bool = False,
+    ) -> dict[str, Any]:
+        cfg = config or {}
+        if "is_stream" not in cfg:
+            cfg["is_stream"] = is_stream
+        if "user_id" not in cfg:
+            cfg["user_id"] = "test-user-id"  # mock user id
+        if "run_id" not in cfg:
+            cfg["run_id"] = InjectQ.get_instance().try_get("generated_id") or str(uuid4())
+
+        if "timestamp" not in cfg:
+            cfg["timestamp"] = datetime.datetime.now().isoformat()
+
+        return cfg
+
     def invoke(
         self,
         input_data: dict[str, Any],
@@ -122,10 +144,7 @@ class CompiledGraph[StateT: AgentState]:
         Returns:
             Response dict based on granularity
         """
-        cfg = config or {}
-        cfg["is_stream"] = False
-        if "user_id" not in cfg:
-            cfg["user_id"] = "test_user"
+        cfg = self._prepare_config(config, is_stream=False)
 
         return await self.invoke_handler.invoke(
             input_data,
@@ -198,10 +217,7 @@ class CompiledGraph[StateT: AgentState]:
             StreamChunk objects with incremental content
         """
 
-        cfg = config or {}
-        cfg["is_stream"] = True
-        if "user_id" not in cfg:
-            cfg["user_id"] = "test_user"
+        cfg = self._prepare_config(config, is_stream=True)
 
         return self.stream_handler.stream(
             input_data,
