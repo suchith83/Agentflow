@@ -101,7 +101,8 @@ class TestToolNode:
 
         tool_node = ToolNode([tool1, tool2])
         assert hasattr(tool_node, "all_tools")  # noqa: S101
-        assert hasattr(tool_node, "execute")  # noqa: S101
+        assert hasattr(tool_node, "invoke")  # noqa: S101
+        assert hasattr(tool_node, "stream")  # noqa: S101
 
     @pytest.mark.asyncio
     async def test_tool_node_all_tools(self):
@@ -246,8 +247,7 @@ class TestCompiledGraph:
         """Test asynchronous streaming execution."""
         messages = [Message.from_text("Hello", "user")]
         events = []
-        stream_gen = await self.compiled.astream({"messages": messages})
-        async for event in stream_gen:
+        async for event in self.compiled.astream({"messages": messages}):
             events.append(event)
         assert len(events) >= 0  # noqa: S101
 

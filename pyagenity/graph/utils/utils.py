@@ -1,10 +1,11 @@
 from __future__ import annotations
 
+import inspect
 import logging
 from collections.abc import Callable
-from typing import Any, TypeVar
+from typing import Any, AsyncIterable, TypeVar
 
-from injectq import inject
+from injectq import Inject
 from litellm.types.utils import ModelResponse
 
 from pyagenity.checkpointer import BaseCheckpointer
@@ -20,6 +21,7 @@ from pyagenity.utils import (
     ResponseGranularity,
     add_messages,
 )
+from pyagenity.utils.streaming import StreamChunk
 
 
 StateT = TypeVar("StateT", bound=AgentState)
@@ -46,8 +48,8 @@ async def parse_response(
                 "message": messages,
             }
         case ResponseGranularity.LOW:
-            # Return only latest message
-            return {"messages": messages}
+            # Return all messages from state context
+            return {"messages": state.context or []}
 
     return {"messages": messages}
 
@@ -63,12 +65,11 @@ def _update_state_fields(state, partial: dict):
             setattr(state, k, v)
 
 
-@inject
 async def load_or_create_state[StateT: AgentState](
     input_data: dict[str, Any],
     config: dict[str, Any],
     old_state: StateT,
-    checkpointer: BaseCheckpointer | None = None,  # will be auto-injected
+    checkpointer: BaseCheckpointer = Inject[BaseCheckpointer],  # will be auto-injected
 ) -> StateT:
     """Load existing state from checkpointer or create new state.
 
@@ -359,11 +360,10 @@ def get_next_node(
     return END
 
 
-@inject
 async def call_realtime_sync(
     state: AgentState,
     config: dict[str, Any],
-    checkpointer: BaseCheckpointer | None = None,  # will be auto-injected
+    checkpointer: BaseCheckpointer = Inject[BaseCheckpointer],  # will be auto-injected
 ) -> None:
     """Call the realtime state sync hook if provided."""
     if checkpointer:
@@ -372,31 +372,32 @@ async def call_realtime_sync(
         await checkpointer.aput_state_cache(config, state)
 
 
-@inject
 async def sync_data(
     state: AgentState,
     config: dict[str, Any],
     messages: list[Message],
     trim: bool = False,
-    checkpointer: BaseCheckpointer | None = None,  # will be auto-injected
-    context_manager: BaseContextManager | None = None,  # will be auto-injected
-) -> None:
+    checkpointer: BaseCheckpointer = Inject[BaseCheckpointer],  # will be auto-injected
+    context_manager: BaseContextManager = Inject[BaseContextManager],  # will be auto-injected
+) -> bool:
     """Sync the current state and messages to the checkpointer."""
-    if not checkpointer:
-        logger.debug("No checkpointer available, skipping sync")
-        return  # Nothing to do
-
     import copy  # noqa: PLC0415
+
+    is_context_trimmed = False
 
     new_state = copy.deepcopy(state)
     # if context manager is available then utilize it
     if context_manager and trim:
         new_state = await context_manager.atrim_context(state)
+        is_context_trimmed = True
 
     # first sync with realtime then main db
     await call_realtime_sync(state, config, checkpointer)
     logger.debug("Persisting state and %d messages to checkpointer", len(messages))
 
-    await checkpointer.aput_state(config, new_state)
-    if messages:
-        await checkpointer.aput_messages(config, messages)
+    if checkpointer:
+        await checkpointer.aput_state(config, new_state)
+        if messages:
+            await checkpointer.aput_messages(config, messages)
+
+    return is_context_trimmed

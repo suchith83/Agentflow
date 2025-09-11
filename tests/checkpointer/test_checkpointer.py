@@ -69,7 +69,8 @@ class TestInMemoryCheckpointer:
             checkpointer.put_thread(config, {"thread_id": checkpoint_id, "name": checkpoint_id})
 
         # List checkpoints - this tests threads functionality
-        thread_list = checkpointer.list_threads()
+        config = {"thread_id": "test_thread"}
+        thread_list = checkpointer.list_threads(config)
 
         # Should contain all saved checkpoints as thread info
         expected_count = 3
@@ -114,7 +115,7 @@ class TestBaseCheckpointer:
     def test_base_checkpointer_is_abstract(self):
         """Test that BaseCheckpointer cannot be instantiated directly."""
         with pytest.raises(TypeError):
-            BaseCheckpointer()  # Should raise TypeError for abstract class
+            BaseCheckpointer()  # type: ignore # Should raise TypeError for abstract class
 
 
 def test_checkpointer_module_imports():

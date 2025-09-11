@@ -11,6 +11,8 @@ import json
 import logging
 import typing as t
 
+from pyagenity.utils.streaming import StreamChunk, StreamEvent
+
 
 try:
     from fastmcp import Client
@@ -32,7 +34,7 @@ except ImportError:
     Tool = None  # type: ignore
     ContentBlock = None  # type: ignore
 
-from injectq import inject
+from injectq import Inject, inject
 
 from pyagenity.state import AgentState
 from pyagenity.utils import (
@@ -62,7 +64,7 @@ INJECTABLE_PARAMS = {
 class ToolNode:
     """Registry for callables that exports function specs and executes them.
 
-    MCP support requires: pip install pyagenity[mcp]
+    MCP support requires: pip install pyagenity[fastapi]
     """
 
     def __init__(
@@ -177,36 +179,15 @@ class ToolNode:
         tools.extend(await self._get_mcp_tool())
         return tools
 
-    async def _internal_execute(
+    def _prepare_input_data_tool(
         self,
+        fn: t.Callable,
         name: str,
         args: dict,
-        tool_call_id: str,
-        config: dict[str, t.Any],
-        state: AgentState,
-        callback_mgr: CallbackManager,
-    ):
-        """Execute internal tool function with callback hooks."""
-        logger.debug("Executing internal tool '%s' with %d arguments", name, len(args))
-        logger.info("Executing internal tool '%s'", name)
-
-        # Create callback context for TOOL invocation
-        context = CallbackContext(
-            invocation_type=InvocationType.TOOL,
-            node_name="ToolNode",
-            function_name=name,
-            metadata={"tool_call_id": tool_call_id, "args": args, "config": config},
-        )
-
-        fn = self._funcs[name]
+        default_data: dict,
+    ) -> dict:
         sig = inspect.signature(fn)
         input_data = {}
-        default_data = {
-            "tool_call_id": tool_call_id,
-            "state": state,
-            "config": config,
-        }
-
         # # Get injectable parameters to determine which ones to exclude from manual passing
         # # Prepare function arguments (excluding injectable parameters)
         for param_name, param in sig.parameters.items():
@@ -232,27 +213,113 @@ class ToolNode:
             elif param.default is inspect.Parameter.empty:
                 raise TypeError(f"Missing required parameter '{param_name}' for function '{name}'")
 
+        return input_data
+
+    async def _internal_execute(
+        self,
+        name: str,
+        args: dict,
+        tool_call_id: str,
+        config: dict[str, t.Any],
+        state: AgentState,
+        callback_mgr: CallbackManager,
+    ) -> Message:
+        """Execute internal tool function with callback hooks."""
+        logger.debug("Executing internal tool '%s' with %d arguments", name, len(args))
+        logger.info("Executing internal tool '%s'", name)
+
+        # Create callback context for TOOL invocation
+        context = CallbackContext(
+            invocation_type=InvocationType.TOOL,
+            node_name="ToolNode",
+            function_name=name,
+            metadata={"tool_call_id": tool_call_id, "args": args, "config": config},
+        )
+
+        fn = self._funcs[name]
+        input_data = self._prepare_input_data_tool(
+            fn,
+            name,
+            args,
+            {
+                "tool_call_id": tool_call_id,
+                "state": state,
+                "config": config,
+            },
+        )
+
         try:
             # Execute before_invoke callbacks
+            meta = {"function_name": name, "function_argument": args}
             input_data = await callback_mgr.execute_before_invoke(context, input_data)
             # Execute the actual tool function with injectq handling dependency injection
             logger.debug("Invoking tool function '%s'", name)
             result = await call_sync_or_async(fn, **input_data)
             logger.debug("Tool function '%s' returned: %s", name, result)
 
-            # Execute after_invoke callbacks
-            return await callback_mgr.execute_after_invoke(context, input_data, result)
+            # Prepare tool result message to the callback
+            result = await callback_mgr.execute_after_invoke(
+                context,
+                input_data,
+                result,
+            )
+
+            # Handle different return types
+            if isinstance(result, Message):
+                logger.debug("Node '%s' tool execution returned a Message", name)
+                # lets update the meta
+                meta_data = result.metadata or {}
+                meta.update(meta_data)
+                result.metadata = meta
+                return result
+
+            if isinstance(result, str):
+                logger.debug("Node '%s' tool execution returned a string", name)
+                # Convert string result to tool message with tool_call_id
+                return Message.tool_message(
+                    tool_call_id=tool_call_id,
+                    content=result,
+                    meta=meta,
+                )
+
+            # Convert other types to string then to tool message
+            logger.debug(
+                "Node '%s' tool execution returned an unexpected type: %s",
+                name,
+                type(result),
+            )
+            serialized_result = result
+            if isinstance(result, dict):
+                serialized_result = json.dumps(result)
+            elif hasattr(result, "model_dump"):
+                serialized_result = json.dumps(result.model_dump())
+            elif hasattr(result, "__dict__"):
+                serialized_result = json.dumps(result.__dict__)
+            elif isinstance(result, list):
+                serialized_result = json.dumps(result)
+            elif not isinstance(result, str):
+                serialized_result = str(result)
+
+            return Message.tool_message(
+                tool_call_id=tool_call_id,
+                content=serialized_result,
+                meta=meta,
+            )
 
         except Exception as e:
             # Execute error callbacks
             logger.error("Error occurred while executing tool '%s': %s", name, e)
             recovery_result = await callback_mgr.execute_on_error(context, input_data, e)
 
-            if recovery_result is not None:
+            if isinstance(recovery_result, Message):
                 logger.info("Recovery result obtained for tool '%s': %s", name, recovery_result)
                 return recovery_result
+
             # Re-raise the original error
-            logger.error("No recovery result for tool '%s', re-raising error", name)
+            logger.error(
+                "No recovery result for tool '%s', re-raising error, Please return Message",
+                name,
+            )
             raise
 
     def _serialize_result(self, res: t.Any) -> str:
@@ -400,59 +467,6 @@ class ToolNode:
                 is_error=True,
                 meta=meta,
             )
-
-    @inject
-    async def execute(
-        self,
-        name: str,
-        args: dict,
-        tool_call_id: str,
-        config: dict[str, t.Any],
-        state: AgentState,
-        callback_manager: CallbackManager,  # type: ignore
-    ) -> t.Any:
-        """Execute the callable registered under `name` with `args` kwargs.
-
-        Additional injectable parameters:
-        - tool_call_id: ID of the tool call (can be injected into function if needed)
-        - state: Current agent state (can be injected into function if needed)
-        - checkpointer: Checkpointer instance (can be injected into function if needed)
-        - store: Store instance (can be injected into function if needed)
-        - dependency_container: Container with custom dependencies
-        - callback_manager: Callback manager for executing hooks
-        """
-        logger.info("Executing tool '%s' with %d arguments", name, len(args))
-        logger.debug("Tool arguments: %s", args)
-
-        # check in mcp
-        if name in self.mcp_tools:
-            logger.debug("Tool '%s' found in MCP tools, executing via MCP", name)
-            return await self._mcp_execute(
-                name,
-                args,
-                tool_call_id,
-                config,
-                callback_manager,
-            )
-
-        if name in self._funcs:
-            logger.debug("Tool '%s' found in local functions, executing internally", name)
-            return await self._internal_execute(
-                name,
-                args,
-                tool_call_id,
-                config,
-                state,
-                callback_manager,
-            )
-
-        error_msg = f"Tool '{name}' not found."
-        logger.warning(error_msg)
-        return Message.tool_message(
-            content=error_msg,
-            tool_call_id=tool_call_id,
-            is_error=True,
-        )
 
     def _prepare_kwargs(
         self,
@@ -606,3 +620,163 @@ class ToolNode:
 
         # Default fallback
         return {"type": "string"}
+
+    @inject
+    async def invoke(
+        self,
+        name: str,
+        args: dict,
+        tool_call_id: str,
+        config: dict[str, t.Any],
+        state: AgentState,
+        callback_manager: CallbackManager,  # type: ignore
+    ) -> t.Any:
+        """Execute the callable registered under `name` with `args` kwargs.
+
+        Additional injectable parameters:
+        - tool_call_id: ID of the tool call (can be injected into function if needed)
+        - state: Current agent state (can be injected into function if needed)
+        - checkpointer: Checkpointer instance (can be injected into function if needed)
+        - store: Store instance (can be injected into function if needed)
+        - dependency_container: Container with custom dependencies
+        - callback_manager: Callback manager for executing hooks
+        """
+        logger.info("Executing tool '%s' with %d arguments", name, len(args))
+        logger.debug("Tool arguments: %s", args)
+
+        # check in mcp
+        if name in self.mcp_tools:
+            logger.debug("Tool '%s' found in MCP tools, executing via MCP", name)
+            return await self._mcp_execute(
+                name,
+                args,
+                tool_call_id,
+                config,
+                callback_manager,
+            )
+
+        if name in self._funcs:
+            logger.debug("Tool '%s' found in local functions, executing internally", name)
+            return await self._internal_execute(
+                name,
+                args,
+                tool_call_id,
+                config,
+                state,
+                callback_manager,
+            )
+
+        error_msg = f"Tool '{name}' not found."
+        logger.warning(error_msg)
+        return Message.tool_message(
+            content=error_msg,
+            tool_call_id=tool_call_id,
+            is_error=True,
+        )
+
+    async def stream(
+        self,
+        name: str,
+        args: dict,
+        tool_call_id: str,
+        config: dict[str, t.Any],
+        state: AgentState,
+        callback_manager: CallbackManager = Inject[CallbackManager],
+    ) -> t.AsyncIterator[StreamChunk | Message]:
+        """Execute the callable registered under `name` with `args` kwargs.
+
+        Additional injectable parameters:
+        - tool_call_id: ID of the tool call (can be injected into function if needed)
+        - state: Current agent state (can be injected into function if needed)
+        - checkpointer: Checkpointer instance (can be injected into function if needed)
+        - store: Store instance (can be injected into function if needed)
+        - dependency_container: Container with custom dependencies
+        - callback_manager: Callback manager for executing hooks
+        """
+        logger.info("Executing tool '%s' with %d arguments", name, len(args))
+        logger.debug("Tool arguments: %s", args)
+        run_id = config.get("run_id", "")
+        data = {"args": args, "tool_call_id": tool_call_id, "config": config}
+        cfg = {
+            "thread_id": config.get("thread_id", ""),
+            "run_id": run_id,
+            "run_timestamp": config.get("timestamp", ""),
+        }
+
+        # check in mcp
+        if name in self.mcp_tools:
+            logger.debug("Tool '%s' found in MCP tools, executing via MCP", name)
+            yield StreamChunk(
+                event=StreamEvent.MCP_TOOL_EXECUTION,
+                event_type="Before",
+                run_id=run_id,
+                data=data,
+                metadata=cfg,
+            )
+            message = await self._mcp_execute(
+                name,
+                args,
+                tool_call_id,
+                config,
+                callback_manager,
+            )
+            # pass two events - tool result and message, message will be saved as it is
+            # And steam chunk will be used for streaming UIs
+            data["message"] = message.model_dump()
+            yield StreamChunk(
+                event=StreamEvent.MCP_TOOL_RESULT,
+                event_type="After",
+                run_id=run_id,
+                data=data,
+                metadata=cfg,
+            )
+            yield message
+            return
+
+        if name in self._funcs:
+            logger.debug("ENTERING IF BLOCK for tool '%s'", name)
+            logger.debug("Tool '%s' found in local functions, executing internally", name)
+            yield StreamChunk(
+                event=StreamEvent.TOOL_EXECUTION,
+                event_type="Before",
+                run_id=run_id,
+                data=data,
+                metadata=cfg,
+            )
+            result = await self._internal_execute(
+                name,
+                args,
+                tool_call_id,
+                config,
+                state,
+                callback_manager,
+            )
+
+            data["message"] = result.model_dump()
+            yield StreamChunk(
+                event=StreamEvent.TOOL_EXECUTION,
+                event_type="After",
+                run_id=run_id,
+                data=data,
+                metadata=cfg,
+            )
+
+            yield result
+            return
+
+        error_msg = f"Tool '{name}' not found."
+        logger.warning(error_msg)
+        data["error"] = error_msg
+        yield StreamChunk(
+            event=StreamEvent.TOOL_RESULT,
+            event_type="After",
+            run_id=run_id,
+            data=data,
+            is_error=True,
+            metadata=cfg,
+        )
+        yield Message.tool_message(
+            content=error_msg,
+            tool_call_id=tool_call_id,
+            is_error=True,
+        )

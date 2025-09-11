@@ -1,27 +1,28 @@
 from __future__ import annotations
 
 import logging
-from typing import Any, TypeVar
+from typing import Any, AsyncGenerator, AsyncIterable, TypeVar
 
 from injectq import inject
 
 from pyagenity.exceptions import GraphRecursionError
+from pyagenity.graph.edge import Edge
+from pyagenity.graph.node import Node
 from pyagenity.publisher import BasePublisher, Event, EventType, SourceType
 from pyagenity.state import AgentState, ExecutionStatus
 from pyagenity.utils import (
     END,
     Message,
     ResponseGranularity,
+    add_messages,
 )
+from pyagenity.utils.streaming import StreamChunk, StreamEvent
 
-from .edge import Edge
-from .node import Node
 from .utils import (
     call_realtime_sync,
     get_default_event,
     get_next_node,
     load_or_create_state,
-    parse_response,
     process_node_result,
     sync_data,
 )
@@ -32,7 +33,7 @@ StateT = TypeVar("StateT", bound=AgentState)
 logger = logging.getLogger(__name__)
 
 
-class InvokeHandler[StateT: AgentState]:
+class StreamHandler[StateT: AgentState]:
     @inject
     def __init__(
         self,
@@ -130,7 +131,7 @@ class InvokeHandler[StateT: AgentState]:
         self,
         state: StateT,
         config: dict[str, Any],
-    ) -> tuple[StateT, list[Message]]:
+    ) -> AsyncIterable:
         """Execute the entire graph with support for interrupts and resuming."""
         logger.info(
             "Starting graph execution from node '%s' at step %d",
@@ -152,9 +153,30 @@ class InvokeHandler[StateT: AgentState]:
             source=SourceType.NODE,
         )
 
+        run_id = config.get("run_id", "")
+        cfg = {
+            "thread_id": config.get("thread_id", ""),
+            "run_id": run_id,
+            "run_timestamp": config.get("timestamp", ""),
+        }
+
         try:
             while current_node != END and step < max_steps:
                 logger.debug("Executing step %d at node '%s'", step, current_node)
+                # Lets update which node is being executed
+                yield StreamChunk(
+                    event=StreamEvent.NODE,
+                    event_type="Before",
+                    data={
+                        "state": state.model_dump(),
+                        "messages": [m.model_dump() for m in messages],
+                        "current_node": current_node,
+                        "step": step,
+                    },
+                    run_id=run_id,
+                    metadata=cfg,
+                )
+
                 # Update execution metadata
                 state.set_current_node(current_node)
                 state.execution_meta.step = step
@@ -175,7 +197,18 @@ class InvokeHandler[StateT: AgentState]:
                     event.event_type = EventType.INTERRUPTED
                     event.payload["interrupted"] = "Before"
                     await self._publish_event(event)
-                    return state, messages
+
+                    yield StreamChunk(
+                        event=StreamEvent.INTERRUPTED,
+                        event_type="Before",
+                        data={
+                            "state": state.model_dump(),
+                            "messages": [m.model_dump() for m in messages],
+                        },
+                        run_id=run_id,
+                        metadata=cfg,
+                    )
+                    return
 
                 # Execute current node
                 logger.debug("Executing node '%s'", current_node)
@@ -188,7 +221,7 @@ class InvokeHandler[StateT: AgentState]:
                 ##### Node Execution Started ##################
                 ###############################################
 
-                result = await node.execute(config, state)  # type: ignore
+                result = node.stream(config, state)  # type: ignore
 
                 ###############################################
                 ##### Node Execution Finished #################
@@ -201,16 +234,44 @@ class InvokeHandler[StateT: AgentState]:
                 await self._publish_event(event)
 
                 # Process result and get next node
-                state, messages, next_node = process_node_result(
-                    result,
-                    state,
-                    messages,
-                )
+                next_node = None
+                async for rs in result:
+                    if isinstance(rs, StreamChunk):
+                        # nothing to block here for now
+                        yield rs
+                    elif isinstance(rs, dict) and "is_non_streaming" in rs:
+                        state = rs.get("state", state)
+                        messages = rs.get("messages", messages)
+                        next_node = rs.get("next_node", next_node)
+                    elif isinstance(rs, Message):
+                        messages.append(rs)
+                        logger.debug(
+                            "Appended message from node '%s', total messages: %d",
+                            current_node,
+                            len(messages),
+                        )
+                    else:
+                        # if nothing match try to process as node result
+                        # if failed just log the error and continue
+                        try:
+                            state, messages, next_node = process_node_result(
+                                rs,  # Pass the individual item, not the async generator
+                                state,
+                                messages,
+                            )
+                        except Exception as e:
+                            logger.error("Failed to process node result: %s", e)
+
                 logger.debug(
                     "Node result processed, next_node=%s, total_messages=%d",
                     next_node,
                     len(messages),
                 )
+
+                # Add collected messages to state context before determining next node
+                if messages:
+                    state.context = add_messages(state.context, messages)
+                    logger.debug("Added %d messages to state context", len(messages))
 
                 # Call realtime sync after node execution (if state/messages changed)
                 await call_realtime_sync(state, config)
@@ -231,7 +292,18 @@ class InvokeHandler[StateT: AgentState]:
                     event.event_type = EventType.INTERRUPTED
                     event.payload["interrupted"] = "After"
                     await self._publish_event(event)
-                    return state, messages
+
+                    yield StreamChunk(
+                        event=StreamEvent.INTERRUPTED,
+                        event_type="Before",
+                        data={
+                            "state": state.model_dump(),
+                            "messages": [m.model_dump() for m in messages],
+                        },
+                        run_id=run_id,
+                        metadata=cfg,
+                    )
+                    return
 
                 # Get next node (only if no explicit navigation from Command)
                 if next_node is None:
@@ -250,11 +322,30 @@ class InvokeHandler[StateT: AgentState]:
                 event.payload["State_Updated"] = "State Updated"
                 await self._publish_event(event)
 
+                yield StreamChunk(
+                    event=StreamEvent.STATE,
+                    event_type="After",
+                    data={
+                        "state": state.model_dump(),
+                        "step": step,
+                    },
+                    run_id=run_id,
+                    metadata=cfg,
+                )
+
                 if step >= max_steps:
                     error_msg = "Graph execution exceeded maximum steps"
                     logger.error(error_msg)
                     state.error(error_msg)
                     await call_realtime_sync(state, config)
+                    yield StreamChunk(
+                        event=StreamEvent.ERROR,
+                        event_type="Before",
+                        data={"error": error_msg},
+                        run_id=run_id,
+                        metadata=cfg,
+                    )
+
                     raise GraphRecursionError(
                         f"Graph execution exceeded recursion limit: {max_steps}"
                     )
@@ -266,13 +357,23 @@ class InvokeHandler[StateT: AgentState]:
                 step,
             )
             state.complete()
-            await sync_data(
+            is_context_trimmed = await sync_data(
                 state=state,
                 config=config,
                 messages=messages,
                 trim=True,
             )
-            return state, messages
+            yield StreamChunk(
+                event=StreamEvent.COMPLETE,
+                event_type="After",
+                data={
+                    "state": state.model_dump(),
+                    "messages": [m.model_dump() for m in messages],
+                    "context_trimmed": is_context_trimmed,
+                },
+                run_id=run_id,
+                metadata=cfg,
+            )
 
         except Exception as e:
             # Handle execution errors
@@ -292,13 +393,13 @@ class InvokeHandler[StateT: AgentState]:
             )
             raise
 
-    async def invoke(
+    async def stream(
         self,
         input_data: dict[str, Any],
         config: dict[str, Any],
         default_state: StateT,
         response_granularity: ResponseGranularity = ResponseGranularity.LOW,
-    ):
+    ) -> AsyncGenerator[StreamChunk]:
         """Execute the graph asynchronously.
 
         Auto-detects whether to start fresh execution or resume from interrupted state
@@ -351,15 +452,13 @@ class InvokeHandler[StateT: AgentState]:
         # Now start Execution
         # Execute graph
         logger.debug("Beginning graph execution")
-        final_state, messages = await self._execute_graph(state, config)
-        logger.info("Graph execution completed with %d final messages", len(messages))
+        result = self._execute_graph(state, config)
+        async for chunk in result:
+            if isinstance(chunk, StreamChunk):
+                yield chunk
+            else:
+                logger.warning("Received non-StreamChunk item in stream: %s", type(chunk))
 
         # Publish graph completion event
         event.event_type = EventType.COMPLETED
         await self._publish_event(event)
-
-        return await parse_response(
-            final_state,
-            messages,
-            response_granularity,
-        )

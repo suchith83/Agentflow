@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 import asyncio
+import datetime
 import logging
 from collections.abc import AsyncIterator, Generator
 from typing import TYPE_CHECKING, Any, TypeVar
 from uuid import uuid4
+
+from injectq import InjectQ
 
 from pyagenity.checkpointer.base_checkpointer import BaseCheckpointer
 from pyagenity.publisher.base_publisher import BasePublisher
@@ -15,8 +18,8 @@ from pyagenity.utils import (
     StreamChunk,
 )
 
-from .invoke_handler import InvokeHandler
-from .steam_handler import StreamHandler
+from .utils.invoke_handler import InvokeHandler
+from .utils.stream_handler import StreamHandler
 
 
 if TYPE_CHECKING:
@@ -53,12 +56,12 @@ class CompiledGraph[StateT: AgentState]:
 
         # create handlers
         self.invoke_handler: InvokeHandler[StateT] = InvokeHandler[StateT](
-            nodes=state_graph.nodes,
-            edges=state_graph.edges,
+            nodes=state_graph.nodes,  # type: ignore
+            edges=state_graph.edges,  # type: ignore
         )
         self.stream_handler: StreamHandler[StateT] = StreamHandler[StateT](
-            nodes=state_graph.nodes,
-            edges=state_graph.edges,
+            nodes=state_graph.nodes,  # type: ignore
+            edges=state_graph.edges,  # type: ignore
         )
 
         self.checkpointer: BaseCheckpointer[StateT] | None = checkpointer
@@ -68,6 +71,24 @@ class CompiledGraph[StateT: AgentState]:
         self.interrupt_before: list[str] = interrupt_before
         self.interrupt_after: list[str] = interrupt_after
         self.state = state
+
+    def _prepare_config(
+        self,
+        config: dict[str, Any] | None,
+        is_stream: bool = False,
+    ) -> dict[str, Any]:
+        cfg = config or {}
+        if "is_stream" not in cfg:
+            cfg["is_stream"] = is_stream
+        if "user_id" not in cfg:
+            cfg["user_id"] = "test-user-id"  # mock user id
+        if "run_id" not in cfg:
+            cfg["run_id"] = InjectQ.get_instance().try_get("generated_id") or str(uuid4())
+
+        if "timestamp" not in cfg:
+            cfg["timestamp"] = datetime.datetime.now().isoformat()
+
+        return cfg
 
     def invoke(
         self,
@@ -122,10 +143,7 @@ class CompiledGraph[StateT: AgentState]:
         Returns:
             Response dict based on granularity
         """
-        cfg = config or {}
-        cfg["is_stream"] = False
-        if "user_id" not in cfg:
-            cfg["user_id"] = "test_user"
+        cfg = self._prepare_config(config, is_stream=False)
 
         return await self.invoke_handler.invoke(
             input_data,
@@ -157,7 +175,7 @@ class CompiledGraph[StateT: AgentState]:
 
         # For sync streaming, we'll use asyncio.run to handle the async implementation
         async def _async_stream():
-            async for chunk in await self.astream(input_data, config, response_granularity):
+            async for chunk in self.astream(input_data, config, response_granularity):
                 yield chunk
 
         # Use a helper to convert async generator to sync generator
@@ -198,17 +216,15 @@ class CompiledGraph[StateT: AgentState]:
             StreamChunk objects with incremental content
         """
 
-        cfg = config or {}
-        cfg["is_stream"] = False
-        if "user_id" not in cfg:
-            cfg["user_id"] = "test_user"
+        cfg = self._prepare_config(config, is_stream=True)
 
-        return self.stream_handler.stream(
+        async for chunk in self.stream_handler.stream(
             input_data,
             cfg,
             self._state,
             response_granularity,
-        )
+        ):
+            yield chunk
 
     async def aclose(self) -> dict[str, str]:
         """Close the graph and release any resources."""
