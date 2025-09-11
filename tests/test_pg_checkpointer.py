@@ -60,7 +60,7 @@ class TestPgCheckpointer:
                 cache_ttl=3600,
             )
             # Replace with our mocks
-            cp.pg_pool = mock_pg_pool
+            cp._pg_pool = mock_pg_pool
             cp.redis = mock_redis
             return cp
 

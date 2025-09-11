@@ -186,7 +186,7 @@ async def run_stream_test() -> None:
     config = {"thread_id": "stream-1", "recursion_limit": 10}
 
     logging.info("--- streaming start ---")
-    stream_gen = await app.astream(
+    stream_gen = app.astream(
         inp,
         config=config,
         response_granularity=ResponseGranularity.LOW,
@@ -219,7 +219,7 @@ async def run_sync_test() -> None:
     config = {"thread_id": "sync-1", "recursion_limit": 10}
 
     logging.info("--- sync test start ---")
-    stream_gen = await sync_app.astream(
+    stream_gen = sync_app.astream(
         inp,
         config=config,
         response_granularity=ResponseGranularity.LOW,
@@ -301,7 +301,7 @@ async def run_sync_stream_test() -> None:
     config = {"thread_id": "sync-stream-1", "recursion_limit": 10}
 
     logging.info("--- sync stream test start ---")
-    stream_gen = await sync_stream_app.astream(
+    stream_gen = sync_stream_app.astream(
         inp,
         config=config,
         response_granularity=ResponseGranularity.LOW,
@@ -376,7 +376,7 @@ async def run_non_stream_test() -> None:
     config = {"thread_id": "non-stream-1", "recursion_limit": 10}
 
     logging.info("--- non-stream test start ---")
-    stream_gen = await non_stream_app.astream(
+    stream_gen = non_stream_app.astream(
         inp,
         config=config,
         response_granularity=ResponseGranularity.LOW,

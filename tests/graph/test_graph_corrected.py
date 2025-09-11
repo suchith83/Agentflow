@@ -247,8 +247,7 @@ class TestCompiledGraph:
         """Test asynchronous streaming execution."""
         messages = [Message.from_text("Hello", "user")]
         events = []
-        stream_gen = await self.compiled.astream({"messages": messages})
-        async for event in stream_gen:
+        async for event in self.compiled.astream({"messages": messages}):
             events.append(event)
             break  # Just test that iteration works
         assert len(events) >= 0  # noqa: S101

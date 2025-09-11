@@ -48,8 +48,8 @@ async def parse_response(
                 "message": messages,
             }
         case ResponseGranularity.LOW:
-            # Return only latest message
-            return {"messages": messages}
+            # Return all messages from state context
+            return {"messages": state.context or []}
 
     return {"messages": messages}
 

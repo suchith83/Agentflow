@@ -112,6 +112,19 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
         self.release_resources = kwargs.get("release_resources", False)
         self._schema_initialized = False
 
+        # Store pool configuration for lazy initialization
+        self._pg_pool_config = {
+            "pg_pool": pg_pool,
+            "postgres_dsn": postgres_dsn,
+            "pool_config": pool_config or {},
+        }
+
+        # Initialize pool immediately if provided, otherwise defer
+        if pg_pool is not None:
+            self._pg_pool = pg_pool
+        else:
+            self._pg_pool = None
+
         # Now check and initialize connections
         if not pg_pool and not postgres_dsn:
             raise ValueError("Either postgres_dsn or pg_pool must be provided.")
@@ -119,8 +132,7 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
         if not redis and not redis_url and not redis_pool:
             raise ValueError("Either redis_url, redis_pool or redis instance must be provided.")
 
-        # Initialize connections
-        self.pg_pool = self._create_pg_pool(pg_pool, postgres_dsn, pool_config or {})
+        # Initialize Redis connection (synchronous)
         self.redis = self._create_redis_pool(redis, redis_pool, redis_url, redis_pool_config or {})
 
     def _create_redis_pool(
@@ -157,6 +169,15 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
         # and we will release the resources if needed
         self.release_resources = True
         return asyncpg.create_pool(dsn=postgres_dsn, **pool_config)  # type: ignore
+
+    async def _get_pg_pool(self) -> Any:
+        """Get PostgreSQL pool, creating it if necessary."""
+        if self._pg_pool is None:
+            config = self._pg_pool_config
+            self._pg_pool = self._create_pg_pool(
+                config["pg_pool"], config["postgres_dsn"], config["pool_config"]
+            )
+        return self._pg_pool
 
     def _get_sql_type(self, type_name: str) -> str:
         """Get SQL type for given configuration type."""
@@ -242,7 +263,7 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
             self.user_id_type,
         )
 
-        async with self.pg_pool.acquire() as conn:
+        async with (await self._get_pg_pool()).acquire() as conn:
             try:
                 sql_statements = self._build_create_tables_sql()
                 for sql in sql_statements:
@@ -363,7 +384,7 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
             state_json = self._serialize_state(state)
 
             async def _store_state():
-                async with self.pg_pool.acquire() as conn:
+                async with (await self._get_pg_pool()).acquire() as conn:
                     await conn.execute(
                         """
                         INSERT INTO states (thread_id, state_data, meta)
@@ -393,7 +414,7 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
         try:
 
             async def _get_state():
-                async with self.pg_pool.acquire() as conn:
+                async with (await self._get_pg_pool()).acquire() as conn:
                     return await conn.fetchrow(
                         """
                         SELECT state_data FROM states
@@ -426,7 +447,7 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
         try:
             # Clear from PostgreSQL with retry logic
             async def _clear_state():
-                async with self.pg_pool.acquire() as conn:
+                async with (await self._get_pg_pool()).acquire() as conn:
                     await conn.execute("DELETE FROM states WHERE thread_id = $1", thread_id)
 
             await self._retry_on_connection_error(_clear_state, max_retries=3)
@@ -496,7 +517,7 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
         try:
 
             async def _check_and_create_thread():
-                async with self.pg_pool.acquire() as conn:
+                async with (await self._get_pg_pool()).acquire() as conn:
                     exists = await conn.fetchval(
                         "SELECT 1 FROM threads WHERE thread_id = $1 AND user_id = $2",
                         thread_id,
@@ -571,7 +592,7 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
 
             # Store messages in batch with retry logic
             async def _store_messages():
-                async with self.pg_pool.acquire() as conn, conn.transaction():
+                async with (await self._get_pg_pool()).acquire() as conn, conn.transaction():
                     for message in messages:
                         await conn.execute(
                             """
@@ -614,7 +635,7 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
         try:
 
             async def _get_message():
-                async with self.pg_pool.acquire() as conn:
+                async with (await self._get_pg_pool()).acquire() as conn:
                     query = """
                         SELECT message_id, thread_id, role, content, tool_calls,
                                tool_call_id, reasoning, created_at, total_tokens,
@@ -656,7 +677,7 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
         try:
 
             async def _list_messages():
-                async with self.pg_pool.acquire() as conn:
+                async with (await self._get_pg_pool()).acquire() as conn:
                     # Build query with optional search
                     query = """
                         SELECT message_id, thread_id, role, content, tool_calls,
@@ -708,7 +729,7 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
         try:
 
             async def _delete_message():
-                async with self.pg_pool.acquire() as conn:
+                async with (await self._get_pg_pool()).acquire() as conn:
                     if thread_id:
                         await conn.execute(
                             "DELETE FROM messages WHERE message_id = $1 AND thread_id = $2",
@@ -796,7 +817,7 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
             meta = thread_info.get("meta", {})
 
             async def _put_thread():
-                async with self.pg_pool.acquire() as conn:
+                async with (await self._get_pg_pool()).acquire() as conn:
                     await conn.execute(
                         """
                         INSERT INTO threads (thread_id, thread_name, user_id, meta)
@@ -831,7 +852,7 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
         try:
 
             async def _get_thread():
-                async with self.pg_pool.acquire() as conn:
+                async with (await self._get_pg_pool()).acquire() as conn:
                     return await conn.fetchrow(
                         """
                         SELECT thread_id, thread_name, user_id, created_at, updated_at, meta
@@ -879,7 +900,7 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
         try:
 
             async def _list_threads():
-                async with self.pg_pool.acquire() as conn:
+                async with (await self._get_pg_pool()).acquire() as conn:
                     # Build query with optional search
                     query = """
                         SELECT thread_id, thread_name, user_id, created_at, updated_at, meta
@@ -940,7 +961,7 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
         try:
             # Delete thread (cascade will handle messages and states) with retry logic
             async def _clean_thread():
-                async with self.pg_pool.acquire() as conn:
+                async with (await self._get_pg_pool()).acquire() as conn:
                     await conn.execute(
                         "DELETE FROM threads WHERE thread_id = $1 AND user_id = $2",
                         thread_id,
@@ -1013,8 +1034,8 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
 
         # Close PostgreSQL pool
         try:
-            if self.pg_pool and not self.pg_pool.is_closing():
-                await self.pg_pool.close()
+            if self._pg_pool and not self._pg_pool.is_closing():
+                await self._pg_pool.close()
             logger.debug("PostgreSQL pool closed")
         except Exception as e:
             logger.error("Error closing PostgreSQL pool: %s", e)

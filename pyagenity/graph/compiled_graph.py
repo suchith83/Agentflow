@@ -175,7 +175,7 @@ class CompiledGraph[StateT: AgentState]:
 
         # For sync streaming, we'll use asyncio.run to handle the async implementation
         async def _async_stream():
-            async for chunk in await self.astream(input_data, config, response_granularity):
+            async for chunk in self.astream(input_data, config, response_granularity):
                 yield chunk
 
         # Use a helper to convert async generator to sync generator
@@ -218,12 +218,13 @@ class CompiledGraph[StateT: AgentState]:
 
         cfg = self._prepare_config(config, is_stream=True)
 
-        return self.stream_handler.stream(
+        async for chunk in self.stream_handler.stream(
             input_data,
             cfg,
             self._state,
             response_granularity,
-        )
+        ):
+            yield chunk
 
     async def aclose(self) -> dict[str, str]:
         """Close the graph and release any resources."""

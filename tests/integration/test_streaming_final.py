@@ -155,8 +155,7 @@ class TestStreamingIntegration:
         config = {"thread_id": "test_string_async"}
 
         chunks = []
-        stream_gen = await compiled.astream(input_data, config)
-        async for chunk in stream_gen:
+        async for chunk in compiled.astream(input_data, config):
             chunks.append(chunk)
 
         assert len(chunks) >= 0  # noqa: S101
@@ -201,8 +200,7 @@ class TestStreamingIntegration:
         config = {"thread_id": "test_async_streaming"}
 
         chunks = []
-        stream_gen = await compiled.astream(input_data, config)
-        async for chunk in stream_gen:
+        async for chunk in compiled.astream(input_data, config):
             chunks.append(chunk)
 
         # Verify we got chunks
