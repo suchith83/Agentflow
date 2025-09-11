@@ -1,16 +1,18 @@
 import logging
 from collections.abc import Callable
-from typing import Any, Union
+from typing import Any, AsyncIterable, Union
 
 from injectq import Inject
 
 from pyagenity.graph.utils.invoke_node_handler import InvokeNodeHandler
+from pyagenity.graph.utils.stream_node_handler import StreamNodeHandler
 from pyagenity.publisher import BasePublisher
 from pyagenity.state import AgentState
 from pyagenity.utils import (
     CallbackManager,
     Command,
 )
+from pyagenity.utils.message import Message
 
 from .tool_node import ToolNode
 
@@ -68,6 +70,12 @@ class Node:
             publisher,
         )
 
+        self.stream_handler = StreamNodeHandler(
+            name,
+            func,
+            publisher,
+        )
+
     async def execute(
         self,
         config: dict[str, Any],
@@ -80,3 +88,18 @@ class Node:
             state,
             callback_mgr,
         )
+
+    async def stream(
+        self,
+        config: dict[str, Any],
+        state: AgentState,
+        callback_mgr: CallbackManager = Inject[CallbackManager],
+    ) -> AsyncIterable[dict[str, Any] | Message]:
+        """Stream the node function with dependency injection support and callback hooks."""
+        result = self.stream_handler.stream(
+            config,
+            state,
+            callback_mgr,
+        )
+
+        yield result

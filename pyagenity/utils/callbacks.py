@@ -19,6 +19,8 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Union
 
+from pyagenity.utils.message import Message
+
 
 logger = logging.getLogger(__name__)
 
@@ -220,8 +222,13 @@ class CallbackManager:
 
     async def execute_on_error(
         self, context: CallbackContext, input_data: Any, error: Exception
-    ) -> Any | None:
-        """Execute all on_error callbacks for the given context."""
+    ) -> Message | None:
+        """
+        Execute all on_error callbacks for the given context.
+        If any error happened then the result will be passed to the callbacks
+        And its expected that callbacks will return a recovery value as Message or None
+        If no callback returns a recovery value, None is returned.
+        """
         recovery_value = None
 
         for callback in self._error_callbacks[context.invocation_type]:
@@ -236,7 +243,7 @@ class CallbackManager:
                         result = await result  # type: ignore
 
                 # If any error callback returns a value, use it as recovery
-                if result is not None:
+                if isinstance(result, Message) or result is None:
                     recovery_value = result
             except Exception as exc:
                 # If error callback itself fails, continue with other callbacks

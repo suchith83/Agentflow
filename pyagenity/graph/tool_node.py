@@ -11,7 +11,7 @@ import json
 import logging
 import typing as t
 
-from pyagenity.utils.streamming import StreamChunk, StreamEvent
+from pyagenity.utils.streaming import StreamChunk, StreamEvent
 
 
 try:
@@ -34,7 +34,7 @@ except ImportError:
     Tool = None  # type: ignore
     ContentBlock = None  # type: ignore
 
-from injectq import inject
+from injectq import Inject, inject
 
 from pyagenity.state import AgentState
 from pyagenity.utils import (
@@ -674,7 +674,6 @@ class ToolNode:
             is_error=True,
         )
 
-    @inject
     async def stream(
         self,
         name: str,
@@ -682,8 +681,8 @@ class ToolNode:
         tool_call_id: str,
         config: dict[str, t.Any],
         state: AgentState,
-        callback_manager: CallbackManager,  # type: ignore
-    ) -> t.AsyncIterable[StreamChunk | Message]:
+        callback_manager: CallbackManager = Inject[CallbackManager],
+    ) -> t.AsyncIterator[StreamChunk | Message]:
         """Execute the callable registered under `name` with `args` kwargs.
 
         Additional injectable parameters:

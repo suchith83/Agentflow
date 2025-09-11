@@ -1,6 +1,6 @@
 from dotenv import load_dotenv
 from litellm import completion
-
+from litellm.types.utils import ModelResponseStream
 
 ## set ENV variables
 load_dotenv()
@@ -134,29 +134,63 @@ messages = [
 ]
 
 messages = [
-    {"role": "system", "content": "You are a helpful assistant. For job"},
-    {
-        "role": "system",
-        "content": "Job ID: 12345, skills: [Python, Data Analysis] designation: Python developer",
-    },
-    {
-        "role": "system",
-        "content": (
-            "CV: Name shudipto, Skills: Python, Java, "
-            "Work Experience: 5 years in software development"
-        ),
-    },
-    {"role": "user", "content": "HI, I am ready"},
+    {"role": "system", "content": "You are a helpful assistant"},
+    {"role": "user", "content": "What is the weather like in Boston today?"},
 ]
 
 response = completion(
     model="gemini/gemini-2.5-flash",
     messages=messages,
-    # tools=tools,
+    tools=tools,
     stream=True,
 )
 
 print(type(response))
+
+# for chunk in response:
+#     msg: ModelResponseStream = chunk  # type: ignore
+#     print(msg.choices[0].delta)
+
+
+accumulated_content = ""
+tool_calls = []
+tool_ids = set()
+accumulated_reasoning_content = ""
+for chunk in response:
+    if not chunk:
+        continue
+
+    msg: ModelResponseStream = chunk  # type: ignore
+    if msg is None:
+        continue
+    if msg.choices is None or len(msg.choices) == 0:
+        continue
+    delta = msg.choices[0].delta
+    if delta is None:
+        continue
+
+    accumulated_content += delta.get("content", "") or ""
+    accumulated_reasoning_content += delta.get("reasoning_content", "") or ""
+    if delta.tool_calls:
+        for tc in delta.tool_calls:
+            if not tc:
+                continue
+
+            if tc.id in tool_ids:
+                continue
+
+            tool_ids.add(tc.id)
+            tool_calls.append(tc.model_dump())
+
+    # TODO Handle audio, but not now will do later
+
+
+print("----")
+print(accumulated_content)
+print("----")
+print(accumulated_reasoning_content)
+print("----")
+print(tool_calls)
 
 
 # ModelResponseStream(id='yMG9aJa4MZzhz7IPwvPr2Qc', created=1757266377, model='gemini-2.5-flash', object='chat.completion.chunk', system_fingerprint=None, choices=[StreamingChoices(finish_reason=None, index=0, delta=Delta(provider_specific_fields=None, content='Hi there! Great! How can I help you today? What are you looking to work on?', role='assistant', function_call=None, tool_calls=None, audio=None), logprobs=None)], provider_specific_fields=None, citations=None, vertex_ai_grounding_metadata=[], vertex_ai_url_context_metadata=[], vertex_ai_safety_ratings=[], vertex_ai_citation_metadata=[])

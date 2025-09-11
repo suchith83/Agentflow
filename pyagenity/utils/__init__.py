@@ -37,7 +37,7 @@ from .reducers import add_messages, append_items, replace_messages, replace_valu
 #     simulate_streaming,
 #     stream_from_litellm_response,
 # )
-from .streamming import StreamChunk, StreamEvent
+from .streaming import StreamChunk, StreamEvent
 
 
 __all__ = [

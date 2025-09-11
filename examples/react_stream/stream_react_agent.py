@@ -133,37 +133,10 @@ async def run_stream_test() -> None:
         response_granularity=ResponseGranularity.LOW,
     )
     async for chunk in stream_gen:
-        meta = chunk.meta or {}
-        event = meta.get("event")
-        run_id = meta.get("run_id")
-        msg_id = meta.get("message_id")
-        node = meta.get("node")
-        step = meta.get("step")
-        if event == "delta":
-            logging.info(
-                "****** [delta] run=%s node=%s step=%s msg=%s delta=%r",
-                run_id,
-                node,
-                step,
-                msg_id,
-                chunk.delta,
-            )
-        else:
-            logging.info(
-                "***** [event] %s run=%s node=%s step=%s msg=%s",
-                event,
-                run_id,
-                node,
-                step,
-                msg_id,
-            )
-            if event == "graph_completed":
-                logging.info("**** result: %s", meta.get("result"))
-    logging.info("--- streaming end ---")
+        print(chunk.model_dump(), end="", flush=True)
 
 
 if __name__ == "__main__":
     import asyncio
 
-    logging.basicConfig(level=logging.INFO, format="%(message)s")
     asyncio.run(run_stream_test())

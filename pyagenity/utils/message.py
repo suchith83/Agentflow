@@ -3,6 +3,7 @@ import asyncio
 import logging
 from collections.abc import Awaitable
 from datetime import datetime
+import re
 from typing import Any, Literal
 from uuid import uuid4
 
@@ -92,6 +93,7 @@ class Message(BaseModel):
     role: Literal["user", "assistant", "system", "tool"]
     content: str
     tools_calls: list[dict[str, Any]] | None = None
+    # Mainly used for reply to tool calls
     tool_call_id: str | None = None
     function_call: dict[str, Any] | None = None
     reasoning: str | None = None
@@ -263,4 +265,42 @@ class Message(BaseModel):
             timestamp=datetime.now(),
             metadata=meta or {},
             tool_call_id=tool_call_id,
+        )
+
+    @classmethod
+    def create(
+        cls,
+        role: Literal["user", "assistant", "system", "tool"] = "assistant",
+        content: str = "",
+        reasoning: str = "",
+        message_id: str | None = None,
+        tool_call_id: str | None = None,
+        tools_calls: list[dict[str, Any]] | None = None,
+        meta: dict[str, Any] | None = None,
+        raw: dict[str, Any] | None = None,
+    ):
+        """
+        Create a tool message, optionally marking it as an error.
+
+        Args:
+            tool_call_id (str): The tool call identifier.
+            content (str): The message content.
+            is_error (bool): Whether this message represents an error.
+            message_id (str | None): Optional message ID.
+            meta (dict[str, Any] | None): Optional metadata.
+
+        Returns:
+            Message: The created tool message instance.
+        """
+        msg_id = generate_id(message_id)
+        return cls(
+            message_id=msg_id,
+            role=role,
+            content=content,
+            reasoning=reasoning,
+            timestamp=datetime.now(),
+            metadata=meta or {},
+            tools_calls=tools_calls,
+            tool_call_id=tool_call_id,
+            raw=raw,
         )

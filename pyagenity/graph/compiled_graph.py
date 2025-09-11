@@ -19,7 +19,7 @@ from pyagenity.utils import (
 )
 
 from .utils.invoke_handler import InvokeHandler
-from .utils.steam_handler import StreamHandler
+from .utils.stream_handler import StreamHandler
 
 
 if TYPE_CHECKING:

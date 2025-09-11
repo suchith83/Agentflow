@@ -2,12 +2,15 @@ import inspect
 import json
 import logging
 from collections.abc import Callable
-from typing import Any, AsyncIterable, Union
-
+from typing import Any, AsyncGenerator, AsyncIterable, AsyncIterator, Iterable, Union
+from litellm import CustomStreamWrapper
+from litellm.types.utils import ModelResponseStream
 from injectq import Inject
 
 from pyagenity.exceptions import NodeError
 from pyagenity.graph.tool_node import ToolNode
+from pyagenity.graph.utils.stream_utils import check_non_streaming
+from pyagenity.graph.utils.utils import process_node_result
 from pyagenity.publisher import BasePublisher, Event, EventType, SourceType
 from pyagenity.state import AgentState
 from pyagenity.utils import (
@@ -18,6 +21,7 @@ from pyagenity.utils import (
     Message,
     call_sync_or_async,
 )
+from pyagenity.utils.streaming import StreamChunk, StreamEvent
 
 
 logger = logging.getLogger(__name__)
@@ -81,7 +85,7 @@ class StreamNodeHandler:
         last_message: Message,
         state: "AgentState",
         config: dict[str, Any],
-    ) -> AsyncIterable[list[Message]]:
+    ) -> AsyncIterator[list[Message]]:
         logger.debug("Node '%s' calling tools from message", self.name)
         result: list[Message] = []
         if (
@@ -147,7 +151,7 @@ class StreamNodeHandler:
         state: "AgentState",
         config: dict[str, Any],
         callback_mgr: CallbackManager,
-    ) -> AsyncIterable[dict[str, Any]]:
+    ) -> AsyncIterable[dict[str, Any] | StreamChunk | Message]:
         logger.debug("Node '%s' calling normal function", self.name)
         result: dict[str, Any] = {}
 
@@ -167,11 +171,34 @@ class StreamNodeHandler:
             config,
         )
 
+        run_id = config.get("run_id", "")
+        cfg = {
+            "thread_id": config.get("thread_id", ""),
+            "run_id": run_id,
+            "run_timestamp": config.get("timestamp", ""),
+        }
+
+        last_message = state.context[-1] if state.context and len(state.context) > 0 else None
+
+        data = {
+            "node": self.name,
+            "last_message": last_message.model_dump() if last_message else None,
+        }
+
         try:
             logger.debug("Node '%s' executing before_invoke callbacks", self.name)
             # Execute before_invoke callbacks
             input_data = await callback_mgr.execute_before_invoke(context, input_data)
             logger.debug("Node '%s' executing function", self.name)
+
+            yield StreamChunk(
+                event=StreamEvent.NODE_EXECUTION,
+                event_type="Before",
+                run_id=run_id,
+                data=data,
+                metadata=cfg,
+            )
+
             # Execute the actual function
             result = await call_sync_or_async(
                 self.func,  # type: ignore
@@ -182,6 +209,99 @@ class StreamNodeHandler:
             logger.debug("Node '%s' executing after_invoke callbacks", self.name)
             # Execute after_invoke callbacks
             result = await callback_mgr.execute_after_invoke(context, input_data, result)
+
+            # Now lets convert the response here only, upstream will be easy to handle
+            ##############################################################################
+            ################### Logics for streaming ##########################
+            ##############################################################################
+            """
+            1. First check user sending any streaming or not, we can use AsyncIterable
+            If yes, we need to yield from it and collect chunks, we expect user are sending
+            chunks[text] in each yield, we will collect all and send as final response and
+            save inside message...
+            2. As this library has first class support for litellm, we will check if its
+            returning CustomStreamWrapper, if yes we will yield from it directly
+            3. If its normal response, we will convert to dict and send as normal response
+            """
+            # first check its sync and not streaming
+            messages = []
+            if check_non_streaming(result):
+                new_state, messages, next_node = process_node_result(result, state, messages)
+                yield StreamChunk(
+                    event=StreamEvent.NODE_EXECUTION,
+                    event_type="Before",
+                    run_id=run_id,
+                    data={
+                        "streaming": False,
+                        "node": self.name,
+                        "messages": [m.model_dump() for m in messages] if messages else [],
+                    },
+                    metadata=cfg,
+                )
+
+                yield {
+                    "is_non_streaming": True,
+                    "state": new_state,
+                    "messages": messages,
+                    "next_node": next_node,
+                }
+
+            # Now check its streaming
+            # Lets handle litellm streaming first
+
+            if isinstance(result, CustomStreamWrapper):
+                accumulated_content = ""
+                tool_calls = []
+                tool_ids = set()
+                accumulated_reasoning_content = ""
+                async for chunk in result:
+                    if not chunk:
+                        continue
+
+                    msg: ModelResponseStream = chunk  # type: ignore
+                    if msg is None:
+                        continue
+                    if msg.choices is None or len(msg.choices) == 0:
+                        continue
+                    delta = msg.choices[0].delta
+                    if delta is None:
+                        continue
+
+                    yield StreamChunk(
+                        event=StreamEvent.NODE_EXECUTION,
+                        event_type="After",
+                        run_id=run_id,
+                        data={
+                            "node": self.name,
+                            "delta": msg.model_dump(),
+                        },
+                        metadata=cfg,
+                    )
+
+                    accumulated_content += delta.content if delta.content else ""
+                    accumulated_reasoning_content += (
+                        delta.reasoning_content if delta.reasoning_content else ""
+                    )
+                    if delta.tool_calls:
+                        for tc in delta.tool_calls:
+                            if not tc:
+                                continue
+
+                            if tc.id in tool_ids:
+                                continue
+
+                            tool_ids.add(tc.id)
+                            tool_calls.append(tc.model_dump())
+
+                # Loop done, now send final response
+                message = Message.create(
+                    role="assistant",
+                    content=accumulated_content,
+                    reasoning=accumulated_reasoning_content,
+                    tools_calls=tool_calls,
+                    meta=cfg,
+                )
+                yield message
 
         except Exception as e:
             logger.warning(
@@ -196,20 +316,18 @@ class StreamNodeHandler:
                     self.name,
                 )
                 # Use recovery result instead of raising the error
-                result = recovery_result
+                yield recovery_result
             else:
                 # Re-raise the original error
                 logger.error("Node '%s' could not recover from error", self.name)
                 raise
-
-        yield result
 
     async def stream(
         self,
         config: dict[str, Any],
         state: AgentState,
         callback_mgr: CallbackManager = Inject[CallbackManager],
-    ) -> AsyncIterable[Any]:
+    ) -> AsyncGenerator[dict[str, Any] | StreamChunk | Message]:
         """Execute the node function with dependency injection support and callback hooks."""
         logger.info("Executing node '%s'", self.name)
         logger.debug(
@@ -245,6 +363,7 @@ class StreamNodeHandler:
                         state,
                         config,
                     )
+                    yield result
                     # Check if last message has tool calls to execute
                 else:
                     # No context, return available tools
@@ -258,9 +377,11 @@ class StreamNodeHandler:
                     config,
                     callback_mgr,
                 )
+                # async for r in result:
+                #     yield r
+                yield result
 
             logger.info("Node '%s' execution completed successfully", self.name)
-            yield result
         except Exception as e:
             # This is the final catch-all for node execution errors
             logger.exception("Node '%s' execution failed: %s", self.name, e)

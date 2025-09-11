@@ -21,7 +21,7 @@ from pyagenity.utils import (
     ResponseGranularity,
     add_messages,
 )
-from pyagenity.utils.streamming import StreamChunk
+from pyagenity.utils.streaming import StreamChunk
 
 
 StateT = TypeVar("StateT", bound=AgentState)
@@ -378,26 +378,26 @@ async def sync_data(
     messages: list[Message],
     trim: bool = False,
     checkpointer: BaseCheckpointer = Inject[BaseCheckpointer],  # will be auto-injected
-    context_manager: BaseContextManager | None = Inject[
-        BaseContextManager
-    ],  # will be auto-injected
-) -> None:
+    context_manager: BaseContextManager = Inject[BaseContextManager],  # will be auto-injected
+) -> bool:
     """Sync the current state and messages to the checkpointer."""
-    if not checkpointer:
-        logger.debug("No checkpointer available, skipping sync")
-        return  # Nothing to do
-
     import copy  # noqa: PLC0415
+
+    is_context_trimmed = False
 
     new_state = copy.deepcopy(state)
     # if context manager is available then utilize it
     if context_manager and trim:
         new_state = await context_manager.atrim_context(state)
+        is_context_trimmed = True
 
     # first sync with realtime then main db
     await call_realtime_sync(state, config, checkpointer)
     logger.debug("Persisting state and %d messages to checkpointer", len(messages))
 
-    await checkpointer.aput_state(config, new_state)
-    if messages:
-        await checkpointer.aput_messages(config, messages)
+    if checkpointer:
+        await checkpointer.aput_state(config, new_state)
+        if messages:
+            await checkpointer.aput_messages(config, messages)
+
+    return is_context_trimmed

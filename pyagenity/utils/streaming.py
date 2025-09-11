@@ -16,8 +16,6 @@ class StreamEvent(enum.StrEnum):
     """
 
     NODE_EXECUTION = "node_execution"  # Before Node Execution
-    TOKEN = "token"  # noqa: S105  # Streaming Tokens
-    MESSAGE = "message"  # Final Message
     TOOL_EXECUTION = "tool_execution"  # Before Tool Execution
     TOOL_RESULT = "tool_result"  # Tool Result
     MCP_TOOL_EXECUTION = "mcp_tool_execution"  # Before MCP Tool Execution
@@ -45,7 +43,7 @@ class StreamChunk(BaseModel):
         'Before'
     """
 
-    event: StreamEvent = Field(default=StreamEvent.MESSAGE)
+    event: StreamEvent = Field(default=StreamEvent.NODE)
     event_type: Literal["Before", "After"] = Field(default="Before")
     data: dict[str, Any] = Field(default_factory=dict)
     is_error: bool = Field(default=False)
