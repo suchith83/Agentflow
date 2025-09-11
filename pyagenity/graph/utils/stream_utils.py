@@ -1,6 +1,6 @@
 from litellm.types.utils import ModelResponse
 
-from pyagenity.utils import message
+from pyagenity.utils import Message
 from pyagenity.utils.command import Command
 
 
@@ -15,4 +15,4 @@ def check_non_streaming(result) -> bool:
     if isinstance(result, Command):
         return True
 
-    return bool(isinstance(result, message))
+    return bool(isinstance(result, Message))

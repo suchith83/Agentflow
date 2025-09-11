@@ -731,8 +731,10 @@ class ToolNode:
                 metadata=cfg,
             )
             yield message
+            return
 
         if name in self._funcs:
+            logger.debug("ENTERING IF BLOCK for tool '%s'", name)
             logger.debug("Tool '%s' found in local functions, executing internally", name)
             yield StreamChunk(
                 event=StreamEvent.TOOL_EXECUTION,
@@ -753,11 +755,14 @@ class ToolNode:
             data["message"] = result.model_dump()
             yield StreamChunk(
                 event=StreamEvent.TOOL_EXECUTION,
-                event_type="Before",
+                event_type="After",
                 run_id=run_id,
                 data=data,
                 metadata=cfg,
             )
+
+            yield result
+            return
 
         error_msg = f"Tool '{name}' not found."
         logger.warning(error_msg)

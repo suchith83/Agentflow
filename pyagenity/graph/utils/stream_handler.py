@@ -14,6 +14,7 @@ from pyagenity.utils import (
     END,
     Message,
     ResponseGranularity,
+    add_messages,
 )
 from pyagenity.utils.streaming import StreamChunk, StreamEvent
 
@@ -238,11 +239,11 @@ class StreamHandler[StateT: AgentState]:
                     if isinstance(rs, StreamChunk):
                         # nothing to block here for now
                         yield rs
-                    if isinstance(rs, dict) and "is_non_streaming" in rs:
+                    elif isinstance(rs, dict) and "is_non_streaming" in rs:
                         state = rs.get("state", state)
                         messages = rs.get("messages", messages)
                         next_node = rs.get("next_node", next_node)
-                    if isinstance(rs, Message):
+                    elif isinstance(rs, Message):
                         messages.append(rs)
                         logger.debug(
                             "Appended message from node '%s', total messages: %d",
@@ -254,7 +255,7 @@ class StreamHandler[StateT: AgentState]:
                         # if failed just log the error and continue
                         try:
                             state, messages, next_node = process_node_result(
-                                result,
+                                rs,  # Pass the individual item, not the async generator
                                 state,
                                 messages,
                             )
@@ -266,6 +267,11 @@ class StreamHandler[StateT: AgentState]:
                     next_node,
                     len(messages),
                 )
+
+                # Add collected messages to state context before determining next node
+                if messages:
+                    state.context = add_messages(state.context, messages)
+                    logger.debug("Added %d messages to state context", len(messages))
 
                 # Call realtime sync after node execution (if state/messages changed)
                 await call_realtime_sync(state, config)

@@ -1,6 +1,6 @@
 import logging
-from collections.abc import Callable
-from typing import Any, AsyncIterable, Union
+from collections.abc import AsyncIterable, Callable
+from typing import Any, Union
 
 from injectq import Inject
 
@@ -13,6 +13,7 @@ from pyagenity.utils import (
     Command,
 )
 from pyagenity.utils.message import Message
+from pyagenity.utils.streaming import StreamChunk
 
 from .tool_node import ToolNode
 
@@ -94,7 +95,7 @@ class Node:
         config: dict[str, Any],
         state: AgentState,
         callback_mgr: CallbackManager = Inject[CallbackManager],
-    ) -> AsyncIterable[dict[str, Any] | Message]:
+    ) -> AsyncIterable[dict[str, Any] | StreamChunk | Message]:
         """Stream the node function with dependency injection support and callback hooks."""
         result = self.stream_handler.stream(
             config,
@@ -102,4 +103,5 @@ class Node:
             callback_mgr,
         )
 
-        yield result
+        async for item in result:
+            yield item

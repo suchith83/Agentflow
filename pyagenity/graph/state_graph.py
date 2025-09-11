@@ -160,7 +160,6 @@ class StateGraph[StateT: AgentState]:
         self._container.bind_instance(
             BaseIDGenerator,
             self._id_generator,
-            allow_none=True,
             allow_concrete=True,
         )
         self._container.bind("generated_id_type", self._id_generator.id_type)

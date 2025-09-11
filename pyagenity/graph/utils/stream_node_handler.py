@@ -1,11 +1,12 @@
 import inspect
 import json
 import logging
-from collections.abc import Callable
-from typing import Any, AsyncGenerator, AsyncIterable, AsyncIterator, Iterable, Union
+from collections.abc import AsyncGenerator, AsyncIterable, Callable
+from typing import Any, Union
+
+from injectq import Inject
 from litellm import CustomStreamWrapper
 from litellm.types.utils import ModelResponseStream
-from injectq import Inject
 
 from pyagenity.exceptions import NodeError
 from pyagenity.graph.tool_node import ToolNode
@@ -16,7 +17,6 @@ from pyagenity.state import AgentState
 from pyagenity.utils import (
     CallbackContext,
     CallbackManager,
-    Command,
     InvocationType,
     Message,
     call_sync_or_async,
@@ -69,7 +69,7 @@ class StreamNodeHandler:
         logger.debug("Tool arguments: %s", function_args)
 
         # Execute the tool function with injectable parameters
-        tool_result = await self.func.stream(  # type: ignore
+        tool_result_gen = self.func.stream(  # type: ignore
             function_name,  # type: ignore
             function_args,
             tool_call_id=tool_call_id,
@@ -78,40 +78,36 @@ class StreamNodeHandler:
         )
         logger.debug("Node '%s' tool execution completed successfully", self.name)
 
-        yield tool_result
+        async for result in tool_result_gen:
+            if isinstance(result, Message):
+                yield result
 
     async def _call_tools(
         self,
         last_message: Message,
         state: "AgentState",
         config: dict[str, Any],
-    ) -> AsyncIterator[list[Message]]:
+    ) -> AsyncIterable[Message]:
         logger.debug("Node '%s' calling tools from message", self.name)
-        result: list[Message] = []
         if (
             hasattr(last_message, "tools_calls")
             and last_message.tools_calls
             and len(last_message.tools_calls) > 0
         ):
-            # Execute the first tool call for now
-            tool_call = last_message.tools_calls[0]
+            # Execute tool calls
             for tool_call in last_message.tools_calls:
-                res = self._handle_single_tool(
+                result_gen = self._handle_single_tool(
                     tool_call,
                     state,
                     config,
                 )
-                async for r in res:
-                    if isinstance(r, Message):
-                        result.append(r)
-                    else:
-                        yield r
+                async for result in result_gen:
+                    if isinstance(result, Message):
+                        yield result
         else:
             # No tool calls to execute, return available tools
             logger.exception("Node '%s': No tool calls to execute", self.name)
             raise NodeError("No tool calls to execute")
-
-        yield result
 
     def _prepare_input_data(
         self,
@@ -279,9 +275,7 @@ class StreamNodeHandler:
                     )
 
                     accumulated_content += delta.content if delta.content else ""
-                    accumulated_reasoning_content += (
-                        delta.reasoning_content if delta.reasoning_content else ""
-                    )
+                    accumulated_reasoning_content += getattr(delta, "reasoning_content", "") or ""
                     if delta.tool_calls:
                         for tc in delta.tool_calls:
                             if not tc:
@@ -363,7 +357,8 @@ class StreamNodeHandler:
                         state,
                         config,
                     )
-                    yield result
+                    async for item in result:
+                        yield item
                     # Check if last message has tool calls to execute
                 else:
                     # No context, return available tools
@@ -377,9 +372,8 @@ class StreamNodeHandler:
                     config,
                     callback_mgr,
                 )
-                # async for r in result:
-                #     yield r
-                yield result
+                async for item in result:
+                    yield item
 
             logger.info("Node '%s' execution completed successfully", self.name)
         except Exception as e:
