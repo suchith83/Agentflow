@@ -290,11 +290,12 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
 
     def _serialize_state(self, state: StateT) -> str:
         """Serialize state to JSON string for storage."""
+
         def enum_handler(obj):
             if isinstance(obj, Enum):
                 return obj.value
             return str(obj)
-        
+
         return json.dumps(state.model_dump(), default=enum_handler)
 
     def _deserialize_state(self, data: str, state_class: type[StateT]) -> StateT:
