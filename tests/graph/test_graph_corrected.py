@@ -101,7 +101,8 @@ class TestToolNode:
 
         tool_node = ToolNode([tool1, tool2])
         assert hasattr(tool_node, "all_tools")  # noqa: S101
-        assert hasattr(tool_node, "execute")  # noqa: S101
+        assert hasattr(tool_node, "invoke")  # noqa: S101
+        assert hasattr(tool_node, "stream")  # noqa: S101
 
     @pytest.mark.asyncio
     async def test_tool_node_all_tools(self):
