@@ -48,7 +48,17 @@ async def main_agent(
     """
 
     messages = convert_messages(
-        system_prompts=[{"role": "system", "content": prompts}],
+        system_prompts=[
+            {
+                "role": "system",
+                "content": prompts,
+                "cache_control": {
+                    "type": "ephemeral",
+                    "ttl": "3600s",  # 👈 Cache for 1 hour
+                },
+            },
+            {"role": "user", "content": "Today Date is 2024-06-15"},
+        ],
         state=state,
     )
 
