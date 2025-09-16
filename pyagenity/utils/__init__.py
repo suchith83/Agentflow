@@ -38,7 +38,6 @@ from .streaming import ContentType, Event, EventModel, EventType
 #     simulate_streaming,
 #     stream_from_litellm_response,
 # )
-from .streaming3 import StreamChunk, StreamEvent
 
 
 __all__ = [
@@ -59,8 +58,6 @@ __all__ = [
     "OnErrorCallback",
     "ResponseGranularity",
     "StorageLevel",
-    "StreamChunk",
-    "StreamEvent",
     "TokenUsages",
     "add_messages",
     "append_items",

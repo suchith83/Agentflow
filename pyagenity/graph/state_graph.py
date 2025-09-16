@@ -10,6 +10,7 @@ from pyagenity.publisher import BasePublisher
 from pyagenity.state import AgentState, BaseContextManager
 from pyagenity.store import BaseStore
 from pyagenity.utils import END, START, CallbackManager
+from pyagenity.utils.background_task_manager import BackgroundTaskManager
 from pyagenity.utils.id_generator import BaseIDGenerator, DefaultIDGenerator
 
 from .edge import Edge
@@ -123,6 +124,10 @@ class StateGraph[StateT: AgentState]:
             self._container = container
             self._container.activate()
 
+        # Register task_manager, for async tasks
+        # This will be used to run background tasks
+        self._task_manager = BackgroundTaskManager()
+
         # now setup the graph
         self._setup()
 
@@ -167,6 +172,13 @@ class StateGraph[StateT: AgentState]:
         self._container.bind_factory(
             "generated_id",
             lambda: self._id_generator.generate(),
+        )
+
+        # Save BackgroundTaskManager
+        self._container.bind_instance(
+            BackgroundTaskManager,
+            self._task_manager,
+            allow_concrete=False,
         )
 
     def add_node(
@@ -402,6 +414,7 @@ class StateGraph[StateT: AgentState]:
             checkpointer=checkpointer,
             publisher=self._publisher,
             store=store,
+            task_manager=self._task_manager,
         )
 
         self._container.bind(CompiledGraph, app)

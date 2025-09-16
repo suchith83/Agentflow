@@ -1,5 +1,4 @@
 import asyncio
-import json
 import logging
 from collections import defaultdict
 from typing import TYPE_CHECKING, Any, TypeVar
@@ -51,9 +50,8 @@ class InMemoryCheckpointer[StateT: AgentState](BaseCheckpointer[StateT]):
     def _get_config_key(self, config: dict[str, Any]) -> str:
         """Generate a string key from config dict for storage indexing."""
         # Sort keys for consistent hashing
-        items = sorted(config.items())
-        rs = json.dumps(items)
-        return str(hash(rs))
+        thread_id = config.get("thread_id", "")
+        return str(thread_id)
 
     # -------------------------
     # State methods Async

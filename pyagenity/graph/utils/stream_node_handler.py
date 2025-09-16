@@ -11,8 +11,7 @@ from litellm.types.utils import ModelResponseStream
 from pyagenity.exceptions import NodeError
 from pyagenity.graph.tool_node import ToolNode
 from pyagenity.graph.utils.stream_utils import check_non_streaming
-from pyagenity.graph.utils.utils import process_node_result
-from pyagenity.publisher import BasePublisher, Event, EventType, SourceType
+from pyagenity.graph.utils.utils import process_node_result, publish_event
 from pyagenity.state import AgentState
 from pyagenity.utils import (
     CallbackContext,
@@ -21,7 +20,7 @@ from pyagenity.utils import (
     Message,
     call_sync_or_async,
 )
-from pyagenity.utils.streaming import StreamChunk, StreamEvent
+from pyagenity.utils.streaming import ContentType, Event, EventModel, EventType
 
 
 logger = logging.getLogger(__name__)
@@ -32,23 +31,9 @@ class StreamNodeHandler:
         self,
         name: str,
         func: Union[Callable, "ToolNode"],
-        publisher: BasePublisher | None = Inject[BasePublisher],
     ):
         self.name = name
         self.func = func
-        self.publisher = publisher
-
-    async def _publish_event(
-        self,
-        event: Event,
-    ) -> None:
-        """Publish an event if publisher is configured."""
-        if self.publisher:
-            try:
-                await self.publisher.publish(event)
-                logger.debug("Published event: %s", event)
-            except Exception as e:
-                logger.error("Failed to publish event: %s", e)
 
     async def _handle_single_tool(
         self,
@@ -147,9 +132,9 @@ class StreamNodeHandler:
         state: "AgentState",
         config: dict[str, Any],
         callback_mgr: CallbackManager,
-    ) -> AsyncIterable[dict[str, Any] | StreamChunk | Message]:
+    ) -> AsyncIterable[dict[str, Any] | EventModel | Message]:
         logger.debug("Node '%s' calling normal function", self.name)
-        result: dict[str, Any] = {}
+        result: dict[str, Any] | Message = {}
 
         logger.debug("Node '%s' is a regular function, executing with callbacks", self.name)
         # This is a regular function - likely AI function
@@ -167,33 +152,37 @@ class StreamNodeHandler:
             config,
         )
 
-        run_id = config.get("run_id", "")
-        cfg = {
-            "thread_id": config.get("thread_id", ""),
-            "run_id": run_id,
-            "run_timestamp": config.get("timestamp", ""),
-        }
-
         last_message = state.context[-1] if state.context and len(state.context) > 0 else None
 
-        data = {
-            "node": self.name,
-            "last_message": last_message.model_dump() if last_message else None,
-        }
+        event = EventModel.default(
+            config,
+            data={"state": state.model_dump()},
+            event=Event.NODE_EXECUTION,
+            content_type=[ContentType.STATE],
+            node_name=self.name,
+            extra={
+                "node": self.name,
+                "function_name": getattr(self.func, "__name__", str(self.func)),
+                "last_message": last_message.model_dump() if last_message else None,
+            },
+        )
+        publish_event(event)
+        yield event
+
+        stream_event = EventModel.stream(
+            config,
+            node_name=self.name,
+        )
 
         try:
             logger.debug("Node '%s' executing before_invoke callbacks", self.name)
             # Execute before_invoke callbacks
             input_data = await callback_mgr.execute_before_invoke(context, input_data)
             logger.debug("Node '%s' executing function", self.name)
-
-            yield StreamChunk(
-                event=StreamEvent.NODE_EXECUTION,
-                event_type="Before",
-                run_id=run_id,
-                data=data,
-                metadata=cfg,
-            )
+            event.event_type = EventType.PROGRESS
+            event.content = "Function execution started"
+            yield event
+            publish_event(event)
 
             # Execute the actual function
             result = await call_sync_or_async(
@@ -223,17 +212,13 @@ class StreamNodeHandler:
             messages = []
             if check_non_streaming(result):
                 new_state, messages, next_node = process_node_result(result, state, messages)
-                yield StreamChunk(
-                    event=StreamEvent.NODE_EXECUTION,
-                    event_type="Before",
-                    run_id=run_id,
-                    data={
-                        "streaming": False,
-                        "node": self.name,
-                        "messages": [m.model_dump() for m in messages] if messages else [],
-                    },
-                    metadata=cfg,
-                )
+                event.data["state"] = new_state.model_dump()
+                event.event_type = EventType.END
+                event.content = "Function execution completed"
+                event.data["messages"] = [m.model_dump() for m in messages] if messages else []
+                event.data["next_node"] = next_node
+                publish_event(event)
+                yield event
 
                 yield {
                     "is_non_streaming": True,
@@ -241,6 +226,7 @@ class StreamNodeHandler:
                     "messages": messages,
                     "next_node": next_node,
                 }
+                return  # done
 
             # Now check its streaming
             # Lets handle litellm streaming first
@@ -250,6 +236,7 @@ class StreamNodeHandler:
                 tool_calls = []
                 tool_ids = set()
                 accumulated_reasoning_content = ""
+                seq = 0
                 async for chunk in result:
                     if not chunk:
                         continue
@@ -263,16 +250,13 @@ class StreamNodeHandler:
                     if delta is None:
                         continue
 
-                    yield StreamChunk(
-                        event=StreamEvent.NODE_EXECUTION,
-                        event_type="After",
-                        run_id=run_id,
-                        data={
-                            "node": self.name,
-                            "delta": msg.model_dump(),
-                        },
-                        metadata=cfg,
-                    )
+                    stream_event.content = delta.content if delta.content else ""
+                    stream_event.data = {
+                        "reasoning_content": getattr(delta, "reasoning_content", "") or "",
+                    }
+                    seq += 1
+                    stream_event.sequence_id = seq
+                    yield stream_event
 
                     accumulated_content += delta.content if delta.content else ""
                     accumulated_reasoning_content += getattr(delta, "reasoning_content", "") or ""
@@ -287,15 +271,59 @@ class StreamNodeHandler:
                             tool_ids.add(tc.id)
                             tool_calls.append(tc.model_dump())
 
+                    # yield tool calls as well
+                    if tool_calls and len(tool_calls) > 0:
+                        seq += 1
+                        stream_event.data["tool_calls"] = tool_calls
+                        stream_event.content = ""
+                        stream_event.delta = True
+                        stream_event.sequence_id = seq
+                        yield stream_event
+
                 # Loop done, now send final response
                 message = Message.create(
                     role="assistant",
                     content=accumulated_content,
                     reasoning=accumulated_reasoning_content,
                     tools_calls=tool_calls,
-                    meta=cfg,
+                    meta={
+                        "node": self.name,
+                        "function_name": getattr(self.func, "__name__", str(self.func)),
+                        "last_message": last_message.model_dump() if last_message else None,
+                    },
                 )
+                messages.append(message)
+
+                stream_event.event_type = EventType.END
+                stream_event.content = accumulated_content
+                stream_event.sequence_id = seq + 1
+                stream_event.delta = False
+                stream_event.content_type = [
+                    ContentType.MESSAGE,
+                    ContentType.REASONING,
+                    ContentType.TEXT,
+                ]
+                stream_event.data = {
+                    "state": state.model_dump(),
+                    "messages": [m.model_dump() for m in messages] if messages else [],
+                    "next_node": None,
+                    "reasoning_content": accumulated_reasoning_content,
+                    "final_response": accumulated_content,
+                    "tool_calls": tool_calls,
+                }
+                yield stream_event
+
+                logger.info("Node '%s' execution completed successfully", self.name)
+                # yield message, that will be collected upstream
                 yield message
+
+            # Things are done, so publish event and yield final response
+            event.event_type = EventType.END
+            event.content = "Function execution completed"
+            event.data["message"] = messages[0].model_dump() if messages else None
+            event.content_type = [ContentType.MESSAGE, ContentType.STATE]
+            publish_event(event)
+            yield event
 
         except Exception as e:
             logger.warning(
@@ -304,16 +332,29 @@ class StreamNodeHandler:
             # Execute error callbacks
             recovery_result = await callback_mgr.execute_on_error(context, input_data, e)
 
-            if recovery_result is not None:
+            if isinstance(recovery_result, Message):
                 logger.info(
                     "Node '%s' recovered from error using callback result",
                     self.name,
                 )
                 # Use recovery result instead of raising the error
+                event.event_type = EventType.END
+                event.content = "Function execution recovered from error"
+                event.data["message"] = recovery_result.model_dump()
+                event.content_type = [ContentType.MESSAGE, ContentType.STATE]
+                publish_event(event)
+                yield event
+
                 yield recovery_result
             else:
                 # Re-raise the original error
                 logger.error("Node '%s' could not recover from error", self.name)
+                event.event_type = EventType.ERROR
+                event.content = f"Function execution failed: {e}"
+                event.data["error"] = str(e)
+                event.content_type = [ContentType.ERROR, ContentType.STATE]
+                publish_event(event)
+                yield event
                 raise
 
     async def stream(
@@ -321,7 +362,7 @@ class StreamNodeHandler:
         config: dict[str, Any],
         state: AgentState,
         callback_mgr: CallbackManager = Inject[CallbackManager],
-    ) -> AsyncGenerator[dict[str, Any] | StreamChunk | Message]:
+    ) -> AsyncGenerator[dict[str, Any] | EventModel | Message]:
         """Execute the node function with dependency injection support and callback hooks."""
         logger.info("Executing node '%s'", self.name)
         logger.debug(
@@ -331,19 +372,11 @@ class StreamNodeHandler:
             list(config.keys()) if config else [],
         )
 
-        await self._publish_event(
-            Event(
-                source=SourceType.NODE,
-                event_type=EventType.RUNNING,
-                payload={
-                    "state": state.model_dump(
-                        exclude={"execution_meta"},
-                        exclude_none=True,
-                    ),
-                    "config": config,
-                },
-            )
-        )
+        # In this function publishing events not required
+        # If its tool node, its already handled there, from start to end
+        # In this class we need to handle normal function calls only
+        # We will yield events from here only for normal function calls
+        # ToolNode will yield events from its own stream method
 
         try:
             if isinstance(self.func, ToolNode):

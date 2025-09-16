@@ -10,10 +10,9 @@ from pyagenity.publisher import BasePublisher
 from pyagenity.state import AgentState
 from pyagenity.utils import (
     CallbackManager,
-    Command,
+    EventModel,
+    Message,
 )
-from pyagenity.utils.message import Message
-from pyagenity.utils.streaming import StreamChunk
 
 from .tool_node import ToolNode
 
@@ -68,13 +67,11 @@ class Node:
         self.invoke_handler = InvokeNodeHandler(
             name,
             func,
-            publisher,
         )
 
         self.stream_handler = StreamNodeHandler(
             name,
             func,
-            publisher,
         )
 
     async def execute(
@@ -82,7 +79,7 @@ class Node:
         config: dict[str, Any],
         state: AgentState,
         callback_mgr: CallbackManager = Inject[CallbackManager],
-    ) -> dict[str, Any] | Command:
+    ) -> dict[str, Any] | list[Message]:
         """Execute the node function with dependency injection support and callback hooks."""
         return await self.invoke_handler.invoke(
             config,
@@ -95,7 +92,7 @@ class Node:
         config: dict[str, Any],
         state: AgentState,
         callback_mgr: CallbackManager = Inject[CallbackManager],
-    ) -> AsyncIterable[dict[str, Any] | StreamChunk | Message]:
+    ) -> AsyncIterable[dict[str, Any] | EventModel | Message]:
         """Stream the node function with dependency injection support and callback hooks."""
         result = self.stream_handler.stream(
             config,

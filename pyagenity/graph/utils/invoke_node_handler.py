@@ -8,7 +8,7 @@ from injectq import Inject
 
 from pyagenity.exceptions import NodeError
 from pyagenity.graph.tool_node import ToolNode
-from pyagenity.publisher import BasePublisher, Event, EventType, SourceType
+from pyagenity.publisher import BasePublisher
 from pyagenity.state import AgentState
 from pyagenity.utils import (
     CallbackContext,
@@ -18,7 +18,8 @@ from pyagenity.utils import (
     Message,
     call_sync_or_async,
 )
-
+from pyagenity.utils.streaming import Event, EventModel, EventType, ContentType
+from pyagenity.graph.utils.utils import publish_event, process_node_result
 
 logger = logging.getLogger(__name__)
 
@@ -33,18 +34,6 @@ class InvokeNodeHandler:
         self.name = name
         self.func = func
         self.publisher = publisher
-
-    async def _publish_event(
-        self,
-        event: Event,
-    ) -> None:
-        """Publish an event if publisher is configured."""
-        if self.publisher:
-            try:
-                await self.publisher.publish(event)
-                logger.debug("Published event: %s", event)
-            except Exception as e:
-                logger.error("Failed to publish event: %s", e)
 
     async def _handle_single_tool(
         self,
@@ -157,17 +146,38 @@ class InvokeNodeHandler:
             metadata={"config": config},
         )
 
-        # Execute before_invoke callbacks
+        # Event publishing logic (similar to stream_node_handler)
+
         input_data = self._prepare_input_data(
             state,
             config,
         )
+
+        last_message = state.context[-1] if state.context and len(state.context) > 0 else None
+
+        event = EventModel.default(
+            config,
+            data={"state": state.model_dump()},
+            event=Event.NODE_EXECUTION,
+            content_type=[ContentType.STATE],
+            node_name=self.name,
+            extra={
+                "node": self.name,
+                "function_name": getattr(self.func, "__name__", str(self.func)),
+                "last_message": last_message.model_dump() if last_message else None,
+            },
+        )
+        publish_event(event)
 
         try:
             logger.debug("Node '%s' executing before_invoke callbacks", self.name)
             # Execute before_invoke callbacks
             input_data = await callback_mgr.execute_before_invoke(context, input_data)
             logger.debug("Node '%s' executing function", self.name)
+            event.event_type = EventType.PROGRESS
+            event.metadata["status"] = "Function execution started"
+            publish_event(event)
+
             # Execute the actual function
             result = await call_sync_or_async(
                 self.func,  # type: ignore
@@ -178,6 +188,22 @@ class InvokeNodeHandler:
             logger.debug("Node '%s' executing after_invoke callbacks", self.name)
             # Execute after_invoke callbacks
             result = await callback_mgr.execute_after_invoke(context, input_data, result)
+
+            # Process result and publish END event
+            messages = []
+            new_state, messages, next_node = process_node_result(result, state, messages)
+            event.data["state"] = new_state.model_dump()
+            event.event_type = EventType.END
+            event.metadata["status"] = "Function execution completed"
+            event.data["messages"] = [m.model_dump() for m in messages] if messages else []
+            event.data["next_node"] = next_node
+            publish_event(event)
+
+            return {
+                "state": new_state,
+                "messages": messages,
+                "next_node": next_node,
+            }
 
         except Exception as e:
             logger.warning(
@@ -192,20 +218,31 @@ class InvokeNodeHandler:
                     self.name,
                 )
                 # Use recovery result instead of raising the error
-                result = recovery_result
-            else:
-                # Re-raise the original error
-                logger.error("Node '%s' could not recover from error", self.name)
-                raise
-
-        return result
+                event.event_type = EventType.END
+                event.metadata["status"] = "Function execution recovered from error"
+                event.data["message"] = recovery_result.model_dump()
+                event.content_type = [ContentType.MESSAGE, ContentType.STATE]
+                publish_event(event)
+                return {
+                    "state": state,
+                    "messages": [recovery_result],
+                    "next_node": None,
+                }
+            # Re-raise the original error
+            logger.error("Node '%s' could not recover from error", self.name)
+            event.event_type = EventType.ERROR
+            event.metadata["status"] = f"Function execution failed: {e}"
+            event.data["error"] = str(e)
+            event.content_type = [ContentType.ERROR, ContentType.STATE]
+            publish_event(event)
+            raise
 
     async def invoke(
         self,
         config: dict[str, Any],
         state: AgentState,
         callback_mgr: CallbackManager = Inject[CallbackManager],
-    ) -> dict[str, Any] | Command:
+    ) -> dict[str, Any] | list[Message]:
         """Execute the node function with dependency injection support and callback hooks."""
         logger.info("Executing node '%s'", self.name)
         logger.debug(
@@ -213,20 +250,6 @@ class InvokeNodeHandler:
             self.name,
             len(state.context) if state.context else 0,
             list(config.keys()) if config else [],
-        )
-
-        await self._publish_event(
-            Event(
-                source=SourceType.NODE,
-                event_type=EventType.RUNNING,
-                payload={
-                    "state": state.model_dump(
-                        exclude={"execution_meta"},
-                        exclude_none=True,
-                    ),
-                    "config": config,
-                },
-            )
         )
 
         try:
@@ -241,7 +264,6 @@ class InvokeNodeHandler:
                         state,
                         config,
                     )
-                    # Check if last message has tool calls to execute
                 else:
                     # No context, return available tools
                     error_msg = "No context available for tool execution"
@@ -256,7 +278,7 @@ class InvokeNodeHandler:
                 )
 
             logger.info("Node '%s' execution completed successfully", self.name)
-            return result  # pyright: ignore[reportReturnType]
+            return result
         except Exception as e:
             # This is the final catch-all for node execution errors
             logger.exception("Node '%s' execution failed: %s", self.name, e)

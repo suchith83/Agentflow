@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 from collections.abc import Callable
 from typing import Any, TypeVar
@@ -8,7 +9,7 @@ from injectq import Inject
 from litellm.types.utils import ModelResponse
 
 from pyagenity.checkpointer import BaseCheckpointer
-from pyagenity.publisher import Event, EventType, SourceType
+from pyagenity.publisher.base_publisher import BasePublisher
 from pyagenity.state import AgentState, ExecutionStatus
 from pyagenity.state.base_context import BaseContextManager
 from pyagenity.state.execution_state import ExecutionState as ExecMeta
@@ -20,6 +21,8 @@ from pyagenity.utils import (
     ResponseGranularity,
     add_messages,
 )
+from pyagenity.utils.background_task_manager import BackgroundTaskManager
+from pyagenity.utils.streaming import EventModel
 
 
 StateT = TypeVar("StateT", bound=AgentState)
@@ -154,28 +157,62 @@ async def load_or_create_state[StateT: AgentState](
     return state  # type: ignore[return-value]
 
 
-def get_default_event(
-    state: AgentState,
-    source: SourceType = SourceType.GRAPH,
-    event_type: EventType = EventType.INITIALIZE,
-    input_data: dict[str, Any] | None = None,
-    config: dict[str, Any] | None = None,
-    meta: dict[str, Any] | None = None,
-) -> Event:
-    metadata = meta or {}
-    metadata["step"] = state.execution_meta.step
-    metadata["current_node"] = state.execution_meta.current_node
+# def get_default_event(
+#     state: AgentState,
+#     source: str = "graph",
+#     event_type: str = "initialize",
+#     input_data: dict[str, Any] | None = None,
+#     config: dict[str, Any] | None = None,
+#     meta: dict[str, Any] | None = None,
+# ) -> Event:
+#     from pyagenity.utils.streaming import EventModel  # noqa: PLC0415
 
-    return Event(
-        source=source,
-        event_type=event_type,
-        payload={
-            "input_keys": list(input_data.keys()) if input_data else [],
-            "is_resume": state.is_interrupted(),
-        },
-        meta=metadata,
-        config=config or {},
-    )
+#     metadata = meta or {}
+#     metadata["step"] = state.execution_meta.step
+#     metadata["current_node"] = state.execution_meta.current_node
+
+#     # Map old SourceType to new Event enum
+#     if source == "message":
+#         mapped_event = StreamEvent.MESSAGE
+#     elif source == "state":
+#         mapped_event = StreamEvent.STATE
+#     elif source == "node":
+#         mapped_event = StreamEvent.NODE_EXECUTION
+#     elif source == "tool":
+#         mapped_event = StreamEvent.TOOL_EXECUTION
+#     else:  # graph or unknown
+#         mapped_event = StreamEvent.STATE
+
+#     # Map old EventType to new EventType enum
+#     from pyagenity.utils.streaming import EventType as StreamEventType
+
+#     if event_type == "initialize":
+#         mapped_event_type = StreamEventType.START
+#     elif event_type == "invoked":
+#         mapped_event_type = StreamEventType.START
+#     elif event_type == "running":
+#         mapped_event_type = StreamEventType.PROGRESS
+#     elif event_type == "completed":
+#         mapped_event_type = StreamEventType.END
+#     elif event_type == "interrupted":
+#         mapped_event_type = StreamEventType.END
+#     elif event_type == "error":
+#         mapped_event_type = StreamEventType.END
+#     else:
+#         mapped_event_type = StreamEventType.UPDATE
+
+#     return EventModel(
+#         event=mapped_event,
+#         event_type=mapped_event_type,
+#         data={
+#             "input_keys": list(input_data.keys()) if input_data else [],
+#             "is_resume": state.is_interrupted(),
+#             "config": config or {},
+#         },
+#         metadata=metadata,
+#         node_name=state.execution_meta.current_node,
+#         run_id=config.get("run_id", "") if config else "",
+#     )
 
 
 def process_node_result[StateT: AgentState](
@@ -399,3 +436,26 @@ async def sync_data(
             await checkpointer.aput_messages(config, messages)
 
     return is_context_trimmed
+
+
+async def _publish_event_task(
+    event: EventModel,
+    publisher: BasePublisher | None,
+) -> None:
+    """Publish an event if publisher is configured."""
+    if publisher:
+        try:
+            await publisher.publish(event)
+            logger.debug("Published event: %s", event)
+        except Exception as e:
+            logger.error("Failed to publish event: %s", e)
+
+
+def publish_event(
+    event: EventModel,
+    publisher: BasePublisher | None = Inject[BasePublisher],
+    task_manager: BackgroundTaskManager = Inject[BackgroundTaskManager],
+) -> None:
+    """Publish an event if publisher is configured."""
+    # Store the task to prevent it from being garbage collected
+    task_manager.create_task(_publish_event_task(event, publisher))
