@@ -4,6 +4,8 @@ import logging
 from enum import Enum
 from typing import Any, TypeVar
 
+from injectq import InjectQ
+
 
 try:
     import asyncpg
@@ -107,7 +109,7 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
             )
 
         self.user_id_type = kwargs.get("user_id_type", "string")
-        self.id_type = kwargs.get("id_type", "string")
+        self.id_type = InjectQ.get_instance().try_get("generated_id_type", "string")
         self.cache_ttl = kwargs.get("cache_ttl", DEFAULT_CACHE_TTL)
         self.release_resources = kwargs.get("release_resources", False)
         self._schema_initialized = False
