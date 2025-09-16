@@ -1,22 +1,25 @@
 from dotenv import load_dotenv
-from injectq import Inject, InjectQ, inject, injectq
-from injectq.core.context import ContainerContext
+from injectq import Inject, InjectQ
 
 from pyagenity.checkpointer import InMemoryCheckpointer
-from pyagenity.checkpointer.base_checkpointer import BaseCheckpointer
 from pyagenity.graph import StateGraph, ToolNode
 from pyagenity.state.agent_state import AgentState
 from pyagenity.store.base_store import BaseStore
 from pyagenity.utils import Message
 from pyagenity.utils.callbacks import CallbackManager
 from pyagenity.utils.constants import END
-from pyagenity.utils.converter import convert_messages
 
 
 load_dotenv()
 
+
+class A:
+    pass
+
+
 checkpointer = InMemoryCheckpointer()
 container = InjectQ.get_instance()
+container.bind_instance(A, A())
 
 
 def get_weather(
@@ -25,6 +28,7 @@ def get_weather(
     state: AgentState,
     config: dict,
     checkpointer: InMemoryCheckpointer = Inject[InMemoryCheckpointer],
+    a: A = Inject[A],
 ) -> Message:
     """
     Get the current weather for a specific location.

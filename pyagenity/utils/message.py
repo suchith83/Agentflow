@@ -3,7 +3,6 @@ import asyncio
 import logging
 from collections.abc import Awaitable
 from datetime import datetime
-import re
 from typing import Any, Literal
 from uuid import uuid4
 

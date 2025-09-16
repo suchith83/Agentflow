@@ -1,10 +1,8 @@
-import asyncio
 from typing import Any
 
 from dotenv import load_dotenv
 from fastmcp import Client
-from litellm import acompletion, completion
-from mcp import Tool
+from litellm import acompletion
 
 from pyagenity.checkpointer import InMemoryCheckpointer
 from pyagenity.graph import StateGraph, ToolNode
@@ -12,7 +10,6 @@ from pyagenity.state.agent_state import AgentState
 from pyagenity.utils import Message
 from pyagenity.utils.constants import END
 from pyagenity.utils.converter import convert_messages
-from pyagenity.utils.injectable import InjectState, InjectToolCallID
 
 
 load_dotenv()
@@ -24,7 +21,11 @@ config = {
         "weather": {
             "url": "http://127.0.0.1:8000/mcp",
             "transport": "streamable-http",
-        }
+        },
+        "github": {
+            "url": "http://127.0.0.1:8000/mcp",
+            "transport": "streamable-http",
+        },
     }
 }
 

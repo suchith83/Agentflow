@@ -318,7 +318,6 @@ class InvokeHandler[StateT: AgentState]:
             len(input_data) if input_data else 0,
             response_granularity,
         )
-        config = config or {}
         input_data = input_data or {}
 
         # Load or initialize state

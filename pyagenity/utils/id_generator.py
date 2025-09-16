@@ -9,12 +9,9 @@ import enum
 import secrets
 import string
 import time
-from typing import Awaitable
 import uuid
 from abc import ABC, abstractmethod
-
-
-# TODO: Allow async also
+from collections.abc import Awaitable
 
 
 class IDType(enum.StrEnum):
