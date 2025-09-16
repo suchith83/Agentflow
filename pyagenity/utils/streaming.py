@@ -21,7 +21,8 @@ class StreamEvent(enum.StrEnum):
     MCP_TOOL_EXECUTION = "mcp_tool_execution"  # Before MCP Tool Execution
     MCP_TOOL_RESULT = "mcp_tool_result"  # MCP Tool Result
     INTERRUPTED = "interrupted"  # Before Interrupted
-    NODE = "node"  # Which node is being executed or when changed
+    MESSAGE = "message"  # New Message
+    MESSAGE_LIST = "message_list"  # New Message List
     STATE = "state"  # Current State
     CONTEXT_TRIMMING = "context_trimming"  # When context is being trimmed
     ERROR = "error"  # If any error occurs
@@ -43,7 +44,7 @@ class StreamChunk(BaseModel):
         'Before'
     """
 
-    event: StreamEvent = Field(default=StreamEvent.NODE)
+    event: StreamEvent = Field(default=StreamEvent.MESSAGE)
     event_type: Literal["Before", "After"] = Field(default="Before")
     data: dict[str, Any] = Field(default_factory=dict)
     is_error: bool = Field(default=False)

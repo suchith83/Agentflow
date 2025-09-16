@@ -132,7 +132,13 @@ class StreamHandler[StateT: AgentState]:
         state: StateT,
         config: dict[str, Any],
     ) -> AsyncIterable:
-        """Execute the entire graph with support for interrupts and resuming."""
+        """
+        Execute the entire graph with support for interrupts and resuming.
+
+        Why so many chunks are yielded?
+        We allow user to set response type, if they want low granularity
+        Only few chunks like Message will be sent to user
+        """
         logger.info(
             "Starting graph execution from node '%s' at step %d",
             state.execution_meta.current_node,
@@ -160,22 +166,30 @@ class StreamHandler[StateT: AgentState]:
             "run_timestamp": config.get("timestamp", ""),
         }
 
+        chunk = StreamChunk(
+            event=StreamEvent.NODE_EXECUTION,
+            data={
+                "state": state.model_dump(),
+                "messages": [m.model_dump() for m in messages],
+                "current_node": current_node,
+                "step": step,
+            },
+            run_id=run_id,
+            metadata=cfg,
+        )
+
+        run_id = config.get("run_id", "")
+        cfg = {
+            "thread_id": config.get("thread_id", ""),
+            "run_id": run_id,
+            "run_timestamp": config.get("timestamp", ""),
+        }
+
         try:
             while current_node != END and step < max_steps:
                 logger.debug("Executing step %d at node '%s'", step, current_node)
                 # Lets update which node is being executed
-                yield StreamChunk(
-                    event=StreamEvent.NODE,
-                    event_type="Before",
-                    data={
-                        "state": state.model_dump(),
-                        "messages": [m.model_dump() for m in messages],
-                        "current_node": current_node,
-                        "step": step,
-                    },
-                    run_id=run_id,
-                    metadata=cfg,
-                )
+                yield chunk
 
                 # Update execution metadata
                 state.set_current_node(current_node)
@@ -198,16 +212,14 @@ class StreamHandler[StateT: AgentState]:
                     event.payload["interrupted"] = "Before"
                     await self._publish_event(event)
 
-                    yield StreamChunk(
-                        event=StreamEvent.INTERRUPTED,
-                        event_type="Before",
-                        data={
-                            "state": state.model_dump(),
-                            "messages": [m.model_dump() for m in messages],
-                        },
-                        run_id=run_id,
-                        metadata=cfg,
-                    )
+                    # update chunk data before yielding
+                    chunk.event = StreamEvent.INTERRUPTED
+                    chunk.event_type = "Before"
+                    chunk.data = {
+                        "messages": [m.model_dump() for m in messages],
+                    }
+
+                    yield chunk
                     return
 
                 # Execute current node
@@ -454,10 +466,10 @@ class StreamHandler[StateT: AgentState]:
         logger.debug("Beginning graph execution")
         result = self._execute_graph(state, config)
         async for chunk in result:
+            # only StreamChunk will be shared with caller
+            # Other types are used for internal handling
             if isinstance(chunk, StreamChunk):
                 yield chunk
-            else:
-                logger.warning("Received non-StreamChunk item in stream: %s", type(chunk))
 
         # Publish graph completion event
         event.event_type = EventType.COMPLETED
