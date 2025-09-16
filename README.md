@@ -103,18 +103,19 @@ See `example/graph_demo.py` for a runnable example.
 
 ## Example: React Weather Agent
 
-This repository includes a small example agent that demonstrates tool injection and a simple tool node for returning weather information. The example is in `examples/react/react_weather_agent.py` and uses an in-memory checkpointer. It's intended as a runnable demo showing how to register ToolNodes, conditional edges, and invoke the compiled graph.
+This repository includes a comprehensive example agent that demonstrates tool injection, conditional edges, and streaming support. The example is in `examples/react/react_weather_agent.py` and uses an in-memory checkpointer. It's intended as a runnable demo showing how to register ToolNodes, conditional edges, and invoke the compiled graph.
 
 Key points:
 - Demonstrates an injectable tool signature that receives `tool_call_id` and `state`.
 - Shows how to add `ToolNode` and conditional edges into a `StateGraph`.
-- Uses `litellm.completion` to call an LLM (set your provider keys as environment vars or use a `.env`).
+- Uses `litellm.acompletion` to call an LLM with async support.
+- Includes proper error handling and tool call routing.
 
-Excerpt (simplified) from `examples/react/react_weather_agent.py`:
+Complete example from `examples/react/react_weather_agent.py`:
 
 ```python
 from dotenv import load_dotenv
-from litellm import completion
+from litellm import acompletion
 
 from pyagenity.checkpointer import InMemoryCheckpointer
 from pyagenity.graph import StateGraph, ToolNode
@@ -122,41 +123,134 @@ from pyagenity.state.agent_state import AgentState
 from pyagenity.utils import Message
 from pyagenity.utils.constants import END
 from pyagenity.utils.converter import convert_messages
-from pyagenity.utils.injectable import InjectState, InjectToolCallID
 
 load_dotenv()
 
 checkpointer = InMemoryCheckpointer()
 
-def get_weather(location: str, tool_call_id: InjectToolCallID, state: InjectState) -> str:
-    """Simple demo tool that prints injected params and returns a fake weather string."""
+def get_weather(
+    location: str,
+    tool_call_id: str | None = None,
+    state: AgentState | None = None,
+) -> Message:
+    """
+    Get the current weather for a specific location.
+    This demo shows injectable parameters: tool_call_id and state are automatically injected.
+    """
+    # You can access injected parameters here
     if tool_call_id:
         print(f"Tool call ID: {tool_call_id}")
     if state and hasattr(state, "context"):
         print(f"Number of messages in context: {len(state.context)}")  # type: ignore
-    return f"The weather in {location} is sunny."
 
-# Build graph and compile
+    res = f"The weather in {location} is sunny"
+    return Message.tool_message(
+        content=res,
+        tool_call_id=tool_call_id,  # type: ignore
+    )
+
 tool_node = ToolNode([get_weather])
 
-def main_agent(state: AgentState, config: dict[str, any], checkpointer=None, store=None):
-    # Build messages and call the LLM. Use tools when appropriate.
+async def main_agent(state: AgentState):
     prompts = """
         You are a helpful assistant.
         Your task is to assist the user in finding information and answering questions.
     """
 
-    messages = convert_messages(system_prompts=[{"role": "system", "content": prompts}], state=state)
+    messages = convert_messages(
+        system_prompts=[
+            {
+                "role": "system",
+                "content": prompts,
+                "cache_control": {
+                    "type": "ephemeral",
+                    "ttl": "3600s",  # 👈 Cache for 1 hour
+                },
+            },
+            {"role": "user", "content": "Today Date is 2024-06-15"},
+        ],
+        state=state,
+    )
 
-    # If last message is a tool result, return final response without tools
-    if state.context and state.context[-1].role == "tool" and state.context[-1].tool_call_id is not None:
-        response = completion(model="your-model", messages=messages)
+    mcp_tools = []
+
+    # Check if the last message is a tool result - if so, make final response without tools
+    if (
+        state.context
+        and len(state.context) > 0
+        and state.context[-1].role == "tool"
+        and state.context[-1].tool_call_id is not None
+    ):
+        # Make final response without tools since we just got tool results
+        response = await acompletion(
+            model="gemini/gemini-2.5-flash",
+            messages=messages,
+        )
     else:
-        response = completion(model="your-model", messages=messages, tools=tool_node.all_tools())
+        # Regular response with tools available
+        tools = await tool_node.all_tools()
+        response = await acompletion(
+            model="gemini/gemini-2.5-flash",
+            messages=messages,
+            tools=tools + mcp_tools,
+        )
 
     return response
 
-# Build graph, compile and invoke (see full file for details)
+def should_use_tools(state: AgentState) -> str:
+    """Determine if we should use tools or end the conversation."""
+    if not state.context or len(state.context) == 0:
+        return "TOOL"  # No context, might need tools
+
+    last_message = state.context[-1]
+
+    # If the last message is from assistant and has tool calls, go to TOOL
+    if (
+        hasattr(last_message, "tools_calls")
+        and last_message.tools_calls
+        and len(last_message.tools_calls) > 0
+        and last_message.role == "assistant"
+    ):
+        return "TOOL"
+
+    # If last message is a tool result, we should be done (AI will make final response)
+    if last_message.role == "tool" and last_message.tool_call_id is not None:
+        return END
+
+    # Default to END for other cases
+    return END
+
+graph = StateGraph()
+graph.add_node("MAIN", main_agent)
+graph.add_node("TOOL", tool_node)
+
+# Add conditional edges from MAIN
+graph.add_conditional_edges(
+    "MAIN",
+    should_use_tools,
+    {"TOOL": "TOOL", END: END},
+)
+
+# Always go back to MAIN after TOOL execution
+graph.add_edge("TOOL", "MAIN")
+graph.set_entry_point("MAIN")
+
+app = graph.compile(
+    checkpointer=checkpointer,
+)
+
+# Run the agent
+inp = {"messages": [Message.from_text("Please call the get_weather function for New York City")]}
+config = {"thread_id": "12345", "recursion_limit": 10}
+
+res = app.invoke(inp, config=config)
+
+for i in res["messages"]:
+    print("**********************")
+    print("Message Type: ", i.role)
+    print(i)
+    print("**********************")
+    print("\n\n")
 ```
 
 How to run the example locally
@@ -183,26 +277,338 @@ python examples/react/react_weather_agent.py
 ```
 
 Notes
-- The example uses `litellm`'s `completion` function — set `model` to a provider/model available in your environment (for example `gpt-4o-mini` or other supported model strings).
+- The example uses `litellm`'s `acompletion` function — set `model` to a provider/model available in your environment (for example `gemini/gemini-2.5-flash` or other supported model strings).
 - `InMemoryCheckpointer` is for demo/testing only. Replace with a persistent checkpointer for production.
 
+---
 
+## Example: MCP Integration
+
+PyAgenity supports integration with Model Context Protocol (MCP) servers, allowing you to connect external tools and services. The example in `examples/react-mcp/` demonstrates how to integrate MCP tools with your agent.
+
+First, create an MCP server (see `examples/react-mcp/server.py`):
+
+```python
+from fastmcp import FastMCP
+
+mcp = FastMCP("My MCP Server")
+
+@mcp.tool(
+    description="Get the weather for a specific location",
+)
+def get_weather(location: str) -> dict:
+    return {
+        "location": location,
+        "temperature": "22°C",
+        "description": "Sunny",
+    }
+
+if __name__ == "__main__":
+    mcp.run(transport="streamable-http")
+```
+
+Then, integrate MCP tools into your agent (from `examples/react-mcp/react-mcp.py`):
+
+```python
+from typing import Any
+
+from dotenv import load_dotenv
+from fastmcp import Client
+from litellm import acompletion
+
+from pyagenity.checkpointer import InMemoryCheckpointer
+from pyagenity.graph import StateGraph, ToolNode
+from pyagenity.state.agent_state import AgentState
+from pyagenity.utils import Message
+from pyagenity.utils.constants import END
+from pyagenity.utils.converter import convert_messages
+
+load_dotenv()
+
+checkpointer = InMemoryCheckpointer()
+
+config = {
+    "mcpServers": {
+        "weather": {
+            "url": "http://127.0.0.1:8000/mcp",
+            "transport": "streamable-http",
+        },
+        "github": {
+            "url": "http://127.0.0.1:8000/mcp",
+            "transport": "streamable-http",
+        },
+    }
+}
+
+client_http = Client(config)
+
+# Initialize ToolNode with MCP client
+tool_node = ToolNode(functions=[], client=client_http)
+
+async def main_agent(
+    state: AgentState,
+    config: dict[str, Any],
+    checkpointer: Any | None = None,
+    store: Any | None = None,
+):
+    prompts = """
+        You are a helpful assistant.
+        Your task is to assist the user in finding information and answering questions.
+    """
+
+    messages = convert_messages(
+        system_prompts=[{"role": "system", "content": prompts}],
+        state=state,
+    )
+
+    # Get all available tools (including MCP tools)
+    tools = await tool_node.all_tools()
+    print("**** List of tools", len(tools), tools)
+    
+    response = await acompletion(
+        model="gemini/gemini-2.0-flash",
+        messages=messages,
+        tools=tools,
+    )
+    return response
+
+def should_use_tools(state: AgentState) -> str:
+    """Determine if we should use tools or end the conversation."""
+    if not state.context or len(state.context) == 0:
+        return "TOOL"  # No context, might need tools
+
+    last_message = state.context[-1]
+
+    # If the last message is from assistant and has tool calls, go to TOOL
+    if (
+        hasattr(last_message, "tools_calls")
+        and last_message.tools_calls
+        and len(last_message.tools_calls) > 0
+        and last_message.role == "assistant"
+    ):
+        return "TOOL"
+
+    # If last message is a tool result, we should be done (AI will make final response)
+    if last_message.role == "tool" and last_message.tool_call_id is not None:
+        return END
+
+    # Default to END for other cases
+    return END
+
+graph = StateGraph()
+graph.add_node("MAIN", main_agent)
+graph.add_node("TOOL", tool_node)
+
+# Add conditional edges from MAIN
+graph.add_conditional_edges(
+    "MAIN",
+    should_use_tools,
+    {"TOOL": "TOOL", END: END},
+)
+
+# Always go back to MAIN after TOOL execution
+graph.add_edge("TOOL", "MAIN")
+graph.set_entry_point("MAIN")
+
+app = graph.compile(
+    checkpointer=checkpointer,
+)
+
+# Run the agent
+inp = {"messages": [Message.from_text("Please call the get_weather function for New York City")]}
+config = {"thread_id": "12345", "recursion_limit": 10}
+
+res = app.invoke(inp, config=config)
+
+for i in res["messages"]:
+    print(i)
+    print("\n")
+```
+
+How to run the MCP example:
+
+1. Install MCP dependencies:
+```bash
+pip install pyagenity[mcp]
+# or
+uv pip install pyagenity[mcp]
+```
+
+2. Start the MCP server in one terminal:
+```bash
+cd examples/react-mcp
+python server.py
+```
+
+3. Run the MCP-integrated agent in another terminal:
+```bash
+python examples/react-mcp/react-mcp.py
+```
 
 ---
 
-## Human-in-the-Loop
+## Example: Streaming Agent
 
+PyAgenity supports streaming responses for real-time interaction. The example in `examples/react_stream/stream_react_agent.py` demonstrates different streaming modes and configurations.
 
-A `HumanInputNode` causes execution to pause (`WAITING_HUMAN`) if `human_input` is absent. Provide input via `resume(session_id, human_input=...)`.
+```python
+import asyncio
+import logging
+from typing import Any
 
+from dotenv import load_dotenv
+from litellm import acompletion
 
----
+from pyagenity.checkpointer import InMemoryCheckpointer
+from pyagenity.graph import StateGraph, ToolNode
+from pyagenity.state.agent_state import AgentState
+from pyagenity.utils import Message, ResponseGranularity
+from pyagenity.utils.constants import END
+from pyagenity.utils.converter import convert_messages
 
-## Final Hooks
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger(__name__)
 
+load_dotenv()
+checkpointer = InMemoryCheckpointer()
 
-Use `GraphExecutor.add_final_hook(callable)` to register hooks invoked when a session reaches `COMPLETED` or `FAILED`.
+def get_weather(
+    location: str,
+    tool_call_id: str,
+    state: AgentState,
+) -> Message:
+    """Get weather with injectable parameters."""
+    if tool_call_id:
+        logging.debug("[tool] Tool call ID: %s", tool_call_id)
+    if state and hasattr(state, "context"):
+        logging.debug("[tool] Context messages: %s", len(state.context))
 
+    res = f"The weather in {location} is sunny."
+    return Message.tool_message(
+        content=res,
+        tool_call_id=tool_call_id,
+    )
+
+tool_node = ToolNode([get_weather])
+
+async def main_agent(
+    state: AgentState,
+    config: dict[str, Any],
+    checkpointer: Any | None = None,
+    store: Any | None = None,
+):
+    prompts = """
+        You are a helpful assistant.
+        Answer conversationally. Use tools when needed.
+    """
+
+    messages = convert_messages(
+        system_prompts=[{"role": "system", "content": prompts}],
+        state=state,
+    )
+
+    is_stream = config.get("is_stream", False)
+
+    if (
+        state.context
+        and len(state.context) > 0
+        and state.context[-1].role == "tool"
+        and state.context[-1].tool_call_id is not None
+    ):
+        response = await acompletion(
+            model="gemini/gemini-2.5-flash",
+            messages=messages,
+            stream=is_stream,
+        )
+    else:
+        tools = await tool_node.all_tools()
+        # Avoid streaming when tools are enabled to ensure tool-calls are parsed properly
+        response = await acompletion(
+            model="gemini/gemini-2.5-flash",
+            messages=messages,
+            tools=tools,
+            stream=is_stream,
+        )
+
+    return response
+
+def should_use_tools(state: AgentState) -> str:
+    if not state.context or len(state.context) == 0:
+        return "TOOL"
+
+    last_message = state.context[-1]
+
+    if (
+        hasattr(last_message, "tools_calls")
+        and last_message.tools_calls
+        and len(last_message.tools_calls) > 0
+        and last_message.role == "assistant"
+    ):
+        return "TOOL"
+
+    if last_message.role == "tool" and last_message.tool_call_id is not None:
+        return END
+
+    return END
+
+graph = StateGraph()
+graph.add_node("MAIN", main_agent)
+graph.add_node("TOOL", tool_node)
+
+graph.add_conditional_edges(
+    "MAIN",
+    should_use_tools,
+    {"TOOL": "TOOL", END: END},
+)
+
+graph.add_edge("TOOL", "MAIN")
+graph.set_entry_point("MAIN")
+
+app = graph.compile(checkpointer=checkpointer)
+
+async def run_stream_test() -> None:
+    inp = {"messages": [Message.from_text("Call get_weather for Tokyo, then reply.")]}
+    config = {"thread_id": "stream-1", "recursion_limit": 10}
+
+    logging.info("--- streaming start ---")
+    stream_gen = app.astream(
+        inp,
+        config=config,
+        response_granularity=ResponseGranularity.LOW,
+    )
+    async for chunk in stream_gen:
+        print(chunk.model_dump(), end="\n", flush=True)
+
+if __name__ == "__main__":
+    import sys
+
+    if len(sys.argv) > 1:
+        test_type = sys.argv[1]
+        if test_type == "sync":
+            asyncio.run(run_sync_test())
+        elif test_type == "non-stream":
+            asyncio.run(run_non_stream_test())
+        elif test_type == "sync-stream":
+            asyncio.run(run_sync_stream_test())
+        else:
+            logging.info("Usage: python stream_react_agent.py [sync|non-stream|sync-stream]")
+            logging.info("Running default streaming test...")
+            asyncio.run(run_stream_test())
+    else:
+        asyncio.run(run_stream_test())
+```
+
+Run the streaming example:
+```bash
+python examples/react_stream/stream_react_agent.py
+```
+
+Or run specific test modes:
+```bash
+python examples/react_stream/stream_react_agent.py sync
+python examples/react_stream/stream_react_agent.py non-stream
+python examples/react_stream/stream_react_agent.py sync-stream
+```
 
 ---
 
@@ -214,6 +620,13 @@ Use `GraphExecutor.add_final_hook(callable)` to register hooks invoked when a se
 - Tool invocation nodes & function calling wrappers
 - Tracing / telemetry integration
 
+---
+
+## TODO
+
+- **Stop Current Execution**: Allow stopping graph execution from frontend/UI
+- **Remote Node Support**: Enable running nodes on remote machines for distributed processing
+- **Extend Node Support**: Allow users to extend and customize Node and ToolNode classes
 
 ---
 
@@ -229,21 +642,3 @@ MIT
 - [PyPI Project Page](https://pypi.org/project/pyagenity/)
 
 ---
-
-## Publishing to PyPI
-
-1. **Build the package:**
-    ```bash
-    uv pip install build twine
-    python -m build
-    ```
-2. **Upload to PyPI:**
-    ```bash
-    uv pip install twine
-    twine upload dist/*
-    ```
-
-For test uploads, use [TestPyPI](https://test.pypi.org/):
-```bash
-twine upload --repository testpypi dist/*
-```

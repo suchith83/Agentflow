@@ -1,40 +1,14 @@
+# TODO: 
+1. All stop current execution, From frontend, we can stop the execution of a graph.
+2. All Remote Node support, that can be used to run nodes on remote machines.
+3. All user to Extend Node, Tool Node also
+
+
+
 Cancel Current Call, that need to be allowed
 
-Plan -> Streaming
-It should support model native streaming...
-How can we do that?
--  In config, we can have a flag is_streaming, so developer can set it True or False on the main model call
-- As its a litellm we are using, so they can return direct response
-- In Node class, we can have a seperate method for stream function that will return async generator
-- We can read from it, from that, and also emit tokens as they come
-And collect all the tokens to return the final response and put that message in the chat history
 
 
-Type of Streaming Event:
-1. NODE_EXECUTION -> Before Node Execution 
-2. Token -> Streaming Tokens
-3. Message -> Final Message
-
-5. TOOL_EXECUTION -> Before Tool Execution
-7. TOOL_RESULT -> Tool Result
-
-8. MCP_TOOL_EXECUTION -> Before MCP Tool Execution
-10. MCP_TOOL_RESULT -> MCP Tool Result
-
-11. INTERRUPTED -> Before Interrupted
-
-13. NODE -> Which node is being executed or when changed
-14. STATE -> Current State
-15. CONTEXT_TRIMMING -> When context is being trimmed
-
-16. ERROR -> If any error occurs
-17. COMPLETE -> When everything is done
-
-class StreamingChunk:
-    event = StreamingEvent
-    event_type: str [Before or After]
-    data: dict
-
-    reference_id: str -> during token emit, it will be same id
-    timestamp: float
-    metadata: dict
+# Feedback:
+1. Branching support for chat models
+2. Remote Node support

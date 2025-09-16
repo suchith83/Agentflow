@@ -55,22 +55,21 @@ class CompiledGraph[StateT: AgentState]:
         self._state = state
 
         # create handlers
-        self.invoke_handler: InvokeHandler[StateT] = InvokeHandler[StateT](
+        self._invoke_handler: InvokeHandler[StateT] = InvokeHandler[StateT](
             nodes=state_graph.nodes,  # type: ignore
             edges=state_graph.edges,  # type: ignore
         )
-        self.stream_handler: StreamHandler[StateT] = StreamHandler[StateT](
+        self._stream_handler: StreamHandler[StateT] = StreamHandler[StateT](
             nodes=state_graph.nodes,  # type: ignore
             edges=state_graph.edges,  # type: ignore
         )
 
-        self.checkpointer: BaseCheckpointer[StateT] | None = checkpointer
-        self.publisher: BasePublisher | None = publisher
-        self.store: BaseStore[StateT] | None = store
-        self.state_graph: StateGraph[StateT] = state_graph
-        self.interrupt_before: list[str] = interrupt_before
-        self.interrupt_after: list[str] = interrupt_after
-        self.state = state
+        self._checkpointer: BaseCheckpointer[StateT] | None = checkpointer
+        self._publisher: BasePublisher | None = publisher
+        self._store: BaseStore[StateT] | None = store
+        self._state_graph: StateGraph[StateT] = state_graph
+        self._interrupt_before: list[str] = interrupt_before
+        self._interrupt_after: list[str] = interrupt_after
 
     def _prepare_config(
         self,
@@ -145,7 +144,7 @@ class CompiledGraph[StateT: AgentState]:
         """
         cfg = self._prepare_config(config, is_stream=False)
 
-        return await self.invoke_handler.invoke(
+        return await self._invoke_handler.invoke(
             input_data,
             cfg,
             self._state,
@@ -218,7 +217,7 @@ class CompiledGraph[StateT: AgentState]:
 
         cfg = self._prepare_config(config, is_stream=True)
 
-        async for chunk in self.stream_handler.stream(
+        async for chunk in self._stream_handler.stream(
             input_data,
             cfg,
             self._state,
@@ -231,8 +230,8 @@ class CompiledGraph[StateT: AgentState]:
         # close checkpointer
         stats = {}
         try:
-            if self.checkpointer:
-                await self.checkpointer.arelease()
+            if self._checkpointer:
+                await self._checkpointer.arelease()
                 logger.info("Checkpointer closed successfully")
                 stats["checkpointer"] = "closed"
         except Exception as e:
@@ -241,8 +240,8 @@ class CompiledGraph[StateT: AgentState]:
 
         # Close Publisher
         try:
-            if self.publisher:
-                await self.publisher.close()
+            if self._publisher:
+                await self._publisher.close()
                 logger.info("Publisher closed successfully")
                 stats["publisher"] = "closed"
         except Exception as e:
@@ -251,8 +250,8 @@ class CompiledGraph[StateT: AgentState]:
 
         # Close Store
         try:
-            if self.store:
-                await self.store.arelease()
+            if self._store:
+                await self._store.arelease()
                 logger.info("Store closed successfully")
                 stats["store"] = "closed"
         except Exception as e:
@@ -275,7 +274,7 @@ class CompiledGraph[StateT: AgentState]:
             "edges": [],
         }
         # Populate the graph with nodes and edges
-        for node_name in self.state_graph.nodes:
+        for node_name in self._state_graph.nodes:
             graph["nodes"].append(
                 {
                     "id": str(uuid4()),
@@ -283,7 +282,7 @@ class CompiledGraph[StateT: AgentState]:
                 }
             )
 
-        for edge in self.state_graph.edges:
+        for edge in self._state_graph.edges:
             graph["edges"].append(
                 {
                     "id": str(uuid4()),
@@ -296,15 +295,15 @@ class CompiledGraph[StateT: AgentState]:
         graph["info"] = {
             "node_count": len(graph["nodes"]),
             "edge_count": len(graph["edges"]),
-            "checkpointer": self.checkpointer is not None,
-            "checkpointer_type": type(self.checkpointer).__name__ if self.checkpointer else None,
-            "publisher": self.publisher is not None,
-            "store": self.store is not None,
-            "interrupt_before": self.interrupt_before,
-            "interrupt_after": self.interrupt_after,
-            "context_type": self.state_graph._context_manager.__class__.__name__,
-            "id_generator": self.state_graph._id_generator.__class__.__name__,
-            "id_type": self.state_graph._id_generator.id_type.value,
+            "checkpointer": self._checkpointer is not None,
+            "checkpointer_type": type(self._checkpointer).__name__ if self._checkpointer else None,
+            "publisher": self._publisher is not None,
+            "store": self._store is not None,
+            "interrupt_before": self._interrupt_before,
+            "interrupt_after": self._interrupt_after,
+            "context_type": self._state_graph._context_manager.__class__.__name__,
+            "id_generator": self._state_graph._id_generator.__class__.__name__,
+            "id_type": self._state_graph._id_generator.id_type.value,
             "state_type": self._state.__class__.__name__,
             "state_fields": list(self._state.model_dump().keys()),
         }

@@ -32,7 +32,7 @@ except ImportError:
     Tool = None  # type: ignore
     ContentBlock = None  # type: ignore
 
-from injectq import Inject, inject
+from injectq import inject
 
 from pyagenity.state import AgentState
 from pyagenity.utils import (
