@@ -25,6 +25,7 @@ from .message import Message, TokenUsages
 
 # Export from reducers.py
 from .reducers import add_messages, append_items, replace_messages, replace_value
+from .streaming import ContentType, Event, EventModel, EventType
 
 # Export from streaming.py
 # from .streaming2 import (
@@ -37,7 +38,7 @@ from .reducers import add_messages, append_items, replace_messages, replace_valu
 #     simulate_streaming,
 #     stream_from_litellm_response,
 # )
-from .streaming import StreamChunk, StreamEvent
+from .streaming3 import StreamChunk, StreamEvent
 
 
 __all__ = [
@@ -48,6 +49,10 @@ __all__ = [
     "CallbackContext",
     "CallbackManager",
     "Command",
+    "ContentType",
+    "Event",
+    "EventModel",
+    "EventType",
     "ExecutionState",
     "InvocationType",
     "Message",

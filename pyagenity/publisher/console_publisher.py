@@ -3,8 +3,9 @@
 import logging
 from typing import Any
 
+from pyagenity.utils.streaming import EventModel
+
 from .base_publisher import BasePublisher
-from .events import Event
 
 
 logger = logging.getLogger(__name__)
@@ -41,20 +42,20 @@ class ConsolePublisher(BasePublisher):
         self.include_timestamp = config.get("include_timestamp", True) if config else True
         self.indent = config.get("indent", 2) if config else 2
 
-    async def publish(self, event: Event) -> Any:
+    async def publish(self, event: EventModel) -> Any:
         """
         Publish an event to the console.
 
         Args:
-            event (Event): The event to publish.
+            event (EventModel): The event to publish.
 
         Returns:
             Any: The result of the publish operation (None).
         """
-        msg = f"{event.timestamp} -> Source: {event.source}.{event.event_type}:"
-        msg += f"-> Payload: {event.payload}"
-        msg += f" -> {event.config} and {event.meta}"
-        print("msg")  # noqa: T201
+        msg = f"{event.timestamp} -> Source: {event.node_name}.{event.event_type}:"
+        msg += f"-> Payload: {event.data}"
+        msg += f" -> {event.metadata}"
+        print(msg)  # noqa: T201
 
     async def close(self):
         """
