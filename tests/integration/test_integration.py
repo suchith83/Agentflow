@@ -1,11 +1,10 @@
 """Integration tests for PyAgenity framework."""
 
-import pytest
-
-from pyagenity.graph import StateGraph, CompiledGraph, Node, ToolNode
-from pyagenity.state import AgentState
-from pyagenity.utils import Message, START, END
+from pyagenity.graph import CompiledGraph, StateGraph, ToolNode
 from pyagenity.publisher import ConsolePublisher
+from pyagenity.state import AgentState
+from pyagenity.utils import END, Message
+from pyagenity.utils.streaming import Event, EventModel, EventType
 
 
 def dummy_ai_agent(state: AgentState) -> dict:
@@ -156,7 +155,7 @@ class TestBasicIntegration:
 
     def test_callback_system_usage(self):
         """Test callback system usage."""
-        from pyagenity.utils import CallbackManager, CallbackContext, InvocationType
+        from pyagenity.utils import CallbackContext, CallbackManager, InvocationType
 
         manager = CallbackManager()
 
@@ -170,7 +169,7 @@ class TestBasicIntegration:
 
     def test_error_handling_integration(self):
         """Test error handling with custom exceptions."""
-        from pyagenity.exceptions import GraphError, NodeError
+        from pyagenity.exceptions import GraphError, NodeError  # noqa: PLC0415
 
         # Test exception creation and inheritance
         graph_error = GraphError("Graph failed")
@@ -189,18 +188,20 @@ class TestBasicIntegration:
 def test_framework_import_coverage():
     """Test importing various framework components for coverage."""
     # Import and instantiate various components
-    from pyagenity.graph import Edge
-    from pyagenity.publisher import Event, EventType, SourceType
-    from pyagenity.state import ExecutionState, MessageContextManager
-    from pyagenity.utils import Command, add_messages
+    from pyagenity.graph import Edge  # noqa: PLC0415
+    from pyagenity.state import ExecutionState, MessageContextManager  # noqa: PLC0415
+    from pyagenity.utils import Command, add_messages  # noqa: PLC0415
 
     # Test Edge creation
     edge = Edge(from_node="a", to_node="b")
     assert edge.from_node == "a"  # noqa: S101
 
     # Test Event creation
-    event = Event(event_type=EventType.INITIALIZE, source=SourceType.GRAPH)
-    assert event.event_type == EventType.INITIALIZE  # noqa: S101
+    event = EventModel(
+        event=Event.GRAPH_EXECUTION,
+        event_type=EventType.START,
+    )
+    assert event.event_type == EventType.START  # noqa: S101
 
     # Test ExecutionState creation
     exec_state = ExecutionState(current_node="test")

@@ -16,8 +16,9 @@ import json
 import logging
 from typing import Any
 
+from pyagenity.utils.streaming import EventModel
+
 from .base_publisher import BasePublisher
-from .events import Event
 
 
 logger = logging.getLogger(__name__)
@@ -59,12 +60,16 @@ class RedisPublisher(BasePublisher):
                 "'pip install pyagenity[redis]' or 'pip install redis'."
             ) from exc
 
-        self._redis = redis_asyncio.from_url(
-            self.url, encoding=self.encoding, decode_responses=False
-        )
+        try:
+            self._redis = redis_asyncio.from_url(
+                self.url, encoding=self.encoding, decode_responses=False
+            )
+        except Exception as exc:
+            raise RuntimeError(f"RedisPublisher failed to connect to Redis at {self.url}") from exc
+
         return self._redis
 
-    async def publish(self, event: Event) -> Any:
+    async def publish(self, event: EventModel) -> Any:
         client = await self._get_client()
         payload = json.dumps(event.model_dump()).encode(self.encoding)
 

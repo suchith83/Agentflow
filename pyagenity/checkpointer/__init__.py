@@ -1,6 +1,7 @@
 from .base_checkpointer import BaseCheckpointer
 from .in_memory_checkpointer import InMemoryCheckpointer
 
+
 # Conditionally import PgCheckpointer only if dependencies are available
 try:
     from .pg_checkpointer import PgCheckpointer

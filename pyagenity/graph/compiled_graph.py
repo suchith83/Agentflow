@@ -15,8 +15,9 @@ from pyagenity.state import AgentState
 from pyagenity.store.base_store import BaseStore
 from pyagenity.utils import (
     ResponseGranularity,
-    StreamChunk,
 )
+from pyagenity.utils.background_task_manager import BackgroundTaskManager
+from pyagenity.utils.streaming import EventModel
 
 from .utils.invoke_handler import InvokeHandler
 from .utils.stream_handler import StreamHandler
@@ -46,6 +47,7 @@ class CompiledGraph[StateT: AgentState]:
         state_graph: StateGraph[StateT],
         interrupt_before: list[str],
         interrupt_after: list[str],
+        task_manager: BackgroundTaskManager,
     ):
         logger.info(
             f"Initializing CompiledGraph with nodes: {list(state_graph.nodes.keys())}",
@@ -70,6 +72,8 @@ class CompiledGraph[StateT: AgentState]:
         self._state_graph: StateGraph[StateT] = state_graph
         self._interrupt_before: list[str] = interrupt_before
         self._interrupt_after: list[str] = interrupt_after
+        # generate task manager
+        self._task_manager = task_manager
 
     def _prepare_config(
         self,
@@ -156,10 +160,10 @@ class CompiledGraph[StateT: AgentState]:
         input_data: dict[str, Any],
         config: dict[str, Any] | None = None,
         response_granularity: ResponseGranularity = ResponseGranularity.LOW,
-    ) -> Generator[StreamChunk, None, None]:
+    ) -> Generator[EventModel]:
         """Execute the graph synchronously with streaming support.
 
-        Yields StreamChunk objects containing incremental responses.
+        Yields EventModel objects containing incremental responses.
         If nodes return streaming responses, yields them directly.
         If nodes return complete responses, simulates streaming by chunking.
 
@@ -169,7 +173,7 @@ class CompiledGraph[StateT: AgentState]:
             response_granularity: Response parsing granularity
 
         Yields:
-            StreamChunk objects with incremental content
+            EventModel objects with incremental content
         """
 
         # For sync streaming, we'll use asyncio.run to handle the async implementation
@@ -199,10 +203,10 @@ class CompiledGraph[StateT: AgentState]:
         input_data: dict[str, Any],
         config: dict[str, Any] | None = None,
         response_granularity: ResponseGranularity = ResponseGranularity.LOW,
-    ) -> AsyncIterator[StreamChunk]:
+    ) -> AsyncIterator[EventModel]:
         """Execute the graph asynchronously with streaming support.
 
-        Yields StreamChunk objects containing incremental responses.
+        Yields EventModel objects containing incremental responses.
         If nodes return streaming responses, yields them directly.
         If nodes return complete responses, simulates streaming by chunking.
 
@@ -212,7 +216,7 @@ class CompiledGraph[StateT: AgentState]:
             response_granularity: Response parsing granularity
 
         Yields:
-            StreamChunk objects with incremental content
+            EventModel objects with incremental content
         """
 
         cfg = self._prepare_config(config, is_stream=True)
@@ -257,6 +261,15 @@ class CompiledGraph[StateT: AgentState]:
         except Exception as e:
             stats["store"] = f"error: {e}"
             logger.error(f"Error closing store: {e}")
+
+        # Wait for all background tasks to complete
+        try:
+            await self._task_manager.wait_for_all()
+            logger.info("All background tasks completed successfully")
+            stats["background_tasks"] = "completed"
+        except Exception as e:
+            stats["background_tasks"] = f"error: {e}"
+            logger.error(f"Error waiting for background tasks: {e}")
 
         logger.info(f"Graph close stats: {stats}")
         # You can also return or process the stats as needed

@@ -14,7 +14,7 @@ class MinimalTestState(AgentState):
 
 
 async def minimal_test_node(state: MinimalTestState, config: dict[str, Any]) -> MinimalTestState:
-    print(f"=== Inside minimal_test_node ===")
+    print("=== Inside minimal_test_node ===")
     print(f"state parameter type: {type(state)}")
     print(f"state.items type: {type(state.items)}")
     print(f"state.items value: {state.items}")

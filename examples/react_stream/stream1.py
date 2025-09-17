@@ -52,10 +52,6 @@ async def main_agent(
             {
                 "role": "system",
                 "content": prompts,
-                "cache_control": {
-                    "type": "ephemeral",
-                    "ttl": "3600s",  # 👈 Cache for 1 hour
-                },
             },
             {"role": "user", "content": "Today Date is 2024-06-15"},
         ],
@@ -63,6 +59,8 @@ async def main_agent(
     )
 
     mcp_tools = []
+
+    is_stream = config.get("is_stream", False)
 
     # Check if the last message is a tool result - if so, make final response without tools
     if (
@@ -75,6 +73,7 @@ async def main_agent(
         response = await acompletion(
             model="gemini/gemini-2.5-flash",
             messages=messages,
+            stream=is_stream,
         )
     else:
         # Regular response with tools available
@@ -83,6 +82,7 @@ async def main_agent(
             model="gemini/gemini-2.5-flash",
             messages=messages,
             tools=tools + mcp_tools,
+            stream=is_stream,
         )
 
     return response
@@ -138,16 +138,9 @@ app = graph.compile(
 inp = {"messages": [Message.from_text("Please call the get_weather function for New York City")]}
 config = {"thread_id": "12345", "recursion_limit": 10}
 
-res = app.invoke(inp, config=config)
+res = app.stream(inp, config=config)
 
-for i in res["messages"]:
-    print("**********************")
-    print("Message Type: ", i.role)
-    print(i)
+for i in res:
     print("**********************")
     print("\n\n")
-
-
-# grp = app.generate_graph()
-
-# print(grp)
+    print(i)

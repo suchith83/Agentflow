@@ -1502,7 +1502,7 @@ wheels = [
 
 [[package]]
 name = "pyagenity"
-version = "0.1.7"
+version = "0.1.9"
 source = { editable = "." }
 dependencies = [
     { name = "injectq" },
@@ -1551,7 +1551,7 @@ requires-dist = [
     { name = "aiokafka", marker = "extra == 'kafka'", specifier = ">=0.8.0" },
     { name = "asyncpg", marker = "extra == 'pg-checkpoint'", specifier = ">=0.29.0" },
     { name = "fastmcp", marker = "extra == 'mcp'", specifier = ">=2.11.3" },
-    { name = "injectq", specifier = "==0.2.0" },
+    { name = "injectq", specifier = ">=0.2.0" },
     { name = "litellm", specifier = ">=1.75.0" },
     { name = "mcp", marker = "extra == 'mcp'", specifier = ">=1.13.0" },
     { name = "pydantic", specifier = ">=2.0.0" },

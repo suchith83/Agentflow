@@ -1,52 +1,146 @@
 import enum
-import time  # For timestamp generation
-import uuid  # For reference_id generation
-from typing import Any, Literal
+import time
+import uuid
+from typing import Any
 
 from pydantic import BaseModel, Field
 
 
-class StreamEvent(enum.StrEnum):
+class Event(str, enum.Enum):
+    # All the event source
+    GRAPH_EXECUTION = "graph_execution"
+    NODE_EXECUTION = "node_execution"
+    TOOL_EXECUTION = "tool_execution"
+    STREAMING = "streaming"
+
+
+class EventType(str, enum.Enum):
+    START = "start"
+    PROGRESS = "progress"
+    RESULT = "result"
+    END = "end"
+    UPDATE = "update"
+    ERROR = "error"
+    INTERRUPTED = "interrupted"
+
+
+class ContentType(str, enum.Enum):
+    TEXT = "text"
+    MESSAGE = "message"
+    REASONING = "reasoning"
+    TOOL_CALL = "tool_call"
+    TOOL_RESULT = "tool_result"
+    STATE = "state"
+    UPDATE = "update"
+    ERROR = "error"
+
+
+class EventModel(BaseModel):
     """
-    Enum representing different types of stream events.
+    Represents a chunk of streamed data with event and content semantics.
 
-    Example:
-        >>> event = StreamEvent.DATA
-        StreamEvent.DATA
+    Designed for consistent and structured real-time streaming of execution updates, tool calls,
+    state changes, messages, and errors.
+
+    Supports both delta (incremental) and full content.
     """
 
-    NODE_EXECUTION = "node_execution"  # Before Node Execution
-    TOOL_EXECUTION = "tool_execution"  # Before Tool Execution
-    TOOL_RESULT = "tool_result"  # Tool Result
-    MCP_TOOL_EXECUTION = "mcp_tool_execution"  # Before MCP Tool Execution
-    MCP_TOOL_RESULT = "mcp_tool_result"  # MCP Tool Result
-    INTERRUPTED = "interrupted"  # Before Interrupted
-    NODE = "node"  # Which node is being executed or when changed
-    STATE = "state"  # Current State
-    CONTEXT_TRIMMING = "context_trimming"  # When context is being trimmed
-    ERROR = "error"  # If any error occurs
-    COMPLETE = "complete"  # When everything is done
+    # Event metadata
+    event: Event = Field(..., description="Type of the event source")
+    event_type: EventType = Field(
+        ..., description="Phase of the event (start, progress, end, update)"
+    )
 
+    # Streamed content
+    content: str = Field(default="", description="Streamed textual content")
+    delta: bool = Field(default=False, description="True if this is a delta update (incremental)")
 
-class StreamChunk(BaseModel):
-    """Represents chunks of streamed data with event information.
+    # Data payload
+    data: dict[str, Any] = Field(default_factory=dict, description="Additional structured data")
 
-    Defaults are provided via Pydantic Field with default_factory to avoid
-    mutable default arguments and to generate runtime values for timestamp
-    and reference_id.
+    # Metadata
+    content_type: list[ContentType] | None = Field(
+        default=None, description="Semantic type of content"
+    )
+    sequence_id: int = Field(default=0, description="Monotonic sequence ID for stream ordering")
+    node_name: str = Field(default="", description="Name of the node producing this chunk")
+    run_id: str = Field(
+        default_factory=lambda: str(uuid.uuid4()), description="Unique ID for this stream/run"
+    )
+    thread_id: str | int = Field(default="", description="Thread ID for this execution")
+    timestamp: float = Field(
+        default_factory=time.time, description="UNIX timestamp of when chunk was created"
+    )
+    is_error: bool = Field(
+        default=False, description="Marks this chunk as representing an error state"
+    )
+    metadata: dict[str, Any] = Field(
+        default_factory=dict, description="Optional metadata for consumers"
+    )
 
-    Example:
-        >>> chunk = StreamChunks()
-        >>> chunk.event
-        <StreamEvent.message: 'message'>
-        >>> chunk.event_type
-        'Before'
-    """
+    class Config:
+        use_enum_values = True  # Output enums as strings
 
-    event: StreamEvent = Field(default=StreamEvent.NODE)
-    event_type: Literal["Before", "After"] = Field(default="Before")
-    data: dict[str, Any] = Field(default_factory=dict)
-    is_error: bool = Field(default=False)
-    run_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
-    timestamp: float = Field(default_factory=time.time)
-    metadata: dict[str, Any] = Field(default_factory=dict)
+    @classmethod
+    def default(
+        cls,
+        base_config: dict,
+        data: dict[str, Any],
+        content_type: list[ContentType],
+        event: Event = Event.GRAPH_EXECUTION,
+        event_type=EventType.START,
+        node_name: str = "",
+        extra: dict[str, Any] | None = None,
+    ) -> "EventModel":
+        """Create a default EventModel instance with minimal required fields."""
+        thread_id = base_config.get("thread_id", "")
+        run_id = base_config.get("run_id", "")
+
+        metadata = {
+            "run_timestamp": base_config.get("timestamp", ""),
+            "user_id": base_config.get("user_id"),
+            "is_stream": base_config.get("is_stream", False),
+        }
+        if extra:
+            metadata.update(extra)
+        return cls(
+            event=event,
+            event_type=event_type,
+            delta=False,
+            content_type=content_type,
+            data=data,
+            thread_id=thread_id,
+            node_name=node_name,
+            run_id=run_id,
+            metadata=metadata,
+        )
+
+    @classmethod
+    def stream(
+        cls,
+        base_config: dict,
+        node_name: str = "",
+        extra: dict[str, Any] | None = None,
+    ) -> "EventModel":
+        """Create a default EventModel instance with minimal required fields."""
+        thread_id = base_config.get("thread_id", "")
+        run_id = base_config.get("run_id", "")
+
+        metadata = {
+            "run_timestamp": base_config.get("timestamp", ""),
+            "user_id": base_config.get("user_id"),
+            "is_stream": base_config.get("is_stream", False),
+        }
+        if extra:
+            metadata.update(extra)
+        return cls(
+            event=Event.STREAMING,
+            event_type=EventType.UPDATE,
+            delta=True,
+            content_type=[ContentType.TEXT, ContentType.REASONING],
+            data={},
+            thread_id=thread_id,
+            node_name=node_name,
+            run_id=run_id,
+            metadata=metadata,
+        )

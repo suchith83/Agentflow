@@ -14,8 +14,9 @@ import json
 import logging
 from typing import Any
 
+from pyagenity.utils.streaming import EventModel
+
 from .base_publisher import BasePublisher
-from .events import Event
 
 
 logger = logging.getLogger(__name__)
@@ -51,7 +52,7 @@ class KafkaPublisher(BasePublisher):
         await self._producer.start()
         return self._producer
 
-    async def publish(self, event: Event) -> Any:
+    async def publish(self, event: EventModel) -> Any:
         producer = await self._get_producer()
         payload = json.dumps(event.model_dump()).encode("utf-8")
         return await producer.send_and_wait(self.topic, payload)

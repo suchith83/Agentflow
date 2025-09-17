@@ -14,8 +14,9 @@ import json
 import logging
 from typing import Any
 
+from pyagenity.utils.streaming import EventModel
+
 from .base_publisher import BasePublisher
-from .events import Event
 
 
 logger = logging.getLogger(__name__)
@@ -66,7 +67,7 @@ class RabbitMQPublisher(BasePublisher):
             # Fall back to default exchange
             self._exchange = self._channel.default_exchange
 
-    async def publish(self, event: Event) -> Any:
+    async def publish(self, event: EventModel) -> Any:
         await self._ensure()
         payload = json.dumps(event.model_dump()).encode("utf-8")
 

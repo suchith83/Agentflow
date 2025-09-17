@@ -166,6 +166,9 @@ class Message(BaseModel):
             message_id=generate_id(data.get("message_id")),
             role=data.get("role", ""),
             content=data.get("content", ""),
+            tools_calls=data.get("tools_calls"),
+            tool_call_id=data.get("tool_call_id"),
+            function_call=data.get("function_call"),
             reasoning=data.get("reasoning"),
             timestamp=timestamp,
             metadata=data.get("metadata", {}),
@@ -253,7 +256,7 @@ class Message(BaseModel):
         """
         res = content
         if is_error:
-            res = '{"success": False, "error": content}'
+            res = f'{{"success": False, "error": {content}}}'
 
         logger.debug("Creating tool message with tool_call_id: %s", tool_call_id)
         msg_id = generate_id(message_id)

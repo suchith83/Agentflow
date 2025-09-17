@@ -108,6 +108,123 @@ class TestInMemoryCheckpointer:
         loaded_data = checkpointer.get_state(config)
         assert loaded_data is None  # noqa: S101
 
+    @pytest.mark.asyncio
+    async def test_aput_state(self):
+        """Test async put state."""
+        checkpointer = InMemoryCheckpointer()
+        config = {"thread_id": "test_thread"}
+        state = {"data": "test"}
+        result = await checkpointer.aput_state(config, state)
+        assert result == state  # noqa: S101
+
+    @pytest.mark.asyncio
+    async def test_aget_state(self):
+        """Test async get state."""
+        checkpointer = InMemoryCheckpointer()
+        config = {"thread_id": "test_thread"}
+        state = {"data": "test"}
+        await checkpointer.aput_state(config, state)
+        result = await checkpointer.aget_state(config)
+        assert result == state  # noqa: S101
+
+    @pytest.mark.asyncio
+    async def test_aclear_state(self):
+        """Test async clear state."""
+        checkpointer = InMemoryCheckpointer()
+        config = {"thread_id": "test_thread"}
+        state = {"data": "test"}
+        await checkpointer.aput_state(config, state)
+        result = await checkpointer.aclear_state(config)
+        assert result is True  # noqa: S101
+        loaded = await checkpointer.aget_state(config)
+        assert loaded is None  # noqa: S101
+
+    @pytest.mark.asyncio
+    async def test_aput_messages(self):
+        """Test async put messages."""
+        checkpointer = InMemoryCheckpointer()
+        config = {"thread_id": "test_thread"}
+        messages = [Message.from_text("Hello", "user")]
+        result = await checkpointer.aput_messages(config, messages)
+        assert result is True  # noqa: S101
+
+    @pytest.mark.asyncio
+    async def test_alist_messages(self):
+        """Test async list messages."""
+        checkpointer = InMemoryCheckpointer()
+        config = {"thread_id": "test_thread"}
+        messages = [Message.from_text("Hello", "user")]
+        await checkpointer.aput_messages(config, messages)
+        result = await checkpointer.alist_messages(config)
+        assert len(result) == 1  # noqa: S101
+
+    @pytest.mark.asyncio
+    async def test_aput_thread(self):
+        """Test async put thread."""
+        checkpointer = InMemoryCheckpointer()
+        config = {"thread_id": "test_thread"}
+        thread_info = {"name": "test"}
+        result = await checkpointer.aput_thread(config, thread_info)
+        assert result is True  # noqa: S101
+
+    @pytest.mark.asyncio
+    async def test_aget_thread(self):
+        """Test async get thread."""
+        checkpointer = InMemoryCheckpointer()
+        config = {"thread_id": "test_thread"}
+        thread_info = {"name": "test"}
+        await checkpointer.aput_thread(config, thread_info)
+        result = await checkpointer.aget_thread(config)
+        assert result == thread_info  # noqa: S101
+
+    @pytest.mark.asyncio
+    async def test_arelease(self):
+        """Test async release."""
+        checkpointer = InMemoryCheckpointer()
+        config = {"thread_id": "test_thread"}
+        state = {"data": "test"}
+        await checkpointer.aput_state(config, state)
+        result = await checkpointer.arelease()
+        assert result is True  # noqa: S101
+        loaded = await checkpointer.aget_state(config)
+        assert loaded is None  # noqa: S101
+
+    def test_put_state_cache(self):
+        """Test put state cache."""
+        checkpointer = InMemoryCheckpointer()
+        config = {"thread_id": "test_thread"}
+        state = {"data": "test"}
+        result = checkpointer.put_state_cache(config, state)
+        assert result == state  # noqa: S101
+
+    def test_get_state_cache(self):
+        """Test get state cache."""
+        checkpointer = InMemoryCheckpointer()
+        config = {"thread_id": "test_thread"}
+        state = {"data": "test"}
+        checkpointer.put_state_cache(config, state)
+        result = checkpointer.get_state_cache(config)
+        assert result == state  # noqa: S101
+
+    @pytest.mark.asyncio
+    async def test_aput_state_cache(self):
+        """Test async put state cache."""
+        checkpointer = InMemoryCheckpointer()
+        config = {"thread_id": "test_thread"}
+        state = {"data": "test"}
+        result = await checkpointer.aput_state_cache(config, state)
+        assert result == state  # noqa: S101
+
+    @pytest.mark.asyncio
+    async def test_aget_state_cache(self):
+        """Test async get state cache."""
+        checkpointer = InMemoryCheckpointer()
+        config = {"thread_id": "test_thread"}
+        state = {"data": "test"}
+        await checkpointer.aput_state_cache(config, state)
+        result = await checkpointer.aget_state_cache(config)
+        assert result == state  # noqa: S101
+
 
 class TestBaseCheckpointer:
     """Test the BaseCheckpointer abstract class."""

@@ -3,7 +3,7 @@ Comprehensive test for custom state functionality.
 Tests state transitions, checkpointing, and type safety.
 """
 
-from dataclasses import field, dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 from dotenv import load_dotenv
@@ -13,8 +13,8 @@ from pyagenity.checkpointer import InMemoryCheckpointer
 from pyagenity.graph import StateGraph
 from pyagenity.state.agent_state import AgentState
 from pyagenity.utils import Message
-from pyagenity.utils.constants import END
 from pyagenity.utils.converter import convert_messages
+
 
 load_dotenv()
 

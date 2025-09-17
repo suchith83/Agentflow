@@ -6,25 +6,24 @@ from typing import Any, TypeVar
 from injectq import inject
 
 from pyagenity.exceptions import GraphRecursionError
-from pyagenity.publisher import BasePublisher, Event, EventType, SourceType
+from pyagenity.graph.edge import Edge
+from pyagenity.graph.node import Node
+from pyagenity.graph.utils.utils import (
+    call_realtime_sync,
+    get_next_node,
+    load_or_create_state,
+    parse_response,
+    publish_event,
+    sync_data,
+)
 from pyagenity.state import AgentState, ExecutionStatus
 from pyagenity.utils import (
     END,
     Message,
     ResponseGranularity,
 )
-
-from ..edge import Edge
-from ..node import Node
-from .utils import (
-    call_realtime_sync,
-    get_default_event,
-    get_next_node,
-    load_or_create_state,
-    parse_response,
-    process_node_result,
-    sync_data,
-)
+from pyagenity.utils.reducers import add_messages
+from pyagenity.utils.streaming import ContentType, Event, EventModel, EventType
 
 
 StateT = TypeVar("StateT", bound=AgentState)
@@ -38,7 +37,6 @@ class InvokeHandler[StateT: AgentState]:
         self,
         nodes: dict[str, Node],
         edges: list[Edge],
-        publisher: BasePublisher | None = None,
         interrupt_before: list[str] | None = None,
         interrupt_after: list[str] | None = None,
     ):
@@ -46,19 +44,6 @@ class InvokeHandler[StateT: AgentState]:
         self.edges: list[Edge] = edges
         self.interrupt_before = interrupt_before or []
         self.interrupt_after = interrupt_after or []
-        self.publisher = publisher
-
-    async def _publish_event(
-        self,
-        event: Event,
-    ) -> None:
-        """Publish an event if publisher is configured."""
-        if self.publisher:
-            try:
-                await self.publisher.publish(event)
-                logger.debug("Published event: %s", event)
-            except Exception as e:
-                logger.error("Failed to publish event: %s", e)
 
     async def _check_interrupted(
         self,
@@ -145,11 +130,18 @@ class InvokeHandler[StateT: AgentState]:
         current_node = state.execution_meta.current_node
         step = state.execution_meta.step
 
-        event = get_default_event(
-            state,
-            input_data={},
-            config=config,
-            source=SourceType.NODE,
+        # Create event for graph execution
+        event = EventModel.default(
+            config,
+            data={"state": state.model_dump()},
+            event=Event.GRAPH_EXECUTION,
+            content_type=[ContentType.STATE],
+            node_name=current_node,
+            extra={
+                "current_node": current_node,
+                "step": step,
+                "max_steps": max_steps,
+            },
         )
 
         try:
@@ -159,10 +151,11 @@ class InvokeHandler[StateT: AgentState]:
                 state.set_current_node(current_node)
                 state.execution_meta.step = step
                 await call_realtime_sync(state, config)
-                event.payload["step"] = step
-                event.payload["current_node"] = current_node
-                event.event_type = EventType.RUNNING
-                await self._publish_event(event)
+                event.data["state"] = state.model_dump()
+                event.metadata["step"] = step
+                event.metadata["current_node"] = current_node
+                event.event_type = EventType.PROGRESS
+                publish_event(event)
 
                 # Check for interrupt_before
                 if await self._check_and_handle_interrupt(
@@ -173,8 +166,10 @@ class InvokeHandler[StateT: AgentState]:
                 ):
                     logger.info("Graph execution interrupted before node '%s'", current_node)
                     event.event_type = EventType.INTERRUPTED
-                    event.payload["interrupted"] = "Before"
-                    await self._publish_event(event)
+                    event.metadata["interrupted"] = "Before"
+                    event.metadata["status"] = "Graph execution interrupted before node execution"
+                    event.data["interrupted"] = "Before"
+                    publish_event(event)
                     return state, messages
 
                 # Execute current node
@@ -182,7 +177,6 @@ class InvokeHandler[StateT: AgentState]:
                 node = self.nodes[current_node]
 
                 # Publish node invocation event
-                await self._publish_event(event)
 
                 ###############################################
                 ##### Node Execution Started ##################
@@ -196,16 +190,35 @@ class InvokeHandler[StateT: AgentState]:
 
                 logger.debug("Node '%s' execution completed", current_node)
 
-                # Publish node completion event
-                event.event_type = EventType.COMPLETED
-                await self._publish_event(event)
+                next_node = None
 
                 # Process result and get next node
-                state, messages, next_node = process_node_result(
-                    result,
-                    state,
-                    messages,
-                )
+                if isinstance(result, list):
+                    # If result is a list of Message, append to messages
+                    messages.extend(result)
+                    logger.debug(
+                        "Node '%s' returned %d messages, total messages now %d",
+                        current_node,
+                        len(result),
+                        len(messages),
+                    )
+                    # Add messages to state context so they're visible to subsequent nodes
+                    state.context = add_messages(state.context, result)
+
+                # No state change beyond adding messages, just advance to next node
+                if isinstance(result, dict):
+                    state = result.get("state", state)
+                    next_node = result.get("next_node")
+                    new_messages = result.get("messages", [])
+                    if new_messages:
+                        messages.extend(new_messages)
+                        logger.debug(
+                            "Node '%s' returned %d messages, total messages now %d",
+                            current_node,
+                            len(new_messages),
+                            len(messages),
+                        )
+
                 logger.debug(
                     "Node result processed, next_node=%s, total_messages=%d",
                     next_node,
@@ -214,6 +227,11 @@ class InvokeHandler[StateT: AgentState]:
 
                 # Call realtime sync after node execution (if state/messages changed)
                 await call_realtime_sync(state, config)
+                event.event_type = EventType.UPDATE
+                event.data["state"] = state.model_dump()
+                event.data["messages"] = [m.model_dump() for m in messages] if messages else []
+                event.content_type = [ContentType.STATE, ContentType.MESSAGE]
+                publish_event(event)
 
                 # Check for interrupt_after
                 if await self._check_and_handle_interrupt(
@@ -229,8 +247,10 @@ class InvokeHandler[StateT: AgentState]:
                     state.set_current_node(next_node)
 
                     event.event_type = EventType.INTERRUPTED
-                    event.payload["interrupted"] = "After"
-                    await self._publish_event(event)
+                    event.data["interrupted"] = "After"
+                    event.metadata["interrupted"] = "After"
+                    event.data["state"] = state.model_dump()
+                    publish_event(event)
                     return state, messages
 
                 # Get next node (only if no explicit navigation from Command)
@@ -245,16 +265,24 @@ class InvokeHandler[StateT: AgentState]:
                 step += 1
                 state.advance_step()
                 await call_realtime_sync(state, config)
-                event.event_type = EventType.CHANGED
+                event.event_type = EventType.UPDATE
 
-                event.payload["State_Updated"] = "State Updated"
-                await self._publish_event(event)
+                event.metadata["State_Updated"] = "State Updated"
+                event.data["state"] = state.model_dump()
+                publish_event(event)
 
                 if step >= max_steps:
                     error_msg = "Graph execution exceeded maximum steps"
                     logger.error(error_msg)
                     state.error(error_msg)
                     await call_realtime_sync(state, config)
+                    event.event_type = EventType.ERROR
+                    event.data["state"] = state.model_dump()
+                    event.metadata["error"] = error_msg
+                    event.metadata["step"] = step
+                    event.metadata["current_node"] = current_node
+
+                    publish_event(event)
                     raise GraphRecursionError(
                         f"Graph execution exceeded recursion limit: {max_steps}"
                     )
@@ -266,24 +294,36 @@ class InvokeHandler[StateT: AgentState]:
                 step,
             )
             state.complete()
-            await sync_data(
+            res = await sync_data(
                 state=state,
                 config=config,
                 messages=messages,
                 trim=True,
             )
+            event.event_type = EventType.END
+            event.data["state"] = state.model_dump()
+            event.data["messages"] = [m.model_dump() for m in messages] if messages else []
+            event.content_type = [ContentType.STATE, ContentType.MESSAGE]
+            event.metadata["status"] = "Graph execution completed"
+            event.metadata["step"] = step
+            event.metadata["current_node"] = current_node
+            event.metadata["is_context_trimmed"] = res
+
+            publish_event(event)
+
             return state, messages
 
         except Exception as e:
             # Handle execution errors
             logger.exception("Graph execution failed: %s", e)
+            state.error(str(e))
 
             # Publish error event
             event.event_type = EventType.ERROR
-            event.payload["error"] = str(e)
-            await self._publish_event(event)
+            event.metadata["error"] = str(e)
+            event.data["state"] = state.model_dump()
+            publish_event(event)
 
-            state.error(str(e))
             await sync_data(
                 state=state,
                 config=config,
@@ -299,20 +339,7 @@ class InvokeHandler[StateT: AgentState]:
         default_state: StateT,
         response_granularity: ResponseGranularity = ResponseGranularity.LOW,
     ):
-        """Execute the graph asynchronously.
-
-        Auto-detects whether to start fresh execution or resume from interrupted state
-        based on the AgentState's execution metadata.
-
-        Args:
-            input_data: Input dict with 'messages' key (for new execution) or
-                       additional data for resuming
-            config: Configuration dictionary
-            response_granularity: Response parsing granularity
-
-        Returns:
-            Response dict based on granularity
-        """
+        """Execute the graph asynchronously with event publishing."""
         logger.info(
             "Starting asynchronous graph execution with %d input keys, granularity=%s",
             len(input_data) if input_data else 0,
@@ -335,30 +362,52 @@ class InvokeHandler[StateT: AgentState]:
             state.execution_meta.step,
         )
 
-        event = get_default_event(state=state, input_data=input_data, config=config)
-
-        # Publish graph initialization event
-        await self._publish_event(event)
+        # Event publishing logic
+        event = EventModel.default(
+            config,
+            data={"state": state.model_dump()},
+            event=Event.GRAPH_EXECUTION,
+            content_type=[ContentType.STATE],
+            node_name=state.execution_meta.current_node,
+            extra={
+                "current_node": state.execution_meta.current_node,
+                "step": state.execution_meta.step,
+            },
+        )
+        event.event_type = EventType.START
+        publish_event(event)
 
         # Check if this is a resume case
         config = await self._check_interrupted(state, input_data, config)
 
-        # Publish graph error event
-        event.event_type = EventType.INVOKED
-        await self._publish_event(event)
+        event.event_type = EventType.UPDATE
+        event.metadata["status"] = "Graph invoked"
+        publish_event(event)
 
-        # Now start Execution
-        # Execute graph
-        logger.debug("Beginning graph execution")
-        final_state, messages = await self._execute_graph(state, config)
-        logger.info("Graph execution completed with %d final messages", len(messages))
+        try:
+            logger.debug("Beginning graph execution")
+            event.event_type = EventType.PROGRESS
+            event.metadata["status"] = "Graph execution started"
+            publish_event(event)
 
-        # Publish graph completion event
-        event.event_type = EventType.COMPLETED
-        await self._publish_event(event)
+            final_state, messages = await self._execute_graph(state, config)
+            logger.info("Graph execution completed with %d final messages", len(messages))
 
-        return await parse_response(
-            final_state,
-            messages,
-            response_granularity,
-        )
+            event.event_type = EventType.END
+            event.metadata["status"] = "Graph execution completed"
+            event.data["state"] = final_state.model_dump()
+            event.data["messages"] = [m.model_dump() for m in messages] if messages else []
+            publish_event(event)
+
+            return await parse_response(
+                final_state,
+                messages,
+                response_granularity,
+            )
+        except Exception as e:
+            logger.exception("Graph execution failed: %s", e)
+            event.event_type = EventType.ERROR
+            event.metadata["status"] = f"Graph execution failed: {e}"
+            event.data["error"] = str(e)
+            publish_event(event)
+            raise

@@ -1,7 +1,5 @@
 """Tests for the graph module."""
 
-from unittest.mock import Mock, patch
-
 import pytest
 
 from pyagenity.graph import (
@@ -229,6 +227,17 @@ class TestCompiledGraph:
         result = self.compiled.invoke({"messages": messages})
         assert "messages" in result  # noqa: S101
 
+    def test_invoke_exception_handling(self, monkeypatch):
+        """Test exception handling in invoke method."""
+
+        def mock_ainvoke(*args, **kwargs):
+            raise Exception("test error")
+
+        monkeypatch.setattr(self.compiled, "ainvoke", mock_ainvoke)
+        messages = [Message.from_text("Hello", "user")]
+        with pytest.raises(Exception, match="test error"):
+            self.compiled.invoke({"messages": messages})
+
     @pytest.mark.asyncio
     async def test_ainvoke(self):
         """Test asynchronous invocation."""
@@ -250,6 +259,22 @@ class TestCompiledGraph:
         async for event in self.compiled.astream({"messages": messages}):
             events.append(event)
         assert len(events) >= 0  # noqa: S101
+
+    @pytest.mark.asyncio
+    async def test_aclose(self):
+        """Test closing the compiled graph."""
+        stats = await self.compiled.aclose()
+        assert isinstance(stats, dict)  # noqa: S101
+        assert "background_tasks" in stats  # noqa: S101
+
+    def test_generate_graph(self):
+        """Test generating graph representation."""
+        graph_dict = self.compiled.generate_graph()
+        assert "info" in graph_dict  # noqa: S101
+        assert "nodes" in graph_dict  # noqa: S101
+        assert "edges" in graph_dict  # noqa: S101
+        assert graph_dict["info"]["node_count"] == len(graph_dict["nodes"])  # noqa: S101
+        assert graph_dict["info"]["edge_count"] == len(graph_dict["edges"])  # noqa: S101
 
 
 def test_graph_module_imports():

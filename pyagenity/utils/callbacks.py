@@ -51,7 +51,7 @@ class BeforeInvokeCallback[T, R](ABC):
     """
 
     @abstractmethod
-    async def __call__(self, context: CallbackContext, input_data: T) -> Union[T, R]:
+    async def __call__(self, context: CallbackContext, input_data: T) -> T | R:
         """Execute the before_invoke callback.
 
         Args:
@@ -75,9 +75,7 @@ class AfterInvokeCallback[T, R](ABC):
     """
 
     @abstractmethod
-    async def __call__(
-        self, context: CallbackContext, input_data: T, output_data: Any
-    ) -> Union[Any, R]:
+    async def __call__(self, context: CallbackContext, input_data: T, output_data: Any) -> Any | R:
         """Execute the after_invoke callback.
 
         Args:

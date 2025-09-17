@@ -15,7 +15,7 @@ Successfully implemented optional dependencies for PyAgenity to keep the core in
 ```toml
 [project.optional-dependencies]
 pg_checkpoint = [
-    "asyncpg>=0.29.0", 
+    "asyncpg>=0.29.0",
     "redis>=4.2"
 ]
 mcp = [
@@ -23,7 +23,7 @@ mcp = [
     "mcp>=1.13.0"
 ]
 redis = ["redis>=4.2"]
-kafka = ["aiokafka>=0.8.0"] 
+kafka = ["aiokafka>=0.8.0"]
 rabbitmq = ["aio-pika>=9.0.0"]
 ```
 
@@ -51,7 +51,7 @@ except ImportError:
 
 **Added MCP optional dependency handling:**
 - Wrapped fastmcp and mcp imports in try/except blocks
-- Added `HAS_FASTMCP` and `HAS_MCP` flags  
+- Added `HAS_FASTMCP` and `HAS_MCP` flags
 - Added dependency checks when MCP client is provided
 - Updated type annotations to use `Any` when MCP dependencies might not be available
 
@@ -105,7 +105,7 @@ pip install pyagenity[pg_checkpoint]
 **Enables:** PgCheckpointer with database persistence and caching
 
 ### With MCP Support
-```bash 
+```bash
 pip install pyagenity[mcp]
 ```
 **Adds:** fastmcp, mcp
@@ -123,11 +123,11 @@ Users get helpful error messages when trying to use functionality without requir
 ```python
 # Without pg_checkpoint extra
 from pyagenity.checkpointer import PgCheckpointer
-# ImportError: PgCheckpointer requires 'asyncpg' package. 
+# ImportError: PgCheckpointer requires 'asyncpg' package.
 # Install with: pip install pyagenity[pg_checkpoint]
 
 # Without mcp extra
-tool_node = ToolNode([], client=mcp_client)  
+tool_node = ToolNode([], client=mcp_client)
 # ImportError: MCP client functionality requires 'fastmcp' and 'mcp' packages.
 # Install with: pip install pyagenity[mcp]
 ```

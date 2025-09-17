@@ -14,7 +14,7 @@ class DebugState(AgentState):
 
 
 async def debug_node(state: DebugState, config: dict[str, Any]) -> DebugState:
-    print(f"=== Inside debug_node ===")
+    print("=== Inside debug_node ===")
     print(f"state parameter type: {type(state)}")
     print(f"state.__dict__: {state.__dict__}")
 

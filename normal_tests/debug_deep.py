@@ -1,4 +1,5 @@
 from dataclasses import dataclass, field
+
 from pyagenity.state.agent_state import AgentState
 
 
@@ -31,12 +32,14 @@ print(f"state3.items value: {state3.items}")
 print("\n=== Test 4: Check dataclass fields ===")
 import dataclasses
 
+
 fields = dataclasses.fields(TestState)
 for f in fields:
     print(f"Field {f.name}: {f}")
 
 # Test 5: What happens with the actual state from the graph
 from pyagenity.graph import StateGraph
+
 
 print("\n=== Test 5: StateGraph state ===")
 graph = StateGraph[TestState](TestState())

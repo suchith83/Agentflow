@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import Any
 
-from .events import Event
+from pyagenity.utils.streaming import EventModel
 
 
 class BasePublisher(ABC):
@@ -35,7 +35,7 @@ class BasePublisher(ABC):
         self.config = config
 
     @abstractmethod
-    async def publish(self, event: Event) -> Any:
+    async def publish(self, event: EventModel) -> Any:
         """
         Publish an event.
 

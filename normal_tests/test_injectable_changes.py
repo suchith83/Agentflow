@@ -3,13 +3,14 @@
 Test script to verify the injectable changes work correctly.
 """
 
-import sys
 import os
+import sys
+
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__)))
 
-from typing import Any
 from injectq import inject
+
 from pyagenity.graph.tool_node import ToolNode
 from pyagenity.state.agent_state import AgentState
 from pyagenity.utils import Message

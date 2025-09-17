@@ -4,19 +4,20 @@ Simple test script to verify the callback system works.
 """
 
 import asyncio
-import sys
 import os
+import sys
 from typing import Any
+
 
 # Add the project root to the path so we can import pyagenity
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from pyagenity.utils import (
+    AfterInvokeCallback,
+    BeforeInvokeCallback,
     CallbackContext,
     CallbackManager,
     InvocationType,
-    BeforeInvokeCallback,
-    AfterInvokeCallback,
     OnErrorCallback,
 )
 

@@ -4,6 +4,7 @@
 ![PyPI](https://img.shields.io/pypi/v/pyagenity?color=blue)
 ![License](https://img.shields.io/github/license/Iamsdt/pyagenity)
 ![Python](https://img.shields.io/pypi/pyversions/pyagenity)
+[![Coverage](https://img.shields.io/badge/coverage-63%25-yellow.svg)](#)
 
 **PyAgenity** is a lightweight Python framework for building intelligent agents and orchestrating multi-agent workflows on top of the [LiteLLM](https://github.com/BerriAI/litellm) unified LLM interface.
 
@@ -52,7 +53,7 @@ pip install pyagenity[mcp]
 
 # Individual publishers
 pip install pyagenity[redis]     # Redis publisher
-pip install pyagenity[kafka]     # Kafka publisher  
+pip install pyagenity[kafka]     # Kafka publisher
 pip install pyagenity[rabbitmq]  # RabbitMQ publisher
 
 # Multiple extras
@@ -364,7 +365,7 @@ async def main_agent(
     # Get all available tools (including MCP tools)
     tools = await tool_node.all_tools()
     print("**** List of tools", len(tools), tools)
-    
+
     response = await acompletion(
         model="gemini/gemini-2.0-flash",
         messages=messages,
