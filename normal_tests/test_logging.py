@@ -6,10 +6,12 @@ Simple test script to verify logging functionality in PyAgenity.
 import logging
 import sys
 
+
 sys.path.insert(0, "/home/shudipto/projects/pyagenity")
 
 # Import logging setup first
 from pyagenity.utils.logging import configure_logging
+
 
 # Configure logging to DEBUG level to see all logs
 configure_logging(level=logging.DEBUG)

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import asyncio
 import logging
 from collections.abc import Callable
 from typing import Any, TypeVar
@@ -117,7 +116,7 @@ async def load_or_create_state[StateT: AgentState](
 
     # Create new state by deep copying the graph's prototype state
     logger.info("Creating new state from graph prototype")
-    import copy  # noqa: PLC0415
+    import copy
 
     state = copy.deepcopy(old_state)
 
@@ -165,7 +164,7 @@ async def load_or_create_state[StateT: AgentState](
 #     config: dict[str, Any] | None = None,
 #     meta: dict[str, Any] | None = None,
 # ) -> Event:
-#     from pyagenity.utils.streaming import EventModel  # noqa: PLC0415
+#     from pyagenity.utils.streaming import EventModel
 
 #     metadata = meta or {}
 #     metadata["step"] = state.execution_meta.step
@@ -416,7 +415,7 @@ async def sync_data(
     context_manager: BaseContextManager = Inject[BaseContextManager],  # will be auto-injected
 ) -> bool:
     """Sync the current state and messages to the checkpointer."""
-    import copy  # noqa: PLC0415
+    import copy
 
     is_context_trimmed = False
 

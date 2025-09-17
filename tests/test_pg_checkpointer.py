@@ -11,11 +11,11 @@ Tests cover:
 - Async and sync variants
 """
 
-import asyncio
 import json
-import pytest
 from datetime import datetime
 from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
 
 from pyagenity.checkpointer.pg_checkpointer import PgCheckpointer
 from pyagenity.state import AgentState
@@ -100,11 +100,10 @@ class TestPgCheckpointer:
             postgres_dsn="postgresql://test:test@localhost/test",
             redis_url="redis://localhost:6379/0",
             user_id_type="int",
-            id_type="bigint",
             cache_ttl=3600,
         )
         assert cp2.user_id_type == "int"
-        assert cp2.id_type == "bigint"
+        assert cp2.id_type == "string"
         assert cp2.cache_ttl == 3600
 
     def test_initialization_invalid(self):

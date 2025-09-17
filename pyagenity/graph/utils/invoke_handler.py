@@ -16,7 +16,6 @@ from pyagenity.graph.utils.utils import (
     publish_event,
     sync_data,
 )
-from pyagenity.publisher import BasePublisher
 from pyagenity.state import AgentState, ExecutionStatus
 from pyagenity.utils import (
     END,

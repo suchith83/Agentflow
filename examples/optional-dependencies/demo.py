@@ -10,10 +10,10 @@ def test_basic_functionality():
     print("🔧 Testing basic functionality...")
 
     # These should always work
+    from pyagenity.checkpointer import InMemoryCheckpointer
+    from pyagenity.graph.tool_node import ToolNode
     from pyagenity.state import AgentState
     from pyagenity.utils import Message
-    from pyagenity.checkpointer import BaseCheckpointer, InMemoryCheckpointer
-    from pyagenity.graph.tool_node import ToolNode
 
     # Create basic objects
     state = AgentState()

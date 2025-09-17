@@ -1,8 +1,5 @@
 """Tests for the state module."""
 
-import pytest
-from unittest.mock import Mock, patch
-
 from pyagenity.state import (
     AgentState,
     BaseContextManager,
@@ -10,7 +7,7 @@ from pyagenity.state import (
     ExecutionStatus,
     MessageContextManager,
 )
-from pyagenity.utils import Message, START
+from pyagenity.utils import START, Message
 
 
 class TestAgentState:

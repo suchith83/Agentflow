@@ -27,18 +27,6 @@ from .message import Message, TokenUsages
 from .reducers import add_messages, append_items, replace_messages, replace_value
 from .streaming import ContentType, Event, EventModel, EventType
 
-# Export from streaming.py
-# from .streaming2 import (
-#     StreamChunk,
-#     astream_from_litellm_response,
-#     extract_content_from_response,
-#     is_async_streaming_response,
-#     is_streaming_response,
-#     simulate_async_streaming,
-#     simulate_streaming,
-#     stream_from_litellm_response,
-# )
-
 
 __all__ = [
     "END",

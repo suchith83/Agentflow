@@ -1,10 +1,11 @@
 """Simple streaming test to debug the API."""
 
 import asyncio
+
+from pyagenity.checkpointer import InMemoryCheckpointer
 from pyagenity.graph import StateGraph
 from pyagenity.state import AgentState
-from pyagenity.utils import Message, END
-from pyagenity.checkpointer import InMemoryCheckpointer
+from pyagenity.utils import END, Message
 
 
 def simple_node(state: AgentState) -> str:

@@ -10,9 +10,9 @@ import logging
 from typing import Any
 
 from pyagenity.graph import StateGraph
-from pyagenity.publisher import BasePublisher, ConsolePublisher, Event, EventType, SourceType
+from pyagenity.publisher import BasePublisher, Event, EventType, SourceType
 from pyagenity.state import AgentState
-from pyagenity.utils import Message, END
+from pyagenity.utils import END, Message
 
 
 # Configure logging to see the events
@@ -37,7 +37,7 @@ class CustomPublisher(BasePublisher):
 
         # Handle specific event types
         if event_type == EventType.INITIALIZE:
-            print(f"   🚀 Graph execution started")
+            print("   🚀 Graph execution started")
         elif event_type == EventType.INVOKED and source == SourceType.NODE:
             node_name = info.get("payload", {}).get("node_name", "unknown")
             print(f"   ⚙️  Executing node: {node_name}")
@@ -110,7 +110,7 @@ async def demo_event_publishing():
         print("\\n✨ Graph execution completed successfully!")
 
         # Show final result
-        if "context" in result and result["context"]:
+        if result.get("context"):
             final_message = result["context"][-1].get("content", "No content")
             print(f"🎯 Final result: {final_message}")
 

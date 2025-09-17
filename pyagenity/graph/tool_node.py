@@ -10,9 +10,8 @@ import inspect
 import json
 import logging
 import typing as t
-
+import asyncio
 from pyagenity.graph.utils.utils import publish_event
-from pyagenity.publisher.base_publisher import BasePublisher
 from pyagenity.utils.streaming import ContentType, Event, EventModel, EventType
 
 
@@ -109,7 +108,7 @@ class ToolNode:
         self.mcp_tools = []
         logger.debug("ToolNode initialized with %d local functions", len(self._funcs))
 
-    async def _get_local_tool(self) -> list[dict]:
+    def _get_local_tool(self) -> list[dict]:
         """Build JSON-schema-like descriptions for locally-registered callables.
 
         The returned list contains entries compatible with function-calling LLM
@@ -221,8 +220,28 @@ class ToolNode:
             A list of function description dictionaries suitable for passing to
             an LLM that supports function calling.
         """
-        tools: list[dict] = await self._get_local_tool()
+        tools: list[dict] = self._get_local_tool()
         tools.extend(await self._get_mcp_tool())
+        return tools
+
+    def all_tools_sync(self) -> list[dict]:
+        """Return function descriptions for all registered callables.
+
+        This aggregates descriptions for both local functions registered with
+        this ToolNode and tools discovered on the MCP server (if configured).
+
+        Returns:
+            A list of function description dictionaries suitable for passing to
+            an LLM that supports function calling.
+        """
+        tools: list[dict] = self._get_local_tool()
+        if not self._client:
+            return tools
+
+        result = asyncio.run(self._get_mcp_tool())
+        if result:
+            tools.extend(result)
+
         return tools
 
     def _prepare_input_data_tool(

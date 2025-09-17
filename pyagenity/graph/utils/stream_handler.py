@@ -10,7 +10,6 @@ from injectq import inject
 from pyagenity.exceptions import GraphRecursionError
 from pyagenity.graph.edge import Edge
 from pyagenity.graph.node import Node
-from pyagenity.publisher import BasePublisher
 from pyagenity.state import AgentState, ExecutionStatus
 from pyagenity.utils import (
     END,

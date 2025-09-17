@@ -1,20 +1,19 @@
 """Comprehensive tests for the utils module."""
 
+import logging
+import sys
+from io import StringIO
+
 from pyagenity.utils import (
+    END,
+    START,
     CallbackContext,
     CallbackManager,
     Command,
     InvocationType,
     Message,
     add_messages,
-    END,
-    START,
 )
-import logging
-import sys
-from io import StringIO
-from unittest.mock import patch
-
 from pyagenity.utils.logging import configure_logging
 
 
@@ -367,8 +366,8 @@ class TestLogging:
 
     def test_configure_logging_with_file_handler(self):
         """Test configure_logging with a file handler."""
-        import tempfile
         import os
+        import tempfile
 
         # Clear any existing handlers
         logger = logging.getLogger("pyagenity")
@@ -389,7 +388,7 @@ class TestLogging:
             logger.info("Test file log message")
 
             # Read the file
-            with open(temp_filename, "r") as f:
+            with open(temp_filename) as f:
                 content = f.read()
 
             # Verify content

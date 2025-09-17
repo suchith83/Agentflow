@@ -7,7 +7,7 @@ import pytest
 from pyagenity.checkpointer import InMemoryCheckpointer
 from pyagenity.graph import StateGraph
 from pyagenity.state import AgentState
-from pyagenity.utils import END, Message, StreamChunk
+from pyagenity.utils import END, EventModel, Message
 
 
 class MockStreamingResponse:
@@ -135,7 +135,7 @@ class TestStreamingIntegration:
 
         # Verify we got chunks
         assert len(chunks) > 0  # noqa: S101
-        assert all(isinstance(chunk, StreamChunk) for chunk in chunks)  # noqa: S101
+        assert all(isinstance(chunk, EventModel) for chunk in chunks)  # noqa: S101
 
     @pytest.mark.asyncio
     async def test_non_streaming_string_node_async(self):
@@ -156,7 +156,7 @@ class TestStreamingIntegration:
 
         # Verify we got chunks
         assert len(chunks) > 0  # noqa: S101
-        assert all(isinstance(chunk, StreamChunk) for chunk in chunks)  # noqa: S101
+        assert all(isinstance(chunk, EventModel) for chunk in chunks)  # noqa: S101
 
     def test_streaming_node_sync(self):
         """Test graph.stream() with a node that returns a streaming response."""
@@ -174,7 +174,7 @@ class TestStreamingIntegration:
 
         # Verify we got chunks
         assert len(chunks) > 0  # noqa: S101
-        assert all(isinstance(chunk, StreamChunk) for chunk in chunks)  # noqa: S101
+        assert all(isinstance(chunk, EventModel) for chunk in chunks)  # noqa: S101
 
         # Verify we got multiple chunks (streaming)
         streaming_chunks = [c for c in chunks if c.data]
@@ -203,14 +203,14 @@ class TestStreamingIntegration:
 
         # Verify we got chunks
         assert len(chunks) > 0  # noqa: S101
-        assert all(isinstance(chunk, StreamChunk) for chunk in chunks)  # noqa: S101
+        assert all(isinstance(chunk, EventModel) for chunk in chunks)  # noqa: S101
 
         # Verify we got multiple chunks (streaming)
         streaming_chunks = [c for c in chunks if c.data]
         assert len(streaming_chunks) > 1  # noqa: S101
 
     def test_stream_chunk_properties(self):
-        """Test StreamChunk properties and methods."""
+        """Test EventModel properties and methods."""
         graph = StateGraph[AgentState](AgentState())
         graph.add_node("string_node", non_streaming_string_node)
         graph.set_entry_point("string_node")

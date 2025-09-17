@@ -1,7 +1,10 @@
-# TODO: 
-1. All stop current execution, From frontend, we can stop the execution of a graph.
-2. All Remote Node support, that can be used to run nodes on remote machines.
-3. All user to Extend Node, Tool Node also
+# TODO:
+1. Allow more types of streaming response, it only supported by litellm right now.
+2. All stop current execution, From frontend, we can stop the execution of a graph.
+3. All Remote Node support, that can be used to run nodes on remote machines.
+4. Allow different types of response like image, audio, video etc.
+
+
 
 
 
@@ -10,5 +13,6 @@ Cancel Current Call, that need to be allowed
 
 
 # Feedback:
-1. Branching support for chat models
-2. Remote Node support
+2. Branching support for chat models
+3. Remote Node support
+

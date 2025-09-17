@@ -6,7 +6,7 @@ readme = "README.md"
 license = {file = "LICENSE"}
 requires-python = ">=3.10"
 dependencies = [
-    "injectq==0.2.0",
+    "injectq>=0.2.0",
     "litellm>=1.75.0",
     "pydantic>=2.0.0",
     "python-dotenv>=1.0.0",
@@ -144,8 +144,14 @@ skips = ["B101", "B611", "B601", "B608"]
 convention = "google"
 
 
-#[tool.mypy]
-#plugins = ["strawberry.ext.mypy_plugin"]
+[tool.mypy]
+exclude = [
+    "normal_tests/*",
+    "tests/*",
+    "examples/*",
+    "docs/*",
+    "migrations/*"
+]
 
 [tool.pytest.ini_options]
 env = [
@@ -164,7 +170,7 @@ python_functions = ["test_*"]
 # Exclude other directories from test discovery
 norecursedirs = [
     "normal_tests",
-    "examples", 
+    "examples",
     "docs",
     ".git",
     ".tox",

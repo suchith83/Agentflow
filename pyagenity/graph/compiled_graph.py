@@ -160,7 +160,7 @@ class CompiledGraph[StateT: AgentState]:
         input_data: dict[str, Any],
         config: dict[str, Any] | None = None,
         response_granularity: ResponseGranularity = ResponseGranularity.LOW,
-    ) -> Generator[EventModel, None, None]:
+    ) -> Generator[EventModel]:
         """Execute the graph synchronously with streaming support.
 
         Yields EventModel objects containing incremental responses.

@@ -1,13 +1,12 @@
 """Test the complete event publishing system."""
 
 import asyncio
-import json
 from typing import Any
 
 from pyagenity.graph import StateGraph
 from pyagenity.publisher import BasePublisher, ConsolePublisher, Event, EventType, SourceType
 from pyagenity.state import AgentState
-from pyagenity.utils import Message, END
+from pyagenity.utils import END, Message
 
 
 class TestPublisher(BasePublisher):

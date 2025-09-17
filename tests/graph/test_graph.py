@@ -1,7 +1,5 @@
 """Tests for the graph module."""
 
-from unittest.mock import Mock, patch
-
 import pytest
 
 from pyagenity.graph import (

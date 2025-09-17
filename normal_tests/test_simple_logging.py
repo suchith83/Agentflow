@@ -6,10 +6,12 @@ Simple test to verify logging is configured correctly.
 import logging
 import sys
 
+
 sys.path.insert(0, "/home/shudipto/projects/pyagenity")
 
 # Import and configure logging directly
 from pyagenity.utils.logging import configure_logging
+
 
 # Test logging configuration
 configure_logging(level=logging.DEBUG)
