@@ -373,7 +373,7 @@ def get_next_node(
         if edge.condition:
             try:
                 condition_result = edge.condition(state)
-                if hasattr(edge, "condition_result"):
+                if hasattr(edge, "condition_result") and edge.condition_result is not None:
                     # Mapped conditional edge
                     if condition_result == edge.condition_result:
                         return edge.to_node

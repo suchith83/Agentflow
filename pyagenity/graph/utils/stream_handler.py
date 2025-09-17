@@ -132,8 +132,18 @@ class StreamHandler[StateT: AgentState]:
             state.execution_meta.step,
         )
         messages: list[Message] = []
+        messages_ids = set()
         max_steps = config.get("recursion_limit", 25)
         logger.debug("Max steps limit set to %d", max_steps)
+
+        last_human_message = state.context[-1] if state.context else None
+        if last_human_message and last_human_message.role != "user":
+            msg = [msg for msg in reversed(state.context) if msg.role == "user"]
+            last_human_message = msg[0] if msg else None
+
+        if last_human_message:
+            logger.debug("Last human message: %s", last_human_message.content)
+            messages.append(last_human_message)
 
         # Get current execution info from state
         current_node = state.execution_meta.current_node
@@ -199,16 +209,22 @@ class StreamHandler[StateT: AgentState]:
                         yield rs
                     elif isinstance(rs, dict) and "is_non_streaming" in rs:
                         state = rs.get("state", state)
-                        messages = rs.get("messages", messages)
+                        new_messages = rs.get("messages", [])
+                        for m in new_messages:
+                            if m.message_id not in messages_ids:
+                                messages.append(m)
+                                messages_ids.add(m.message_id)
                         next_node = rs.get("next_node", next_node)
                     elif isinstance(rs, Message):
-                        messages.append(rs)
+                        if rs.message_id not in messages_ids:
+                            messages.append(rs)
+                            messages_ids.add(rs.message_id)
+                            state.context = add_messages(state.context, [rs])
                         logger.debug(
                             "Appended message from node '%s', total messages: %d",
                             current_node,
                             len(messages),
                         )
-                        state.context = add_messages(state.context, [rs])
                     else:
                         # Process as node result
                         try:

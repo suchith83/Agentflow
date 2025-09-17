@@ -122,9 +122,22 @@ class InvokeHandler[StateT: AgentState]:
             state.execution_meta.current_node,
             state.execution_meta.step,
         )
+        logger.debug("DEBUG: Current node value: %r", state.execution_meta.current_node)
+        logger.debug("DEBUG: END constant value: %r", END)
+        logger.debug("DEBUG: Are they equal? %s", state.execution_meta.current_node == END)
         messages: list[Message] = []
         max_steps = config.get("recursion_limit", 25)
         logger.debug("Max steps limit set to %d", max_steps)
+
+        # get the last message from state as that is human message
+        last_human_message = state.context[-1] if state.context else None
+        if last_human_message and last_human_message.role != "user":
+            msg = [msg for msg in reversed(state.context) if msg.role == "user"]
+            last_human_message = msg[0] if msg else None
+
+        if last_human_message:
+            logger.debug("Last human message: %s", last_human_message.content)
+            messages.append(last_human_message)
 
         # Get current execution info from state
         current_node = state.execution_meta.current_node
@@ -260,6 +273,12 @@ class InvokeHandler[StateT: AgentState]:
                 else:
                     current_node = next_node
                     logger.debug("Next node determined by command: '%s'", current_node)
+
+                # Check if we've reached the end after determining next node
+                logger.debug("Checking if current_node '%s' == END '%s'", current_node, END)
+                if current_node == END:
+                    logger.info("Graph execution reached END node, completing")
+                    break
 
                 # Advance step after successful node execution
                 step += 1
