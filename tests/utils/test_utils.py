@@ -1,8 +1,11 @@
 """Comprehensive tests for the utils module."""
 
+import asyncio
 import logging
 import sys
 from io import StringIO
+
+import pytest
 
 from pyagenity.utils import (
     END,
@@ -13,8 +16,25 @@ from pyagenity.utils import (
     InvocationType,
     Message,
     add_messages,
+    append_items,
+    convert_messages,
+    replace_messages,
+    replace_value,
+)
+from pyagenity.utils.background_task_manager import BackgroundTaskManager
+from pyagenity.utils.id_generator import (
+    AsyncIDGenerator,
+    BigIntIDGenerator,
+    DefaultIDGenerator,
+    HexIDGenerator,
+    IDType,
+    IntIDGenerator,
+    ShortIDGenerator,
+    TimestampIDGenerator,
+    UUIDGenerator,
 )
 from pyagenity.utils.logging import configure_logging
+from pyagenity.utils.message import generate_id
 
 
 class TestMessage:
@@ -58,6 +78,160 @@ class TestMessage:
         assert copied.content == msg.content  # noqa: S101
         assert copied.role == msg.role  # noqa: S101
 
+    def test_message_with_tools_calls(self):
+        """Test message with tools_calls."""
+        msg = Message.from_dict(
+            {
+                "role": "assistant",
+                "content": "I'll help",
+                "tools_calls": [{"id": "call_1", "function": {"name": "test"}}],
+            }
+        )
+        assert msg.role == "assistant"  # noqa: S101
+        assert msg.tools_calls is not None  # noqa: S101
+
+    def test_message_from_dict_missing_fields(self):
+        """Test from_dict raises error for missing required fields."""
+        with pytest.raises(ValueError, match="Missing required fields"):
+            Message.from_dict({"role": "user"})  # Missing content
+
+        with pytest.raises(ValueError, match="Missing required fields"):
+            Message.from_dict({"content": "test"})  # Missing role
+
+    def test_message_from_dict_with_timestamp(self):
+        """Test from_dict with timestamp parsing."""
+        timestamp_str = "2023-01-01T12:00:00"
+        msg = Message.from_dict({"role": "user", "content": "test", "timestamp": timestamp_str})
+        assert msg.timestamp is not None  # noqa: S101
+        assert msg.timestamp.isoformat().startswith("2023-01-01T12:00:00")  # noqa: S101
+
+    def test_message_from_dict_with_usages(self):
+        """Test from_dict with usages parsing."""
+        msg = Message.from_dict(
+            {
+                "role": "user",
+                "content": "test",
+                "usages": {
+                    "completion_tokens": 10,
+                    "prompt_tokens": 20,
+                    "total_tokens": 30,
+                    "reasoning_tokens": 5,
+                },
+            }
+        )
+        assert msg.usages is not None  # noqa: S101
+        assert msg.usages.completion_tokens == 10  # noqa: S101
+        assert msg.usages.prompt_tokens == 20  # noqa: S101
+        assert msg.usages.total_tokens == 30  # noqa: S101
+        assert msg.usages.reasoning_tokens == 5  # noqa: S101
+
+    @pytest.mark.asyncio
+    async def test_message_from_response(self):
+        """Test from_response method."""
+        from litellm.types.utils import ModelResponse
+
+        # Mock ModelResponse
+        response = ModelResponse(
+            id="test_id",
+            model="test_model",
+            object="chat.completion",
+            created=1234567890,
+            choices=[
+                {
+                    "message": {
+                        "content": "Test response",
+                        "tool_calls": [{"id": "call_1", "function": {"name": "test"}}],
+                    },
+                    "finish_reason": "stop",
+                }
+            ],
+            usage={
+                "completion_tokens": 5,
+                "prompt_tokens": 10,
+                "total_tokens": 15,
+                "prompt_tokens_details": {"reasoning_tokens": 2},
+            },
+        )
+
+        msg = Message.from_response(response)
+        assert msg.role == "assistant"  # noqa: S101
+        assert msg.content == "Test response"  # noqa: S101
+        assert msg.tools_calls is not None  # noqa: S101
+        assert msg.tool_call_id == "call_1"  # noqa: S101
+        assert msg.usages is not None  # noqa: S101
+        assert msg.usages.completion_tokens == 5  # noqa: S101
+
+    @pytest.mark.asyncio
+    async def test_message_from_response_empty_content(self):
+        """Test from_response method with empty content."""
+        from litellm.types.utils import ModelResponse
+
+        # Mock ModelResponse with empty content
+        response = ModelResponse(
+            id="test_id",
+            model="test_model",
+            object="chat.completion",
+            created=1234567890,
+            choices=[
+                {
+                    "message": {
+                        "content": None,  # This should trigger the empty content handling
+                    },
+                    "finish_reason": "stop",
+                }
+            ],
+            usage={
+                "completion_tokens": 5,
+                "prompt_tokens": 10,
+                "total_tokens": 15,
+                "prompt_tokens_details": {"reasoning_tokens": 2},
+            },
+        )
+
+        msg = Message.from_response(response)
+        assert msg.role == "assistant"  # noqa: S101
+        assert msg.content == ""  # noqa: S101
+
+    def test_message_tool_message_error(self):
+        """Test tool_message with is_error=True."""
+        msg = Message.tool_message("call_123", "Error occurred", is_error=True)
+        assert msg.role == "tool"  # noqa: S101
+        assert msg.tool_call_id == "call_123"  # noqa: S101
+        assert '"success": False' in msg.content  # noqa: S101
+        assert '"error": Error occurred' in msg.content  # noqa: S101
+
+    def test_message_create(self):
+        """Test create method."""
+        msg = Message.create(
+            role="assistant",
+            content="Hello",
+            reasoning="Thinking",
+            tools_calls=[{"id": "call_1"}],
+            tool_call_id="call_1",
+        )
+        assert msg.role == "assistant"  # noqa: S101
+        assert msg.content == "Hello"  # noqa: S101
+        assert msg.reasoning == "Thinking"  # noqa: S101
+        assert msg.tools_calls == [{"id": "call_1"}]  # noqa: S101
+        assert msg.tool_call_id == "call_1"  # noqa: S101
+
+
+class TestGenerateId:
+    """Test the generate_id function."""
+
+    def test_generate_id_with_default_id_string(self):
+        """Test generate_id with default_id matching string type."""
+        from injectq import InjectQ
+
+        iq = InjectQ.get_instance()
+        iq.bind("generated_id_type", "string")
+
+        try:
+            result = generate_id("default_string")
+            assert result == "default_string"  # noqa: S101
+        finally:
+            pass
+
 
 class TestConstants:
     """Test the constants."""
@@ -97,13 +271,125 @@ class TestCallbackManager:
         """Test CallbackManager has expected methods."""
         manager = CallbackManager()
         expected_methods = [
-            "add_before_invoke_callback",
-            "add_after_invoke_callback",
-            "add_error_callback",
+            "register_before_invoke",
+            "register_after_invoke",
+            "register_on_error",
+            "execute_before_invoke",
+            "execute_after_invoke",
+            "execute_on_error",
+            "clear_callbacks",
+            "get_callback_counts",
         ]
         for method in expected_methods:
-            if hasattr(manager, method):
-                assert callable(getattr(manager, method))  # noqa: S101
+            assert hasattr(manager, method)  # noqa: S101
+            assert callable(getattr(manager, method))  # noqa: S101
+
+    @pytest.mark.asyncio
+    async def test_callback_manager_execute_before_invoke(self):
+        """Test executing before_invoke callbacks."""
+        manager = CallbackManager()
+        context = CallbackContext(
+            invocation_type=InvocationType.AI,
+            node_name="test_node",
+            function_name="test_func",
+            metadata={},
+        )
+
+        async def callback(ctx, data):
+            return data + "_modified"
+
+        manager.register_before_invoke(InvocationType.AI, callback)
+        result = await manager.execute_before_invoke(context, "input")
+        assert result == "input_modified"  # noqa: S101
+
+    @pytest.mark.asyncio
+    async def test_callback_manager_execute_after_invoke(self):
+        """Test executing after_invoke callbacks."""
+        manager = CallbackManager()
+        context = CallbackContext(
+            invocation_type=InvocationType.AI,
+            node_name="test_node",
+            function_name="test_func",
+            metadata={},
+        )
+
+        async def callback(ctx, input_data, output_data):
+            return output_data + "_processed"
+
+        manager.register_after_invoke(InvocationType.AI, callback)
+        result = await manager.execute_after_invoke(context, "input", "output")
+        assert result == "output_processed"  # noqa: S101
+
+    @pytest.mark.asyncio
+    async def test_callback_manager_execute_on_error(self):
+        """Test executing on_error callbacks."""
+        manager = CallbackManager()
+        context = CallbackContext(
+            invocation_type=InvocationType.AI,
+            node_name="test_node",
+            function_name="test_func",
+            metadata={},
+        )
+
+        async def callback(ctx, input_data, error):
+            return Message.from_text("recovery")
+
+        manager.register_on_error(InvocationType.AI, callback)
+        result = await manager.execute_on_error(context, "input", Exception("test"))
+        assert isinstance(result, Message)  # noqa: S101
+
+    def test_callback_manager_clear_callbacks(self):
+        """Test clearing callbacks."""
+        manager = CallbackManager()
+
+        def callback(ctx, data):
+            return data
+
+        manager.register_before_invoke(InvocationType.AI, callback)
+        counts = manager.get_callback_counts()
+        assert counts["ai"]["before_invoke"] == 1  # noqa: S101
+
+        manager.clear_callbacks(InvocationType.AI)
+        counts = manager.get_callback_counts()
+        assert counts["ai"]["before_invoke"] == 0  # noqa: S101
+
+    def test_callback_manager_get_callback_counts(self):
+        """Test getting callback counts."""
+        manager = CallbackManager()
+        counts = manager.get_callback_counts()
+        assert isinstance(counts, dict)  # noqa: S101
+        assert "ai" in counts  # noqa: S101
+        assert "before_invoke" in counts["ai"]  # noqa: S101
+
+    @pytest.mark.asyncio
+    async def test_callback_manager_execute_before_invoke_sync_callable(self):
+        """Test executing before_invoke with sync callable."""
+        manager = CallbackManager()
+        context = CallbackContext(
+            invocation_type=InvocationType.AI,
+            node_name="test_node",
+            function_name="test_func",
+            metadata={},
+        )
+
+        def sync_callback(ctx, data):
+            return data + "_sync_modified"
+
+        manager.register_before_invoke(InvocationType.AI, sync_callback)
+        result = await manager.execute_before_invoke(context, "input")
+        assert result == "input_sync_modified"  # noqa: S101
+
+    def test_callback_manager_clear_callbacks_all(self):
+        """Test clearing all callbacks."""
+        manager = CallbackManager()
+
+        def callback(ctx, data):
+            return data
+
+        manager.register_before_invoke(InvocationType.AI, callback)
+        manager.clear_callbacks()  # Clear all
+        counts = manager.get_callback_counts()
+        assert counts["ai"]["before_invoke"] == 0  # noqa: S101
 
 
 class TestCallbackContext:
@@ -142,6 +428,247 @@ class TestAddMessages:
         result = add_messages(messages1, messages2)
         assert isinstance(result, list)  # noqa: S101
         assert len(result) == 2  # noqa: S101
+
+    def test_replace_messages_function(self):
+        """Test replace_messages reducer function."""
+        messages1 = [Message.from_text("Hello")]
+        messages2 = [Message.from_text("World")]
+
+        result = replace_messages(messages1, messages2)
+        assert result == messages2  # noqa: S101
+
+    def test_append_items_function(self):
+        """Test append_items reducer function."""
+        list1 = [1, 2]
+        list2 = [3, 4]
+
+        result = append_items(list1, list2)
+        assert result == [1, 2, 3, 4]  # noqa: S101
+
+    def test_replace_value_function(self):
+        """Test replace_value reducer function."""
+        left = "old"
+        right = "new"
+
+        result = replace_value(left, right)
+        assert result == "new"  # noqa: S101
+
+
+class TestConverter:
+    """Test the converter functions."""
+
+    def test_convert_messages_basic(self):
+        """Test convert_messages with basic system prompts."""
+        system_prompts = [{"role": "system", "content": "You are a helpful assistant."}]
+        result = convert_messages(system_prompts)
+        assert isinstance(result, list)  # noqa: S101
+        assert len(result) == 1  # noqa: S101
+        assert result[0]["role"] == "system"  # noqa: S101
+
+    def test_convert_messages_with_state_context_summary(self):
+        """Test convert_messages with state having context summary."""
+        from pyagenity.state import AgentState
+
+        system_prompts = [{"role": "system", "content": "Test"}]
+        state = AgentState()
+        state.context_summary = "Summary of context"
+        result = convert_messages(system_prompts, state)
+        assert len(result) == 2  # noqa: S101
+        assert result[1]["role"] == "assistant"  # noqa: S101
+        assert result[1]["content"] == "Summary of context"  # noqa: S101
+
+    def test_convert_messages_with_state_context(self):
+        """Test convert_messages with state having context messages."""
+        from pyagenity.state import AgentState
+
+        system_prompts = [{"role": "system", "content": "Test"}]
+        state = AgentState()
+        state.context = [Message.from_text("Hello", "user")]
+        result = convert_messages(system_prompts, state)
+        assert len(result) == 2  # noqa: S101
+        assert result[1]["role"] == "user"  # noqa: S101
+        assert result[1]["content"] == "Hello"  # noqa: S101
+
+    def test_convert_messages_with_extra_messages(self):
+        """Test convert_messages with extra messages."""
+        system_prompts = [{"role": "system", "content": "Test"}]
+        extra_messages = [Message.from_text("Extra", "assistant")]
+        result = convert_messages(system_prompts, extra_messages=extra_messages)
+        assert len(result) == 2  # noqa: S101
+        assert result[1]["role"] == "assistant"  # noqa: S101
+
+    def test_convert_messages_none_system_prompts(self):
+        """Test convert_messages with None system prompts raises error."""
+        import pytest
+
+        with pytest.raises(ValueError, match="System prompts cannot be None"):
+            convert_messages(None)  # type: ignore
+
+    def test_convert_messages_tool_message(self):
+        """Test converting tool messages."""
+        from pyagenity.state import AgentState
+
+        system_prompts = [{"role": "system", "content": "Test"}]
+        state = AgentState()
+        tool_msg = Message.tool_message("call_123", "Tool result")
+        state.context = [tool_msg]
+        result = convert_messages(system_prompts, state)
+        assert len(result) == 2  # noqa: S101
+        assert result[1]["role"] == "tool"  # noqa: S101
+        assert result[1]["tool_call_id"] == "call_123"  # noqa: S101
+
+    def test_convert_messages_assistant_with_tools(self):
+        """Test converting assistant messages with tool calls."""
+        from pyagenity.state import AgentState
+
+        system_prompts = [{"role": "system", "content": "Test"}]
+        state = AgentState()
+        assistant_msg = Message.from_dict(
+            {
+                "role": "assistant",
+                "content": "I'll help",
+                "tools_calls": [{"id": "call_1", "function": {"name": "test"}}],
+            }
+        )
+        state.context = [assistant_msg]
+        result = convert_messages(system_prompts, state)
+        assert len(result) == 2  # noqa: S101
+        assert result[1]["role"] == "assistant"  # noqa: S101
+        assert "tool_calls" in result[1]  # noqa: S101
+
+
+class TestConvenienceFunctions:
+    """Test the convenience functions for global callback manager."""
+
+    def test_register_before_invoke_convenience(self):
+        """Test register_before_invoke convenience function."""
+        from pyagenity.utils.callbacks import register_before_invoke
+
+        def callback(ctx, data):
+            return data
+
+        # Should not raise
+        register_before_invoke(InvocationType.AI, callback)
+
+    def test_register_after_invoke_convenience(self):
+        """Test register_after_invoke convenience function."""
+        from pyagenity.utils.callbacks import register_after_invoke
+
+        def callback(ctx, input_data, output_data):
+            return output_data
+
+        # Should not raise
+        register_after_invoke(InvocationType.AI, callback)
+
+    def test_register_on_error_convenience(self):
+        """Test register_on_error convenience function."""
+        from pyagenity.utils.callbacks import register_on_error
+
+        def callback(ctx, input_data, error):
+            return None
+
+        # Should not raise
+        register_on_error(InvocationType.AI, callback)
+
+
+class TestIDGenerators:
+    """Test the ID generator classes."""
+
+    def test_uuid_generator(self):
+        """Test UUIDGenerator."""
+        generator = UUIDGenerator()
+        assert generator.id_type == IDType.STRING  # noqa: S101
+        id_val = generator.generate()
+        assert isinstance(id_val, str)  # noqa: S101
+        assert len(id_val) == 36  # noqa: S101
+
+    def test_bigint_id_generator(self):
+        """Test BigIntIDGenerator."""
+        generator = BigIntIDGenerator()
+        assert generator.id_type == IDType.BIGINT  # noqa: S101
+        id_val = generator.generate()
+        assert isinstance(id_val, int)  # noqa: S101
+        assert id_val > 0  # noqa: S101
+
+    def test_default_id_generator(self):
+        """Test DefaultIDGenerator."""
+        generator = DefaultIDGenerator()
+        assert generator.id_type == IDType.STRING  # noqa: S101
+        id_val = generator.generate()
+        assert isinstance(id_val, str)  # noqa: S101
+        assert id_val == ""  # noqa: S101
+
+    def test_int_id_generator(self):
+        """Test IntIDGenerator."""
+        generator = IntIDGenerator()
+        assert generator.id_type == IDType.INTEGER  # noqa: S101
+        id_val = generator.generate()
+        assert isinstance(id_val, int)  # noqa: S101
+        assert 0 <= id_val <= 2**32 - 1  # noqa: S101
+
+    def test_hex_id_generator(self):
+        """Test HexIDGenerator."""
+        generator = HexIDGenerator()
+        assert generator.id_type == IDType.STRING  # noqa: S101
+        id_val = generator.generate()
+        assert isinstance(id_val, str)  # noqa: S101
+        assert len(id_val) == 32  # noqa: S101
+
+    def test_timestamp_id_generator(self):
+        """Test TimestampIDGenerator."""
+        generator = TimestampIDGenerator()
+        assert generator.id_type == IDType.INTEGER  # noqa: S101
+        id_val = generator.generate()
+        assert isinstance(id_val, int)  # noqa: S101
+        assert id_val > 0  # noqa: S101
+
+    def test_short_id_generator(self):
+        """Test ShortIDGenerator."""
+        generator = ShortIDGenerator()
+        assert generator.id_type == IDType.STRING  # noqa: S101
+        id_val = generator.generate()
+        assert isinstance(id_val, str)  # noqa: S101
+        assert len(id_val) == 8  # noqa: S101
+
+    @pytest.mark.asyncio
+    async def test_async_id_generator(self):
+        """Test AsyncIDGenerator."""
+        generator = AsyncIDGenerator()
+        assert generator.id_type == IDType.STRING  # noqa: S101
+        id_val = await generator.generate()
+        assert isinstance(id_val, str)  # noqa: S101
+        assert len(id_val) == 36  # noqa: S101
+
+
+class TestBackgroundTaskManager:
+    """Test the BackgroundTaskManager class."""
+
+    @pytest.mark.asyncio
+    async def test_create_task_and_wait(self):
+        """Test creating a task and waiting for it."""
+        manager = BackgroundTaskManager()
+
+        async def dummy_task():
+            await asyncio.sleep(0.01)
+            return "done"
+
+        manager.create_task(dummy_task())
+        await manager.wait_for_all()
+        assert len(manager._tasks) == 0  # noqa: S101
+
+    @pytest.mark.asyncio
+    async def test_task_with_exception(self):
+        """Test task that raises exception."""
+        manager = BackgroundTaskManager()
+
+        async def failing_task():
+            await asyncio.sleep(0.01)
+            raise ValueError("test error")
+
+        with pytest.raises(ValueError, match="test error"):
+            manager.create_task(failing_task())
+            await manager.wait_for_all()
+            assert len(manager._tasks) == 0  # noqa: S101
 
 
 def test_utils_module_imports():

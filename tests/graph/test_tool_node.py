@@ -52,7 +52,7 @@ class TestToolNode:
             return "no_params"
 
         tool_node = ToolNode([func_with_params, func_no_params])
-        tools = await tool_node._get_local_tool()
+        tools = tool_node.get_local_tool()
 
         assert len(tools) == 2
 
@@ -81,7 +81,7 @@ class TestToolNode:
             return user_input
 
         tool_node = ToolNode([func_with_injectables])
-        tools = await tool_node._get_local_tool()
+        tools = tool_node.get_local_tool()
 
         assert len(tools) == 1
         params = tools[0]["function"]["parameters"]

@@ -108,7 +108,7 @@ class ToolNode:
         self.mcp_tools = []
         logger.debug("ToolNode initialized with %d local functions", len(self._funcs))
 
-    def _get_local_tool(self) -> list[dict]:
+    def get_local_tool(self) -> list[dict]:
         """Build JSON-schema-like descriptions for locally-registered callables.
 
         The returned list contains entries compatible with function-calling LLM
@@ -220,7 +220,7 @@ class ToolNode:
             A list of function description dictionaries suitable for passing to
             an LLM that supports function calling.
         """
-        tools: list[dict] = self._get_local_tool()
+        tools: list[dict] = self.get_local_tool()
         tools.extend(await self._get_mcp_tool())
         return tools
 
@@ -234,7 +234,7 @@ class ToolNode:
             A list of function description dictionaries suitable for passing to
             an LLM that supports function calling.
         """
-        tools: list[dict] = self._get_local_tool()
+        tools: list[dict] = self.get_local_tool()
         if not self._client:
             return tools
 
