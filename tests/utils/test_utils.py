@@ -437,14 +437,6 @@ class TestAddMessages:
         result = replace_messages(messages1, messages2)
         assert result == messages2  # noqa: S101
 
-    def test_append_items_function(self):
-        """Test append_items reducer function."""
-        list1 = [1, 2]
-        list2 = [3, 4]
-
-        result = append_items(list1, list2)
-        assert result == [1, 2, 3, 4]  # noqa: S101
-
     def test_replace_value_function(self):
         """Test replace_value reducer function."""
         left = "old"

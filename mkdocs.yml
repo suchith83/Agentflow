@@ -68,32 +68,22 @@ markdown_extensions:
 
 nav:
   - Home: index.md
-  - Getting started:
-      - getting-started/index.md
-      - Installation: getting-started/installation.md
-      - Quickstart: getting-started/quickstart.md
-  - Guides:
-      - guides/callback-system.md
-      - guides/custom-state.md
-      - guides/dependency-injection.md
-      - guides/logging.md
-      - guides/pause-resume.md
-      - guides/streaming.md
-      - guides/unified-invoke.md
   - Tutorials:
       - tutorials/index.md
       - tutorials/callback-validation.md
       - tutorials/custom-state.md
+      - tutorials/prebuilt-agents.md
+      - tutorials/deep-research-agent.md
       - tutorials/react-agent.md
+      - tutorials/router-agent.md
+      - tutorials/sequential-agent.md
+      - tutorials/plan-act-reflect-agent.md
+      - tutorials/supervisor-team-agent.md
+      - tutorials/map-reduce-agent.md
+      - tutorials/rag-agent.md
+      - tutorials/guarded-agent.md
+      - tutorials/branch-join-agent.md
       - tutorials/react-streaming.md
       - tutorials/react-mcp.md
       - tutorials/github-mcp.md
-  - API Reference:
-      - api/index.md
-      - Graph: api/graph.md
-      - Exceptions: api/exceptions.md
-      - Publisher: api/publisher.md
-      - State: api/state.md
-      - Checkpointer: api/checkpointer.md
-      - Utils: api/utils.md
   - Changelog: https://pypi.org/project/pyagenity/

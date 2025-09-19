@@ -97,6 +97,14 @@ async def load_or_create_state[StateT: AgentState](
                 existing_state.execution_meta.current_node,
                 existing_state.execution_meta.step,
             )
+            # Normalize legacy node names (backward compatibility)
+            # Some older runs may have persisted 'start'/'end' instead of '__start__'/'__end__'
+            if existing_state.execution_meta.current_node == "start":
+                existing_state.execution_meta.current_node = START
+                logger.debug("Normalized legacy current_node 'start' to '%s'", START)
+            elif existing_state.execution_meta.current_node == "end":
+                existing_state.execution_meta.current_node = END
+                logger.debug("Normalized legacy current_node 'end' to '%s'", END)
             # Merge new messages with existing context
             new_messages = input_data.get("messages", [])
             if new_messages:
@@ -152,7 +160,13 @@ async def load_or_create_state[StateT: AgentState](
         "Created new state with %d context messages", len(state.context) if state.context else 0
     )
     if "current_node" in partial_state and partial_state["current_node"] is not None:
-        state.set_current_node(partial_state["current_node"])
+        # Normalize legacy values if provided in partial state
+        next_node = partial_state["current_node"]
+        if next_node == "start":
+            next_node = START
+        elif next_node == "end":
+            next_node = END
+        state.set_current_node(next_node)
     return state  # type: ignore[return-value]
 
 
