@@ -139,48 +139,82 @@ class DeepResearchAgent[StateT: AgentState]:
 
     def compile(
         self,
-        plan_node: Callable,
-        research_tool_node: ToolNode,
-        synthesize_node: Callable,
-        critique_node: Callable,
+        plan_node: Callable | tuple[Callable, str],
+        research_tool_node: ToolNode | tuple[ToolNode, str],
+        synthesize_node: Callable | tuple[Callable, str],
+        critique_node: Callable | tuple[Callable, str],
         checkpointer: BaseCheckpointer[StateT] | None = None,
         store: BaseStore | None = None,
         interrupt_before: list[str] | None = None,
         interrupt_after: list[str] | None = None,
         callback_manager: CallbackManager = CallbackManager(),
     ) -> CompiledGraph:
-        # Validate
-        if not callable(plan_node):
-            raise ValueError("plan_node must be callable")
-        if not isinstance(research_tool_node, ToolNode):
-            raise ValueError("research_tool_node must be a ToolNode")
-        if not callable(synthesize_node):
-            raise ValueError("synthesize_node must be callable")
-        if not callable(critique_node):
-            raise ValueError("critique_node must be callable")
+        # Handle plan_node
+        if isinstance(plan_node, tuple):
+            plan_func, plan_name = plan_node
+            if not callable(plan_func):
+                raise ValueError("plan_node[0] must be callable")
+        else:
+            plan_func = plan_node
+            plan_name = "PLAN"
+            if not callable(plan_func):
+                raise ValueError("plan_node must be callable")
+
+        # Handle research_tool_node
+        if isinstance(research_tool_node, tuple):
+            research_func, research_name = research_tool_node
+            if not isinstance(research_func, ToolNode):
+                raise ValueError("research_tool_node[0] must be a ToolNode")
+        else:
+            research_func = research_tool_node
+            research_name = "RESEARCH"
+            if not isinstance(research_func, ToolNode):
+                raise ValueError("research_tool_node must be a ToolNode")
+
+        # Handle synthesize_node
+        if isinstance(synthesize_node, tuple):
+            synthesize_func, synthesize_name = synthesize_node
+            if not callable(synthesize_func):
+                raise ValueError("synthesize_node[0] must be callable")
+        else:
+            synthesize_func = synthesize_node
+            synthesize_name = "SYNTHESIZE"
+            if not callable(synthesize_func):
+                raise ValueError("synthesize_node must be callable")
+
+        # Handle critique_node
+        if isinstance(critique_node, tuple):
+            critique_func, critique_name = critique_node
+            if not callable(critique_func):
+                raise ValueError("critique_node[0] must be callable")
+        else:
+            critique_func = critique_node
+            critique_name = "CRITIQUE"
+            if not callable(critique_func):
+                raise ValueError("critique_node must be callable")
 
         # Add nodes
-        self._graph.add_node("PLAN", plan_node)
-        self._graph.add_node("RESEARCH", research_tool_node)
-        self._graph.add_node("SYNTHESIZE", synthesize_node)
-        self._graph.add_node("CRITIQUE", critique_node)
+        self._graph.add_node(plan_name, plan_func)
+        self._graph.add_node(research_name, research_func)
+        self._graph.add_node(synthesize_name, synthesize_func)
+        self._graph.add_node(critique_name, critique_func)
 
         # Edges
         self._graph.add_conditional_edges(
-            "PLAN",
+            plan_name,
             _route_after_plan,
-            {"RESEARCH": "RESEARCH", "SYNTHESIZE": "SYNTHESIZE", END: END},
+            {research_name: research_name, synthesize_name: synthesize_name, END: END},
         )
-        self._graph.add_edge("RESEARCH", "SYNTHESIZE")
-        self._graph.add_edge("SYNTHESIZE", "CRITIQUE")
+        self._graph.add_edge(research_name, synthesize_name)
+        self._graph.add_edge(synthesize_name, critique_name)
         self._graph.add_conditional_edges(
-            "CRITIQUE",
+            critique_name,
             _route_after_critique,
-            {"RESEARCH": "RESEARCH", END: END},
+            {research_name: research_name, END: END},
         )
 
         # Entry
-        self._graph.set_entry_point("PLAN")
+        self._graph.set_entry_point(plan_name)
 
         return self._graph.compile(
             checkpointer=checkpointer,

@@ -82,39 +82,65 @@ class PlanActReflectAgent[StateT: AgentState]:
 
     def compile(
         self,
-        plan_node: Callable,
-        tool_node: ToolNode,
-        reflect_node: Callable,
+        plan_node: Callable | tuple[Callable, str],
+        tool_node: ToolNode | tuple[ToolNode, str],
+        reflect_node: Callable | tuple[Callable, str],
         checkpointer: BaseCheckpointer[StateT] | None = None,
         store: BaseStore | None = None,
         interrupt_before: list[str] | None = None,
         interrupt_after: list[str] | None = None,
         callback_manager: CallbackManager = CallbackManager(),
     ) -> CompiledGraph:
-        if not callable(plan_node):
-            raise ValueError("plan_node must be callable")
-        if not isinstance(tool_node, ToolNode):
-            raise ValueError("tool_node must be a ToolNode")
-        if not callable(reflect_node):
-            raise ValueError("reflect_node must be callable")
+        # Handle plan_node
+        if isinstance(plan_node, tuple):
+            plan_func, plan_name = plan_node
+            if not callable(plan_func):
+                raise ValueError("plan_node[0] must be callable")
+        else:
+            plan_func = plan_node
+            plan_name = "PLAN"
+            if not callable(plan_func):
+                raise ValueError("plan_node must be callable")
 
-        self._graph.add_node("PLAN", plan_node)
-        self._graph.add_node("ACT", tool_node)
-        self._graph.add_node("REFLECT", reflect_node)
+        # Handle tool_node
+        if isinstance(tool_node, tuple):
+            tool_func, tool_name = tool_node
+            if not isinstance(tool_func, ToolNode):
+                raise ValueError("tool_node[0] must be a ToolNode")
+        else:
+            tool_func = tool_node
+            tool_name = "ACT"
+            if not isinstance(tool_func, ToolNode):
+                raise ValueError("tool_node must be a ToolNode")
+
+        # Handle reflect_node
+        if isinstance(reflect_node, tuple):
+            reflect_func, reflect_name = reflect_node
+            if not callable(reflect_func):
+                raise ValueError("reflect_node[0] must be callable")
+        else:
+            reflect_func = reflect_node
+            reflect_name = "REFLECT"
+            if not callable(reflect_func):
+                raise ValueError("reflect_node must be callable")
+
+        self._graph.add_node(plan_name, plan_func)
+        self._graph.add_node(tool_name, tool_func)
+        self._graph.add_node(reflect_name, reflect_func)
 
         # PLAN decides next step
         self._graph.add_conditional_edges(
-            "PLAN",
+            plan_name,
             _should_act,
-            {"ACT": "ACT", "REFLECT": "REFLECT", END: END},
+            {tool_name: tool_name, reflect_name: reflect_name, END: END},
         )
 
         # Loop
-        self._graph.add_edge("ACT", "REFLECT")
-        self._graph.add_edge("REFLECT", "PLAN")
+        self._graph.add_edge(tool_name, reflect_name)
+        self._graph.add_edge(reflect_name, plan_name)
 
         # Entry
-        self._graph.set_entry_point("PLAN")
+        self._graph.set_entry_point(plan_name)
 
         return self._graph.compile(
             checkpointer=checkpointer,

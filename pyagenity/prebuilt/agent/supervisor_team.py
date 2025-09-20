@@ -54,43 +54,72 @@ class SupervisorTeamAgent[StateT: AgentState]:
 
     def compile(
         self,
-        supervisor_node: Callable,
-        workers: dict[str, Callable | ToolNode],
+        supervisor_node: Callable | tuple[Callable, str],
+        workers: dict[str, Callable | ToolNode | tuple[Callable | ToolNode, str]],
         condition: Callable[[AgentState], str],
-        aggregate_node: Callable | None = None,
+        aggregate_node: Callable | tuple[Callable, str] | None = None,
         checkpointer: BaseCheckpointer[StateT] | None = None,
         store: BaseStore | None = None,
         interrupt_before: list[str] | None = None,
         interrupt_after: list[str] | None = None,
         callback_manager: CallbackManager = CallbackManager(),
     ) -> CompiledGraph:
-        if not callable(supervisor_node):
-            raise ValueError("supervisor_node must be callable")
+        # Handle supervisor_node
+        if isinstance(supervisor_node, tuple):
+            supervisor_func, supervisor_name = supervisor_node
+            if not callable(supervisor_func):
+                raise ValueError("supervisor_node[0] must be callable")
+        else:
+            supervisor_func = supervisor_node
+            supervisor_name = "SUPERVISOR"
+            if not callable(supervisor_func):
+                raise ValueError("supervisor_node must be callable")
+
         if not workers:
             raise ValueError("workers must be a non-empty dict")
 
-        self._graph.add_node("SUPERVISOR", supervisor_node)
-        for name, fn in workers.items():
-            if not (callable(fn) or isinstance(fn, ToolNode)):
-                raise ValueError(f"Worker '{name}' must be callable or ToolNode")
-            self._graph.add_node(name, fn)  # type: ignore[arg-type]
+        # Add worker nodes
+        worker_names = []
+        for key, fn in workers.items():
+            if isinstance(fn, tuple):
+                worker_func, worker_name = fn
+                if not (callable(worker_func) or isinstance(worker_func, ToolNode)):
+                    raise ValueError(f"Worker '{key}'[0] must be callable or ToolNode")
+            else:
+                worker_func = fn
+                worker_name = key
+                if not (callable(worker_func) or isinstance(worker_func, ToolNode)):
+                    raise ValueError(f"Worker '{key}' must be callable or ToolNode")
+            self._graph.add_node(worker_name, worker_func)
+            worker_names.append(worker_name)
 
+        # Handle aggregate_node
+        aggregate_name = "AGGREGATE"
         if aggregate_node:
-            self._graph.add_node("AGGREGATE", aggregate_node)
+            if isinstance(aggregate_node, tuple):
+                aggregate_func, aggregate_name = aggregate_node
+                if not callable(aggregate_func):
+                    raise ValueError("aggregate_node[0] must be callable")
+            else:
+                aggregate_func = aggregate_node
+                aggregate_name = "AGGREGATE"
+                if not callable(aggregate_func):
+                    raise ValueError("aggregate_node must be callable")
+            self._graph.add_node(aggregate_name, aggregate_func)
 
         # SUPERVISOR decides next worker
-        path_map = {k: k for k in workers}
+        path_map = {k: k for k in worker_names}
         path_map[END] = END
-        self._graph.add_conditional_edges("SUPERVISOR", condition, path_map)
+        self._graph.add_conditional_edges(supervisor_name, condition, path_map)
 
         # After worker, go to AGGREGATE if present, else back to SUPERVISOR
-        for name in workers:
-            self._graph.add_edge(name, "AGGREGATE" if aggregate_node else "SUPERVISOR")
+        for name in worker_names:
+            self._graph.add_edge(name, aggregate_name if aggregate_node else supervisor_name)
 
         if aggregate_node:
-            self._graph.add_edge("AGGREGATE", "SUPERVISOR")
+            self._graph.add_edge(aggregate_name, supervisor_name)
 
-        self._graph.set_entry_point("SUPERVISOR")
+        self._graph.set_entry_point(supervisor_name)
 
         return self._graph.compile(
             checkpointer=checkpointer,

@@ -62,32 +62,48 @@ class ReactAgent[StateT: AgentState]:
 
     def compile(
         self,
-        main_node: Callable,
-        tool_node: ToolNode,
+        main_node: tuple[Callable, str] | Callable,
+        tool_node: tuple[Callable, str] | Callable,
         checkpointer: BaseCheckpointer[StateT] | None = None,
         store: BaseStore | None = None,
         interrupt_before: list[str] | None = None,
         interrupt_after: list[str] | None = None,
         callback_manager: CallbackManager = CallbackManager(),
     ) -> CompiledGraph:
-        # Now create nodes
-        if not callable(main_node):
-            raise ValueError("main_node must be a callable function")
-        self._graph.add_node("MAIN", main_node)
+        # Determine main node function and name
+        if isinstance(main_node, tuple):
+            main_func, main_name = main_node
+            if not callable(main_func):
+                raise ValueError("main_node[0] must be a callable function")
+        else:
+            main_func = main_node
+            main_name = "MAIN"
+            if not callable(main_func):
+                raise ValueError("main_node must be a callable function")
 
-        if not tool_node:
-            raise ValueError("tool_node must be provided")
-        self._graph.add_node("TOOL", tool_node)
+        # Determine tool node function and name
+        if isinstance(tool_node, tuple):
+            tool_func, tool_name = tool_node
+            if not callable(tool_func):
+                raise ValueError("tool_node[0] must be a callable function")
+        else:
+            tool_func = tool_node
+            tool_name = "TOOL"
+            if not callable(tool_func):
+                raise ValueError("tool_node must be a callable function")
+
+        self._graph.add_node(main_name, main_func)
+        self._graph.add_node(tool_name, tool_func)
 
         # Now create edges
         self._graph.add_conditional_edges(
-            "MAIN",
+            main_name,
             _should_use_tools,
-            {"TOOL": "TOOL", END: END},
+            {tool_name: tool_name, END: END},
         )
 
-        self._graph.add_edge("TOOL", "MAIN")
-        self._graph.set_entry_point("MAIN")
+        self._graph.add_edge(tool_name, main_name)
+        self._graph.set_entry_point(main_name)
 
         return self._graph.compile(
             checkpointer=checkpointer,
