@@ -1,10 +1,9 @@
 site_name: PyAgenity
-site_description: "A lightweight Python framework for building intelligent agents and multi-agent workflows on LiteLLM."
+site_description: "A lightweight Python framework for building intelligent agents and multi-agent workflows."
 # Required for Material's instant navigation and previews
 site_url: https://iamsdt.github.io/pyagenity/
 repo_url: https://github.com/Iamsdt/PyAgenity
 repo_name: Iamsdt/PyAgenity
-edit_uri: edit/main/docs/
 
 theme:
   name: material
@@ -12,42 +11,49 @@ theme:
   logo: null
   favicon: null
   features:
-    - navigation.instant
-    - navigation.sections
+    - navigation.pagination
+    - navigation.goto_top
+    - navigation.path
     - navigation.tabs
     - navigation.top
-    - toc.integrate
+    - search-suggest
+    - search.highlight
+    - search.share
     - content.code.copy
-    - content.action.edit
+
 
 plugins:
   - search
   - autorefs
   - section-index
   - mkdocstrings:
-      enable_inventory: true
       default_handler: python
       handlers:
         python:
-          paths: [.]  # ensure local package is discoverable
           options:
-            # Docstrings & layout
             docstring_style: google
-            docstring_section_style: table
-            show_source: false
-            group_by_category: true
-            members_order: source
-            filters: ["!^_[^_]"]
-            show_if_no_docstring: false
-            # Signatures
-            separate_signature: true
+            show_inheritance: true
             show_signature: true
-            show_signature_annotations: true
-            annotations_path: brief
-            line_length: 80
-            # Rendering details
-            show_attribute_values: true
+            show_source: true
+            allow_inspection: true
+            show_typehints: true
+            show_toc: true
             show_bases: true
+            show_inheritance_diagram: true
+            parameter_headings: true
+            group_by_category: true
+            show_category_heading: true
+            show_symbol_type_heading: true
+            summary: true
+            load_external_modules: true
+            inherited_members: true
+            show_submodules: true
+            show_if_no_docstring: true
+            separate_signature: true
+
+  - gen-files:
+      scripts:
+        - scripts/generate_docs.py
 
 markdown_extensions:
   - admonition
@@ -66,26 +72,7 @@ markdown_extensions:
   - pymdownx.tabbed:
       alternate_style: true
 
-nav:
-  - Home: index.md
-  - Tutorials:
-      - tutorials/index.md
-      - tutorials/callback-validation.md
-      - tutorials/custom-state.md
-      - tutorials/prebuilt-agents.md
-      - tutorials/deep-research-agent.md
-  - tutorials/swarm-agent.md
-  - tutorials/network-agent.md
-      - tutorials/react-agent.md
-      - tutorials/router-agent.md
-      - tutorials/sequential-agent.md
-      - tutorials/plan-act-reflect-agent.md
-      - tutorials/supervisor-team-agent.md
-      - tutorials/map-reduce-agent.md
-  - tutorials/rag-agent.md
-      - tutorials/guarded-agent.md
-      - tutorials/branch-join-agent.md
-      - tutorials/react-streaming.md
-      - tutorials/react-mcp.md
-      - tutorials/github-mcp.md
-  - Changelog: https://pypi.org/project/pyagenity/
+# nav:
+#   - Home: index.md
+#   - Reference: reference/index.md
+#   - Changelog: https://pypi.org/project/pyagenity/
