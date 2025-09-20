@@ -51,13 +51,19 @@ pip install pyagenity[pg_checkpoint]
 # MCP (Model Context Protocol) support
 pip install pyagenity[mcp]
 
+# Composio tools (adapter)
+pip install pyagenity[composio]
+
+# LangChain tools (registry-based adapter)
+ pip install pyagenity[langchain]
+
 # Individual publishers
 pip install pyagenity[redis]     # Redis publisher
 pip install pyagenity[kafka]     # Kafka publisher
 pip install pyagenity[rabbitmq]  # RabbitMQ publisher
 
 # Multiple extras
-pip install pyagenity[pg_checkpoint,mcp]
+pip install pyagenity[pg_checkpoint,mcp,composio,langchain]
 ```
 
 ---
@@ -101,6 +107,30 @@ If you have a `.env` file, it will be auto-loaded (via `python-dotenv`).
 ---
 
 See `example/graph_demo.py` for a runnable example.
+
+### Using LangChain tools
+
+The LangChain adapter is registry-based. You can register any LangChain tools (BaseTool/StructuredTool or duck-typed run/_run objects), and PyAgenity will expose them to the LLM via a uniform function-calling schema.
+
+```python
+from pyagenity.adapters.tools.langchain_adapter import LangChainAdapter
+from pyagenity.graph import ToolNode
+
+adapter = LangChainAdapter()  # autoloads a couple common tools if none registered
+# Optionally register your own tools:
+# from langchain_community.tools import DuckDuckGoSearchRun
+# adapter.register_tool(DuckDuckGoSearchRun())
+
+tool_node = ToolNode([], langchain_adapter=adapter)
+tools = tool_node.all_tools_sync()  # pass these to your LLM as tools
+```
+
+Disable autoload and register explicitly:
+
+```python
+adapter = LangChainAdapter(autoload_default_tools=False)
+adapter.register_tools([my_tool, another_tool])
+```
 
 ## Example: React Weather Agent
 

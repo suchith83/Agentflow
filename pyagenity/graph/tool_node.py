@@ -6,12 +6,12 @@ descriptions suitable for function-calling LLMs and a simple execute API.
 
 from __future__ import annotations
 
+import asyncio
 import inspect
 import json
 import logging
 import typing as t
-from typing import Any, Dict
-import asyncio
+
 from pyagenity.graph.utils.utils import publish_event
 from pyagenity.utils.streaming import ContentType, Event, EventModel, EventType
 
@@ -38,6 +38,7 @@ except ImportError:
 
 from injectq import Inject
 
+from pyagenity.adapters.tools import ComposioAdapter
 from pyagenity.state import AgentState
 from pyagenity.utils import (
     CallbackContext,
@@ -84,6 +85,8 @@ class ToolNode:
         self,
         functions: t.Iterable[t.Callable],
         client: t.Any | None = None,
+        composio_adapter: ComposioAdapter | None = None,
+        langchain_adapter: t.Any | None = None,
     ):
         logger.info("Initializing ToolNode with %d functions", len(list(functions)))
 
@@ -98,6 +101,9 @@ class ToolNode:
 
         self._funcs: dict[str, t.Callable] = {}
         self._client: t.Any | None = client
+        self._composio: ComposioAdapter | None = composio_adapter
+        self._langchain: t.Any | None = langchain_adapter
+
         for fn in functions:
             if not callable(fn):
                 error_msg = "ToolNode only accepts callables"
@@ -107,6 +113,8 @@ class ToolNode:
             logger.debug("Registered function '%s' in ToolNode", fn.__name__)
 
         self.mcp_tools = []
+        self.composio_tools: list[str] = []
+        self.langchain_tools: list[str] = []
         logger.debug("ToolNode initialized with %d local functions", len(self._funcs))
 
     def get_local_tool(self) -> list[dict]:
@@ -153,16 +161,30 @@ class ToolNode:
 
             description = inspect.getdoc(fn) or "No description provided."
 
-            tools.append(
-                {
-                    "type": "function",
-                    "function": {
-                        "name": name,
-                        "description": description,
-                        "parameters": params_schema,
-                    },
-                }
-            )
+            # Optional metadata for routing/policy
+            provider = getattr(fn, "_py_tool_provider", None)
+            tags = getattr(fn, "_py_tool_tags", None)
+            capabilities = getattr(fn, "_py_tool_capabilities", None)
+
+            entry = {
+                "type": "function",
+                "function": {
+                    "name": name,
+                    "description": description,
+                    "parameters": params_schema,
+                },
+            }
+            meta: dict[str, t.Any] = {}
+            if provider:
+                meta["provider"] = provider
+            if tags:
+                meta["tags"] = tags
+            if capabilities:
+                meta["capabilities"] = capabilities
+            if meta:
+                entry["x-pyagenity"] = meta
+
+            tools.append(entry)
 
         logger.debug("Collected %d local tool descriptions", len(tools))
         return tools
@@ -223,6 +245,8 @@ class ToolNode:
         """
         tools: list[dict] = self.get_local_tool()
         tools.extend(await self._get_mcp_tool())
+        tools.extend(await self._get_composio_tools())
+        tools.extend(await self._get_langchain_tools())
         return tools
 
     def all_tools_sync(self) -> list[dict]:
@@ -236,14 +260,160 @@ class ToolNode:
             an LLM that supports function calling.
         """
         tools: list[dict] = self.get_local_tool()
-        if not self._client:
-            return tools
-
-        result = asyncio.run(self._get_mcp_tool())
-        if result:
-            tools.extend(result)
-
+        # MCP
+        if self._client:
+            result = asyncio.run(self._get_mcp_tool())
+            if result:
+                tools.extend(result)
+        # Composio
+        comp = asyncio.run(self._get_composio_tools())
+        if comp:
+            tools.extend(comp)
+        # LangChain
+        lc = asyncio.run(self._get_langchain_tools())
+        if lc:
+            tools.extend(lc)
         return tools
+
+    async def _get_composio_tools(self) -> list[dict]:
+        """Fetch tool descriptions from Composio adapter if configured.
+
+        Uses the adapter's raw schema listing to avoid requiring user context.
+        """
+        tools: list[dict] = []
+        if not self._composio:
+            return tools
+        try:
+            raw = self._composio.list_raw_tools_for_llm()
+            for tdef in raw:
+                fn = tdef.get("function", {})
+                name = fn.get("name")
+                if name:
+                    self.composio_tools.append(name)
+                tools.append(tdef)
+        except Exception as e:
+            logger.warning("Failed to fetch Composio tools: %s", e)
+        return tools
+
+    async def _get_langchain_tools(self) -> list[dict]:
+        """Fetch tool descriptions from LangChain adapter if configured."""
+        tools: list[dict] = []
+        if not self._langchain:
+            return tools
+        try:
+            raw = self._langchain.list_tools_for_llm()
+            for tdef in raw:
+                fn = tdef.get("function", {})
+                name = fn.get("name")
+                if name:
+                    self.langchain_tools.append(name)
+                tools.append(tdef)
+        except Exception as e:
+            logger.warning("Failed to fetch LangChain tools: %s", e)
+        return tools
+
+    async def _langchain_execute(
+        self,
+        name: str,
+        args: dict,
+        tool_call_id: str,
+        config: dict[str, t.Any],
+        callback_mgr: CallbackManager,
+    ) -> Message:
+        """Execute a LangChain tool via the configured adapter."""
+        context = CallbackContext(
+            invocation_type=InvocationType.TOOL,
+            node_name="ToolNode",
+            function_name=name,
+            metadata={
+                "tool_call_id": tool_call_id,
+                "args": args,
+                "config": config,
+                "langchain": True,
+            },
+        )
+        meta = {"function_name": name, "function_argument": args, "tool_call_id": tool_call_id}
+
+        event = EventModel.default(
+            base_config=config,
+            data={
+                "tool_call_id": tool_call_id,
+                "args": args,
+                "function_name": name,
+                "is_langchain": True,
+            },
+            content_type=[ContentType.TOOL_CALL],
+            event=Event.TOOL_EXECUTION,
+        )
+        event.event_type = EventType.PROGRESS
+        event.node_name = "ToolNode"
+        event.sequence_id = 1
+        publish_event(event)
+
+        if not self._langchain:
+            error_result = Message.tool_message(
+                tool_call_id=tool_call_id,
+                content="LangChain adapter not configured",
+                is_error=True,
+                meta=meta,
+            )
+            event.event_type = EventType.ERROR
+            event.metadata["error"] = "LangChain adapter not configured"
+            publish_event(event)
+            return error_result
+
+        input_data = {**args}
+        try:
+            input_data = await callback_mgr.execute_before_invoke(context, input_data)
+            event.event_type = EventType.UPDATE
+            event.sequence_id = 2
+            event.metadata["status"] = "before_invoke_complete Invoke LangChain"
+            publish_event(event)
+
+            res = self._langchain.execute(name=name, arguments=input_data)
+            successful = bool(res.get("successful"))
+            payload = res.get("data")
+            error = res.get("error")
+            content = json.dumps(payload) if not isinstance(payload, str) else payload
+            if error and not successful:
+                content = json.dumps({"success": False, "error": error})
+
+            result = Message.tool_message(
+                tool_call_id=tool_call_id,
+                content=content or "{}",
+                is_error=not successful,
+                meta=meta,
+            )
+
+            res_msg = await callback_mgr.execute_after_invoke(context, input_data, result)
+            event.event_type = EventType.END
+            event.data["message"] = result.model_dump()
+            event.metadata["status"] = "LangChain tool execution complete"
+            event.content_type = [ContentType.TOOL_RESULT, ContentType.MESSAGE]
+            publish_event(event)
+            return res_msg
+
+        except Exception as e:
+            recovery_result = await callback_mgr.execute_on_error(context, input_data, e)
+            if isinstance(recovery_result, Message):
+                event.event_type = EventType.END
+                event.data["message"] = recovery_result.model_dump()
+                event.metadata["status"] = "LangChain tool execution complete, with recovery"
+                event.content_type = [ContentType.TOOL_RESULT, ContentType.MESSAGE]
+                publish_event(event)
+                return recovery_result
+
+            event.event_type = EventType.END
+            event.data["error"] = str(e)
+            event.metadata["status"] = "LangChain tool execution complete, with error"
+            event.content_type = [ContentType.TOOL_RESULT, ContentType.ERROR]
+            publish_event(event)
+            return Message.tool_message(
+                tool_call_id=tool_call_id,
+                content=f"LangChain execution error: {e}",
+                is_error=True,
+                meta=meta,
+            )
 
     def _prepare_input_data_tool(
         self,
@@ -302,7 +472,7 @@ class ToolNode:
 
         return input_data
 
-    async def _internal_execute(
+    async def _internal_execute(  # noqa: PLR0915
         self,
         name: str,
         args: dict,
@@ -509,7 +679,7 @@ class ToolNode:
             A JSON string representing the serialized result.
         """
 
-        def safe_serialize(obj: Any) -> Dict[str, Any]:
+        def safe_serialize(obj: t.Any) -> dict[str, t.Any]:
             """Safely serialize an object, handling non-JSON-serializable cases."""
             try:
                 # Test if directly serializable
@@ -520,10 +690,11 @@ class ToolNode:
                 if hasattr(obj, "model_dump"):
                     dumped = obj.model_dump()  # type: ignore
                     # Fix URI serialization for resource types
-                    if dumped.get("type") == "resource" and "resource" in dumped:
-                        resource = dumped["resource"]
-                        if "uri" in resource:
+                    if isinstance(dumped, dict) and dumped.get("type") == "resource":
+                        resource = dumped.get("resource", {})
+                        if isinstance(resource, dict) and "uri" in resource:
                             resource["uri"] = str(resource["uri"])
+                            dumped["resource"] = resource
                     return dumped
                 # Fallback to string representation
                 return {"content": str(obj), "type": "fallback"}
@@ -534,22 +705,23 @@ class ToolNode:
             getattr(res, "structured_content", None),
             getattr(res, "data", None),
         ]:
-            if source:
-                try:
-                    if isinstance(source, list):
-                        result = [safe_serialize(item) for item in source]
-                    else:
-                        result = [safe_serialize(source)]
-                    return json.dumps(result)
-                except Exception as e:
-                    logger.warning(f"Failed to serialize {type(source).__name__}: {e}")
-                    continue
+            if source is None:
+                continue
+            try:
+                if isinstance(source, list):
+                    result = [safe_serialize(item) for item in source]
+                else:
+                    result = [safe_serialize(source)]
+                return json.dumps(result)
+            except Exception as e:
+                logger.warning("Failed to serialize %s: %s", type(source).__name__, e)
+                continue
 
         # Final fallback
         try:
             return json.dumps([{"content": str(res)}])
         except Exception as e:
-            logger.error(f"Complete serialization failure: {e}")
+            logger.error("Complete serialization failure: %s", e)
             return json.dumps([{"content": "Serialization error", "error": str(e)}])
 
     # def _serialize_result(self, res: t.Any) -> str:
@@ -631,7 +803,7 @@ class ToolNode:
 
     #     return json.dumps(result)
 
-    async def _mcp_execute(
+    async def _mcp_execute(  # noqa: PLR0915
         self,
         name: str,
         args: dict,
@@ -795,6 +967,127 @@ class ToolNode:
             return Message.tool_message(
                 tool_call_id=tool_call_id,
                 content=f"MCP execution error: {e}",
+                is_error=True,
+                meta=meta,
+            )
+
+    async def _composio_execute(
+        self,
+        name: str,
+        args: dict,
+        tool_call_id: str,
+        config: dict[str, t.Any],
+        callback_mgr: CallbackManager,
+    ) -> Message:
+        """Execute a Composio tool via the configured adapter.
+
+        Supports lifecycle callbacks and event publishing similar to MCP execution.
+        """
+        context = CallbackContext(
+            invocation_type=InvocationType.TOOL,  # treated as tool execution
+            node_name="ToolNode",
+            function_name=name,
+            metadata={
+                "tool_call_id": tool_call_id,
+                "args": args,
+                "config": config,
+                "composio": True,
+            },
+        )
+        meta = {"function_name": name, "function_argument": args, "tool_call_id": tool_call_id}
+
+        event = EventModel.default(
+            base_config=config,
+            data={
+                "tool_call_id": tool_call_id,
+                "args": args,
+                "function_name": name,
+                "is_composio": True,
+            },
+            content_type=[ContentType.TOOL_CALL],
+            event=Event.TOOL_EXECUTION,
+        )
+        event.event_type = EventType.PROGRESS
+        event.node_name = "ToolNode"
+        event.sequence_id = 1
+        publish_event(event)
+
+        if not self._composio:
+            error_result = Message.tool_message(
+                tool_call_id=tool_call_id,
+                content="Composio adapter not configured",
+                is_error=True,
+                meta=meta,
+            )
+            event.event_type = EventType.ERROR
+            event.metadata["error"] = "Composio adapter not configured"
+            publish_event(event)
+            return error_result
+
+        # Prepare inputs
+        input_data = {**args}
+        try:
+            input_data = await callback_mgr.execute_before_invoke(context, input_data)
+            event.event_type = EventType.UPDATE
+            event.sequence_id = 2
+            event.metadata["status"] = "before_invoke_complete Invoke Composio"
+            publish_event(event)
+
+            # Extract optional composio runtime configs
+            comp_conf = (config.get("composio") if isinstance(config, dict) else None) or {}
+            user_id = comp_conf.get("user_id") or config.get("user_id")
+            connected_account_id = comp_conf.get("connected_account_id") or config.get(
+                "connected_account_id"
+            )
+
+            res = self._composio.execute(
+                slug=name,
+                arguments=input_data,
+                user_id=user_id,
+                connected_account_id=connected_account_id,
+            )
+
+            successful = bool(res.get("successful"))
+            payload = res.get("data")
+            error = res.get("error")
+            # Serialize payload for Message
+            content = json.dumps(payload) if not isinstance(payload, str) else payload
+            if error and not successful:
+                content = json.dumps({"success": False, "error": error})
+
+            result = Message.tool_message(
+                tool_call_id=tool_call_id,
+                content=content or "{}",
+                is_error=not successful,
+                meta=meta,
+            )
+
+            res_msg = await callback_mgr.execute_after_invoke(context, input_data, result)
+            event.event_type = EventType.END
+            event.data["message"] = result.model_dump()
+            event.metadata["status"] = "Composio tool execution complete"
+            event.content_type = [ContentType.TOOL_RESULT, ContentType.MESSAGE]
+            publish_event(event)
+            return res_msg
+
+        except Exception as e:
+            recovery_result = await callback_mgr.execute_on_error(context, input_data, e)
+            if isinstance(recovery_result, Message):
+                event.event_type = EventType.END
+                event.data["message"] = recovery_result.model_dump()
+                event.metadata["status"] = "Composio tool execution complete, with recovery"
+                event.content_type = [ContentType.TOOL_RESULT, ContentType.MESSAGE]
+                publish_event(event)
+                return recovery_result
+
+            event.event_type = EventType.END
+            event.data["error"] = str(e)
+            event.metadata["status"] = "Composio tool execution complete, with error"
+            event.content_type = [ContentType.TOOL_RESULT, ContentType.ERROR]
+            publish_event(event)
+            return Message.tool_message(
+                tool_call_id=tool_call_id,
+                content=f"Composio execution error: {e}",
                 is_error=True,
                 meta=meta,
             )
@@ -1085,6 +1378,42 @@ class ToolNode:
             publish_event(event)
             return res
 
+        # check in composio
+        if name in self.composio_tools:
+            logger.debug("Tool '%s' found in Composio tools, executing via Composio", name)
+            event.metadata["is_composio"] = True
+            publish_event(event)
+            res = await self._composio_execute(
+                name,
+                args,
+                tool_call_id,
+                config,
+                callback_manager,
+            )
+            event.data["message"] = res.model_dump()
+            event.event_type = EventType.END
+            event.content_type = [ContentType.TOOL_RESULT, ContentType.MESSAGE]
+            publish_event(event)
+            return res
+
+        # check in langchain
+        if name in self.langchain_tools:
+            logger.debug("Tool '%s' found in LangChain tools, executing via LangChain", name)
+            event.metadata["is_langchain"] = True
+            publish_event(event)
+            res = await self._langchain_execute(
+                name,
+                args,
+                tool_call_id,
+                config,
+                callback_manager,
+            )
+            event.data["message"] = res.model_dump()
+            event.event_type = EventType.END
+            event.content_type = [ContentType.TOOL_RESULT, ContentType.MESSAGE]
+            publish_event(event)
+            return res
+
         if name in self._funcs:
             logger.debug("Tool '%s' found in local functions, executing internally", name)
             event.metadata["is_mcp"] = False
@@ -1115,7 +1444,7 @@ class ToolNode:
             is_error=True,
         )
 
-    async def stream(
+    async def stream(  # noqa: PLR0915
         self,
         name: str,
         args: dict,
@@ -1165,6 +1494,44 @@ class ToolNode:
             # first yield the event
             yield event
             # then yield the message
+            yield message
+            return
+
+        # check in composio
+        if name in self.composio_tools:
+            logger.debug("Tool '%s' found in Composio tools, executing via Composio", name)
+            event.metadata["is_composio"] = True
+            yield event
+            message = await self._composio_execute(
+                name,
+                args,
+                tool_call_id,
+                config,
+                callback_manager,
+            )
+            event.data["message"] = message.model_dump()
+            event.event_type = EventType.END
+            event.content_type = [ContentType.TOOL_RESULT, ContentType.MESSAGE]
+            yield event
+            yield message
+            return
+
+        # check in langchain
+        if name in self.langchain_tools:
+            logger.debug("Tool '%s' found in LangChain tools, executing via LangChain", name)
+            event.metadata["is_langchain"] = True
+            yield event
+            message = await self._langchain_execute(
+                name,
+                args,
+                tool_call_id,
+                config,
+                callback_manager,
+            )
+            event.data["message"] = message.model_dump()
+            event.event_type = EventType.END
+            event.content_type = [ContentType.TOOL_RESULT, ContentType.MESSAGE]
+            yield event
             yield message
             return
 
