@@ -10,6 +10,7 @@ import inspect
 import json
 import logging
 import typing as t
+from typing import Any, Dict
 import asyncio
 from pyagenity.graph.utils.utils import publish_event
 from pyagenity.utils.streaming import ContentType, Event, EventModel, EventType
@@ -282,12 +283,15 @@ class ToolNode:
                     # Check if default value is an Inject instance
                     if "Inject" in str(type(param.default)):
                         logger.debug(
-                            "Skipping injectable parameter '%s' with Inject syntax", param_name
+                            "Skipping injectable parameter '%s' with Inject syntax",
+                            param_name,
                         )
                         continue
                 except Exception as e:
                     logger.debug(
-                        "Could not determine if parameter '%s' uses Inject: %s", param_name, e
+                        "Could not determine if parameter '%s' uses Inject: %s",
+                        param_name,
+                        e,
                     )
 
             # Include regular function arguments
@@ -360,7 +364,11 @@ class ToolNode:
             },
         )
 
-        meta = {"function_name": name, "function_argument": args, "tool_call_id": tool_call_id}
+        meta = {
+            "function_name": name,
+            "function_argument": args,
+            "tool_call_id": tool_call_id,
+        }
 
         # Create and publish initial progress event
         event = EventModel.default(
@@ -495,56 +503,133 @@ class ToolNode:
         """Serialize an MCP CallToolResult-like object to a JSON string.
 
         Args:
-            res: The result object returned from an MCP client call. The
-                object may expose ``content``, ``structured_content`` or
-                ``data`` fields. Content blocks may be of type ``ContentBlock``
-                which this function will convert via ``model_dump``.
+            res: The result object with optional content, structured_content, or data fields.
 
         Returns:
-            A JSON string representing a list of parsed result objects.
+            A JSON string representing the serialized result.
         """
 
-        def try_parse_json(val):
-            if isinstance(val, str):
+        def safe_serialize(obj: Any) -> Dict[str, Any]:
+            """Safely serialize an object, handling non-JSON-serializable cases."""
+            try:
+                # Test if directly serializable
+                json.dumps(obj)
+                return obj if isinstance(obj, dict) else {"content": obj}
+            except (TypeError, OverflowError):
+                # Handle special cases, for AnyUrl from pydantic
+                if hasattr(obj, "model_dump"):
+                    dumped = obj.model_dump()  # type: ignore
+                    # Fix URI serialization for resource types
+                    if dumped.get("type") == "resource" and "resource" in dumped:
+                        resource = dumped["resource"]
+                        if "uri" in resource:
+                            resource["uri"] = str(resource["uri"])
+                    return dumped
+                # Fallback to string representation
+                return {"content": str(obj), "type": "fallback"}
+
+        # Try content sources in order of preference
+        for source in [
+            getattr(res, "content", None),
+            getattr(res, "structured_content", None),
+            getattr(res, "data", None),
+        ]:
+            if source:
                 try:
-                    return json.loads(val)
-                except Exception:
-                    return val
-            return val
+                    if isinstance(source, list):
+                        result = [safe_serialize(item) for item in source]
+                    else:
+                        result = [safe_serialize(source)]
+                    return json.dumps(result)
+                except Exception as e:
+                    logger.warning(f"Failed to serialize {type(source).__name__}: {e}")
+                    continue
 
-        def to_obj(val):
-            if isinstance(val, dict):
-                return val
-            if isinstance(val, list):
-                return {"items": val}
-            if isinstance(val, ContentBlock):  # type: ignore
-                obj = val.model_dump()
-                # Try to parse the 'text' field if it looks like JSON
-                if "text" in obj:
-                    obj["text"] = try_parse_json(obj["text"])
-                return obj
-            if val is not None:
-                return val
-            return None
+        # Final fallback
+        try:
+            return json.dumps([{"content": str(res)}])
+        except Exception as e:
+            logger.error(f"Complete serialization failure: {e}")
+            return json.dumps([{"content": "Serialization error", "error": str(e)}])
 
-        result = []
-        if res.content and isinstance(res.content, list):
-            for i in res.content:
-                ir = to_obj(i)
-                if ir is not None:
-                    result.append(ir)
+    # def _serialize_result(self, res: t.Any) -> str:
+    #     """Serialize an MCP CallToolResult-like object to a JSON string.
 
-        if not result:
-            ir = to_obj(res.structured_content)
-            if ir is not None:
-                result.append(ir)
+    #     Args:
+    #         res: The result object returned from an MCP client call. The
+    #             object may expose ``content``, ``structured_content`` or
+    #             ``data`` fields. Content blocks may be of type ``ContentBlock``
+    #             which this function will convert via ``model_dump``.
 
-        if not result:
-            ir = to_obj(res.data)
-            if ir is not None:
-                result.append(ir)
+    #     Returns:
+    #         A JSON string representing a list of parsed result objects.
+    #     """
 
-        return json.dumps(result)
+    #     def _is_json_serializable(obj: t.Any) -> bool:
+    #         """Check if an object is JSON serializable."""
+    #         try:
+    #             json.dumps(obj)
+    #             return True
+    #         except (TypeError, OverflowError):
+    #             return False
+
+    #     result = []
+    #     if res.content and isinstance(res.content, list):
+    #         for i in res.content:
+    #             dumped = i.model_dump()
+    #             if _is_json_serializable(dumped):
+    #                 result.append(dumped)
+    #             else:
+    #                 logger.warning("Content block not JSON serializable: %s", dumped)
+    #                 type_name = dumped.get("type", "unknown")
+    #                 if type_name == "resource":
+    #                     resource = dumped.get("resource", {})
+    #                     uri = resource.get("uri", "")
+    #                     if uri:
+    #                         new_uri = str(uri)
+    #                         # update back to result
+    #                         resource["uri"] = new_uri
+    #                         dumped["resource"] = resource
+    #                         if _is_json_serializable(dumped):
+    #                             result.append(dumped)
+    #                     else:
+    #                         result.append(
+    #                             {
+    #                                 "type": "resource",
+    #                                 "text": resource.get("text", ""),
+    #                                 "mimeType": resource.get("mimeType", ""),
+    #                                 "meta": resource.get("meta", {}),
+    #                             }
+    #                         )
+    #                 else:
+    #                     result.append(i.model_dump_json())
+
+    #     if (
+    #         not result and res.structured_content and isinstance(res.structured_content, dict)
+    #     ) and _is_json_serializable(res.structured_content):
+    #         result.append(res.structured_content)
+
+    #     if not result and res.data and _is_json_serializable(res.data):
+    #         result.append(res.data)
+
+    #     # Fallback to string representation if no structured data found
+    #     if not result:
+    #         try:
+    #             result.append(
+    #                 {
+    #                     "content": str(res),
+    #                 }
+    #             )
+    #         except Exception as e:
+    #             logger.error("Error serializing MCP result: %s", e)
+    #             result.append(
+    #                 {
+    #                     "content": "Error serializing MCP result",
+    #                     "error": str(e),
+    #                 }
+    #             )
+
+    #     return json.dumps(result)
 
     async def _mcp_execute(
         self,
@@ -589,7 +674,11 @@ class ToolNode:
             },
         )
 
-        meta = {"function_name": name, "function_argument": args, "tool_call_id": tool_call_id}
+        meta = {
+            "function_name": name,
+            "function_argument": args,
+            "tool_call_id": tool_call_id,
+        }
         logger.debug("Executing MCP tool '%s' with %d arguments", name, len(args))
         logger.info("Executing MCP tool '%s'", name)
 
