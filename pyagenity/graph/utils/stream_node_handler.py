@@ -1,4 +1,4 @@
-import inspect
+import inspect  # isort: skip_file
 import json
 import logging
 from collections.abc import AsyncGenerator, AsyncIterable, Callable
@@ -11,7 +11,7 @@ from litellm.types.utils import ModelResponseStream
 from pyagenity.exceptions import NodeError
 from pyagenity.graph.tool_node import ToolNode
 from pyagenity.graph.utils.stream_utils import check_non_streaming
-from pyagenity.graph.utils.utils import process_node_result, publish_event
+from pyagenity.graph.utils.utils import process_node_result
 from pyagenity.state import AgentState
 from pyagenity.utils import (
     CallbackContext,
@@ -22,11 +22,13 @@ from pyagenity.utils import (
 )
 from pyagenity.utils.streaming import ContentType, Event, EventModel, EventType
 
+from .handler_mixins import BaseLoggingMixin, EventPublishingMixin
+
 
 logger = logging.getLogger(__name__)
 
 
-class StreamNodeHandler:
+class StreamNodeHandler(BaseLoggingMixin, EventPublishingMixin):
     def __init__(
         self,
         name: str,
@@ -127,7 +129,7 @@ class StreamNodeHandler:
 
         return input_data
 
-    async def _call_normal_node(
+    async def _call_normal_node(  # noqa: PLR0912, PLR0915
         self,
         state: "AgentState",
         config: dict[str, Any],
@@ -166,7 +168,7 @@ class StreamNodeHandler:
                 "last_message": last_message.model_dump() if last_message else None,
             },
         )
-        publish_event(event)
+        self.publish_event(event)
         yield event
 
         stream_event = EventModel.stream(
@@ -182,7 +184,7 @@ class StreamNodeHandler:
             event.event_type = EventType.PROGRESS
             event.content = "Function execution started"
             yield event
-            publish_event(event)
+            self.publish_event(event)
 
             # Execute the actual function
             result = await call_sync_or_async(
@@ -217,7 +219,7 @@ class StreamNodeHandler:
                 event.content = "Function execution completed"
                 event.data["messages"] = [m.model_dump() for m in messages] if messages else []
                 event.data["next_node"] = next_node
-                publish_event(event)
+                self.publish_event(event)
                 yield event
 
                 yield {
@@ -322,7 +324,7 @@ class StreamNodeHandler:
             event.content = "Function execution completed"
             event.data["message"] = messages[0].model_dump() if messages else None
             event.content_type = [ContentType.MESSAGE, ContentType.STATE]
-            publish_event(event)
+            self.publish_event(event)
             yield event
 
         except Exception as e:
@@ -342,7 +344,7 @@ class StreamNodeHandler:
                 event.content = "Function execution recovered from error"
                 event.data["message"] = recovery_result.model_dump()
                 event.content_type = [ContentType.MESSAGE, ContentType.STATE]
-                publish_event(event)
+                self.publish_event(event)
                 yield event
 
                 yield recovery_result
@@ -353,7 +355,7 @@ class StreamNodeHandler:
                 event.content = f"Function execution failed: {e}"
                 event.data["error"] = str(e)
                 event.content_type = [ContentType.ERROR, ContentType.STATE]
-                publish_event(event)
+                self.publish_event(event)
                 yield event
                 raise
 

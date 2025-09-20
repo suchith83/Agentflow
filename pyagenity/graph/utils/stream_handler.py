@@ -1,4 +1,4 @@
-from __future__ import annotations
+from __future__ import annotations  # isort: skip_file
 
 import logging
 import time
@@ -11,20 +11,19 @@ from pyagenity.exceptions import GraphRecursionError
 from pyagenity.graph.edge import Edge
 from pyagenity.graph.node import Node
 from pyagenity.state import AgentState, ExecutionStatus
-from pyagenity.utils import (
-    END,
-    Message,
-    ResponseGranularity,
-    add_messages,
-)
+from pyagenity.utils import END, Message, ResponseGranularity, add_messages
 from pyagenity.utils.streaming import ContentType, Event, EventModel, EventType
 
+from .handler_mixins import (
+    BaseLoggingMixin,
+    EventPublishingMixin,
+    InterruptConfigMixin,
+)
 from .utils import (
     call_realtime_sync,
     get_next_node,
     load_or_create_state,
     process_node_result,
-    publish_event,
     sync_data,
 )
 
@@ -34,7 +33,11 @@ StateT = TypeVar("StateT", bound=AgentState)
 logger = logging.getLogger(__name__)
 
 
-class StreamHandler[StateT: AgentState]:
+class StreamHandler[StateT: AgentState](
+    BaseLoggingMixin,
+    EventPublishingMixin,
+    InterruptConfigMixin,
+):
     @inject
     def __init__(
         self,
@@ -47,6 +50,7 @@ class StreamHandler[StateT: AgentState]:
         self.edges: list[Edge] = edges
         self.interrupt_before = interrupt_before or []
         self.interrupt_after = interrupt_after or []
+        self._set_interrupts(interrupt_before, interrupt_after)
 
     async def _check_interrupted(
         self,
@@ -83,9 +87,9 @@ class StreamHandler[StateT: AgentState]:
         config: dict[str, Any],
     ) -> bool:
         """Check for interrupts and save state if needed. Returns True if interrupted."""
-        interrupt_nodes = (
+        interrupt_nodes: list[str] = (
             self.interrupt_before if interrupt_type == "before" else self.interrupt_after
-        )
+        ) or []
 
         if current_node in interrupt_nodes:
             status = (
@@ -114,7 +118,7 @@ class StreamHandler[StateT: AgentState]:
         )
         return False
 
-    async def _execute_graph(
+    async def _execute_graph(  # noqa: PLR0912, PLR0915
         self,
         state: StateT,
         config: dict[str, Any],
@@ -173,7 +177,7 @@ class StreamHandler[StateT: AgentState]:
                 event.data["current_node"] = current_node
                 event.event_type = EventType.PROGRESS
                 event.metadata["status"] = f"Executing step {step} at node '{current_node}'"
-                publish_event(event)
+                self.publish_event(event)
                 yield event
 
                 # Check for interrupt_before
@@ -188,7 +192,7 @@ class StreamHandler[StateT: AgentState]:
                     event.metadata["status"] = "Graph execution interrupted before node execution"
                     event.metadata["interrupted"] = "Before"
                     event.data["interrupted"] = "Before"
-                    publish_event(event)
+                    self.publish_event(event)
                     yield event
                     return
 
@@ -253,7 +257,7 @@ class StreamHandler[StateT: AgentState]:
                 event.data["state"] = state.model_dump()
                 event.data["messages"] = [m.model_dump() for m in messages] if messages else []
                 event.content_type = [ContentType.STATE, ContentType.MESSAGE]
-                publish_event(event)
+                self.publish_event(event)
                 yield event
 
                 # Check for interrupt_after
@@ -273,7 +277,7 @@ class StreamHandler[StateT: AgentState]:
                     event.data["interrupted"] = "After"
                     event.metadata["interrupted"] = "After"
                     event.data["state"] = state.model_dump()
-                    publish_event(event)
+                    self.publish_event(event)
                     yield event
                     return
 
@@ -293,7 +297,7 @@ class StreamHandler[StateT: AgentState]:
                 event.event_type = EventType.UPDATE
                 event.metadata["State_Updated"] = "State Updated"
                 event.data["state"] = state.model_dump()
-                publish_event(event)
+                self.publish_event(event)
                 yield event
 
                 if step >= max_steps:
@@ -307,7 +311,7 @@ class StreamHandler[StateT: AgentState]:
                     event.metadata["error"] = error_msg
                     event.metadata["step"] = step
                     event.metadata["current_node"] = current_node
-                    publish_event(event)
+                    self.publish_event(event)
                     yield event
 
                     raise GraphRecursionError(
@@ -337,7 +341,7 @@ class StreamHandler[StateT: AgentState]:
             event.metadata["step"] = step
             event.metadata["current_node"] = current_node
             event.metadata["is_context_trimmed"] = is_context_trimmed
-            publish_event(event)
+            self.publish_event(event)
             yield event
 
         except Exception as e:
@@ -349,7 +353,7 @@ class StreamHandler[StateT: AgentState]:
             event.event_type = EventType.ERROR
             event.metadata["error"] = str(e)
             event.data["state"] = state.model_dump()
-            publish_event(event)
+            self.publish_event(event)
 
             await sync_data(
                 state=state,
@@ -425,7 +429,7 @@ class StreamHandler[StateT: AgentState]:
         )
 
         # Publish graph initialization event
-        publish_event(event)
+        self.publish_event(event)
 
         # Check if this is a resume case
         config = await self._check_interrupted(state, input_data, config)
@@ -455,4 +459,4 @@ class StreamHandler[StateT: AgentState]:
                 "total_messages": len(state.context) if state.context else 0,
             }
         )
-        publish_event(event)
+        self.publish_event(event)

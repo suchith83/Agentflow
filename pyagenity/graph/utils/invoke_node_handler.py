@@ -1,4 +1,4 @@
-import inspect
+import inspect  # isort: skip_file
 import json
 import logging
 from collections.abc import Callable
@@ -8,7 +8,7 @@ from injectq import Inject
 
 from pyagenity.exceptions import NodeError
 from pyagenity.graph.tool_node import ToolNode
-from pyagenity.graph.utils.utils import process_node_result, publish_event
+from pyagenity.graph.utils.utils import process_node_result
 from pyagenity.publisher import BasePublisher
 from pyagenity.state import AgentState
 from pyagenity.utils import (
@@ -20,11 +20,13 @@ from pyagenity.utils import (
 )
 from pyagenity.utils.streaming import ContentType, Event, EventModel, EventType
 
+from .handler_mixins import BaseLoggingMixin, EventPublishingMixin
+
 
 logger = logging.getLogger(__name__)
 
 
-class InvokeNodeHandler:
+class InvokeNodeHandler(BaseLoggingMixin, EventPublishingMixin):
     def __init__(
         self,
         name: str,
@@ -167,7 +169,7 @@ class InvokeNodeHandler:
                 "last_message": last_message.model_dump() if last_message else None,
             },
         )
-        publish_event(event)
+        self.publish_event(event)
 
         try:
             logger.debug("Node '%s' executing before_invoke callbacks", self.name)
@@ -176,7 +178,7 @@ class InvokeNodeHandler:
             logger.debug("Node '%s' executing function", self.name)
             event.event_type = EventType.PROGRESS
             event.metadata["status"] = "Function execution started"
-            publish_event(event)
+            self.publish_event(event)
 
             # Execute the actual function
             result = await call_sync_or_async(
@@ -197,7 +199,7 @@ class InvokeNodeHandler:
             event.metadata["status"] = "Function execution completed"
             event.data["messages"] = [m.model_dump() for m in messages] if messages else []
             event.data["next_node"] = next_node
-            publish_event(event)
+            self.publish_event(event)
 
             return {
                 "state": new_state,
@@ -222,7 +224,7 @@ class InvokeNodeHandler:
                 event.metadata["status"] = "Function execution recovered from error"
                 event.data["message"] = recovery_result.model_dump()
                 event.content_type = [ContentType.MESSAGE, ContentType.STATE]
-                publish_event(event)
+                self.publish_event(event)
                 return {
                     "state": state,
                     "messages": [recovery_result],
@@ -234,7 +236,7 @@ class InvokeNodeHandler:
             event.metadata["status"] = f"Function execution failed: {e}"
             event.data["error"] = str(e)
             event.content_type = [ContentType.ERROR, ContentType.STATE]
-            publish_event(event)
+            self.publish_event(event)
             raise
 
     async def invoke(

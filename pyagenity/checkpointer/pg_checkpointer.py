@@ -780,7 +780,7 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
 
     def _row_to_message(self, row) -> Message:
         """Convert database row to Message object."""
-        from pyagenity.utils.message import TokenUsages  # noqa: PLC0415
+        from pyagenity.utils.message import TokenUsages
 
         usages = None
         if row["usages"]:

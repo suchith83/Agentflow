@@ -16,7 +16,6 @@ from pyagenity.utils import (
     InvocationType,
     Message,
     add_messages,
-    append_items,
     convert_messages,
     replace_messages,
     replace_value,

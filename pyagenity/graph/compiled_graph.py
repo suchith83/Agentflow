@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import datetime
 import logging
 from collections.abc import AsyncIterator, Generator
@@ -181,9 +182,14 @@ class CompiledGraph[StateT: AgentState]:
             async for chunk in self.astream(input_data, config, response_granularity):
                 yield chunk
 
-        # Use a helper to convert async generator to sync generator
+        # Convert async generator to sync iteration with a dedicated event loop
         gen = _async_stream()
         loop = asyncio.new_event_loop()
+        policy = asyncio.get_event_loop_policy()
+        try:
+            previous_loop = policy.get_event_loop()
+        except Exception:
+            previous_loop = None
         asyncio.set_event_loop(loop)
         logger.info("Synchronous streaming started")
 
@@ -195,7 +201,15 @@ class CompiledGraph[StateT: AgentState]:
                 except StopAsyncIteration:
                     break
         finally:
-            loop.close()
+            # Attempt to close the async generator cleanly
+            with contextlib.suppress(Exception):
+                loop.run_until_complete(gen.aclose())  # type: ignore[attr-defined]
+            # Restore previous loop if any, then close created loop
+            try:
+                if previous_loop is not None:
+                    asyncio.set_event_loop(previous_loop)
+            finally:
+                loop.close()
         logger.info("Synchronous streaming completed")
 
     async def astream(

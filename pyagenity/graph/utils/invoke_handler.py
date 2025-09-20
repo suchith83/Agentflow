@@ -1,4 +1,4 @@
-from __future__ import annotations
+from __future__ import annotations  # isort: skip_file
 
 import logging
 from typing import Any, TypeVar
@@ -13,17 +13,18 @@ from pyagenity.graph.utils.utils import (
     get_next_node,
     load_or_create_state,
     parse_response,
-    publish_event,
     sync_data,
 )
 from pyagenity.state import AgentState, ExecutionStatus
-from pyagenity.utils import (
-    END,
-    Message,
-    ResponseGranularity,
-)
+from pyagenity.utils import END, Message, ResponseGranularity
 from pyagenity.utils.reducers import add_messages
 from pyagenity.utils.streaming import ContentType, Event, EventModel, EventType
+
+from .handler_mixins import (
+    BaseLoggingMixin,
+    EventPublishingMixin,
+    InterruptConfigMixin,
+)
 
 
 StateT = TypeVar("StateT", bound=AgentState)
@@ -31,7 +32,11 @@ StateT = TypeVar("StateT", bound=AgentState)
 logger = logging.getLogger(__name__)
 
 
-class InvokeHandler[StateT: AgentState]:
+class InvokeHandler[StateT: AgentState](
+    BaseLoggingMixin,
+    EventPublishingMixin,
+    InterruptConfigMixin,
+):
     @inject
     def __init__(
         self,
@@ -42,8 +47,11 @@ class InvokeHandler[StateT: AgentState]:
     ):
         self.nodes: dict[str, Node] = nodes
         self.edges: list[Edge] = edges
+        # Keep existing attributes for backward-compatibility
         self.interrupt_before = interrupt_before or []
         self.interrupt_after = interrupt_after or []
+        # And set via mixin for a single source of truth
+        self._set_interrupts(interrupt_before, interrupt_after)
 
     async def _check_interrupted(
         self,
@@ -80,9 +88,9 @@ class InvokeHandler[StateT: AgentState]:
         config: dict[str, Any],
     ) -> bool:
         """Check for interrupts and save state if needed. Returns True if interrupted."""
-        interrupt_nodes = (
+        interrupt_nodes: list[str] = (
             self.interrupt_before if interrupt_type == "before" else self.interrupt_after
-        )
+        ) or []
 
         if current_node in interrupt_nodes:
             status = (
@@ -111,7 +119,7 @@ class InvokeHandler[StateT: AgentState]:
         )
         return False
 
-    async def _execute_graph(
+    async def _execute_graph(  # noqa: PLR0912, PLR0915
         self,
         state: StateT,
         config: dict[str, Any],
@@ -168,7 +176,7 @@ class InvokeHandler[StateT: AgentState]:
                 event.metadata["step"] = step
                 event.metadata["current_node"] = current_node
                 event.event_type = EventType.PROGRESS
-                publish_event(event)
+                self.publish_event(event)
 
                 # Check for interrupt_before
                 if await self._check_and_handle_interrupt(
@@ -182,7 +190,7 @@ class InvokeHandler[StateT: AgentState]:
                     event.metadata["interrupted"] = "Before"
                     event.metadata["status"] = "Graph execution interrupted before node execution"
                     event.data["interrupted"] = "Before"
-                    publish_event(event)
+                    self.publish_event(event)
                     return state, messages
 
                 # Execute current node
@@ -244,7 +252,7 @@ class InvokeHandler[StateT: AgentState]:
                 event.data["state"] = state.model_dump()
                 event.data["messages"] = [m.model_dump() for m in messages] if messages else []
                 event.content_type = [ContentType.STATE, ContentType.MESSAGE]
-                publish_event(event)
+                self.publish_event(event)
 
                 # Check for interrupt_after
                 if await self._check_and_handle_interrupt(
@@ -263,7 +271,7 @@ class InvokeHandler[StateT: AgentState]:
                     event.data["interrupted"] = "After"
                     event.metadata["interrupted"] = "After"
                     event.data["state"] = state.model_dump()
-                    publish_event(event)
+                    self.publish_event(event)
                     return state, messages
 
                 # Get next node (only if no explicit navigation from Command)
@@ -288,7 +296,7 @@ class InvokeHandler[StateT: AgentState]:
 
                 event.metadata["State_Updated"] = "State Updated"
                 event.data["state"] = state.model_dump()
-                publish_event(event)
+                self.publish_event(event)
 
                 if step >= max_steps:
                     error_msg = "Graph execution exceeded maximum steps"
@@ -301,7 +309,7 @@ class InvokeHandler[StateT: AgentState]:
                     event.metadata["step"] = step
                     event.metadata["current_node"] = current_node
 
-                    publish_event(event)
+                    self.publish_event(event)
                     raise GraphRecursionError(
                         f"Graph execution exceeded recursion limit: {max_steps}"
                     )
@@ -328,7 +336,7 @@ class InvokeHandler[StateT: AgentState]:
             event.metadata["current_node"] = current_node
             event.metadata["is_context_trimmed"] = res
 
-            publish_event(event)
+            self.publish_event(event)
 
             return state, messages
 
@@ -341,7 +349,7 @@ class InvokeHandler[StateT: AgentState]:
             event.event_type = EventType.ERROR
             event.metadata["error"] = str(e)
             event.data["state"] = state.model_dump()
-            publish_event(event)
+            self.publish_event(event)
 
             await sync_data(
                 state=state,
@@ -394,20 +402,20 @@ class InvokeHandler[StateT: AgentState]:
             },
         )
         event.event_type = EventType.START
-        publish_event(event)
+        self.publish_event(event)
 
         # Check if this is a resume case
         config = await self._check_interrupted(state, input_data, config)
 
         event.event_type = EventType.UPDATE
         event.metadata["status"] = "Graph invoked"
-        publish_event(event)
+        self.publish_event(event)
 
         try:
             logger.debug("Beginning graph execution")
             event.event_type = EventType.PROGRESS
             event.metadata["status"] = "Graph execution started"
-            publish_event(event)
+            self.publish_event(event)
 
             final_state, messages = await self._execute_graph(state, config)
             logger.info("Graph execution completed with %d final messages", len(messages))
@@ -416,7 +424,7 @@ class InvokeHandler[StateT: AgentState]:
             event.metadata["status"] = "Graph execution completed"
             event.data["state"] = final_state.model_dump()
             event.data["messages"] = [m.model_dump() for m in messages] if messages else []
-            publish_event(event)
+            self.publish_event(event)
 
             return await parse_response(
                 final_state,
@@ -428,5 +436,5 @@ class InvokeHandler[StateT: AgentState]:
             event.event_type = EventType.ERROR
             event.metadata["status"] = f"Graph execution failed: {e}"
             event.data["error"] = str(e)
-            publish_event(event)
+            self.publish_event(event)
             raise

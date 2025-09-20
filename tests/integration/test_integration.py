@@ -169,7 +169,7 @@ class TestBasicIntegration:
 
     def test_error_handling_integration(self):
         """Test error handling with custom exceptions."""
-        from pyagenity.exceptions import GraphError, NodeError  # noqa: PLC0415
+        from pyagenity.exceptions import GraphError, NodeError
 
         # Test exception creation and inheritance
         graph_error = GraphError("Graph failed")
@@ -188,9 +188,9 @@ class TestBasicIntegration:
 def test_framework_import_coverage():
     """Test importing various framework components for coverage."""
     # Import and instantiate various components
-    from pyagenity.graph import Edge  # noqa: PLC0415
-    from pyagenity.state import ExecutionState, MessageContextManager  # noqa: PLC0415
-    from pyagenity.utils import Command, add_messages  # noqa: PLC0415
+    from pyagenity.graph import Edge
+    from pyagenity.state import ExecutionState, MessageContextManager
+    from pyagenity.utils import Command, add_messages
 
     # Test Edge creation
     edge = Edge(from_node="a", to_node="b")
