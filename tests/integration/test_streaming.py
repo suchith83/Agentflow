@@ -6,7 +6,6 @@ import pytest
 
 from pyagenity.checkpointer import InMemoryCheckpointer
 from pyagenity.graph import StateGraph
-from pyagenity.publisher.events import EventModel
 from pyagenity.state import AgentState
 from pyagenity.utils import END, Message
 

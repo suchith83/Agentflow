@@ -255,7 +255,8 @@
 #         if hasattr(response, "object") or isinstance(response, dict):
 #             message = await self.convert_response(response)
 #             content_value = (
-#                 message.text() if isinstance(message.content, list) else cast(str, message.content)
+#                 message.text() if isinstance(message.content, list) else cast(str,
+#               message.content)
 #             )
 #             end_event = EventModel(
 #                 event=Event.STREAMING,
@@ -856,7 +857,8 @@
 #                 delta=False,
 #                 content_type=[ContentType.TEXT, ContentType.REASONING, ContentType.MESSAGE],
 #                 content=(
-#                     message.text() if isinstance(message.content, list) else cast(str, message.content)
+#                     message.text() if isinstance(message.content, list) else cast(str,
+#                      message.content)
 #                 ),
 #                 sequence_id=1,
 #                 data={"messages": [message.model_dump()]},

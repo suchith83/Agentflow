@@ -8,7 +8,6 @@ from pyagenity.graph.tool_node import ToolNode
 from pyagenity.state import AgentState
 from pyagenity.utils import CallbackManager
 from pyagenity.utils.message import Message, ToolResultBlock
-from pyagenity.publisher.events import EventType
 
 
 class TestToolNode:

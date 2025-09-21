@@ -198,7 +198,7 @@ class LangChainToolWrapper:
 
             data: t.Any = result
             # Ensure JSON-serializable data for Message body
-            if not isinstance(result, (str, int, float, bool, type(None), dict, list)):
+            if not isinstance(result, str | int | float | bool | type(None) | dict | list):
                 try:
                     json.dumps(result)
                 except Exception:

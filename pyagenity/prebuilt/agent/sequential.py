@@ -63,7 +63,8 @@ class SequentialAgent[StateT: AgentState]:
     ) -> CompiledGraph:
         if not steps or len(steps) == 0:
             raise ValueError(
-                "steps must be a non-empty sequence of (name, callable/ToolNode) or (callable/ToolNode, name)"
+                "steps must be a non-empty sequence of (name, callable/ToolNode) o"
+                "or (callable/ToolNode, name)"
             )
 
         # Add nodes

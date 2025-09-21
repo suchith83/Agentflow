@@ -9,8 +9,6 @@ from pyagenity.utils import Message
 from pyagenity.utils.constants import END
 from pyagenity.utils.converter import convert_messages
 
-import asyncio
-
 
 load_dotenv()
 
@@ -139,7 +137,7 @@ print("Streaming response:")
 message_count = 0
 for i in res:
     message_count += 1
-    print(f"**********************")
+    print("**********************")
     print(f"Message #{message_count} - Role: {i.role} and {i.message_id}")
     print(f"Content: {i.content}")
     print(f"Delta: {i.delta}")

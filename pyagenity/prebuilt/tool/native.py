@@ -153,9 +153,9 @@ def http_get(
     if not url.startswith(("http://", "https://")):
         raise ValueError("URL must start with http:// or https://")
     # At this point, scheme is asserted to be http/https only
-    req = Request(url, headers=headers or {"User-Agent": "pyagenity-native/1.0"})  # nosec B310
+    req = Request(url, headers=headers or {"User-Agent": "pyagenity-native/1.0"})  # nosec B310  # noqa: S310
     start = time.time()
-    with urlopen(req, timeout=timeout) as resp:  # nosec B310
+    with urlopen(req, timeout=timeout) as resp:  # nosec B310  # noqa: S310
         status = resp.getcode()
         ctype = resp.headers.get("Content-Type", "application/octet-stream")
         data = resp.read(max_bytes)
@@ -202,7 +202,7 @@ def python_eval(code: str, mode: str = "eval") -> str:
     is_exec = mode == "exec"
     tree = ast.parse(code, mode="exec" if is_exec else "eval")
     for node in ast.walk(tree):
-        if isinstance(node, (ast.Import, ast.ImportFrom, ast.Attribute)):
+        if isinstance(node, (ast.Import | ast.ImportFrom | ast.Attribute)):
             raise PermissionError("Imports/attributes are not allowed")
     if is_exec:
         compiled = compile(code, "<pyagenity>", "exec")

@@ -1,7 +1,7 @@
 Goal:
 I built this library and framework, this framework was initially built on the top of
-litellm, its very loosely coupled, 
-If the main agent function return 
+litellm, its very loosely coupled,
+If the main agent function return
 #Message and #Streaming
 
 When its required then it will work,
@@ -57,15 +57,15 @@ async def main_agent(
 
 Instead of returning response, I want to write a converter for popular library like openai and litellm and others
 
-say function name BaseConverter, so user can return 
+say function name BaseConverter, so user can return
 like this
 
 # Convert the response using the universal converter
     converter = UniversalConverter()
     converted_response = await converter.convert(
-        response, 
-        converter_type, 
-        stream=stream, 
+        response,
+        converter_type,
+        stream=stream,
         model="gemini/gemini-2.5-flash",
         **kwargs
     )
@@ -74,4 +74,4 @@ like this
 Now lets implement this, at least for openai and litellm
 And convert these as optional dependencies
 
-Remove them from 
+Remove them from

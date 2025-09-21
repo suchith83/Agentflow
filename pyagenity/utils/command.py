@@ -49,4 +49,7 @@ class Command[StateT: AgentState]:
         self.state = state
 
     def __repr__(self) -> str:
-        return f"Command(update={self.update}, goto={self.goto}, graph={self.graph}, state={self.state})"
+        return (
+            f"Command(update={self.update}, goto={self.goto}, \n"
+            f" graph={self.graph}, state={self.state})"
+        )

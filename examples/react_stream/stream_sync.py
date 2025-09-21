@@ -1,3 +1,5 @@
+# noqa
+
 from dotenv import load_dotenv
 from litellm import completion
 
@@ -137,7 +139,7 @@ print("Streaming response:")
 message_count = 0
 for i in res:
     message_count += 1
-    print(f"**********************")
+    print("**********************")
     print(f"Message #{message_count} - Role: {i.role} and {i.message_id}")
     print(f"Content: {i.content}")
     print(f"Delta: {i.delta}")

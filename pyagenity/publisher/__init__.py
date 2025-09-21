@@ -6,14 +6,17 @@ logging and monitoring agent behavior, enabling real-time tracking of performanc
 usage, and debugging in agent graphs.
 
 Key components:
-- BasePublisher: Abstract base class for all publishers, defining the interface for publishing events.
-- ConsolePublisher: Default publisher that outputs events to the console for development and debugging.
-- Optional publishers: RedisPublisher, KafkaPublisher, RabbitMQPublisher, which are available only if their dependencies are installed.
+- BasePublisher: Abstract base class for all publishers, defining the interface for publishing event
+- ConsolePublisher: Default publisher that outputs events to the console for development
+    and debugging
+- Optional publishers: RedisPublisher, KafkaPublisher, RabbitMQPublisher, which are available
+    only if their dependencies are installed
 
 Usage:
-- Import publishers: from pyagenity.publisher import ConsolePublisher, RedisPublisher (if available).
+- Import publishers: from pyagenity.publisher import ConsolePublisher, RedisPublisher (if available)
 - Instantiate and use in CompiledGraph: graph.compile(publisher=ConsolePublisher()).
-- Events are emitted as EventModel instances during graph execution, including node starts, completions, and errors.
+- Events are emitted as EventModel instances during graph execution, including node starts,
+    completions, and errors.
 
 Dependencies for optional publishers:
 - RedisPublisher: Requires 'redis.asyncio' (install via pip install redis).

@@ -18,7 +18,7 @@ from pyagenity.publisher.events import ContentType, Event, EventModel, EventType
 from pyagenity.publisher.publish import publish_event
 from pyagenity.state import AgentState
 from pyagenity.utils import CallbackManager
-from pyagenity.utils.message import ErrorBlock, Message, TextBlock, ToolCallBlock, ToolResultBlock
+from pyagenity.utils.message import ErrorBlock, Message, ToolCallBlock, ToolResultBlock
 
 from . import deps
 from .executors import ComposioMixin, KwargsResolverMixin, LangChainMixin, LocalExecMixin, MCPMixin

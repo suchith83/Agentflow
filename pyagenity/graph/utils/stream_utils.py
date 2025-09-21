@@ -4,7 +4,7 @@ from pyagenity.utils import Message
 
 def check_non_streaming(result) -> bool:
     # check list, dict, str, Command, Message, Model Response or not
-    if isinstance(result, (list, dict, str)):
+    if isinstance(result, list | dict | str):
         return True
 
     if isinstance(result, Message):

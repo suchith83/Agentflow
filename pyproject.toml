@@ -105,6 +105,8 @@ exclude = [
     "migrations/*",  # Exclude the migrations folder
     "venv/*",
     "example/*",
+    "tests/*",
+    "docs/*",
 ]
 
 
@@ -133,7 +135,7 @@ line-ending = "auto"
 docstring-code-format = true
 
 [tool.bandit]
-exclude_dirs = ["*/tests/*", "*/migrations", "*/scripts/*"]
+exclude_dirs = ["*/tests/*", "*/migrations", "*/scripts/*", "docs/*", "examples/*"]
 skips = ["B101", "B611", "B601", "B608"]
 
 
@@ -147,7 +149,6 @@ exclude = [
     "tests/*",
     "examples/*",
     "docs/*",
-    "migrations/*"
 ]
 
 [tool.pytest.ini_options]
