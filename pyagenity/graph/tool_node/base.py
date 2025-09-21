@@ -211,7 +211,7 @@ class ToolNode(
         publish_event(event)
         return Message.tool_message(
             content=[
-                ErrorBlock(text=error_msg),  # type: ignore
+                ErrorBlock(message=error_msg),
                 ToolResultBlock(
                     call_id=tool_call_id,
                     output=error_msg,
@@ -336,7 +336,7 @@ class ToolNode(
 
         yield Message.tool_message(
             content=[
-                ErrorBlock(text=error_msg),  # type: ignore
+                ErrorBlock(message=error_msg),
                 ToolResultBlock(
                     call_id=tool_call_id,
                     output=error_msg,

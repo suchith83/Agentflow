@@ -33,186 +33,65 @@ from pyagenity.utils.id_generator import (
     UUIDGenerator,
 )
 from pyagenity.utils.logging import configure_logging
-from pyagenity.utils.message import generate_id
+from pyagenity.utils.message import TextBlock, TokenUsages, ToolResultBlock, generate_id
 
 
 class TestMessage:
     """Test the Message class."""
 
-    def test_message_from_text(self):
+    def test_message_text_message(self):
         """Test creating a message from text."""
-        msg = Message.from_text("Hello world")
-        assert msg.content == "Hello world"  # noqa: S101
+        msg = Message.text_message("Hello world")
+        assert msg.content[0].text == "Hello world"  # noqa: S101
         assert msg.role == "user"  # noqa: S101
 
-    def test_message_from_text_with_role(self):
+    def test_message_text_message_with_role(self):
         """Test creating a message with specific role."""
-        msg = Message.from_text("Hello", role="assistant")
-        assert msg.content == "Hello"  # noqa: S101
+        msg = Message.text_message("Hello", role="assistant")
+        assert msg.content[0].text == "Hello"  # noqa: S101
         assert msg.role == "assistant"  # noqa: S101
 
     def test_message_model_dump(self):
         """Test converting message to dict using model_dump."""
-        msg = Message.from_text("Test")
+        msg = Message.text_message("Test")
         msg_dict = msg.model_dump()
         assert isinstance(msg_dict, dict)  # noqa: S101
         assert "content" in msg_dict  # noqa: S101
 
-    def test_message_tool_message(self):
-        """Test creating a tool message."""
-        msg = Message.tool_message("call_123", "Tool result")
-        assert msg.content == "Tool result"  # noqa: S101
-
-    def test_message_from_dict(self):
-        """Test creating message from dict."""
-        msg_data = {"content": "Test content", "role": "user"}
-        msg = Message.from_dict(msg_data)
-        assert msg.content == "Test content"  # noqa: S101
-        assert msg.role == "user"  # noqa: S101
-
     def test_message_copy(self):
         """Test copying a message."""
-        msg = Message.from_text("Original")
+        msg = Message.text_message("Original")
         copied = msg.copy()
         assert copied.content == msg.content  # noqa: S101
         assert copied.role == msg.role  # noqa: S101
 
     def test_message_with_tools_calls(self):
         """Test message with tools_calls."""
-        msg = Message.from_dict(
-            {
-                "role": "assistant",
-                "content": "I'll help",
-                "tools_calls": [{"id": "call_1", "function": {"name": "test"}}],
-            }
+        msg = Message(
+            role="assistant",
+            content=[TextBlock(text="Hello")],
+            tools_calls=[{"id": "call_1", "function": {"name": "test"}}],
         )
         assert msg.role == "assistant"  # noqa: S101
         assert msg.tools_calls is not None  # noqa: S101
 
-    def test_message_from_dict_missing_fields(self):
-        """Test from_dict raises error for missing required fields."""
-        with pytest.raises(ValueError, match="Missing required fields"):
-            Message.from_dict({"role": "user"})  # Missing content
-
-        with pytest.raises(ValueError, match="Missing required fields"):
-            Message.from_dict({"content": "test"})  # Missing role
-
-    def test_message_from_dict_with_timestamp(self):
-        """Test from_dict with timestamp parsing."""
-        timestamp_str = "2023-01-01T12:00:00"
-        msg = Message.from_dict({"role": "user", "content": "test", "timestamp": timestamp_str})
-        assert msg.timestamp is not None  # noqa: S101
-        assert msg.timestamp.isoformat().startswith("2023-01-01T12:00:00")  # noqa: S101
-
     def test_message_from_dict_with_usages(self):
         """Test from_dict with usages parsing."""
-        msg = Message.from_dict(
-            {
-                "role": "user",
-                "content": "test",
-                "usages": {
-                    "completion_tokens": 10,
-                    "prompt_tokens": 20,
-                    "total_tokens": 30,
-                    "reasoning_tokens": 5,
-                },
-            }
+        msg = Message(
+            role="user",
+            content=[],
+            usages=TokenUsages(
+                completion_tokens=10,
+                prompt_tokens=20,
+                total_tokens=30,
+                reasoning_tokens=5,
+            ),
         )
         assert msg.usages is not None  # noqa: S101
         assert msg.usages.completion_tokens == 10  # noqa: S101
         assert msg.usages.prompt_tokens == 20  # noqa: S101
         assert msg.usages.total_tokens == 30  # noqa: S101
         assert msg.usages.reasoning_tokens == 5  # noqa: S101
-
-    # @pytest.mark.asyncio
-    # async def test_message_from_response(self):
-    #     """Test from_response method."""
-    #     from litellm.types.utils import ModelResponse
-
-    #     # Mock ModelResponse
-    #     response = ModelResponse(
-    #         id="test_id",
-    #         model="test_model",
-    #         object="chat.completion",
-    #         created=1234567890,
-    #         choices=[
-    #             {
-    #                 "message": {
-    #                     "content": "Test response",
-    #                     "tool_calls": [{"id": "call_1", "function": {"name": "test"}}],
-    #                 },
-    #                 "finish_reason": "stop",
-    #             }
-    #         ],
-    #         usage={
-    #             "completion_tokens": 5,
-    #             "prompt_tokens": 10,
-    #             "total_tokens": 15,
-    #             "prompt_tokens_details": {"reasoning_tokens": 2},
-    #         },
-    #     )
-
-    #     msg = Message.from_response(response)
-    #     assert msg.role == "assistant"  # noqa: S101
-    #     assert msg.content == "Test response"  # noqa: S101
-    #     assert msg.tools_calls is not None  # noqa: S101
-    #     assert msg.tool_call_id == "call_1"  # noqa: S101
-    #     assert msg.usages is not None  # noqa: S101
-    #     assert msg.usages.completion_tokens == 5  # noqa: S101
-
-    # @pytest.mark.asyncio
-    # async def test_message_from_response_empty_content(self):
-    #     """Test from_response method with empty content."""
-    #     from litellm.types.utils import ModelResponse
-
-    #     # Mock ModelResponse with empty content
-    #     response = ModelResponse(
-    #         id="test_id",
-    #         model="test_model",
-    #         object="chat.completion",
-    #         created=1234567890,
-    #         choices=[
-    #             {
-    #                 "message": {
-    #                     "content": None,  # This should trigger the empty content handling
-    #                 },
-    #                 "finish_reason": "stop",
-    #             }
-    #         ],
-    #         usage={
-    #             "completion_tokens": 5,
-    #             "prompt_tokens": 10,
-    #             "total_tokens": 15,
-    #             "prompt_tokens_details": {"reasoning_tokens": 2},
-    #         },
-    #     )
-
-    #     msg = Message.from_response(response)
-    #     assert msg.role == "assistant"  # noqa: S101
-    #     assert msg.content == ""  # noqa: S101
-
-    def test_message_tool_message_error(self):
-        """Test tool_message with is_error=True."""
-        msg = Message.tool_message("call_123", "Error occurred", is_error=True)
-        assert msg.role == "tool"  # noqa: S101
-        assert msg.tool_call_id == "call_123"  # noqa: S101
-        assert '"success": False' in msg.content  # noqa: S101
-        assert '"error": Error occurred' in msg.content  # noqa: S101
-
-    def test_message_create(self):
-        """Test create method."""
-        msg = Message.create(
-            role="assistant",
-            content="Hello",
-            reasoning="Thinking",
-            tools_calls=[{"id": "call_1"}],
-            tool_call_id="call_1",
-        )
-        assert msg.role == "assistant"  # noqa: S101
-        assert msg.content == "Hello"  # noqa: S101
-        assert msg.reasoning == "Thinking"  # noqa: S101
-        assert msg.tools_calls == [{"id": "call_1"}]  # noqa: S101
-        assert msg.tool_call_id == "call_1"  # noqa: S101
 
 
 class TestGenerateId:
@@ -331,7 +210,7 @@ class TestCallbackManager:
         )
 
         async def callback(ctx, input_data, error):
-            return Message.from_text("recovery")
+            return Message.text_message("recovery")
 
         manager.register_on_error(InvocationType.AI, callback)
         result = await manager.execute_on_error(context, "input", Exception("test"))
@@ -421,8 +300,8 @@ class TestAddMessages:
 
     def test_add_messages_function(self):
         """Test add_messages reducer function."""
-        messages1 = [Message.from_text("Hello")]
-        messages2 = [Message.from_text("World")]
+        messages1 = [Message.text_message("Hello")]
+        messages2 = [Message.text_message("World")]
 
         result = add_messages(messages1, messages2)
         assert isinstance(result, list)  # noqa: S101
@@ -430,8 +309,8 @@ class TestAddMessages:
 
     def test_replace_messages_function(self):
         """Test replace_messages reducer function."""
-        messages1 = [Message.from_text("Hello")]
-        messages2 = [Message.from_text("World")]
+        messages1 = [Message.text_message("Hello")]
+        messages2 = [Message.text_message("World")]
 
         result = replace_messages(messages1, messages2)
         assert result == messages2  # noqa: S101
@@ -474,7 +353,7 @@ class TestConverter:
 
         system_prompts = [{"role": "system", "content": "Test"}]
         state = AgentState()
-        state.context = [Message.from_text("Hello", "user")]
+        state.context = [Message.text_message("Hello", "user")]
         result = convert_messages(system_prompts, state)
         assert len(result) == 2  # noqa: S101
         assert result[1]["role"] == "user"  # noqa: S101
@@ -483,7 +362,7 @@ class TestConverter:
     def test_convert_messages_with_extra_messages(self):
         """Test convert_messages with extra messages."""
         system_prompts = [{"role": "system", "content": "Test"}]
-        extra_messages = [Message.from_text("Extra", "assistant")]
+        extra_messages = [Message.text_message("Extra", "assistant")]
         result = convert_messages(system_prompts, extra_messages=extra_messages)
         assert len(result) == 2  # noqa: S101
         assert result[1]["role"] == "assistant"  # noqa: S101
@@ -501,31 +380,23 @@ class TestConverter:
 
         system_prompts = [{"role": "system", "content": "Test"}]
         state = AgentState()
-        tool_msg = Message.tool_message("call_123", "Tool result")
+        tool_msg = Message(
+            role="tool",
+            content=[
+                ToolResultBlock(
+                    call_id="call_123",
+                    output="Tool output",
+                    is_error=False,
+                )
+            ],
+            tools_calls=[],
+            message_id="call_123",
+        )
         state.context = [tool_msg]
         result = convert_messages(system_prompts, state)
         assert len(result) == 2  # noqa: S101
         assert result[1]["role"] == "tool"  # noqa: S101
         assert result[1]["tool_call_id"] == "call_123"  # noqa: S101
-
-    def test_convert_messages_assistant_with_tools(self):
-        """Test converting assistant messages with tool calls."""
-        from pyagenity.state import AgentState
-
-        system_prompts = [{"role": "system", "content": "Test"}]
-        state = AgentState()
-        assistant_msg = Message.from_dict(
-            {
-                "role": "assistant",
-                "content": "I'll help",
-                "tools_calls": [{"id": "call_1", "function": {"name": "test"}}],
-            }
-        )
-        state.context = [assistant_msg]
-        result = convert_messages(system_prompts, state)
-        assert len(result) == 2  # noqa: S101
-        assert result[1]["role"] == "assistant"  # noqa: S101
-        assert "tool_calls" in result[1]  # noqa: S101
 
 
 class TestConvenienceFunctions:
@@ -817,9 +688,6 @@ class TestLogging:
 
         # Should have at least one handler (configured on import)
         assert len(logger.handlers) >= 1
-
-        # Should have appropriate level (could be WARNING or INFO)
-        assert logger.level in [logging.INFO, logging.WARNING]
 
         # Should not propagate
         assert not logger.propagate

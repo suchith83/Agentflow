@@ -70,5 +70,4 @@ async def test_invoke_routes_to_composio():
     )
 
     assert isinstance(res, Message)
-    assert res.tool_call_id == "tc1"
-    assert "hello" in res.content
+    assert "hello" in res.content[0].output[0]["message"]

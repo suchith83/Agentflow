@@ -69,8 +69,8 @@ class TestPgCheckpointer:
         """Create sample AgentState for testing."""
         state = AgentState()
         state.context = [
-            Message.from_text("Hello", role="user", message_id="msg1"),
-            Message.from_text("Hi there!", role="assistant", message_id="msg2"),
+            Message.text_message("Hello", role="user", message_id="msg1"),
+            Message.text_message("Hi there!", role="assistant", message_id="msg2"),
         ]
         return state
 
@@ -226,8 +226,8 @@ class TestPgCheckpointer:
     async def test_message_operations(self, checkpointer, sample_config, mock_pg_pool):
         """Test message storage and retrieval."""
         messages = [
-            Message.from_text("Hello", role="user", message_id="msg1"),
-            Message.from_text("Hi there!", role="assistant", message_id="msg2"),
+            Message.text_message("Hello", role="user", message_id="msg1"),
+            Message.text_message("Hi there!", role="assistant", message_id="msg2"),
         ]
 
         # Mock all message operations to avoid database calls
@@ -236,14 +236,14 @@ class TestPgCheckpointer:
             mock_put.assert_called_once_with(sample_config, messages)
 
         with patch.object(checkpointer, "aget_message", new_callable=AsyncMock) as mock_get:
-            mock_get.return_value = Message.from_text("Hello", role="user", message_id="msg1")
+            mock_get.return_value = Message.text_message("Hello", role="user", message_id="msg1")
             message = await checkpointer.aget_message(sample_config, "msg1")
             assert isinstance(message, Message)
-            assert message.content == "Hello"
+            assert message.content[0].text == "Hello"
             mock_get.assert_called_once_with(sample_config, "msg1")
 
         with patch.object(checkpointer, "alist_messages", new_callable=AsyncMock) as mock_list:
-            mock_list.return_value = [Message.from_text("Hello", role="user", message_id="msg1")]
+            mock_list.return_value = [Message.text_message("Hello", role="user", message_id="msg1")]
             messages_list = await checkpointer.alist_messages(sample_config)
             assert len(messages_list) == 1
             assert isinstance(messages_list[0], Message)
@@ -409,7 +409,7 @@ class TestPgCheckpointerIntegration:
             # Create state and store it
             state = AgentState()
             state.context = [
-                Message.from_text("Integration test", role="user", message_id="int_msg1")
+                Message.text_message("Integration test", role="user", message_id="int_msg1")
             ]
 
             stored_state = await real_checkpointer.aput_state(config, state)

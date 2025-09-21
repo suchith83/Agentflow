@@ -23,7 +23,7 @@ class TestAgentState:
 
     def test_agent_state_with_messages(self):
         """Test AgentState with initial messages."""
-        messages = [Message.from_text("Hello"), Message.from_text("World")]
+        messages = [Message.text_message("Hello"), Message.text_message("World")]
         state = AgentState(context=messages)
         assert len(state.context) == 2  # noqa: S101
 
