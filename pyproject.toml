@@ -6,9 +6,9 @@ readme = "README.md"
 license = {file = "LICENSE"}
 requires-python = ">=3.10"
 dependencies = [
-    "injectq>=0.2.0",
+    "injectq>=0.3.0",
     "pydantic>=2.0.0",
-    "python-dotenv>=1.0.0",
+    "python-dotenv>=1.1.0",
 ]
 authors = [
     {name = "Shudipto", email = "shudipto.trafder@gmail.com"}
@@ -34,7 +34,7 @@ requires = ["setuptools", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project.optional-dependencies]
-litellm = ["litellm>=1.75.0"]
+litellm = ["litellm>=1.77.0"]
 pg_checkpoint = ["asyncpg>=0.29.0","redis>=4.2"]
 mcp = ["fastmcp>=2.11.3","mcp>=1.13.0"]
 composio = ["composio>=0.8.0"]
@@ -218,10 +218,18 @@ ENVIRONMENT = "pytest"
 
 [dependency-groups]
 dev = [
-    "pytest>=8.4.1",
-    "pytest-asyncio>=1.1.0",
-    "pytest-cov>=6.2.1",
+    "pytest>=8.4.2",
+    "pytest-asyncio>=1.2.0",
+    "pytest-cov>=7.0.0",
     "pytest-env>=1.1.5",
     "pytest-xdist>=3.8.0",
+    "pre-commit>=3.8.0",
+    "asyncpg>=0.30.0",
+    "redis>=6.4.0",
+    "fastmcp>=2.12.3",
+    "mcp>=1.14.1",
+    "composio>=0.8.15",
+    "langchain-core>=0.3.76",
+    "langchain-community>=0.3.29",
 ]
 
