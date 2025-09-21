@@ -7,7 +7,6 @@ from typing import Any, Literal
 from uuid import uuid4
 
 from injectq import InjectQ
-from litellm.types.utils import ModelResponse
 from pydantic import BaseModel, Field
 
 
@@ -162,75 +161,27 @@ class Message(BaseModel):
         if "usages" in data:
             usages = TokenUsages.model_validate(data["usages"])
 
-        return cls(
-            message_id=generate_id(data.get("message_id")),
-            role=data.get("role", ""),
-            content=data.get("content", ""),
-            tools_calls=data.get("tools_calls"),
-            tool_call_id=data.get("tool_call_id"),
-            function_call=data.get("function_call"),
-            reasoning=data.get("reasoning"),
-            timestamp=timestamp,
-            metadata=data.get("metadata", {}),
-            usages=usages,
-            raw=data.get("raw"),
-        )
+        # We need to support both native Message dict and OpenAI style dict
 
-    @classmethod
-    def from_response(cls, response: ModelResponse):
-        """
-        Create a Message instance from a ModelResponse object.
+        # TODO: Add fallback for OpenAI style dict if needed
 
-        Args:
-            response (ModelResponse): The model response object.
-
-        Returns:
-            Message: The created Message instance.
-        """
-        data = response.model_dump()
-
-        usages_data = data.get("usage", {})
-
-        usages = TokenUsages(
-            completion_tokens=usages_data.get("completion_tokens", 0),
-            prompt_tokens=usages_data.get("prompt_tokens", 0),
-            total_tokens=usages_data.get("total_tokens", 0),
-            cache_creation_input_tokens=usages_data.get("cache_creation_input_tokens", 0),
-            cache_read_input_tokens=usages_data.get("cache_read_input_tokens", 0),
-            reasoning_tokens=usages_data.get("prompt_tokens_details", {}).get(
-                "reasoning_tokens", 0
-            ),
-        )
-
-        created_date = data.get("created", datetime.now())
-
-        # check tools calls
-        tools_calls = data.get("choices", [{}])[0].get("message", {}).get("tool_calls", [])
-
-        tool_call_id = tools_calls[0].get("id") if tools_calls else None
-
-        logger.debug("Creating message from model response with id: %s", response.id)
-        content = data.get("choices", [{}])[0].get("message", {}).get("content", "")
-        if not content:
-            content = ""
-        return cls(
-            message_id=generate_id(response.id),
-            role="assistant",
-            content=content,
-            reasoning=data.get("choices", [{}])[0].get("message", {}).get("reasoning_content", ""),
-            timestamp=created_date,
-            metadata={
-                "model": data.get("model", ""),
-                "finish_reason": data.get("choices", [{}])[0].get("finish_reason", "UNKNOWN"),
-                "object": data.get("object", ""),
-                "prompt_tokens_details": usages_data.get("prompt_tokens_details", {}),
-                "completion_tokens_details": usages_data.get("completion_tokens_details", {}),
-            },
-            usages=usages,
-            raw=data,
-            tools_calls=tools_calls if tools_calls else None,
-            tool_call_id=tool_call_id,
-        )
+        try:
+            return cls(
+                message_id=data.get("message_id", generate_id(None)),
+                role=data["role"],
+                content=data["content"],
+                tools_calls=data.get("tools_calls"),
+                tool_call_id=data.get("tool_call_id"),
+                function_call=data.get("function_call"),
+                reasoning=data.get("reasoning"),
+                timestamp=timestamp,
+                metadata=data.get("metadata", {}),
+                usages=usages,
+                raw=data.get("raw"),
+            )
+        except Exception as e:
+            logger.error("Error creating message from dict: %s", e)
+            raise ValueError(f"Error creating message from dict: {e}") from e
 
     @classmethod
     def tool_message(

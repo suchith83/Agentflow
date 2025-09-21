@@ -193,7 +193,7 @@ class InvokeNodeHandler(BaseLoggingMixin, EventPublishingMixin):
 
             # Process result and publish END event
             messages = []
-            new_state, messages, next_node = process_node_result(result, state, messages)
+            new_state, messages, next_node = await process_node_result(result, state, messages)
             event.data["state"] = new_state.model_dump()
             event.event_type = EventType.END
             event.metadata["status"] = "Function execution completed"

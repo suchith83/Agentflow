@@ -5,8 +5,8 @@ from collections.abc import Callable
 from typing import Any, TypeVar
 
 from injectq import Inject
-from litellm.types.utils import ModelResponse
 
+from pyagenity.adapters.llm.model_response_converter import ModelResponseConverter
 from pyagenity.checkpointer import BaseCheckpointer
 from pyagenity.publisher.base_publisher import BasePublisher
 from pyagenity.state import AgentState, ExecutionStatus
@@ -124,7 +124,7 @@ async def load_or_create_state[StateT: AgentState](
 
     # Create new state by deep copying the graph's prototype state
     logger.info("Creating new state from graph prototype")
-    import copy
+    import copy  # noqa: PLC0415
 
     state = copy.deepcopy(old_state)
 
@@ -170,65 +170,7 @@ async def load_or_create_state[StateT: AgentState](
     return state  # type: ignore[return-value]
 
 
-# def get_default_event(
-#     state: AgentState,
-#     source: str = "graph",
-#     event_type: str = "initialize",
-#     input_data: dict[str, Any] | None = None,
-#     config: dict[str, Any] | None = None,
-#     meta: dict[str, Any] | None = None,
-# ) -> Event:
-#     from pyagenity.utils.streaming import EventModel
-
-#     metadata = meta or {}
-#     metadata["step"] = state.execution_meta.step
-#     metadata["current_node"] = state.execution_meta.current_node
-
-#     # Map old SourceType to new Event enum
-#     if source == "message":
-#         mapped_event = StreamEvent.MESSAGE
-#     elif source == "state":
-#         mapped_event = StreamEvent.STATE
-#     elif source == "node":
-#         mapped_event = StreamEvent.NODE_EXECUTION
-#     elif source == "tool":
-#         mapped_event = StreamEvent.TOOL_EXECUTION
-#     else:  # graph or unknown
-#         mapped_event = StreamEvent.STATE
-
-#     # Map old EventType to new EventType enum
-#     from pyagenity.utils.streaming import EventType as StreamEventType
-
-#     if event_type == "initialize":
-#         mapped_event_type = StreamEventType.START
-#     elif event_type == "invoked":
-#         mapped_event_type = StreamEventType.START
-#     elif event_type == "running":
-#         mapped_event_type = StreamEventType.PROGRESS
-#     elif event_type == "completed":
-#         mapped_event_type = StreamEventType.END
-#     elif event_type == "interrupted":
-#         mapped_event_type = StreamEventType.END
-#     elif event_type == "error":
-#         mapped_event_type = StreamEventType.END
-#     else:
-#         mapped_event_type = StreamEventType.UPDATE
-
-#     return EventModel(
-#         event=mapped_event,
-#         event_type=mapped_event_type,
-#         data={
-#             "input_keys": list(input_data.keys()) if input_data else [],
-#             "is_resume": state.is_interrupted(),
-#             "config": config or {},
-#         },
-#         metadata=metadata,
-#         node_name=state.execution_meta.current_node,
-#         run_id=config.get("run_id", "") if config else "",
-#     )
-
-
-def process_node_result[StateT: AgentState](
+async def process_node_result[StateT: AgentState](
     result: Any,
     state: StateT,
     messages: list[Message],
@@ -238,7 +180,7 @@ def process_node_result[StateT: AgentState](
     and determining the next node.
 
     Supports:
-        - Handling results of type Command, AgentState, Message, list, str, dict, ModelResponse,
+    - Handling results of type Command, AgentState, Message, list, str, dict,
             or other types.
         - Deduplicating messages by message_id.
         - Updating the agent state and its context with new messages.
@@ -266,19 +208,27 @@ def process_node_result[StateT: AgentState](
             new_messages.append(msg)
             existing_ids.add(msg.message_id)
 
-    def create_and_add_message(content: Any) -> Message:
+    async def create_and_add_message(content: Any) -> Message:
         """Create message from content and add if unique."""
-        if isinstance(content, str):
+        if isinstance(content, Message):
+            msg = content
+        elif isinstance(content, ModelResponseConverter):
+            msg = await content.invoke()
+        elif isinstance(content, str):
             msg = Message.from_text(content)
         elif isinstance(content, dict):
             try:
                 msg = Message.from_dict(content)
             except Exception as e:
                 raise ValueError(f"Invalid message dict: {e}") from e
-        elif isinstance(content, ModelResponse):
-            msg = Message.from_response(content)
+
         else:
-            msg = Message.from_text(str(content))
+            err = f"""
+            Unsupported content type for message: {type(content)}.
+            Supported types are: AgentState, Message, ModelResponseConverter, Command, str,
+            dict (OpenAI style/Native Message).
+            """
+            raise ValueError(err)
 
         add_unique_message(msg)
         return msg
@@ -305,8 +255,11 @@ def process_node_result[StateT: AgentState](
             if isinstance(result.update, AgentState):
                 handle_state_message(state, result.update)  # type: ignore[assignment]
                 state = result.update  # type: ignore[assignment]
+            elif isinstance(result.update, list):
+                for item in result.update:
+                    await create_and_add_message(item)
             else:
-                create_and_add_message(result.update)
+                await create_and_add_message(result.update)
 
         # Handle navigation
         next_node = result.goto
@@ -321,10 +274,10 @@ def process_node_result[StateT: AgentState](
     elif isinstance(result, list):
         # Handle list of items (convert each to message)
         for item in result:
-            create_and_add_message(item)
+            await create_and_add_message(item)
     else:
-        # Handle single items (str, dict, ModelResponse, or other)
-        create_and_add_message(result)
+        # Handle single items (str, dict, model_dump-capable, or other)
+        await create_and_add_message(result)
 
     # Add new messages to the main list and state context
     if new_messages:
@@ -429,7 +382,7 @@ async def sync_data(
     context_manager: BaseContextManager = Inject[BaseContextManager],  # will be auto-injected
 ) -> bool:
     """Sync the current state and messages to the checkpointer."""
-    import copy
+    import copy  # noqa: PLC0415
 
     is_context_trimmed = False
 

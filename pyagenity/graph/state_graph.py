@@ -32,8 +32,8 @@ class StateGraph[StateT: AgentState]:
     """Main graph class for orchestrating multi-agent workflows.
 
     This class provides the core functionality for building and managing stateful
-    agent workflows. It is similar to LangGraph's StateGraph but designed for
-    direct LiteLLM integration with support for dependency injection.
+    agent workflows. It is similar to LangGraph's StateGraph
+    integration with support for dependency injection.
 
     The graph is generic over state types to support custom AgentState subclasses,
     allowing for type-safe state management throughout the workflow execution.

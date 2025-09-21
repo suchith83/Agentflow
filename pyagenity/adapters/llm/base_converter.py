@@ -1,9 +1,9 @@
 from abc import ABC, abstractmethod
-from collections.abc import AsyncGenerator
-from dataclasses import dataclass
+from collections.abc import AsyncGenerator, AsyncIterable, Callable
 from enum import Enum
 from typing import Any
 
+from pyagenity.state.agent_state import AgentState
 from pyagenity.utils.message import Message
 from pyagenity.utils.streaming import EventModel
 
@@ -16,29 +16,30 @@ class ConverterType(Enum):
     CUSTOM = "custom"
 
 
-@dataclass
-class ConverterConfig:
-    """Configuration for the converter"""
-
-    converter_type: ConverterType
-    stream: bool = False
-    custom_params: dict[str, Any] | None = None
-
-
 class BaseConverter(ABC):
     """Base class for all response converters"""
 
-    def __init__(self, config: ConverterConfig):
-        self.config = config
+    def __init__(self, state: AgentState | None = None) -> None:
+        self.state = state
 
     @abstractmethod
-    async def convert_response(self, response: Any, **kwargs) -> Message:
+    async def convert_response(self, response: Any) -> Message:
         """Convert the agent response to the target format"""
         raise NotImplementedError("Conversion not implemented for this converter")
 
     @abstractmethod
     async def convert_streaming_response(
-        self, response: Any, **kwargs
-    ) -> AsyncGenerator[EventModel]:
-        """Convert streaming response to the target format"""
+        self,
+        config: dict,
+        node_name: str,
+        response: Any,
+        meta: dict | None = None,
+    ) -> AsyncGenerator[EventModel | Message, None]:
+        """Convert streaming response to the target format.
+
+        Implementations should return an async generator (defined with
+        `async def ...` and `yield`). Declaring this as a regular abstract
+        method ensures type compatibility across subclasses that implement
+        async generators.
+        """
         raise NotImplementedError("Streaming not implemented for this converter")

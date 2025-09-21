@@ -212,13 +212,17 @@ class StreamHandler[StateT: AgentState](
                         # Forward node events
                         yield rs
                     elif isinstance(rs, dict) and "is_non_streaming" in rs:
-                        state = rs.get("state", state)
-                        new_messages = rs.get("messages", [])
-                        for m in new_messages:
-                            if m.message_id not in messages_ids:
-                                messages.append(m)
-                                messages_ids.add(m.message_id)
-                        next_node = rs.get("next_node", next_node)
+                        if rs["is_non_streaming"]:
+                            state = rs.get("state", state)
+                            new_messages = rs.get("messages", [])
+                            for m in new_messages:
+                                if m.message_id not in messages_ids:
+                                    messages.append(m)
+                                    messages_ids.add(m.message_id)
+                            next_node = rs.get("next_node", next_node)
+                        else:
+                            next_node = rs.get("next_node", next_node)
+
                     elif isinstance(rs, Message):
                         if rs.message_id not in messages_ids:
                             messages.append(rs)
@@ -232,7 +236,7 @@ class StreamHandler[StateT: AgentState](
                     else:
                         # Process as node result
                         try:
-                            state, messages, next_node = process_node_result(
+                            state, messages, next_node = await process_node_result(
                                 rs,
                                 state,
                                 messages,

@@ -7,7 +7,6 @@ license = {file = "LICENSE"}
 requires-python = ">=3.10"
 dependencies = [
     "injectq>=0.2.0",
-    "litellm>=1.75.0",
     "pydantic>=2.0.0",
     "python-dotenv>=1.0.0",
 ]
@@ -35,26 +34,15 @@ requires = ["setuptools", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project.optional-dependencies]
-pg_checkpoint = [
-    "asyncpg>=0.29.0",
-    "redis>=4.2"
-]
-mcp = [
-    "fastmcp>=2.11.3",
-    "mcp>=1.13.0"
-]
-composio = [
-    "composio>=0.8.0"
-]
-langchain = [
-    "langchain-core>=0.3.0",
-    "langchain-community>=0.3.0",
-    "langchain-tavily>=0.2.9",
-    "tavily-python>=0.5.0"
-]
+litellm = ["litellm>=1.75.0"]
+pg_checkpoint = ["asyncpg>=0.29.0","redis>=4.2"]
+mcp = ["fastmcp>=2.11.3","mcp>=1.13.0"]
+composio = ["composio>=0.8.0"]
+langchain = ["langchain-core>=0.3.0","langchain-community>=0.3.0"]
 redis = ["redis>=4.2"]
 kafka = ["aiokafka>=0.8.0"]
 rabbitmq = ["aio-pika>=9.0.0"]
+
 all_publishers = [
     "redis>=4.2",
     "aiokafka>=0.8.0",

@@ -1,3 +1,5 @@
+"""State management module for the agent framework."""
+
 from .agent_state import AgentState
 from .base_context import BaseContextManager
 from .execution_state import ExecutionState, ExecutionStatus

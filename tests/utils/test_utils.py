@@ -124,72 +124,72 @@ class TestMessage:
         assert msg.usages.total_tokens == 30  # noqa: S101
         assert msg.usages.reasoning_tokens == 5  # noqa: S101
 
-    @pytest.mark.asyncio
-    async def test_message_from_response(self):
-        """Test from_response method."""
-        from litellm.types.utils import ModelResponse
+    # @pytest.mark.asyncio
+    # async def test_message_from_response(self):
+    #     """Test from_response method."""
+    #     from litellm.types.utils import ModelResponse
 
-        # Mock ModelResponse
-        response = ModelResponse(
-            id="test_id",
-            model="test_model",
-            object="chat.completion",
-            created=1234567890,
-            choices=[
-                {
-                    "message": {
-                        "content": "Test response",
-                        "tool_calls": [{"id": "call_1", "function": {"name": "test"}}],
-                    },
-                    "finish_reason": "stop",
-                }
-            ],
-            usage={
-                "completion_tokens": 5,
-                "prompt_tokens": 10,
-                "total_tokens": 15,
-                "prompt_tokens_details": {"reasoning_tokens": 2},
-            },
-        )
+    #     # Mock ModelResponse
+    #     response = ModelResponse(
+    #         id="test_id",
+    #         model="test_model",
+    #         object="chat.completion",
+    #         created=1234567890,
+    #         choices=[
+    #             {
+    #                 "message": {
+    #                     "content": "Test response",
+    #                     "tool_calls": [{"id": "call_1", "function": {"name": "test"}}],
+    #                 },
+    #                 "finish_reason": "stop",
+    #             }
+    #         ],
+    #         usage={
+    #             "completion_tokens": 5,
+    #             "prompt_tokens": 10,
+    #             "total_tokens": 15,
+    #             "prompt_tokens_details": {"reasoning_tokens": 2},
+    #         },
+    #     )
 
-        msg = Message.from_response(response)
-        assert msg.role == "assistant"  # noqa: S101
-        assert msg.content == "Test response"  # noqa: S101
-        assert msg.tools_calls is not None  # noqa: S101
-        assert msg.tool_call_id == "call_1"  # noqa: S101
-        assert msg.usages is not None  # noqa: S101
-        assert msg.usages.completion_tokens == 5  # noqa: S101
+    #     msg = Message.from_response(response)
+    #     assert msg.role == "assistant"  # noqa: S101
+    #     assert msg.content == "Test response"  # noqa: S101
+    #     assert msg.tools_calls is not None  # noqa: S101
+    #     assert msg.tool_call_id == "call_1"  # noqa: S101
+    #     assert msg.usages is not None  # noqa: S101
+    #     assert msg.usages.completion_tokens == 5  # noqa: S101
 
-    @pytest.mark.asyncio
-    async def test_message_from_response_empty_content(self):
-        """Test from_response method with empty content."""
-        from litellm.types.utils import ModelResponse
+    # @pytest.mark.asyncio
+    # async def test_message_from_response_empty_content(self):
+    #     """Test from_response method with empty content."""
+    #     from litellm.types.utils import ModelResponse
 
-        # Mock ModelResponse with empty content
-        response = ModelResponse(
-            id="test_id",
-            model="test_model",
-            object="chat.completion",
-            created=1234567890,
-            choices=[
-                {
-                    "message": {
-                        "content": None,  # This should trigger the empty content handling
-                    },
-                    "finish_reason": "stop",
-                }
-            ],
-            usage={
-                "completion_tokens": 5,
-                "prompt_tokens": 10,
-                "total_tokens": 15,
-                "prompt_tokens_details": {"reasoning_tokens": 2},
-            },
-        )
+    #     # Mock ModelResponse with empty content
+    #     response = ModelResponse(
+    #         id="test_id",
+    #         model="test_model",
+    #         object="chat.completion",
+    #         created=1234567890,
+    #         choices=[
+    #             {
+    #                 "message": {
+    #                     "content": None,  # This should trigger the empty content handling
+    #                 },
+    #                 "finish_reason": "stop",
+    #             }
+    #         ],
+    #         usage={
+    #             "completion_tokens": 5,
+    #             "prompt_tokens": 10,
+    #             "total_tokens": 15,
+    #             "prompt_tokens_details": {"reasoning_tokens": 2},
+    #         },
+    #     )
 
-        msg = Message.from_response(response)
-        assert msg.role == "assistant"  # noqa: S101
-        assert msg.content == ""  # noqa: S101
+    #     msg = Message.from_response(response)
+    #     assert msg.role == "assistant"  # noqa: S101
+    #     assert msg.content == ""  # noqa: S101
 
     def test_message_tool_message_error(self):
         """Test tool_message with is_error=True."""
