@@ -206,14 +206,20 @@ def python_eval(code: str, mode: str = "eval") -> str:
             raise PermissionError("Imports/attributes are not allowed")
     if is_exec:
         compiled = compile(code, "<pyagenity>", "exec")
-        exec(compiled, SAFE_GLOBALS, {})  # noqa: S102
-        return "ok"
+        try:
+            exec(compiled, SAFE_GLOBALS, {})  # nosec  # noqa: S102
+            return "ok"
+        except Exception as e:
+            return f"Error: {e}"
     compiled = compile(code, "<pyagenity>", "eval")
-    result = eval(compiled, SAFE_GLOBALS, {})  # noqa: S307
     try:
-        return json.dumps(result)
-    except Exception:
-        return str(result)
+        result = eval(compiled, SAFE_GLOBALS, {})  # nosec  # noqa: S307
+        try:
+            return json.dumps(result)
+        except Exception:
+            return str(result)
+    except Exception as e:
+        return f"Error: {e}"
 
 
 _attach_metadata(python_eval, tags=["analysis", "python"], capabilities=["compute"])

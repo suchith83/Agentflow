@@ -498,6 +498,7 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
             state_json = self._serialize_state(state)
             await self.redis.setex(cache_key, self.cache_ttl, state_json)
             logger.debug("State cached with key=%s, ttl=%d", cache_key, self.cache_ttl)
+            return True
 
         except Exception as e:
             logger.error("Failed to cache state for thread_id=%s: %s", thread_id, e)
@@ -640,7 +641,6 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
                             message.role,
                             message.content,
                             json.dumps(message.tools_calls) if message.tools_calls else None,
-                            message.tool_call_id,
                             message.reasoning,
                             message.usages.total_tokens if message.usages else 0,
                             json.dumps(message.usages.model_dump()) if message.usages else None,
@@ -773,6 +773,7 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
 
             await self._retry_on_connection_error(_delete_message, max_retries=3)
             logger.info("Deleted message_id=%s", message_id)
+            return None
 
         except Exception as e:
             logger.error("Failed to delete message_id=%s: %s", message_id, e)
@@ -792,7 +793,6 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
             role=row["role"],
             content=row["content"],
             tools_calls=json.loads(row["tool_calls"]) if row["tool_calls"] else None,
-            tool_call_id=row["tool_call_id"],
             reasoning=row["reasoning"],
             timestamp=row["created_at"],
             metadata=json.loads(row["meta"]) if row["meta"] else {},

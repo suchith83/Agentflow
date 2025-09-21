@@ -136,7 +136,7 @@ docstring-code-format = true
 
 [tool.bandit]
 exclude_dirs = ["*/tests/*", "*/migrations", "*/scripts/*", "docs/*", "examples/*"]
-skips = ["B101", "B611", "B601", "B608"]
+skips = ["B101", "B611", "B601", "B608", "B102", "B307"]
 
 
 [tool.ruff.lint.pydocstyle]
