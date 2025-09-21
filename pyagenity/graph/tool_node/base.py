@@ -229,7 +229,7 @@ class ToolNode(
         config: dict[str, t.Any],
         state: AgentState,
         callback_manager: CallbackManager = Inject[CallbackManager],
-    ) -> t.AsyncIterator[EventModel | Message]:
+    ) -> t.AsyncIterator[Message]:
         logger.info("Executing tool '%s' with %d arguments", name, len(args))
         logger.debug("Tool arguments: %s", args)
         event = EventModel.default(
@@ -241,11 +241,10 @@ class ToolNode(
         event.node_name = "ToolNode"
         with contextlib.suppress(Exception):
             event.content_blocks = [ToolCallBlock(id=tool_call_id, name=name, args=args)]
-        publish_event(event)
 
         if name in self.mcp_tools:
             event.metadata["function_type"] = "mcp"
-            yield event
+            publish_event(event)
             message = await self._mcp_execute(
                 name,
                 args,
@@ -260,13 +259,13 @@ class ToolNode(
                 ]
             event.event_type = EventType.END
             event.content_type = [ContentType.TOOL_RESULT, ContentType.MESSAGE]
-            yield event
+            publish_event(event)
             yield message
             return
 
         if name in self.composio_tools:
             event.metadata["function_type"] = "composio"
-            yield event
+            publish_event(event)
             message = await self._composio_execute(
                 name,
                 args,
@@ -281,13 +280,13 @@ class ToolNode(
                 ]
             event.event_type = EventType.END
             event.content_type = [ContentType.TOOL_RESULT, ContentType.MESSAGE]
-            yield event
+            publish_event(event)
             yield message
             return
 
         if name in self.langchain_tools:
             event.metadata["function_type"] = "langchain"
-            yield event
+            publish_event(event)
             message = await self._langchain_execute(
                 name,
                 args,
@@ -302,13 +301,13 @@ class ToolNode(
                 ]
             event.event_type = EventType.END
             event.content_type = [ContentType.TOOL_RESULT, ContentType.MESSAGE]
-            yield event
+            publish_event(event)
             yield message
             return
 
         if name in self._funcs:
             event.metadata["function_type"] = "internal"
-            yield event
+            publish_event(event)
 
             result = await self._internal_execute(
                 name,
@@ -325,7 +324,7 @@ class ToolNode(
                 ]
             event.event_type = EventType.END
             event.content_type = [ContentType.TOOL_RESULT, ContentType.MESSAGE]
-            yield event
+            publish_event(event)
             yield result
             return
 
@@ -333,7 +332,6 @@ class ToolNode(
         event.data["error"] = error_msg
         event.event_type = EventType.ERROR
         event.content_type = [ContentType.TOOL_RESULT, ContentType.ERROR]
-        yield event
         publish_event(event)
 
         yield Message.tool_message(

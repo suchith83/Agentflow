@@ -8,8 +8,6 @@ from injectq import Inject
 
 from pyagenity.adapters.llm.model_response_converter import ModelResponseConverter
 from pyagenity.checkpointer import BaseCheckpointer
-from pyagenity.publisher.base_publisher import BasePublisher
-from pyagenity.publisher.events import EventModel
 from pyagenity.state import AgentState, ExecutionStatus
 from pyagenity.state.base_context import BaseContextManager
 from pyagenity.state.execution_state import ExecutionState as ExecMeta
@@ -21,7 +19,6 @@ from pyagenity.utils import (
     ResponseGranularity,
     add_messages,
 )
-from pyagenity.utils.background_task_manager import BackgroundTaskManager
 
 
 StateT = TypeVar("StateT", bound=AgentState)
@@ -42,14 +39,13 @@ async def parse_response(
         case ResponseGranularity.PARTIAL:
             # Return state and summary of messages
             return {
-                "state": None,
                 "context": state.context,
                 "summary": state.context_summary,
                 "message": messages,
             }
         case ResponseGranularity.LOW:
             # Return all messages from state context
-            return {"messages": state.context or []}
+            return {"messages": messages}
 
     return {"messages": messages}
 
@@ -219,11 +215,6 @@ async def process_node_result[StateT: AgentState](
                 content,
                 role="assistant",
             )
-        elif isinstance(content, dict):
-            try:
-                msg = Message.from_dict(content)
-            except Exception as e:
-                raise ValueError(f"Invalid message dict: {e}") from e
 
         else:
             err = f"""

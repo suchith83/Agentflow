@@ -1,5 +1,13 @@
+from inspect import (
+    isasyncgen,
+    isasyncgenfunction,
+    isawaitable,
+    iscoroutinefunction,
+    isgenerator,
+    isgeneratorfunction,
+)
 from dotenv import load_dotenv
-from litellm import completion
+from litellm import completion, acompletion
 from litellm.types.utils import ModelResponseStream
 
 
@@ -143,7 +151,7 @@ response = completion(
     model="gemini/gemini-2.5-flash",
     messages=messages,
     tools=tools,
-    stream=False,
+    stream=True,
 )
 
 print(type(response))
@@ -199,4 +207,35 @@ print(type(response))
 # ModelResponseStream(id='yMG9aJa4MZzhz7IPwvPr2Qc', created=1757266377, model='gemini-2.5-flash', object='chat.completion.chunk', system_fingerprint=None, choices=[StreamingChoices(finish_reason='stop', index=0, delta=Delta(provider_specific_fields=None, content=None, role=None, function_call=None, tool_calls=None, audio=None), logprobs=None)], provider_specific_fields=None)
 
 
-print(response)
+async def main():
+    print(response)
+    print(isawaitable(response))
+    res = response
+    print("Awaited Result")
+    print(isasyncgen(res))
+    print(isgenerator(res))
+    print(isasyncgenfunction(res))
+    print(isgeneratorfunction(res))
+    print(iscoroutinefunction(res))
+    print("__anext__", hasattr(res, "__anext__"))
+    print(hasattr(res, "__aiter__"))
+    print(hasattr(res, "__next__"))
+    print(hasattr(res, "__iter__"))
+    try:
+        async for chunk in res:
+            print(chunk)
+
+    except Exception as e:
+        pass
+
+    try:
+        for chunk in res:
+            print("Synchronous Iteration")
+            print(chunk)
+    except Exception as e:
+        pass
+
+
+import asyncio
+
+asyncio.run(main())

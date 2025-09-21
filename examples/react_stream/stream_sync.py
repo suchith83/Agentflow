@@ -1,5 +1,5 @@
 from dotenv import load_dotenv
-from litellm import acompletion
+from litellm import completion
 
 from pyagenity.adapters.llm.model_response_converter import ModelResponseConverter
 from pyagenity.checkpointer import InMemoryCheckpointer
@@ -8,8 +8,6 @@ from pyagenity.state.agent_state import AgentState
 from pyagenity.utils import Message
 from pyagenity.utils.constants import END
 from pyagenity.utils.converter import convert_messages
-
-import asyncio
 
 
 load_dotenv()
@@ -38,7 +36,7 @@ def get_weather(
 tool_node = ToolNode([get_weather])
 
 
-async def main_agent(
+def main_agent(
     state: AgentState,
     config: dict | None = None,
 ):
@@ -66,15 +64,15 @@ async def main_agent(
     # Check if the last message is a tool result - if so, make final response without tools
     if state.context and len(state.context) > 0 and state.context[-1].role == "tool":
         # Make final response without tools since we just got tool results
-        response = await acompletion(
+        response = completion(
             model="gemini/gemini-2.5-flash",
             messages=messages,
             stream=is_stream,
         )
     else:
         # Regular response with tools available
-        tools = await tool_node.all_tools()
-        response = await acompletion(
+        tools = tool_node.all_tools_sync()
+        response = completion(
             model="gemini/gemini-2.5-flash",
             messages=messages,
             tools=tools + mcp_tools,

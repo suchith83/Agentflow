@@ -215,6 +215,8 @@ class StreamNodeHandler(BaseLoggingMixin):
 
                 if result.state:
                     state = result.state
+                    for msg in state.context:
+                        yield msg
 
                 next_node = result.goto
 
@@ -230,6 +232,8 @@ class StreamNodeHandler(BaseLoggingMixin):
                 event.data["messages"] = [m.model_dump() for m in messages] if messages else []
                 event.data["next_node"] = next_node
                 publish_event(event)
+                for m in messages:
+                    yield m
 
                 yield {
                     "is_non_streaming": True,
@@ -246,12 +250,11 @@ class StreamNodeHandler(BaseLoggingMixin):
                     node_name=self.name,
                     meta={
                         "function_name": getattr(self.func, "__name__", str(self.func)),
-                        "last_message": last_message.model_dump() if last_message else None,
                     },
                 )
                 # this will return event_model or message
                 async for item in stream_gen:
-                    if isinstance(item, Message):
+                    if isinstance(item, Message) and not item.delta:
                         messages.append(item)
                     yield item
             # Things are done, so publish event and yield final response

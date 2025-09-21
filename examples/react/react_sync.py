@@ -1,5 +1,5 @@
 from dotenv import load_dotenv
-from litellm import acompletion
+from litellm import completion
 
 from pyagenity.adapters.llm.model_response_converter import ModelResponseConverter
 from pyagenity.checkpointer import InMemoryCheckpointer
@@ -8,8 +8,6 @@ from pyagenity.state.agent_state import AgentState
 from pyagenity.utils import Message
 from pyagenity.utils.constants import END
 from pyagenity.utils.converter import convert_messages
-
-import asyncio
 
 
 load_dotenv()
@@ -38,11 +36,9 @@ def get_weather(
 tool_node = ToolNode([get_weather])
 
 
-async def main_agent(
+def main_agent(
     state: AgentState,
-    config: dict | None = None,
 ):
-    config = config or {}
     prompts = """
         You are a helpful assistant.
         Your task is to assist the user in finding information and answering questions.
@@ -53,6 +49,10 @@ async def main_agent(
             {
                 "role": "system",
                 "content": prompts,
+                "cache_control": {
+                    "type": "ephemeral",
+                    "ttl": "3600s",  # 👈 Cache for 1 hour
+                },
             },
             {"role": "user", "content": "Today Date is 2024-06-15"},
         ],
@@ -61,27 +61,26 @@ async def main_agent(
 
     mcp_tools = []
 
-    is_stream = config.get("is_stream", False)
-
     # Check if the last message is a tool result - if so, make final response without tools
     if state.context and len(state.context) > 0 and state.context[-1].role == "tool":
         # Make final response without tools since we just got tool results
-        response = await acompletion(
+        response = completion(
             model="gemini/gemini-2.5-flash",
             messages=messages,
-            stream=is_stream,
         )
     else:
         # Regular response with tools available
-        tools = await tool_node.all_tools()
-        response = await acompletion(
+        tools = tool_node.all_tools_sync()
+        response = completion(
             model="gemini/gemini-2.5-flash",
             messages=messages,
             tools=tools + mcp_tools,
-            stream=is_stream,
         )
 
-    return ModelResponseConverter(response, converter="litellm")
+    return ModelResponseConverter(
+        response,
+        converter="litellm",
+    )
 
 
 def should_use_tools(state: AgentState) -> str:
@@ -130,22 +129,20 @@ app = graph.compile(
 
 
 # now run it
+
 inp = {"messages": [Message.text_message("Please call the get_weather function for New York City")]}
-config = {"thread_id": "12345", "recursion_limit": 10, "is_stream": True}
+config = {"thread_id": "12345", "recursion_limit": 10}
 
-res = app.stream(inp, config=config)
-print("Streaming response:")
+res = app.invoke(inp, config=config)
 
-message_count = 0
-for i in res:
-    message_count += 1
-    print(f"**********************")
-    print(f"Message #{message_count} - Role: {i.role} and {i.message_id}")
-    print(f"Content: {i.content}")
-    print(f"Delta: {i.delta}")
-    if hasattr(i, "tools_calls") and i.tools_calls:
-        print(f"Tool calls: {len(i.tools_calls)}")
+for i in res["messages"]:
     print("**********************")
-    print("\n")
+    print("Message Type: ", i.role)
+    print(i)
+    print("**********************")
+    print("\n\n")
 
-print(f"Total messages received: {message_count}")
+
+# grp = app.generate_graph()
+
+# print(grp)

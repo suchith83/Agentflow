@@ -168,6 +168,7 @@ class LiteLLMConverter(BaseConverter):
             content=content_blocks,
             reasoning=accumulated_reasoning_content,
             tools_calls=tool_calls,
+            delta=True,
         )
 
         return accumulated_content, accumulated_reasoning_content, tool_calls, seq, output_message
@@ -191,20 +192,49 @@ class LiteLLMConverter(BaseConverter):
         if is_awaitable:
             stream = await stream
 
-        async for chunk in stream:
-            accumulated_content, accumulated_reasoning_content, tool_calls, seq, message = (
-                self._process_chunk(
-                    chunk,
-                    seq,
-                    accumulated_content,
-                    accumulated_reasoning_content,
-                    tool_calls,
-                    tool_ids,
-                )
-            )
+        # All these are true, so its not possible to understand why async for is not working
+        # print("__anext__", hasattr(stream, "__anext__"))
+        # print(hasattr(stream, "__aiter__"))
+        # print(hasattr(stream, "__next__"))
+        # print(hasattr(stream, "__iter__"))
 
-            if message:
-                yield message
+        try:
+            # lets use developer is using acompletion
+            async for chunk in stream:
+                accumulated_content, accumulated_reasoning_content, tool_calls, seq, message = (
+                    self._process_chunk(
+                        chunk,
+                        seq,
+                        accumulated_content,
+                        accumulated_reasoning_content,
+                        tool_calls,
+                        tool_ids,
+                    )
+                )
+
+                if message:
+                    yield message
+        except Exception:  # noqa: S110
+            pass
+
+        try:
+            # lets use developer is using completion
+            for chunk in stream:
+                accumulated_content, accumulated_reasoning_content, tool_calls, seq, message = (
+                    self._process_chunk(
+                        chunk,
+                        seq,
+                        accumulated_content,
+                        accumulated_reasoning_content,
+                        tool_calls,
+                        tool_ids,
+                    )
+                )
+
+                if message:
+                    yield message
+        except Exception:  # noqa: S110
+            pass
 
         # Loop done
         metadata = meta or {}
@@ -217,7 +247,23 @@ class LiteLLMConverter(BaseConverter):
             blocks.append(TextBlock(text=accumulated_content))
         if accumulated_reasoning_content:
             blocks.append(ReasoningBlock(summary=accumulated_reasoning_content))
+        if tool_calls:
+            for tc in tool_calls:
+                blocks.append(
+                    ToolCallBlock(
+                        name=tc.get("function", {}).get("name", ""),
+                        args=json.loads(tc.get("function", {}).get("arguments", "{}")),
+                        id=tc.get("id", ""),
+                    )
+                )
 
+        # Only yield final message if there is content or reasoning, or no tool calls
+        logger.debug(
+            "Loop done Content: %s  Reasoning: %s Tool Calls: %s",
+            accumulated_content,
+            accumulated_reasoning_content,
+            len(tool_calls),
+        )
         message = Message(
             role="assistant",
             message_id=generate_id(None),
@@ -252,5 +298,5 @@ class LiteLLMConverter(BaseConverter):
         elif isinstance(response, ModelResponse):  # type: ignore[possibly-unbound]
             message = await self.convert_response(cast(ModelResponse, response))
             yield message
-
-        raise Exception("Unsupported response type for LiteLLMConverter")
+        else:
+            raise Exception("Unsupported response type for LiteLLMConverter")

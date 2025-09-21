@@ -217,7 +217,7 @@ class Message(BaseModel):
         raw (dict[str, Any] | None): Raw data, if any.
     """
 
-    message_id: str | int
+    message_id: str | int = Field(default_factory=lambda: generate_id(None))
     role: Literal["user", "assistant", "system", "tool"]
     # The message content can be simple text or a list of structured content blocks
     content: list[ContentBlock]
@@ -255,61 +255,6 @@ class Message(BaseModel):
             timestamp=datetime.now(),
             metadata={},
         )
-
-    @classmethod
-    def from_dict(
-        cls,
-        data: dict[str, Any],
-    ) -> "Message":
-        """
-        Create a Message instance from a dictionary.
-
-        Args:
-            data (dict[str, Any]): Dictionary containing message data.
-
-        Returns:
-            Message: The created Message instance.
-
-        Raises:
-            ValueError: If required fields are missing.
-        """
-        # add Checks for required fields
-        if "role" not in data or "content" not in data:
-            logger.error("Missing required fields in data: %s", data)
-            raise ValueError("Missing required fields: 'role' and 'content'")
-
-        logger.debug("Creating message from dict with role: %s", data.get("role"))
-
-        # Handle timestamp parsing
-        timestamp = None
-        if data.get("timestamp"):
-            timestamp = datetime.fromisoformat(data["timestamp"])
-
-        # Handle usages parsing
-        usages = None
-        if "usages" in data:
-            usages = TokenUsages.model_validate(data["usages"])
-
-        # We need to support both native Message dict and OpenAI style dict
-
-        # TODO: Add fallback for OpenAI style dict if needed
-
-        try:
-            content = data["content"]
-            return cls(
-                message_id=data.get("message_id", generate_id(None)),
-                role=data["role"],
-                content=content,
-                tools_calls=data.get("tools_calls"),
-                reasoning=data.get("reasoning"),
-                timestamp=timestamp,
-                metadata=data.get("metadata", {}),
-                usages=usages,
-                raw=data.get("raw"),
-            )
-        except Exception as e:
-            logger.error("Error creating message from dict: %s", e)
-            raise ValueError(f"Error creating message from dict: {e}") from e
 
     @classmethod
     def tool_message(
