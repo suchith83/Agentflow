@@ -16,7 +16,7 @@ import json
 import logging
 from typing import Any
 
-from pyagenity.utils.streaming import EventModel
+from pyagenity.publisher.events import EventModel
 
 from .base_publisher import BasePublisher
 

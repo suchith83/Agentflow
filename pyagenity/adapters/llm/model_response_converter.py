@@ -5,7 +5,6 @@ from collections.abc import AsyncGenerator, Callable
 from typing import Any
 
 from pyagenity.utils.message import Message
-from pyagenity.utils.streaming import EventModel
 
 from .base_converter import BaseConverter
 
@@ -48,7 +47,7 @@ class ModelResponseConverter:
         config: dict,
         node_name: str,
         meta: dict | None = None,
-    ) -> AsyncGenerator[EventModel | Message, None]:
+    ) -> AsyncGenerator[Message]:
         """Call the underlying function and yield normalized streaming events and final Message.
 
         If the function returns a non-iterable (i.e., not a stream), we fall back to

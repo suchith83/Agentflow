@@ -1,11 +1,11 @@
 from abc import ABC, abstractmethod
-from collections.abc import AsyncGenerator, AsyncIterable, Callable
+from collections.abc import AsyncGenerator
 from enum import Enum
 from typing import Any
 
+from pyagenity.publisher.events import EventModel
 from pyagenity.state.agent_state import AgentState
 from pyagenity.utils.message import Message
-from pyagenity.utils.streaming import EventModel
 
 
 class ConverterType(Enum):

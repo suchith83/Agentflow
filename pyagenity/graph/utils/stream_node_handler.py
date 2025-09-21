@@ -1,4 +1,4 @@
-import inspect  # isort: skip_file
+import inspect
 import json
 import logging
 from collections.abc import AsyncGenerator, AsyncIterable, Callable
@@ -11,6 +11,8 @@ from pyagenity.exceptions import NodeError
 from pyagenity.graph.tool_node import ToolNode
 from pyagenity.graph.utils.stream_utils import check_non_streaming
 from pyagenity.graph.utils.utils import process_node_result
+from pyagenity.publisher.events import ContentType, Event, EventModel, EventType
+from pyagenity.publisher.publish import publish_event
 from pyagenity.state import AgentState
 from pyagenity.utils import (
     CallbackContext,
@@ -20,15 +22,14 @@ from pyagenity.utils import (
     call_sync_or_async,
 )
 from pyagenity.utils.command import Command
-from pyagenity.utils.streaming import ContentType, Event, EventModel, EventType
 
-from .handler_mixins import BaseLoggingMixin, EventPublishingMixin
+from .handler_mixins import BaseLoggingMixin
 
 
 logger = logging.getLogger(__name__)
 
 
-class StreamNodeHandler(BaseLoggingMixin, EventPublishingMixin):
+class StreamNodeHandler(BaseLoggingMixin):
     def __init__(
         self,
         name: str,
@@ -134,7 +135,7 @@ class StreamNodeHandler(BaseLoggingMixin, EventPublishingMixin):
         state: "AgentState",
         config: dict[str, Any],
         callback_mgr: CallbackManager,
-    ) -> AsyncIterable[dict[str, Any] | EventModel | Message]:
+    ) -> AsyncIterable[dict[str, Any] | Message]:
         logger.debug("Node '%s' calling normal function", self.name)
         result: dict[str, Any] | Message = {}
 
@@ -168,8 +169,7 @@ class StreamNodeHandler(BaseLoggingMixin, EventPublishingMixin):
                 "last_message": last_message.model_dump() if last_message else None,
             },
         )
-        self.publish_event(event)
-        yield event
+        publish_event(event)
 
         try:
             logger.debug("Node '%s' executing before_invoke callbacks", self.name)
@@ -178,8 +178,7 @@ class StreamNodeHandler(BaseLoggingMixin, EventPublishingMixin):
             logger.debug("Node '%s' executing function", self.name)
             event.event_type = EventType.PROGRESS
             event.content = "Function execution started"
-            yield event
-            self.publish_event(event)
+            publish_event(event)
 
             # Execute the actual function
             result = await call_sync_or_async(
@@ -211,7 +210,12 @@ class StreamNodeHandler(BaseLoggingMixin, EventPublishingMixin):
             # if type of command then we will update it
             if isinstance(result, Command):
                 # now check the updated
-                final_result = result.update
+                if result.update:
+                    final_result = result.update
+
+                if result.state:
+                    state = result.state
+
                 next_node = result.goto
 
             messages = []
@@ -225,8 +229,7 @@ class StreamNodeHandler(BaseLoggingMixin, EventPublishingMixin):
                 event.event_type = EventType.END
                 event.data["messages"] = [m.model_dump() for m in messages] if messages else []
                 event.data["next_node"] = next_node
-                self.publish_event(event)
-                yield event
+                publish_event(event)
 
                 yield {
                     "is_non_streaming": True,
@@ -251,13 +254,23 @@ class StreamNodeHandler(BaseLoggingMixin, EventPublishingMixin):
                     if isinstance(item, Message):
                         messages.append(item)
                     yield item
-
             # Things are done, so publish event and yield final response
             event.event_type = EventType.END
-            event.data["message"] = messages[0].model_dump() if messages else None
+            if messages:
+                final_msg = messages[-1]
+                event.data["message"] = final_msg.model_dump()
+                # Populate simple content and structured blocks when available
+                event.content = (
+                    final_msg.text() if isinstance(final_msg.content, list) else final_msg.content
+                )
+                if isinstance(final_msg.content, list):
+                    event.content_blocks = final_msg.content
+            else:
+                event.data["message"] = None
+                event.content = ""
+                event.content_blocks = None
             event.content_type = [ContentType.MESSAGE, ContentType.STATE]
-            self.publish_event(event)
-            yield event
+            publish_event(event)
             # if user use command and its streaming in that case we need to handle next node also
             yield {
                 "is_non_streaming": False,
@@ -282,8 +295,7 @@ class StreamNodeHandler(BaseLoggingMixin, EventPublishingMixin):
                 event.content = "Function execution recovered from error"
                 event.data["message"] = recovery_result.model_dump()
                 event.content_type = [ContentType.MESSAGE, ContentType.STATE]
-                self.publish_event(event)
-                yield event
+                publish_event(event)
 
                 yield recovery_result
             else:
@@ -293,8 +305,7 @@ class StreamNodeHandler(BaseLoggingMixin, EventPublishingMixin):
                 event.content = f"Function execution failed: {e}"
                 event.data["error"] = str(e)
                 event.content_type = [ContentType.ERROR, ContentType.STATE]
-                self.publish_event(event)
-                yield event
+                publish_event(event)
                 raise
 
     async def stream(
@@ -302,7 +313,7 @@ class StreamNodeHandler(BaseLoggingMixin, EventPublishingMixin):
         config: dict[str, Any],
         state: AgentState,
         callback_mgr: CallbackManager = Inject[CallbackManager],
-    ) -> AsyncGenerator[dict[str, Any] | EventModel | Message]:
+    ) -> AsyncGenerator[dict[str, Any] | Message]:
         """Execute the node function with dependency injection support and callback hooks."""
         logger.info("Executing node '%s'", self.name)
         logger.debug(

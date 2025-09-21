@@ -6,8 +6,9 @@ import pytest
 
 from pyagenity.checkpointer import InMemoryCheckpointer
 from pyagenity.graph import StateGraph
+from pyagenity.publisher.events import EventModel
 from pyagenity.state import AgentState
-from pyagenity.utils import END, EventModel, Message
+from pyagenity.utils import END, Message
 
 
 class MockStreamingResponse:
@@ -128,7 +129,7 @@ class TestStreamingIntegration:
 
         compiled = graph.compile(checkpointer=self.checkpointer)
 
-        input_data = {"messages": [Message.from_text("Test input", role="user")]}
+        input_data = {"messages": [Message.text_message("Test input", role="user")]}
         config = {"thread_id": "test_string_sync"}
 
         chunks = list(compiled.stream(input_data, config))
@@ -147,7 +148,7 @@ class TestStreamingIntegration:
 
         compiled = graph.compile(checkpointer=self.checkpointer)
 
-        input_data = {"messages": [Message.from_text("Test input", role="user")]}
+        input_data = {"messages": [Message.text_message("Test input", role="user")]}
         config = {"thread_id": "test_string_async"}
 
         chunks = []
@@ -167,7 +168,7 @@ class TestStreamingIntegration:
 
         compiled = graph.compile(checkpointer=self.checkpointer)
 
-        input_data = {"messages": [Message.from_text("Test input", role="user")]}
+        input_data = {"messages": [Message.text_message("Test input", role="user")]}
         config = {"thread_id": "test_streaming_sync"}
 
         chunks = list(compiled.stream(input_data, config))
@@ -194,7 +195,7 @@ class TestStreamingIntegration:
 
         compiled = graph.compile(checkpointer=self.checkpointer)
 
-        input_data = {"messages": [Message.from_text("Test input", role="user")]}
+        input_data = {"messages": [Message.text_message("Test input", role="user")]}
         config = {"thread_id": "test_async_streaming"}
 
         chunks = []
@@ -218,7 +219,7 @@ class TestStreamingIntegration:
 
         compiled = graph.compile(checkpointer=self.checkpointer)
 
-        input_data = {"messages": [Message.from_text("Test chunk properties", role="user")]}
+        input_data = {"messages": [Message.text_message("Test chunk properties", role="user")]}
         config = {"thread_id": "test_chunk_props"}
 
         chunks = list(compiled.stream(input_data, config))

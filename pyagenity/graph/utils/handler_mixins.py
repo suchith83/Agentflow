@@ -8,12 +8,7 @@ inherit one or more to keep responsibilities explicit.
 from __future__ import annotations
 
 import logging
-from collections.abc import Iterable
 from typing import Any
-
-from pyagenity.utils.streaming import EventModel
-
-from .utils import publish_event as _publish_event
 
 
 class BaseLoggingMixin:
@@ -31,18 +26,6 @@ class BaseLoggingMixin:
 
     def _log_error(self, msg: str, *args: Any) -> None:
         self._logger.error(msg, *args)
-
-
-class EventPublishingMixin:
-    """Small wrapper around publish_event to keep call-sites tidy."""
-
-    @staticmethod
-    def publish_event(event: EventModel | Iterable[EventModel]) -> None:
-        if isinstance(event, EventModel):
-            _publish_event(event)
-        else:
-            for ev in event:
-                _publish_event(ev)
 
 
 class InterruptConfigMixin:

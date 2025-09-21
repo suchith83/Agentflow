@@ -9,6 +9,7 @@ from injectq import Inject
 from pyagenity.adapters.llm.model_response_converter import ModelResponseConverter
 from pyagenity.checkpointer import BaseCheckpointer
 from pyagenity.publisher.base_publisher import BasePublisher
+from pyagenity.publisher.events import EventModel
 from pyagenity.state import AgentState, ExecutionStatus
 from pyagenity.state.base_context import BaseContextManager
 from pyagenity.state.execution_state import ExecutionState as ExecMeta
@@ -21,7 +22,6 @@ from pyagenity.utils import (
     add_messages,
 )
 from pyagenity.utils.background_task_manager import BackgroundTaskManager
-from pyagenity.utils.streaming import EventModel
 
 
 StateT = TypeVar("StateT", bound=AgentState)
@@ -215,7 +215,10 @@ async def process_node_result[StateT: AgentState](
         elif isinstance(content, ModelResponseConverter):
             msg = await content.invoke()
         elif isinstance(content, str):
-            msg = Message.from_text(content)
+            msg = Message.text_message(
+                content,
+                role="assistant",
+            )
         elif isinstance(content, dict):
             try:
                 msg = Message.from_dict(content)
@@ -402,26 +405,3 @@ async def sync_data(
             await checkpointer.aput_messages(config, messages)
 
     return is_context_trimmed
-
-
-async def _publish_event_task(
-    event: EventModel,
-    publisher: BasePublisher | None,
-) -> None:
-    """Publish an event if publisher is configured."""
-    if publisher:
-        try:
-            await publisher.publish(event)
-            logger.debug("Published event: %s", event)
-        except Exception as e:
-            logger.error("Failed to publish event: %s", e)
-
-
-def publish_event(
-    event: EventModel,
-    publisher: BasePublisher | None = Inject[BasePublisher],
-    task_manager: BackgroundTaskManager = Inject[BackgroundTaskManager],
-) -> None:
-    """Publish an event if publisher is configured."""
-    # Store the task to prevent it from being garbage collected
-    task_manager.create_task(_publish_event_task(event, publisher))

@@ -8,7 +8,7 @@ from pyagenity.graph.tool_node import ToolNode
 from pyagenity.state import AgentState
 from pyagenity.utils import CallbackManager
 from pyagenity.utils.message import Message
-from pyagenity.utils.streaming import EventType
+from pyagenity.publisher.events import EventType
 
 
 class TestToolNode:
@@ -140,7 +140,6 @@ class TestToolNode:
         )
 
         assert isinstance(result, Message)
-        assert result.tool_call_id == "test_call_123"
 
     @pytest.mark.asyncio
     async def test_invoke_local_tool_return_types(self):
@@ -153,7 +152,7 @@ class TestToolNode:
             return {"key": "value"}
 
         def tool_return_message() -> Message:
-            return Message.tool_message(tool_call_id="test", content="message_result")
+            return Message.text_message(content="message_result")
 
         tool_node = ToolNode([tool_return_string, tool_return_dict, tool_return_message])
 

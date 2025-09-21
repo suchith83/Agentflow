@@ -213,7 +213,7 @@ class TestCompiledGraph:
         self.graph = StateGraph[AgentState](AgentState())
 
         def simple_node(state: AgentState) -> AgentState:
-            state.context.append(Message.from_text("processed"))
+            state.context.append(Message.text_message("processed"))
             return state
 
         self.graph.add_node("start", simple_node)
@@ -223,7 +223,7 @@ class TestCompiledGraph:
 
     def test_invoke(self):
         """Test synchronous invocation."""
-        messages = [Message.from_text("Hello", "user")]
+        messages = [Message.text_message("Hello", "user")]
         result = self.compiled.invoke({"messages": messages})
         assert "messages" in result  # noqa: S101
 
@@ -234,27 +234,27 @@ class TestCompiledGraph:
             raise Exception("test error")
 
         monkeypatch.setattr(self.compiled, "ainvoke", mock_ainvoke)
-        messages = [Message.from_text("Hello", "user")]
+        messages = [Message.text_message("Hello", "user")]
         with pytest.raises(Exception, match="test error"):
             self.compiled.invoke({"messages": messages})
 
     @pytest.mark.asyncio
     async def test_ainvoke(self):
         """Test asynchronous invocation."""
-        messages = [Message.from_text("Hello", "user")]
+        messages = [Message.text_message("Hello", "user")]
         result = await self.compiled.ainvoke({"messages": messages})
         assert "messages" in result  # noqa: S101
 
     def test_stream(self):
         """Test streaming execution."""
-        messages = [Message.from_text("Hello", "user")]
+        messages = [Message.text_message("Hello", "user")]
         events = list(self.compiled.stream({"messages": messages}))
         assert len(events) >= 0  # noqa: S101
 
     @pytest.mark.asyncio
     async def test_astream(self):
         """Test asynchronous streaming execution."""
-        messages = [Message.from_text("Hello", "user")]
+        messages = [Message.text_message("Hello", "user")]
         events = []
         async for event in self.compiled.astream({"messages": messages}):
             events.append(event)

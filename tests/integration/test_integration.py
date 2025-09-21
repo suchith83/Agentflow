@@ -2,9 +2,9 @@
 
 from pyagenity.graph import CompiledGraph, StateGraph, ToolNode
 from pyagenity.publisher import ConsolePublisher
+from pyagenity.publisher.events import Event, EventModel, EventType
 from pyagenity.state import AgentState
 from pyagenity.utils import END, Message
-from pyagenity.utils.streaming import Event, EventModel, EventType
 
 
 def dummy_ai_agent(state: AgentState) -> dict:

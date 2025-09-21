@@ -1,358 +1,1280 @@
-from __future__ import annotations
+# from __future__ import annotations
 
-import logging
-from collections.abc import AsyncGenerator
-from typing import Any
+# import inspect
+# import logging
+# from collections.abc import AsyncGenerator, AsyncIterable
+# from datetime import datetime
+# from typing import Any, cast
 
-from pyagenity.utils.message import Message, TokenUsages
-from pyagenity.utils.streaming import ContentType, Event, EventModel, EventType
+# from pyagenity.utils.message import (
+#     Message,
+#     ReasoningBlock,
+#     TextBlock,
+#     TokenUsages,
+#     generate_id,
+# )
+# from pyagenity.utils.streaming import ContentType, Event, EventModel, EventType
 
-from .base_converter import BaseConverter
-
-
-logger = logging.getLogger(__name__)
-
-
-def _as_dict(obj: Any) -> dict[str, Any]:
-    if obj is None:
-        return {}
-    if isinstance(obj, dict):
-        return obj
-    if hasattr(obj, "model_dump"):
-        try:
-            return obj.model_dump()  # type: ignore[attr-defined]
-        except Exception as exc:
-            logger.debug("model_dump() failed on %s: %s", type(obj), exc)
-    # Best-effort fallback
-    try:
-        return dict(obj)  # type: ignore[arg-type]
-    except Exception:
-        return {"value": str(obj)}
+# from .base_converter import BaseConverter
 
 
-class OpenAIConverter(BaseConverter):
-    async def convert_response(self, response: Any, **kwargs) -> Message:
-        data = _as_dict(response)
-
-        # Detect Responses API vs Chat Completions
-        if "choices" in data or data.get("object") in {"chat.completion", "chat.completions"}:
-            return self._from_chat_completion(data)
-        if "output" in data or data.get("object") == "response":
-            return self._from_responses_api(data)
-
-        # Fallback: pull text-ish fields
-        text = (
-            data.get("content")
-            or data.get("text")
-            or data.get("message", {}).get("content", "")
-            or ""
-        )
-        msg = Message.create(role="assistant", content=str(text))
-        msg.raw = data
-        msg.metadata.update(
-            {
-                "provider": "openai",
-                "object": data.get("object", ""),
-            }
-        )
-        return msg
-
-    def _extract_usages_from_chat(self, data: dict[str, Any]) -> TokenUsages | None:
-        usage = data.get("usage") or {}
-        if not usage:
-            return None
-        return TokenUsages(
-            completion_tokens=usage.get("completion_tokens", 0),
-            prompt_tokens=usage.get("prompt_tokens", 0),
-            total_tokens=usage.get("total_tokens", 0),
-            reasoning_tokens=(usage.get("prompt_tokens_details", {}) or {}).get(
-                "reasoning_tokens", 0
-            ),
-            cache_creation_input_tokens=usage.get("cache_creation_input_tokens", 0),
-            cache_read_input_tokens=usage.get("cache_read_input_tokens", 0),
-        )
-
-    def _extract_usages_from_response(self, data: dict[str, Any]) -> TokenUsages | None:
-        usage = data.get("usage") or {}
-        if not usage:
-            return None
-        # Responses API typically: {input_tokens, output_tokens, total_tokens, reasoning_tokens?}
-        return TokenUsages(
-            completion_tokens=usage.get("output_tokens", usage.get("completion_tokens", 0)),
-            prompt_tokens=usage.get("input_tokens", usage.get("prompt_tokens", 0)),
-            total_tokens=usage.get("total_tokens", 0),
-            reasoning_tokens=usage.get("reasoning_tokens", 0),
-            cache_creation_input_tokens=usage.get("cache_creation_input_tokens", 0),
-            cache_read_input_tokens=usage.get("cache_read_input_tokens", 0),
-        )
-
-    def _from_chat_completion(self, data: dict[str, Any]) -> Message:
-        choices = data.get("choices") or []
-        msg_dict: dict[str, Any] = choices[0].get("message", {}) if choices else {}
-
-        # content can be string or array of parts
-        content = msg_dict.get("content", "")
-        if isinstance(content, list):
-            # flatten text parts if present
-            content = "".join([p.get("text", "") for p in content if isinstance(p, dict)])
-
-        tool_calls = msg_dict.get("tool_calls") or []
-        reasoning = (
-            msg_dict.get("reasoning")
-            or msg_dict.get("reasoning_content")
-            or data.get("reasoning", {}).get("summary", "")
-            or ""
-        )
-
-        usages = self._extract_usages_from_chat(data)
-        meta = {
-            "provider": "openai",
-            "model": data.get("model", ""),
-            "id": data.get("id", ""),
-            "object": data.get("object", ""),
-            "created": data.get("created", data.get("created_at")),
-            "finish_reason": (choices[0] or {}).get("finish_reason") if choices else None,
-            "prompt_tokens_details": (data.get("usage", {}) or {}).get("prompt_tokens_details", {}),
-            "completion_tokens_details": (data.get("usage", {}) or {}).get(
-                "completion_tokens_details", {}
-            ),
-        }
-        message = Message.create(
-            role="assistant",
-            content=content or "",
-            reasoning=reasoning or "",
-            tools_calls=tool_calls or None,
-            meta={k: v for k, v in meta.items() if v is not None},
-            raw=data,
-        )
-        message.usages = usages
-        return message
-
-    def _from_responses_api(self, data: dict[str, Any]) -> Message:
-        # The Responses API has output: list[items], each with content parts
-        output = data.get("output", [])
-        text_parts: list[str] = []
-        tool_calls: list[dict[str, Any]] = []
-
-        for item in output:
-            # item.content: list of parts
-            parts = (item or {}).get("content", [])
-            for part in parts:
-                if not isinstance(part, dict):
-                    continue
-                ptype = part.get("type") or part.get("content_type")
-                if ptype in {"output_text", "text"}:
-                    text_parts.append(part.get("text", ""))
-                elif ptype in {"tool_call", "function_call"}:
-                    # Preserve full tool call in tool_calls
-                    tool_calls.append(part)
-                else:
-                    # Non-text outputs (audio/image/video/etc.) are preserved in raw
-                    pass
-
-        usages = self._extract_usages_from_response(data)
-        meta = {
-            "provider": "openai",
-            "model": data.get("model", ""),
-            "id": data.get("id", ""),
-            "object": data.get("object", ""),
-            "created": data.get("created", data.get("created_at")),
-            "status": data.get("status"),
-        }
-        message = Message.create(
-            role="assistant",
-            content="".join(text_parts),
-            tools_calls=tool_calls or None,
-            meta={k: v for k, v in meta.items() if v is not None},
-            raw=data,
-        )
-        message.usages = usages
-        return message
-
-    def convert_streaming_response(
-        self, response: Any, **kwargs
-    ) -> AsyncGenerator[EventModel | Message, None]:
-        base_config = kwargs.get("config", {})
-        node_name = kwargs.get("node_name", "")
-
-        handler = _OpenAIStreamNormalizer(
-            base_config=base_config,
-            node_name=node_name,
-            converter=self,
-            response=response,
-        )
-        return handler.run()
+# logger = logging.getLogger(__name__)
 
 
-class _OpenAIStreamNormalizer:
-    def __init__(
-        self,
-        base_config: dict,
-        node_name: str,
-        converter: OpenAIConverter,
-        response: Any,
-    ) -> None:
-        self.base_config = base_config
-        self.node_name = node_name
-        self.converter = converter
-        self.response = response
+# try:  # OpenAI Python SDK v1.x
+#     from openai.types.chat.chat_completion import ChatCompletion
+#     from openai.types.responses.response import Response as ResponsesResponse
 
-        self.stream_event = EventModel.stream(base_config, node_name=node_name)
-        self.accumulated_text = ""
-        self.tool_calls: list[dict[str, Any]] = []
-        self.tool_ids: set[str] = set()
-        self.seq = 0
-        self.final_raw: dict[str, Any] | None = None
+#     HAS_OPENAI = True
+# except Exception:  # pragma: no cover - optional dependency
+#     HAS_OPENAI = False
 
-    async def aiter(self, obj):
-        if hasattr(obj, "__aiter__"):
-            async for x in obj:
-                yield x
-        else:
-            for x in obj:
-                yield x
 
-    def yield_text_delta(self, txt: str) -> EventModel | None:
-        if not txt:
-            return None
-        self.seq += 1
-        self.stream_event.sequence_id = self.seq
-        self.stream_event.content = txt
-        self.stream_event.data = {}
-        self.stream_event.content_type = [ContentType.TEXT]
-        return self.stream_event
+# def _message_from_chat_completion(resp: ChatCompletion) -> Message:
+#     data = resp.model_dump()
+#     choices = data.get("choices", [])
+#     msg = choices[0].get("message", {}) if choices else {}
+#     content = msg.get("content") or ""
+#     reasoning_content = msg.get("reasoning_content") or ""
 
-    def yield_update(self, data: dict[str, Any]) -> EventModel:
-        self.seq += 1
-        self.stream_event.sequence_id = self.seq
-        self.stream_event.content = ""
-        self.stream_event.data = data
-        self.stream_event.content_type = [ContentType.UPDATE]
-        return self.stream_event
+#     blocks: list[Any] = []
+#     if content:
+#         blocks.append(TextBlock(text=content))
+#     if reasoning_content:
+#         blocks.append(ReasoningBlock(summary=reasoning_content))
 
-    async def handle_chat_chunk(self, dchunk: dict[str, Any]) -> EventModel | None:
-        choices = dchunk.get("choices", [])
-        delta = choices[0].get("delta") if choices else None
-        if not delta:
-            return None
-        if isinstance(delta, dict):
-            txt = delta.get("content")
-            if txt:
-                self.accumulated_text += txt
-                return self.yield_text_delta(txt)
-            dtools = delta.get("tool_calls")
-        else:
-            txt = getattr(delta, "content", None)
-            if txt:
-                self.accumulated_text += txt
-                return self.yield_text_delta(txt)
-            dtools = getattr(delta, "tool_calls", None)
-        if dtools:
-            for tc in dtools:
-                tc_id = tc.get("id") if isinstance(tc, dict) else getattr(tc, "id", None)
-                if tc_id and tc_id not in self.tool_ids:
-                    self.tool_ids.add(tc_id)
-                    self.tool_calls.append(_as_dict(tc))
-            return self.yield_update({"tool_calls": self.tool_calls})
-        return None
+#     usages_data = data.get("usage", {}) or {}
+#     usages = TokenUsages(
+#         completion_tokens=usages_data.get("completion_tokens", 0) or 0,
+#         prompt_tokens=usages_data.get("prompt_tokens", 0) or 0,
+#         total_tokens=usages_data.get("total_tokens", 0) or 0,
+#         cache_creation_input_tokens=usages_data.get("cache_creation_input_tokens", 0) or 0,
+#         cache_read_input_tokens=usages_data.get("cache_read_input_tokens", 0) or 0,
+#         reasoning_tokens=(usages_data.get("prompt_tokens_details", {}) or {}).get(
+#             "reasoning_tokens", 0
+#         )
+#         or 0,
+#     )
 
-    def handle_responses_event(self, dchunk: dict[str, Any]) -> EventModel | str | None:
-        etype = dchunk.get("type")
-        if not etype:
-            return None
-        if etype in {"response.text.delta", "response.output_text.delta"}:
-            delta_text = dchunk.get("delta") or ""
-            if delta_text:
-                self.accumulated_text += delta_text
-                meta_keys = ("item_id", "output_index", "content_index")
-                meta = {k: dchunk.get(k) for k in meta_keys if dchunk.get(k) is not None}
-                ev = self.yield_text_delta(delta_text)
-                if ev:
-                    ev.data = {"event_type": etype, **meta}
-                    return ev
-                return None
-        if etype == "response.content_part.added":
-            part = dchunk.get("part") or {}
-            ptype = part.get("type") or part.get("content_type")
-            if ptype in {"output_text", "text"} and part.get("text"):
-                txt = part.get("text", "")
-                self.accumulated_text += txt
-                ev = self.yield_text_delta(txt)
-                if ev:
-                    ev.data = {"event_type": etype, "part": part}
-                    return ev
-            else:
-                return self.yield_update({"event_type": etype, "part": part})
-        if etype in {
-            "response.audio.delta",
-            "response.output_audio.delta",
-            "response.audio_transcript.delta",
-        }:
-            meta_keys = ("item_id", "output_index", "content_index")
-            meta = {k: dchunk.get(k) for k in meta_keys if dchunk.get(k) is not None}
-            return self.yield_update(
-                {
-                    "event_type": etype,
-                    "delta": dchunk.get("delta"),
-                    **meta,
-                }
-            )
-        if etype in {
-            "response.completed",
-            "response.completed.success",
-            "response.completed_with_usage",
-        }:
-            self.final_raw = dchunk.get("response") or dchunk
-            return "__completed__"
-        if etype in {"response.error", "error"}:
-            ev = self.yield_update({"event_type": etype, "error": dchunk.get("error", dchunk)})
-            if ev:
-                ev.is_error = True
-                ev.content_type = [ContentType.ERROR]
-                return ev
-        return None
+#     tool_calls = msg.get("tool_calls") or []
+#     tool_call_id = tool_calls[0].get("id") if tool_calls else None
 
-    async def run(self) -> AsyncGenerator[EventModel | Message, None]:
-        async for chunk in self.aiter(self.response):
-            dchunk = _as_dict(chunk)
-            if "choices" in dchunk:
-                ev = await self.handle_chat_chunk(dchunk)
-                if ev:
-                    yield ev
-                continue
-            ev2 = self.handle_responses_event(dchunk)
-            if ev2 == "__completed__":
-                break
-            if ev2:
-                yield ev2
-            elif dchunk.get("object") in {"response", "chat.completion"}:
-                self.final_raw = dchunk
+#     return Message(
+#         message_id=generate_id(cast(str, getattr(resp, "id", None))),
+#         role="assistant",
+#         content=blocks if blocks else content,
+#         reasoning=reasoning_content,
+#         timestamp=datetime.fromtimestamp(data.get("created", int(datetime.now().timestamp()))),
+#         metadata={
+#             "provider": "openai",
+#             "model": data.get("model"),
+#             "finish_reason": (choices[0].get("finish_reason") if choices else None)
+#             or "UNKNOWN",
+#             "object": data.get("object"),
+#             "prompt_tokens_details": usages_data.get("prompt_tokens_details", {}),
+#             "completion_tokens_details": usages_data.get("completion_tokens_details", {}),
+#         },
+#         usages=usages,
+#         raw=data,
+#         tools_calls=tool_calls or None,
+#         tool_call_id=tool_call_id,
+#     )
 
-        # Finalize
-        final_data = _as_dict(self.final_raw) if self.final_raw else {}
-        if final_data:
-            if "choices" in final_data or final_data.get("object") in {
-                "chat.completion",
-                "chat.completions",
-            }:
-                final_msg = self.converter._from_chat_completion(final_data)
-            else:
-                final_msg = self.converter._from_responses_api(final_data)
-        else:
-            final_msg = Message.create(role="assistant", content=self.accumulated_text)
-            final_msg.metadata.update({"provider": "openai"})
 
-        end_event = EventModel.default(
-            self.base_config,
-            data={
-                "final_response": final_msg.content or self.accumulated_text,
-                "messages": [final_msg.model_dump()],
-                "tool_calls": final_msg.tools_calls or self.tool_calls or [],
-            },
-            content_type=[ContentType.MESSAGE, ContentType.TEXT],
-            event=Event.STREAMING,
-            event_type=EventType.END,
-            node_name=self.node_name,
-        )
-        yield end_event
-        yield final_msg
+# def _message_from_responses(resp: ResponsesResponse) -> Message:
+#     data = resp.model_dump()
+#     # Aggregate text from output items (Responses API)
+#     output_text_parts: list[str] = []
+#     reasoning_parts: list[str] = []
+#     for item in data.get("output", []) or []:
+#         if item.get("type") == "message":
+#             for c in item.get("content", []) or []:
+#                 t = c.get("type")
+#                 if t == "output_text" and c.get("text"):
+#                     output_text_parts.append(c["text"])
+#                 elif t in ("reasoning_text", "reasoning_summary_text") and c.get("text"):
+#                     reasoning_parts.append(c["text"])
+
+#     content_text = "".join(output_text_parts)
+#     reasoning_text = "".join(reasoning_parts)
+
+#     blocks: list[Any] = []
+#     if content_text:
+#         blocks.append(TextBlock(text=content_text))
+#     if reasoning_text:
+#         blocks.append(ReasoningBlock(summary=reasoning_text))
+
+#     usages_data = data.get("usage") or {}
+#     usages = TokenUsages(
+#         completion_tokens=(usages_data or {}).get("output_tokens", 0) or 0,
+#         prompt_tokens=(usages_data or {}).get("input_tokens", 0) or 0,
+#         total_tokens=(usages_data or {}).get("total_tokens", 0) or 0,
+#         cache_creation_input_tokens=0,
+#         cache_read_input_tokens=0,
+#         reasoning_tokens=(usages_data or {}).get("output_tokens_details", {}).get(
+#             "reasoning_tokens", 0
+#         )
+#         or 0,
+#     )
+
+#     return Message(
+#         message_id=generate_id(cast(str, getattr(resp, "id", None))),
+#         role="assistant",
+#         content=blocks if blocks else content_text,
+#         reasoning=reasoning_text,
+#         timestamp=datetime.fromtimestamp(
+#             int(cast(float, data.get("created_at", datetime.now().timestamp())))
+#         ),
+#         metadata={
+#             "provider": "openai",
+#             "model": data.get("model"),
+#             "object": data.get("object"),
+#             "status": data.get("status"),
+#         },
+#         usages=usages,
+#         raw=data,
+#     )
+
+
+# def _is_async_iterable(obj: Any) -> bool:
+#     return hasattr(obj, "__aiter__")
+
+
+# def _update_stream_event(
+#     stream_event: EventModel,
+#     seq: int,
+#     text_part: str,
+#     blocks: list[Any] | None,
+#     data: dict[str, Any] | None = None,
+# ) -> None:
+#     stream_event.sequence_id = seq
+#     stream_event.content = text_part
+#     stream_event.content_blocks = blocks or None
+#     stream_event.data = data or {}
+
+
+# def _process_tool_calls(delta: Any, tool_ids: set[str], tool_calls: list[dict]) -> bool:
+#     new_tools = False
+#     tcs = getattr(delta, "tool_calls", None) or []
+#     for tc in tcs:
+#         tc_id = getattr(tc, "id", None)
+#         if not tc_id or tc_id in tool_ids:
+#             continue
+#         tool_ids.add(tc_id)
+#         try:
+#             tool_calls.append(tc.model_dump())  # type: ignore[attr-defined]
+#         except Exception:
+#             tool_calls.append({k: getattr(tc, k) for k in dir(tc) if not k.startswith("_")})
+#         new_tools = True
+#     return new_tools
+
+
+# def _make_blocks(text_part: str, reasoning_part: str) -> list[Any]:
+#     blocks: list[Any] = []
+#     if text_part:
+#         blocks.append(TextBlock(text=text_part))
+#     if reasoning_part:
+#         blocks.append(ReasoningBlock(summary=reasoning_part))
+#     return blocks
+
+
+# class OpenAIConverter(BaseConverter):
+#     """Normalize OpenAI Python SDK responses to Message/EventModel.
+
+#     Supports both Chat Completions and the newer Responses API.
+#     """
+
+#     async def convert_response(self, response: Any) -> Message:
+#         # Chat Completions
+#         if hasattr(response, "object") and response.object == "chat.completion":
+#             return _message_from_chat_completion(cast(ChatCompletion, response))
+
+#         # Responses API
+#         if hasattr(response, "object") and response.object == "response":
+#             return _message_from_responses(cast(ResponsesResponse, response))
+
+#         # dict fallback
+#         if isinstance(response, dict):
+#             obj = response.get("object")
+#             if obj == "chat.completion":
+#                 # construct fake ChatCompletion-like
+#                 class _Tmp:  # minimal shim
+#                     def __init__(self, d: dict):
+#                         self._d = d
+#                         self.id = d.get("id")
+
+#                     def model_dump(self):
+#                         return self._d
+
+#                 return _message_from_chat_completion(cast(ChatCompletion, _Tmp(response)))
+#             if obj == "response":
+#                 class _Tmp2:
+#                     def __init__(self, d: dict):
+#                         self._d = d
+#                         self.id = d.get("id")
+
+#                     def model_dump(self):
+#                         return self._d
+
+#                 return _message_from_responses(cast(ResponsesResponse, _Tmp2(response)))
+
+#         raise TypeError("Unsupported OpenAI response type for conversion")
+
+#     async def convert_streaming_response(  # type: ignore
+#         self,
+#         config: dict,
+#         node_name: str,
+#         response: Any,
+#         meta: dict | None = None,
+#     ) -> AsyncGenerator[EventModel | Message, None]:
+#         # The OpenAI SDK returns an async generator for streams in both APIs.
+#         if inspect.isawaitable(response):
+#             response = await response
+
+#         # If it's an async iterable, peek the first item to route appropriately
+#         if _is_async_iterable(response):
+#             async for first in response:  # type: ignore
+#                 async def _regen(first_item: Any, src: Any):
+#                     yield first_item
+#                     async for rest in src:
+#                         yield rest
+
+#                 if HAS_OPENAI and getattr(first, "object", None) == "chat.completion.chunk":
+#                     async for ev in self._handle_chat_stream(
+#                         config, node_name, _regen(first, response), meta
+#                     ):
+#                         yield ev
+#                 else:
+#                     async for ev in self._handle_responses_stream(
+#                         config, node_name, _regen(first, response), meta
+#                     ):
+#                         yield ev
+#                 return
+
+#         # Non-stream -> convert and emit END event + message
+#         if hasattr(response, "object") or isinstance(response, dict):
+#             message = await self.convert_response(response)
+#             content_value = (
+#                 message.text() if isinstance(message.content, list) else cast(str, message.content)
+#             )
+#             end_event = EventModel(
+#                 event=Event.STREAMING,
+#                 event_type=EventType.END,
+#                 delta=False,
+#                 content_type=[ContentType.TEXT, ContentType.REASONING, ContentType.MESSAGE],
+#                 content=content_value,
+#                 sequence_id=1,
+#                 data={"messages": [message.model_dump()]},
+#             )
+#             if isinstance(message.content, list):
+#                 end_event.content_blocks = message.content
+#             yield end_event
+#             yield message
+#             return
+
+#         raise Exception("Unsupported response type for OpenAIConverter")
+
+#     async def _handle_chat_stream(
+#         self,
+#         config: dict,
+#         node_name: str,
+#         stream: AsyncIterable[Any],
+#         meta: dict | None = None,
+#     ) -> AsyncGenerator[EventModel | Message, None]:
+#         accumulated_content = ""
+#         accumulated_reasoning = ""
+#         tool_calls: list[dict] = []
+#         tool_ids: set[str] = set()
+#         seq = 0
+
+#         stream_event = EventModel.stream(
+#             config,
+#             node_name=node_name,
+#             extra={"provider": "openai"},
+#         )
+
+#         async for chunk in stream:
+#             choices = getattr(chunk, "choices", []) or []
+#             delta = choices[0].delta if choices else None
+#             if not delta:
+#                 continue
+
+#             text_part = getattr(delta, "content", None) or ""
+#             reasoning_part = getattr(delta, "reasoning_content", None) or ""
+
+#             blocks = _make_blocks(text_part, reasoning_part)
+
+#             seq += 1
+#             _update_stream_event(
+#                 stream_event,
+#                 seq,
+#                 text_part,
+#                 blocks,
+#                 {"reasoning_content": reasoning_part},
+#             )
+#             yield stream_event
+
+#             accumulated_content += text_part
+#             accumulated_reasoning += reasoning_part
+
+#             if _process_tool_calls(delta, tool_ids, tool_calls):
+#                 seq += 1
+#                 _update_stream_event(stream_event, seq, "", None, {"tool_calls": tool_calls})
+#                 stream_event.delta = True
+#                 yield stream_event
+
+#         # Final message and END event
+#         metadata = meta.copy() if meta else {}
+#         metadata["provider"] = "openai"
+
+#         final_blocks = _make_blocks(accumulated_content, accumulated_reasoning)
+
+#         message = Message.create(
+#             role="assistant",
+#             content=final_blocks if final_blocks else accumulated_content,
+#             reasoning=accumulated_reasoning,
+#             tools_calls=tool_calls,
+#             meta=metadata,
+#         )
+#         yield message
+
+#         stream_event.event_type = EventType.END
+#         stream_event.delta = False
+#         stream_event.content = accumulated_content
+#         stream_event.sequence_id = seq + 1
+#         stream_event.content_blocks = final_blocks or None
+#         stream_event.content_type = [
+#             ContentType.MESSAGE,
+#             ContentType.REASONING,
+#             ContentType.TEXT,
+#         ]
+#         stream_event.data = {
+#             "messages": [message.model_dump()],
+#             "final_response": accumulated_content,
+#             "reasoning_content": accumulated_reasoning,
+#             "tool_calls": tool_calls,
+#         }
+#         yield stream_event
+
+#     async def _handle_responses_stream(
+#         self,
+#         config: dict,
+#         node_name: str,
+#         stream: AsyncIterable[Any],
+#         meta: dict | None = None,
+#     ) -> AsyncGenerator[EventModel | Message, None]:
+#         accumulated_content = ""
+#         accumulated_reasoning = ""
+#         seq = 0
+
+#         stream_event = EventModel.stream(
+#             config,
+#             node_name=node_name,
+#             extra={"provider": "openai"},
+#         )
+
+#         async for ev in stream:
+#             ev_type = getattr(ev, "type", None)
+#             text_part = ""
+#             reasoning_part = ""
+#             if ev_type in ("response.output_text.delta", "response.text.delta"):
+#                 text_part = getattr(ev, "delta", "") or ""
+#             elif ev_type in (
+#                 "response.reasoning_text.delta",
+#                 "response.reasoning_summary_text.delta",
+#             ):
+#                 reasoning_part = getattr(ev, "delta", "") or ""
+#             else:
+#                 # ignore other events
+#                 continue
+
+#             blocks = _make_blocks(text_part, reasoning_part)
+
+#             seq += 1
+#             _update_stream_event(
+#                 stream_event,
+#                 seq,
+#                 text_part,
+#                 blocks,
+#                 {"reasoning_content": reasoning_part, "event_type": ev_type},
+#             )
+#             yield stream_event
+
+#             accumulated_content += text_part
+#             accumulated_reasoning += reasoning_part
+
+#         metadata = meta.copy() if meta else {}
+#         metadata["provider"] = "openai"
+
+#         final_blocks = _make_blocks(accumulated_content, accumulated_reasoning)
+
+#         message = Message.create(
+#             role="assistant",
+#             content=final_blocks if final_blocks else accumulated_content,
+#             reasoning=accumulated_reasoning,
+#             meta=metadata,
+#         )
+#         yield message
+
+#         stream_event.event_type = EventType.END
+#         stream_event.delta = False
+#         stream_event.content = accumulated_content
+#         stream_event.sequence_id = seq + 1
+#         stream_event.content_blocks = final_blocks or None
+#         stream_event.content_type = [
+#             ContentType.MESSAGE,
+#             ContentType.REASONING,
+#             ContentType.TEXT,
+#         ]
+#         stream_event.data = {
+#             "messages": [message.model_dump()],
+#             "final_response": accumulated_content,
+#             "reasoning_content": accumulated_reasoning,
+#         }
+#         yield stream_event
+# from __future__ import annotations
+
+# import inspect
+# import logging
+# from collections.abc import AsyncGenerator, AsyncIterable
+# from datetime import datetime
+# from typing import Any, cast
+
+# from pyagenity.utils.message import (
+#     Message,
+#     ReasoningBlock,
+#     TextBlock,
+#     TokenUsages,
+#     generate_id,
+# )
+# from pyagenity.utils.streaming import ContentType, Event, EventModel, EventType
+
+# from .base_converter import BaseConverter
+
+
+# logger = logging.getLogger(__name__)
+
+
+# try:  # OpenAI Python SDK v1.x
+#     from openai.types.chat.chat_completion import ChatCompletion
+#     from openai.types.responses.response import Response as ResponsesResponse
+
+#     HAS_OPENAI = True
+# except Exception:  # pragma: no cover - optional dependency
+#     HAS_OPENAI = False
+
+
+# def _message_from_chat_completion(resp: ChatCompletion) -> Message:
+#     data = resp.model_dump()
+#     choices = data.get("choices", [])
+#     msg = choices[0].get("message", {}) if choices else {}
+#     content = msg.get("content") or ""
+#     reasoning_content = msg.get("reasoning_content") or ""
+
+#     blocks: list[Any] = []
+#     if content:
+#         blocks.append(TextBlock(text=content))
+#     if reasoning_content:
+#         blocks.append(ReasoningBlock(summary=reasoning_content))
+
+#     usages_data = data.get("usage", {}) or {}
+#     usages = TokenUsages(
+#         completion_tokens=usages_data.get("completion_tokens", 0) or 0,
+#         prompt_tokens=usages_data.get("prompt_tokens", 0) or 0,
+#         total_tokens=usages_data.get("total_tokens", 0) or 0,
+#         cache_creation_input_tokens=usages_data.get("cache_creation_input_tokens", 0) or 0,
+#         cache_read_input_tokens=usages_data.get("cache_read_input_tokens", 0) or 0,
+#         reasoning_tokens=(usages_data.get("prompt_tokens_details", {}) or {}).get(
+#             "reasoning_tokens", 0
+#         )
+#         or 0,
+#     )
+
+#     tool_calls = msg.get("tool_calls") or []
+#     tool_call_id = tool_calls[0].get("id") if tool_calls else None
+
+#     return Message(
+#         message_id=generate_id(cast(str, getattr(resp, "id", None))),
+#         role="assistant",
+#         content=blocks if blocks else content,
+#         reasoning=reasoning_content,
+#         timestamp=datetime.fromtimestamp(data.get("created", int(datetime.now().timestamp()))),
+#         metadata={
+#             "provider": "openai",
+#             "model": data.get("model"),
+#             "finish_reason": (choices[0].get("finish_reason") if choices else None)
+#             or "UNKNOWN",
+#             "object": data.get("object"),
+#             "prompt_tokens_details": usages_data.get("prompt_tokens_details", {}),
+#             "completion_tokens_details": usages_data.get("completion_tokens_details", {}),
+#         },
+#         usages=usages,
+#         raw=data,
+#         tools_calls=tool_calls or None,
+#         tool_call_id=tool_call_id,
+#     )
+
+
+# def _message_from_responses(resp: ResponsesResponse) -> Message:
+#     data = resp.model_dump()
+#     # Aggregate text from output items (Responses API)
+#     output_text_parts: list[str] = []
+#     reasoning_parts: list[str] = []
+#     for item in data.get("output", []) or []:
+#         if item.get("type") == "message":
+#             for c in item.get("content", []) or []:
+#                 t = c.get("type")
+#                 if t == "output_text" and c.get("text"):
+#                     output_text_parts.append(c["text"])
+#                 elif t in ("reasoning_text", "reasoning_summary_text") and c.get("text"):
+#                     reasoning_parts.append(c["text"])
+
+#     content_text = "".join(output_text_parts)
+#     reasoning_text = "".join(reasoning_parts)
+
+#     blocks: list[Any] = []
+#     if content_text:
+#         blocks.append(TextBlock(text=content_text))
+#     if reasoning_text:
+#         blocks.append(ReasoningBlock(summary=reasoning_text))
+
+#     usages_data = data.get("usage") or {}
+#     usages = TokenUsages(
+#         completion_tokens=(usages_data or {}).get("output_tokens", 0) or 0,
+#         prompt_tokens=(usages_data or {}).get("input_tokens", 0) or 0,
+#         total_tokens=(usages_data or {}).get("total_tokens", 0) or 0,
+#         cache_creation_input_tokens=0,
+#         cache_read_input_tokens=0,
+#         reasoning_tokens=(usages_data or {}).get("output_tokens_details", {}).get(
+#             "reasoning_tokens", 0
+#         )
+#         or 0,
+#     )
+
+#     return Message(
+#         message_id=generate_id(cast(str, getattr(resp, "id", None))),
+#         role="assistant",
+#         content=blocks if blocks else content_text,
+#         reasoning=reasoning_text,
+#         timestamp=datetime.fromtimestamp(
+#             int(cast(float, data.get("created_at", datetime.now().timestamp())))
+#         ),
+#         metadata={
+#             "provider": "openai",
+#             "model": data.get("model"),
+#             accumulated_content += text_part
+#             accumulated_reasoning += reasoning_part
+
+#         metadata = meta.copy() if meta else {}
+#         metadata["provider"] = "openai"
+
+#         final_blocks = _make_blocks(accumulated_content, accumulated_reasoning)
+
+#         message = Message.create(
+#             role="assistant",
+#             content=final_blocks if final_blocks else accumulated_content,
+#             reasoning=accumulated_reasoning,
+#             meta=metadata,
+#         )
+#         yield message
+
+#         stream_event.event_type = EventType.END
+#         stream_event.delta = False
+#         stream_event.content = accumulated_content
+#         stream_event.sequence_id = seq + 1
+#         stream_event.content_blocks = final_blocks or None
+#         stream_event.content_type = [
+#             ContentType.MESSAGE,
+#             ContentType.REASONING,
+#             ContentType.TEXT,
+#         ]
+#         stream_event.data = {
+#             "messages": [message.model_dump()],
+#             "final_response": accumulated_content,
+#             "reasoning_content": accumulated_reasoning,
+#         }
+#         yield stream_event
+# from __future__ import annotations
+
+# import inspect
+# import logging
+# from collections.abc import AsyncGenerator, AsyncIterable
+# from datetime import datetime
+# from typing import Any, cast
+
+# from pyagenity.utils.message import (
+#     Message,
+#     ReasoningBlock,
+#     TextBlock,
+#     TokenUsages,
+#     generate_id,
+# )
+# from pyagenity.utils.streaming import ContentType, Event, EventModel, EventType
+
+# from .base_converter import BaseConverter
+
+
+# logger = logging.getLogger(__name__)
+
+
+# try:  # OpenAI Python SDK v1.x
+#     from openai.types.chat.chat_completion import ChatCompletion
+#     from openai.types.responses.response import Response as ResponsesResponse
+
+#     HAS_OPENAI = True
+# except Exception:  # pragma: no cover - optional dependency
+#     HAS_OPENAI = False
+
+
+# def _message_from_chat_completion(resp: ChatCompletion) -> Message:
+#     data = resp.model_dump()
+#     choices = data.get("choices", [])
+#     msg = choices[0].get("message", {}) if choices else {}
+#     content = msg.get("content") or ""
+#     reasoning_content = msg.get("reasoning_content") or ""
+
+#     blocks: list[Any] = []
+#     if content:
+#         blocks.append(TextBlock(text=content))
+#     if reasoning_content:
+#         blocks.append(ReasoningBlock(summary=reasoning_content))
+
+#     usages_data = data.get("usage", {}) or {}
+#     usages = TokenUsages(
+#         completion_tokens=usages_data.get("completion_tokens", 0) or 0,
+#         prompt_tokens=usages_data.get("prompt_tokens", 0) or 0,
+#         total_tokens=usages_data.get("total_tokens", 0) or 0,
+#         cache_creation_input_tokens=usages_data.get("cache_creation_input_tokens", 0) or 0,
+#         cache_read_input_tokens=usages_data.get("cache_read_input_tokens", 0) or 0,
+#         reasoning_tokens=(usages_data.get("prompt_tokens_details", {}) or {}).get(
+#             "reasoning_tokens", 0
+#         )
+#         or 0,
+#     )
+
+#     tool_calls = msg.get("tool_calls") or []
+#     tool_call_id = tool_calls[0].get("id") if tool_calls else None
+
+#     return Message(
+#         message_id=generate_id(cast(str, getattr(resp, "id", None))),
+#         role="assistant",
+#         content=blocks if blocks else content,
+#         reasoning=reasoning_content,
+#         timestamp=datetime.fromtimestamp(data.get("created", int(datetime.now().timestamp()))),
+#         metadata={
+#             "provider": "openai",
+#             "model": data.get("model"),
+#             "finish_reason": (choices[0].get("finish_reason") if choices else None)
+#             or "UNKNOWN",
+#             "object": data.get("object"),
+#             "prompt_tokens_details": usages_data.get("prompt_tokens_details", {}),
+#             "completion_tokens_details": usages_data.get("completion_tokens_details", {}),
+#         },
+#         usages=usages,
+#         raw=data,
+#         tools_calls=tool_calls or None,
+#         tool_call_id=tool_call_id,
+#     )
+
+
+# def _message_from_responses(resp: ResponsesResponse) -> Message:
+#     data = resp.model_dump()
+#     # Aggregate text from output items (Responses API)
+#     output_text_parts: list[str] = []
+#     reasoning_parts: list[str] = []
+#     for item in data.get("output", []) or []:
+#         if item.get("type") == "message":
+#             for c in item.get("content", []) or []:
+#                 t = c.get("type")
+#                 if t == "output_text" and c.get("text"):
+#                     output_text_parts.append(c["text"])
+#                 elif t in ("reasoning_text", "reasoning_summary_text") and c.get("text"):
+#                     reasoning_parts.append(c["text"])
+
+#     content_text = "".join(output_text_parts)
+#     reasoning_text = "".join(reasoning_parts)
+
+#     blocks: list[Any] = []
+#     if content_text:
+#         blocks.append(TextBlock(text=content_text))
+#     if reasoning_text:
+#         blocks.append(ReasoningBlock(summary=reasoning_text))
+
+#     usages_data = data.get("usage") or {}
+#     usages = TokenUsages(
+#         completion_tokens=(usages_data or {}).get("output_tokens", 0) or 0,
+#         prompt_tokens=(usages_data or {}).get("input_tokens", 0) or 0,
+#         total_tokens=(usages_data or {}).get("total_tokens", 0) or 0,
+#         cache_creation_input_tokens=0,
+#         cache_read_input_tokens=0,
+#         reasoning_tokens=(usages_data or {}).get("output_tokens_details", {}).get(
+#             "reasoning_tokens", 0
+#         )
+#         or 0,
+#     )
+
+#     return Message(
+#         message_id=generate_id(cast(str, getattr(resp, "id", None))),
+#         role="assistant",
+#         content=blocks if blocks else content_text,
+#         reasoning=reasoning_text,
+#         timestamp=datetime.fromtimestamp(
+#             int(cast(float, data.get("created_at", datetime.now().timestamp())))
+#         ),
+#         metadata={
+#             "provider": "openai",
+#             "model": data.get("model"),
+#             "object": data.get("object"),
+#             "status": data.get("status"),
+#         },
+#         usages=usages,
+#         raw=data,
+#     )
+
+
+# def _is_async_iterable(obj: Any) -> bool:
+#     return hasattr(obj, "__aiter__")
+
+
+# def _update_stream_event(
+#     stream_event: EventModel,
+#     seq: int,
+#     text_part: str,
+#     blocks: list[Any] | None,
+#     data: dict[str, Any] | None = None,
+# ) -> None:
+#     stream_event.sequence_id = seq
+#     stream_event.content = text_part
+#     stream_event.content_blocks = blocks or None
+#     stream_event.data = data or {}
+
+
+# def _process_tool_calls(delta: Any, tool_ids: set[str], tool_calls: list[dict]) -> bool:
+#     new_tools = False
+#     tcs = getattr(delta, "tool_calls", None) or []
+#     for tc in tcs:
+#         tc_id = getattr(tc, "id", None)
+#         if not tc_id or tc_id in tool_ids:
+#             continue
+#         tool_ids.add(tc_id)
+#         try:
+#             tool_calls.append(tc.model_dump())  # type: ignore[attr-defined]
+#         except Exception:
+#             tool_calls.append({k: getattr(tc, k) for k in dir(tc) if not k.startswith("_")})
+#         new_tools = True
+#     return new_tools
+
+
+# def _make_blocks(text_part: str, reasoning_part: str) -> list[Any]:
+#     blocks: list[Any] = []
+#     if text_part:
+#         blocks.append(TextBlock(text=text_part))
+#     if reasoning_part:
+#         blocks.append(ReasoningBlock(summary=reasoning_part))
+#     return blocks
+
+
+# class OpenAIConverter(BaseConverter):
+#     """Normalize OpenAI Python SDK responses to Message/EventModel.
+
+#     Supports both Chat Completions and the newer Responses API.
+#     """
+
+#     async def convert_response(self, response: Any) -> Message:
+#         # Chat Completions
+#         if hasattr(response, "object") and response.object == "chat.completion":
+#             return _message_from_chat_completion(cast(ChatCompletion, response))
+
+#         # Responses API
+#         if hasattr(response, "object") and response.object == "response":
+#             return _message_from_responses(cast(ResponsesResponse, response))
+
+#         # dict fallback
+#         if isinstance(response, dict):
+#             obj = response.get("object")
+#             if obj == "chat.completion":
+#                 # construct fake ChatCompletion-like
+#                 class _Tmp:  # minimal shim
+#                     def __init__(self, d: dict):
+#                         self._d = d
+#                         self.id = d.get("id")
+
+#                     def model_dump(self):
+#                         return self._d
+
+#                 return _message_from_chat_completion(cast(ChatCompletion, _Tmp(response)))
+#             if obj == "response":
+#                 class _Tmp2:
+#                     def __init__(self, d: dict):
+#                         self._d = d
+#                         self.id = d.get("id")
+
+#                     def model_dump(self):
+#                         return self._d
+
+#                 return _message_from_responses(cast(ResponsesResponse, _Tmp2(response)))
+
+#         raise TypeError("Unsupported OpenAI response type for conversion")
+
+#     async def convert_streaming_response(  # type: ignore
+#         self,
+#         config: dict,
+#         node_name: str,
+#         response: Any,
+#         meta: dict | None = None,
+#     ) -> AsyncGenerator[EventModel | Message, None]:
+#         # The OpenAI SDK returns an async generator for streams in both APIs.
+#         if inspect.isawaitable(response):
+#             response = await response
+
+#         # If it's an async iterable, peek the first item to route appropriately
+#         if _is_async_iterable(response):
+#             async for first in response:  # type: ignore
+#                 async def _regen(first_item: Any, src: Any):
+#                     yield first_item
+#                     async for rest in src:
+#                         yield rest
+
+#                 if HAS_OPENAI and getattr(first, "object", None) == "chat.completion.chunk":
+#                     async for ev in self._handle_chat_stream(
+#                         config, node_name, _regen(first, response), meta
+#                     ):
+#                         yield ev
+#                 else:
+#                     async for ev in self._handle_responses_stream(
+#                         config, node_name, _regen(first, response), meta
+#                     ):
+#                         yield ev
+#                 return
+
+#         # Non-stream -> convert and emit END event + message
+#         if hasattr(response, "object") or isinstance(response, dict):
+#             message = await self.convert_response(response)
+#             end_event = EventModel(
+#                 event=Event.STREAMING,
+#                 event_type=EventType.END,
+#                 delta=False,
+#                 content_type=[ContentType.TEXT, ContentType.REASONING, ContentType.MESSAGE],
+#                 content=(
+#                     message.text() if isinstance(message.content, list) else cast(str, message.content)
+#                 ),
+#                 sequence_id=1,
+#                 data={"messages": [message.model_dump()]},
+#             )
+#             if isinstance(message.content, list):
+#                 end_event.content_blocks = message.content
+#             yield end_event
+#             yield message
+#             return
+
+#         raise Exception("Unsupported response type for OpenAIConverter")
+
+#     async def _handle_chat_stream(
+#         self,
+#         config: dict,
+#         node_name: str,
+#         stream: AsyncIterable[Any],
+#         meta: dict | None = None,
+#     ) -> AsyncGenerator[EventModel | Message, None]:
+#         accumulated_content = ""
+#         accumulated_reasoning = ""
+#         tool_calls: list[dict] = []
+#         tool_ids: set[str] = set()
+#         seq = 0
+
+#         stream_event = EventModel.stream(
+#             config,
+#             node_name=node_name,
+#             extra={"provider": "openai"},
+#         )
+
+#         async for chunk in stream:
+#             choices = getattr(chunk, "choices", []) or []
+#             delta = choices[0].delta if choices else None
+#             if not delta:
+#                 continue
+
+#             text_part = getattr(delta, "content", None) or ""
+#             reasoning_part = getattr(delta, "reasoning_content", None) or ""
+
+#             blocks = _make_blocks(text_part, reasoning_part)
+
+#             seq += 1
+#             _update_stream_event(
+#                 stream_event,
+#                 seq,
+#                 text_part,
+#                 blocks,
+#                 {"reasoning_content": reasoning_part},
+#             )
+#             yield stream_event
+
+#             accumulated_content += text_part
+#             accumulated_reasoning += reasoning_part
+
+#             if _process_tool_calls(delta, tool_ids, tool_calls):
+#                 seq += 1
+#                 _update_stream_event(stream_event, seq, "", None, {"tool_calls": tool_calls})
+#                 stream_event.delta = True
+#                 yield stream_event
+
+#         # Final message and END event
+#         metadata = meta.copy() if meta else {}
+#         metadata["provider"] = "openai"
+
+#         final_blocks = _make_blocks(accumulated_content, accumulated_reasoning)
+
+#         message = Message.create(
+#             role="assistant",
+#             content=final_blocks if final_blocks else accumulated_content,
+#             reasoning=accumulated_reasoning,
+#             tools_calls=tool_calls,
+#             meta=metadata,
+#         )
+#         yield message
+
+#         stream_event.event_type = EventType.END
+#         stream_event.delta = False
+#         stream_event.content = accumulated_content
+#         stream_event.sequence_id = seq + 1
+#         stream_event.content_blocks = final_blocks or None
+#         stream_event.content_type = [
+#             ContentType.MESSAGE,
+#             ContentType.REASONING,
+#             ContentType.TEXT,
+#         ]
+#         stream_event.data = {
+#             "messages": [message.model_dump()],
+#             "final_response": accumulated_content,
+#             "reasoning_content": accumulated_reasoning,
+#             "tool_calls": tool_calls,
+#         }
+#         yield stream_event
+
+#     async def _handle_responses_stream(
+#         self,
+#         config: dict,
+#         node_name: str,
+#         stream: AsyncIterable[Any],
+#         meta: dict | None = None,
+#     ) -> AsyncGenerator[EventModel | Message, None]:
+#         accumulated_content = ""
+#         accumulated_reasoning = ""
+#         seq = 0
+
+#         stream_event = EventModel.stream(
+#             config,
+#             node_name=node_name,
+#             extra={"provider": "openai"},
+#         )
+
+#         async for ev in stream:
+#             ev_type = getattr(ev, "type", None)
+#             text_part = ""
+#             reasoning_part = ""
+#             if ev_type in ("response.output_text.delta", "response.text.delta"):
+#                 text_part = getattr(ev, "delta", "") or ""
+#             elif ev_type in (
+#                 "response.reasoning_text.delta",
+#                 "response.reasoning_summary_text.delta",
+#             ):
+#                 reasoning_part = getattr(ev, "delta", "") or ""
+#             else:
+#                 # ignore other events
+#                 continue
+
+#             blocks = _make_blocks(text_part, reasoning_part)
+
+#             seq += 1
+#             _update_stream_event(
+#                 stream_event,
+#                 seq,
+#                 text_part,
+#                 blocks,
+#                 {"reasoning_content": reasoning_part, "event_type": ev_type},
+#             )
+#             yield stream_event
+
+#             accumulated_content += text_part
+#             accumulated_reasoning += reasoning_part
+
+#         metadata = meta.copy() if meta else {}
+#         metadata["provider"] = "openai"
+
+#         final_blocks = _make_blocks(accumulated_content, accumulated_reasoning)
+
+#         message = Message.create(
+#             role="assistant",
+#             content=final_blocks if final_blocks else accumulated_content,
+#             reasoning=accumulated_reasoning,
+#             meta=metadata,
+#         )
+#         yield message
+
+#         stream_event.event_type = EventType.END
+#         stream_event.delta = False
+#         stream_event.content = accumulated_content
+#         stream_event.sequence_id = seq + 1
+#         stream_event.content_blocks = final_blocks or None
+#         stream_event.content_type = [
+#             ContentType.MESSAGE,
+#             ContentType.REASONING,
+#             ContentType.TEXT,
+#         ]
+#         stream_event.data = {
+#             "messages": [message.model_dump()],
+#             "final_response": accumulated_content,
+#             "reasoning_content": accumulated_reasoning,
+#         }
+#         yield stream_event
+
+# from __future__ import annotations
+# import inspect
+# import logging
+# from collections.abc import AsyncGenerator, AsyncIterable
+# from datetime import datetime
+# from typing import Any, cast
+
+# from pyagenity.utils.message import (
+#     Message,
+#     ReasoningBlock,
+#     TextBlock,
+#     TokenUsages,
+#     generate_id,
+# )
+# from pyagenity.utils.streaming import ContentType, Event, EventModel, EventType
+
+# from .base_converter import BaseConverter
+
+
+# logger = logging.getLogger(__name__)
+
+
+# try:  # OpenAI Python SDK v1.x
+#     from openai.types.chat.chat_completion import ChatCompletion
+#     from openai.types.responses.response import Response as ResponsesResponse
+
+#     HAS_OPENAI = True
+# except Exception:  # pragma: no cover - optional dependency
+#     HAS_OPENAI = False
+
+
+# def _message_from_chat_completion(resp: ChatCompletion) -> Message:
+#     data = resp.model_dump()
+#     choices = data.get("choices", [])
+#     msg = choices[0].get("message", {}) if choices else {}
+#     content = msg.get("content") or ""
+#     reasoning_content = msg.get("reasoning_content") or ""
+#     blocks = []
+#     if content:
+#         blocks.append(TextBlock(text=content))
+#     if reasoning_content:
+#         blocks.append(ReasoningBlock(summary=reasoning_content))
+
+#     usages_data = data.get("usage", {}) or {}
+#     usages = TokenUsages(
+#         completion_tokens=usages_data.get("completion_tokens", 0) or 0,
+#         prompt_tokens=usages_data.get("prompt_tokens", 0) or 0,
+#         total_tokens=usages_data.get("total_tokens", 0) or 0,
+#         cache_creation_input_tokens=usages_data.get("cache_creation_input_tokens", 0) or 0,
+#         cache_read_input_tokens=usages_data.get("cache_read_input_tokens", 0) or 0,
+#         reasoning_tokens=(usages_data.get("prompt_tokens_details", {}) or {}).get(
+#             "reasoning_tokens", 0
+#         )
+#         or 0,
+#     )
+
+#     tool_calls = msg.get("tool_calls") or []
+#     tool_call_id = tool_calls[0].get("id") if tool_calls else None
+
+#     return Message(
+#         message_id=generate_id(cast(str, getattr(resp, "id", None))) ,
+#         role="assistant",
+#         content=blocks if blocks else content,
+#         reasoning=reasoning_content,
+#         timestamp=datetime.fromtimestamp(data.get("created", int(datetime.now().timestamp()))),
+#         metadata={
+#             "provider": "openai",
+#             "model": data.get("model"),
+#             "finish_reason": (choices[0].get("finish_reason") if choices else None) or "UNKNOWN",
+#             "object": data.get("object"),
+#             "prompt_tokens_details": usages_data.get("prompt_tokens_details", {}),
+#             "completion_tokens_details": usages_data.get("completion_tokens_details", {}),
+#         },
+#         usages=usages,
+#         raw=data,
+
+
+#     async def _handle_chat_stream(
+#         self,
+#         config: dict,
+#         node_name: str,
+#         stream: AsyncIterable[Any],
+#         meta: dict | None = None,
+#     ) -> AsyncGenerator[EventModel | Message, None]:
+#         accumulated_content = ""
+#         accumulated_reasoning = ""
+#         tool_calls: list[dict] = []
+#         tool_ids: set[str] = set()
+#         seq = 0
+
+#         stream_event = EventModel.stream(
+#             config,
+#             node_name=node_name,
+#             extra={"provider": "openai"},
+#         )
+
+#         async for chunk in stream:
+#             choices = getattr(chunk, "choices", []) or []
+#             delta = choices[0].delta if choices else None
+#             if not delta:
+#                 continue
+
+#             text_part = getattr(delta, "content", None) or ""
+#             reasoning_part = getattr(delta, "reasoning_content", None) or ""
+
+#             blocks: list[Any] = []
+#             if text_part:
+#                 blocks.append(TextBlock(text=text_part))
+#             if reasoning_part:
+#                 blocks.append(ReasoningBlock(summary=reasoning_part))
+
+#             seq += 1
+#             _update_stream_event(
+#                 stream_event,
+#                 seq,
+#                 text_part,
+#                 blocks,
+#                 {"reasoning_content": reasoning_part},
+#             )
+#             yield stream_event
+
+#             accumulated_content += text_part
+#             accumulated_reasoning += reasoning_part
+
+#             if _process_tool_calls(delta, tool_ids, tool_calls):
+#                 seq += 1
+#                 _update_stream_event(stream_event, seq, "", None, {"tool_calls": tool_calls})
+#                 stream_event.delta = True
+#                 yield stream_event
+
+#         # Final message and END event
+#         metadata = meta.copy() if meta else {}
+#         metadata["provider"] = "openai"
+
+#         final_blocks: list[Any] = []
+#         if accumulated_content:
+#             final_blocks.append(TextBlock(text=accumulated_content))
+#         if accumulated_reasoning:
+#             final_blocks.append(ReasoningBlock(summary=accumulated_reasoning))
+
+#         message = Message.create(
+#             role="assistant",
+#             content=final_blocks if final_blocks else accumulated_content,
+#             reasoning=accumulated_reasoning,
+#             tools_calls=tool_calls,
+#             meta=metadata,
+#         )
+#         yield message
+
+#         stream_event.event_type = EventType.END
+#         stream_event.delta = False
+#         stream_event.content = accumulated_content
+#         stream_event.sequence_id = seq + 1
+#         stream_event.content_blocks = final_blocks or None
+#         stream_event.content_type = [
+#             ContentType.MESSAGE,
+#             ContentType.REASONING,
+#             ContentType.TEXT,
+#         ]
+#         stream_event.data = {
+#             "messages": [message.model_dump()],
+#             "final_response": accumulated_content,
+#             "reasoning_content": accumulated_reasoning,
+#             "tool_calls": tool_calls,
+#         }
+#         yield stream_event
+
+#     async def _handle_responses_stream(
+#         self,
+#         config: dict,
+#         node_name: str,
+#         stream: AsyncIterable[Any],
+#         meta: dict | None = None,
+#     ) -> AsyncGenerator[EventModel | Message, None]:
+#         accumulated_content = ""
+#         accumulated_reasoning = ""
+#         seq = 0
+
+#         stream_event = EventModel.stream(
+#             config,
+#             node_name=node_name,
+#             extra={"provider": "openai"},
+#         )
+
+#         async for ev in stream:
+#             ev_type = getattr(ev, "type", None)
+#             text_part = ""
+#             reasoning_part = ""
+#             if ev_type in ("response.output_text.delta", "response.text.delta"):
+#                 text_part = getattr(ev, "delta", "") or ""
+#             elif ev_type in (
+#                 "response.reasoning_text.delta",
+#                 "response.reasoning_summary_text.delta",
+#             ):
+#                 reasoning_part = getattr(ev, "delta", "") or ""
+#             else:
+#                 # ignore other events
+#                 continue
+
+#             blocks: list[Any] = []
+#             if text_part:
+#                 blocks.append(TextBlock(text=text_part))
+#             if reasoning_part:
+#                 blocks.append(ReasoningBlock(summary=reasoning_part))
+
+#             seq += 1
+#             stream_event.sequence_id = seq
+#             stream_event.content = text_part
+#             stream_event.content_blocks = blocks or None
+#             stream_event.data = {"reasoning_content": reasoning_part, "event_type": ev_type}
+#             yield stream_event
+
+#             accumulated_content += text_part
+#             accumulated_reasoning += reasoning_part
+
+#         metadata = meta.copy() if meta else {}
+#         metadata["provider"] = "openai"
+
+#         final_blocks: list[Any] = []
+#         if accumulated_content:
+#             final_blocks.append(TextBlock(text=accumulated_content))
+#         if accumulated_reasoning:
+#             final_blocks.append(ReasoningBlock(summary=accumulated_reasoning))
+
+#         message = Message.create(
+#             role="assistant",
+#             content=final_blocks if final_blocks else accumulated_content,
+#             reasoning=accumulated_reasoning,
+#             meta=metadata,
+#         )
+#         yield message
+
+#         stream_event.event_type = EventType.END
+#         stream_event.delta = False
+#         stream_event.content = accumulated_content
+#         stream_event.sequence_id = seq + 1
+#         stream_event.content_blocks = final_blocks or None
+#         stream_event.content_type = [
+#             ContentType.MESSAGE,
+#             ContentType.REASONING,
+#             ContentType.TEXT,
+#         ]
+#         stream_event.data = {
+#             "messages": [message.model_dump()],
+#             "final_response": accumulated_content,
+#             "reasoning_content": accumulated_reasoning,
+#         }
+#         yield stream_event
+
+

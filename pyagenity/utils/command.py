@@ -33,6 +33,7 @@ class Command[StateT: AgentState]:
         update: Union["StateT", None, Message, str, "BaseConverter"] = None,
         goto: str | None = None,
         graph: str | None = None,
+        state: StateT | None = None,
     ):
         """
         Initialize a Command.
@@ -45,6 +46,7 @@ class Command[StateT: AgentState]:
         self.update = update
         self.goto = goto
         self.graph = graph
+        self.state = state
 
     def __repr__(self) -> str:
-        return f"Command(update={self.update}, goto={self.goto}, graph={self.graph})"
+        return f"Command(update={self.update}, goto={self.goto}, graph={self.graph}, state={self.state})"

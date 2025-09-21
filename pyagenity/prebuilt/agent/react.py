@@ -35,7 +35,7 @@ def _should_use_tools(state: AgentState) -> str:
         return "TOOL"
 
     # If last message is a tool result, we should be done (AI will make final response)
-    if last_message.role == "tool" and last_message.tool_call_id is not None:
+    if last_message.role == "tool" and last_message is not None:
         return "MAIN"
 
     # Default to END for other cases

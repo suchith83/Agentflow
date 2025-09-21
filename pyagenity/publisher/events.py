@@ -1,9 +1,11 @@
 import enum
 import time
 import uuid
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
+
+from pyagenity.utils.message import ContentBlock
 
 
 class Event(str, enum.Enum):
@@ -30,6 +32,11 @@ class ContentType(str, enum.Enum):
     REASONING = "reasoning"
     TOOL_CALL = "tool_call"
     TOOL_RESULT = "tool_result"
+    IMAGE = "image"
+    AUDIO = "audio"
+    VIDEO = "video"
+    DOCUMENT = "document"
+    DATA = "data"
     STATE = "state"
     UPDATE = "update"
     ERROR = "error"
@@ -53,7 +60,22 @@ class EventModel(BaseModel):
 
     # Streamed content
     content: str = Field(default="", description="Streamed textual content")
+    # Structured content blocks for multimodal/structured streaming
+    content_blocks: list[ContentBlock] | None = Field(
+        default=None, description="Structured content blocks carried by this event"
+    )
+    # Delta controls
     delta: bool = Field(default=False, description="True if this is a delta update (incremental)")
+    delta_type: Literal["text", "json", "binary"] | None = Field(
+        default=None, description="Type of delta when delta=True"
+    )
+    block_index: int | None = Field(
+        default=None, description="Index of the content block this chunk applies to"
+    )
+    chunk_index: int | None = Field(default=None, description="Per-block chunk index for ordering")
+    byte_offset: int | None = Field(
+        default=None, description="Byte offset for binary/media streaming"
+    )
 
     # Data payload
     data: dict[str, Any] = Field(default_factory=dict, description="Additional structured data")

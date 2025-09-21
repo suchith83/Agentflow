@@ -143,7 +143,7 @@ response = completion(
     model="gemini/gemini-2.5-flash",
     messages=messages,
     tools=tools,
-    stream=True,
+    stream=False,
 )
 
 print(type(response))
@@ -153,47 +153,50 @@ print(type(response))
 #     print(msg.choices[0].delta)
 
 
-accumulated_content = ""
-tool_calls = []
-tool_ids = set()
-accumulated_reasoning_content = ""
-for chunk in response:
-    if not chunk:
-        continue
+# accumulated_content = ""
+# tool_calls = []
+# tool_ids = set()
+# accumulated_reasoning_content = ""
+# for chunk in response:
+#     if not chunk:
+#         continue
 
-    msg: ModelResponseStream = chunk  # type: ignore
-    if msg is None:
-        continue
-    if msg.choices is None or len(msg.choices) == 0:
-        continue
-    delta = msg.choices[0].delta
-    if delta is None:
-        continue
+#     msg: ModelResponseStream = chunk  # type: ignore
+#     if msg is None:
+#         continue
+#     if msg.choices is None or len(msg.choices) == 0:
+#         continue
+#     delta = msg.choices[0].delta
+#     if delta is None:
+#         continue
 
-    accumulated_content += delta.get("content", "") or ""
-    accumulated_reasoning_content += delta.get("reasoning_content", "") or ""
-    if delta.tool_calls:
-        for tc in delta.tool_calls:
-            if not tc:
-                continue
+#     accumulated_content += delta.get("content", "") or ""
+#     accumulated_reasoning_content += delta.get("reasoning_content", "") or ""
+#     if delta.tool_calls:
+#         for tc in delta.tool_calls:
+#             if not tc:
+#                 continue
 
-            if tc.id in tool_ids:
-                continue
+#             if tc.id in tool_ids:
+#                 continue
 
-            tool_ids.add(tc.id)
-            tool_calls.append(tc.model_dump())
+#             tool_ids.add(tc.id)
+#             tool_calls.append(tc.model_dump())
 
-    # TODO Handle audio, but not now will do later
+#     # TODO Handle audio, but not now will do later
 
 
-print("----")
-print(accumulated_content)
-print("----")
-print(accumulated_reasoning_content)
-print("----")
-print(tool_calls)
+# print("----")
+# print(accumulated_content)
+# print("----")
+# print(accumulated_reasoning_content)
+# print("----")
+# print(tool_calls)
 
 
 # ModelResponseStream(id='yMG9aJa4MZzhz7IPwvPr2Qc', created=1757266377, model='gemini-2.5-flash', object='chat.completion.chunk', system_fingerprint=None, choices=[StreamingChoices(finish_reason=None, index=0, delta=Delta(provider_specific_fields=None, content='Hi there! Great! How can I help you today? What are you looking to work on?', role='assistant', function_call=None, tool_calls=None, audio=None), logprobs=None)], provider_specific_fields=None, citations=None, vertex_ai_grounding_metadata=[], vertex_ai_url_context_metadata=[], vertex_ai_safety_ratings=[], vertex_ai_citation_metadata=[])
 # ----
 # ModelResponseStream(id='yMG9aJa4MZzhz7IPwvPr2Qc', created=1757266377, model='gemini-2.5-flash', object='chat.completion.chunk', system_fingerprint=None, choices=[StreamingChoices(finish_reason='stop', index=0, delta=Delta(provider_specific_fields=None, content=None, role=None, function_call=None, tool_calls=None, audio=None), logprobs=None)], provider_specific_fields=None)
+
+
+print(response)

@@ -8,11 +8,11 @@ import logging
 import typing as t
 
 from pyagenity.adapters.tools import ComposioAdapter
-from pyagenity.graph.utils.utils import publish_event
+from pyagenity.publisher.events import ContentType, Event, EventModel, EventType
+from pyagenity.publisher.publish import publish_event
 from pyagenity.state import AgentState
 from pyagenity.utils import CallbackContext, CallbackManager, InvocationType, call_sync_or_async
-from pyagenity.utils.message import Message
-from pyagenity.utils.streaming import ContentType, Event, EventModel, EventType
+from pyagenity.utils.message import ContentBlock, ErrorBlock, Message, ToolResultBlock
 
 from .constants import INJECTABLE_PARAMS
 
@@ -77,19 +77,23 @@ class ComposioMixin:
         event.sequence_id = 1
         publish_event(event)
 
-        if not self._composio:
-            error_result = Message.tool_message(
-                tool_call_id=tool_call_id,
-                content="Composio adapter not configured",
-                is_error=True,
-                meta=meta,
-            )
-            event.event_type = EventType.ERROR
-            event.metadata["error"] = "Composio adapter not configured"
-            publish_event(event)
-            return error_result
-
         input_data = {**args}
+
+        def safe_serialize(obj: t.Any) -> dict[str, t.Any]:
+            try:
+                json.dumps(obj)
+                return obj if isinstance(obj, dict) else {"content": obj}
+            except (TypeError, OverflowError):
+                if hasattr(obj, "model_dump"):
+                    dumped = obj.model_dump()  # type: ignore
+                    if isinstance(dumped, dict) and dumped.get("type") == "resource":
+                        resource = dumped.get("resource", {})
+                        if isinstance(resource, dict) and "uri" in resource:
+                            resource["uri"] = str(resource["uri"])
+                            dumped["resource"] = resource
+                    return dumped
+                return {"content": str(obj), "type": "fallback"}
+
         try:
             input_data = await callback_mgr.execute_before_invoke(context, input_data)
             event.event_type = EventType.UPDATE
@@ -103,6 +107,24 @@ class ComposioMixin:
                 "connected_account_id"
             )
 
+            if not self._composio:
+                error_result = Message.tool_message(
+                    content=[
+                        ErrorBlock(message="Composio adapter not configured"),
+                        ToolResultBlock(
+                            call_id=tool_call_id,
+                            output="Composio adapter not configured",
+                            status="failed",
+                            is_error=True,
+                        ),
+                    ],
+                    meta=meta,
+                )
+                event.event_type = EventType.ERROR
+                event.metadata["error"] = "Composio adapter not configured"
+                publish_event(event)
+                return error_result
+
             res = self._composio.execute(
                 slug=name,
                 arguments=input_data,
@@ -113,14 +135,34 @@ class ComposioMixin:
             successful = bool(res.get("successful"))
             payload = res.get("data")
             error = res.get("error")
-            content = json.dumps(payload) if not isinstance(payload, str) else payload
+
+            result_blocks = []
             if error and not successful:
-                content = json.dumps({"success": False, "error": error})
+                result_blocks.append(
+                    ToolResultBlock(
+                        call_id=tool_call_id,
+                        output={"success": False, "error": error},
+                        status="failed",
+                        is_error=True,
+                    )
+                )
+                result_blocks.append(ErrorBlock(message=error))
+            else:
+                if isinstance(payload, list):
+                    output = [safe_serialize(item) for item in payload]
+                else:
+                    output = [safe_serialize(payload)]
+                result_blocks.append(
+                    ToolResultBlock(
+                        call_id=tool_call_id,
+                        output=output,
+                        status="completed" if successful else "failed",
+                        is_error=not successful,
+                    )
+                )
 
             result = Message.tool_message(
-                tool_call_id=tool_call_id,
-                content=content or "{}",
-                is_error=not successful,
+                content=result_blocks,
                 meta=meta,
             )
 
@@ -148,9 +190,15 @@ class ComposioMixin:
             event.content_type = [ContentType.TOOL_RESULT, ContentType.ERROR]
             publish_event(event)
             return Message.tool_message(
-                tool_call_id=tool_call_id,
-                content=f"Composio execution error: {e}",
-                is_error=True,
+                content=[
+                    ToolResultBlock(
+                        call_id=tool_call_id,
+                        output=f"Composio execution error: {e}",
+                        status="failed",
+                        is_error=True,
+                    ),
+                    ErrorBlock(message=f"Composio execution error: {e}"),
+                ],
                 meta=meta,
             )
 
@@ -212,19 +260,23 @@ class LangChainMixin:
         event.sequence_id = 1
         publish_event(event)
 
-        if not self._langchain:
-            error_result = Message.tool_message(
-                tool_call_id=tool_call_id,
-                content="LangChain adapter not configured",
-                is_error=True,
-                meta=meta,
-            )
-            event.event_type = EventType.ERROR
-            event.metadata["error"] = "LangChain adapter not configured"
-            publish_event(event)
-            return error_result
-
         input_data = {**args}
+
+        def safe_serialize(obj: t.Any) -> dict[str, t.Any]:
+            try:
+                json.dumps(obj)
+                return obj if isinstance(obj, dict) else {"content": obj}
+            except (TypeError, OverflowError):
+                if hasattr(obj, "model_dump"):
+                    dumped = obj.model_dump()  # type: ignore
+                    if isinstance(dumped, dict) and dumped.get("type") == "resource":
+                        resource = dumped.get("resource", {})
+                        if isinstance(resource, dict) and "uri" in resource:
+                            resource["uri"] = str(resource["uri"])
+                            dumped["resource"] = resource
+                    return dumped
+                return {"content": str(obj), "type": "fallback"}
+
         try:
             input_data = await callback_mgr.execute_before_invoke(context, input_data)
             event.event_type = EventType.UPDATE
@@ -232,18 +284,56 @@ class LangChainMixin:
             event.metadata["status"] = "before_invoke_complete Invoke LangChain"
             publish_event(event)
 
+            if not self._langchain:
+                error_result = Message.tool_message(
+                    content=[
+                        ErrorBlock(message="LangChain adapter not configured"),
+                        ToolResultBlock(
+                            call_id=tool_call_id,
+                            output="LangChain adapter not configured",
+                            status="failed",
+                            is_error=True,
+                        ),
+                    ],
+                    meta=meta,
+                )
+                event.event_type = EventType.ERROR
+                event.metadata["error"] = "LangChain adapter not configured"
+                publish_event(event)
+                return error_result
+
             res = self._langchain.execute(name=name, arguments=input_data)
             successful = bool(res.get("successful"))
             payload = res.get("data")
             error = res.get("error")
-            content = json.dumps(payload) if not isinstance(payload, str) else payload
+
+            result_blocks = []
             if error and not successful:
-                content = json.dumps({"success": False, "error": error})
+                result_blocks.append(
+                    ToolResultBlock(
+                        call_id=tool_call_id,
+                        output={"success": False, "error": error},
+                        status="failed",
+                        is_error=True,
+                    )
+                )
+                result_blocks.append(ErrorBlock(message=error))
+            else:
+                if isinstance(payload, list):
+                    output = [safe_serialize(item) for item in payload]
+                else:
+                    output = [safe_serialize(payload)]
+                result_blocks.append(
+                    ToolResultBlock(
+                        call_id=tool_call_id,
+                        output=output,
+                        status="completed" if successful else "failed",
+                        is_error=not successful,
+                    )
+                )
 
             result = Message.tool_message(
-                tool_call_id=tool_call_id,
-                content=content or "{}",
-                is_error=not successful,
+                content=result_blocks,
                 meta=meta,
             )
 
@@ -271,9 +361,15 @@ class LangChainMixin:
             event.content_type = [ContentType.TOOL_RESULT, ContentType.ERROR]
             publish_event(event)
             return Message.tool_message(
-                tool_call_id=tool_call_id,
-                content=f"LangChain execution error: {e}",
-                is_error=True,
+                content=[
+                    ToolResultBlock(
+                        call_id=tool_call_id,
+                        output=f"LangChain execution error: {e}",
+                        status="failed",
+                        is_error=True,
+                    ),
+                    ErrorBlock(message=f"LangChain execution error: {e}"),
+                ],
                 meta=meta,
             )
 
@@ -376,6 +472,21 @@ class LocalExecMixin:
         event.sequence_id = 1
         publish_event(event)
 
+        def safe_serialize(obj: t.Any) -> dict[str, t.Any]:
+            try:
+                json.dumps(obj)
+                return obj if isinstance(obj, dict) else {"content": obj}
+            except (TypeError, OverflowError):
+                if hasattr(obj, "model_dump"):
+                    dumped = obj.model_dump()  # type: ignore
+                    if isinstance(dumped, dict) and dumped.get("type") == "resource":
+                        resource = dumped.get("resource", {})
+                        if isinstance(resource, dict) and "uri" in resource:
+                            resource["uri"] = str(resource["uri"])
+                            dumped["resource"] = resource
+                    return dumped
+                return {"content": str(obj), "type": "fallback"}
+
         try:
             input_data = await callback_mgr.execute_before_invoke(context, input_data)
 
@@ -404,34 +515,65 @@ class LocalExecMixin:
                 publish_event(event)
                 return result
 
+            result_blocks = []
             if isinstance(result, str):
-                msg = Message.tool_message(
-                    tool_call_id=tool_call_id,
-                    content=result,
-                    meta=meta,
+                result_blocks.append(
+                    ToolResultBlock(
+                        call_id=tool_call_id,
+                        output=result,
+                        status="completed",
+                        is_error=False,
+                    )
                 )
-                event.event_type = EventType.END
-                event.data["message"] = msg.model_dump()
-                event.metadata["status"] = "Internal tool execution complete"
-                event.content_type = [ContentType.TOOL_RESULT, ContentType.MESSAGE]
-                publish_event(event)
-                return msg
-
-            serialized_result = result
-            if isinstance(result, dict):
-                serialized_result = json.dumps(result)
+            elif isinstance(result, dict):
+                result_blocks.append(
+                    ToolResultBlock(
+                        call_id=tool_call_id,
+                        output=[safe_serialize(result)],
+                        status="completed",
+                        is_error=False,
+                    )
+                )
             elif hasattr(result, "model_dump"):
-                serialized_result = json.dumps(result.model_dump())
+                result_blocks.append(
+                    ToolResultBlock(
+                        call_id=tool_call_id,
+                        output=[safe_serialize(result.model_dump())],
+                        status="completed",
+                        is_error=False,
+                    )
+                )
             elif hasattr(result, "__dict__"):
-                serialized_result = json.dumps(result.__dict__)
+                result_blocks.append(
+                    ToolResultBlock(
+                        call_id=tool_call_id,
+                        output=[safe_serialize(result.__dict__)],
+                        status="completed",
+                        is_error=False,
+                    )
+                )
             elif isinstance(result, list):
-                serialized_result = json.dumps(result)
-            elif not isinstance(result, str):
-                serialized_result = str(result)
+                output = [safe_serialize(item) for item in result]
+                result_blocks.append(
+                    ToolResultBlock(
+                        call_id=tool_call_id,
+                        output=output,
+                        status="completed",
+                        is_error=False,
+                    )
+                )
+            else:
+                result_blocks.append(
+                    ToolResultBlock(
+                        call_id=tool_call_id,
+                        output=str(result),
+                        status="completed",
+                        is_error=False,
+                    )
+                )
 
             msg = Message.tool_message(
-                tool_call_id=tool_call_id,
-                content=serialized_result,
+                content=result_blocks,
                 meta=meta,
             )
 
@@ -461,9 +603,15 @@ class LocalExecMixin:
             publish_event(event)
 
             return Message.tool_message(
-                tool_call_id=tool_call_id,
-                content=f"Internal execution error: {e}",
-                is_error=True,
+                content=[
+                    ToolResultBlock(
+                        call_id=tool_call_id,
+                        output=f"Internal execution error: {e}",
+                        status="failed",
+                        is_error=True,
+                    ),
+                    ErrorBlock(message=f"Internal execution error: {e}"),
+                ],
                 meta=meta,
             )
 
@@ -473,7 +621,11 @@ class MCPMixin:
     # The concrete ToolNode defines this
     mcp_tools: list[str]  # type: ignore[assignment]
 
-    def _serialize_result(self, res: t.Any) -> str:
+    def _serialize_result(
+        self,
+        tool_call_id: str,
+        res: t.Any,
+    ) -> list[ContentBlock]:
         def safe_serialize(obj: t.Any) -> dict[str, t.Any]:
             try:
                 json.dumps(obj)
@@ -501,15 +653,32 @@ class MCPMixin:
                     result = [safe_serialize(item) for item in source]
                 else:
                     result = [safe_serialize(source)]
-                return json.dumps(result)
+
+                return [
+                    ToolResultBlock(
+                        call_id=tool_call_id,
+                        output=result,
+                        is_error=False,
+                        status="completed",
+                    )
+                ]
             except Exception as e:  # pragma: no cover - defensive
                 logger.exception("Serialization failure: %s", e)
                 continue
 
-        try:
-            return json.dumps([{"content": str(res)}])
-        except Exception as e:  # pragma: no cover - defensive
-            return json.dumps([{"content": "Serialization error", "error": str(e)}])
+        return [
+            ToolResultBlock(
+                call_id=tool_call_id,
+                output=[
+                    {
+                        "content": str(res),
+                        "type": "fallback",
+                    }
+                ],
+                is_error=False,
+                status="completed",
+            )
+        ]
 
     async def _get_mcp_tool(self) -> list[dict]:
         tools: list[dict] = []
@@ -587,9 +756,17 @@ class MCPMixin:
 
             if not self._client:
                 error_result = Message.tool_message(
-                    tool_call_id=tool_call_id,
-                    content="MCP Client not Setup",
-                    is_error=True,
+                    content=[
+                        ErrorBlock(
+                            message="No MCP client configured",
+                        ),
+                        ToolResultBlock(
+                            call_id=tool_call_id,
+                            output="No MCP client configured",
+                            is_error=True,
+                            status="failed",
+                        ),
+                    ],
                     meta=meta,
                 )
                 res = await callback_mgr.execute_after_invoke(context, input_data, error_result)
@@ -601,9 +778,15 @@ class MCPMixin:
             async with self._client:
                 if not await self._client.ping():
                     error_result = Message.tool_message(
-                        tool_call_id=tool_call_id,
-                        content="MCP Server not available. Ping failed.",
-                        is_error=True,
+                        content=[
+                            ErrorBlock(message="MCP Server not available. Ping failed."),
+                            ToolResultBlock(
+                                call_id=tool_call_id,
+                                output="MCP Server not available. Ping failed.",
+                                is_error=True,
+                                status="failed",
+                            ),
+                        ],
                         meta=meta,
                     )
                     event.event_type = EventType.ERROR
@@ -615,12 +798,10 @@ class MCPMixin:
 
                 res: t.Any = await self._client.call_tool(name, input_data)
 
-                final_res = self._serialize_result(res)
+                final_res = self._serialize_result(tool_call_id, res)
 
                 result = Message.tool_message(
-                    tool_call_id=tool_call_id,
                     content=final_res,
-                    is_error=bool(getattr(res, "is_error", False)),
                     meta=meta,
                 )
 
@@ -650,9 +831,15 @@ class MCPMixin:
             publish_event(event)
 
             return Message.tool_message(
-                tool_call_id=tool_call_id,
-                content=f"MCP execution error: {e}",
-                is_error=True,
+                content=[
+                    ToolResultBlock(
+                        call_id=tool_call_id,
+                        output=f"MCP execution error: {e}",
+                        is_error=True,
+                        status="failed",
+                    ),
+                    ErrorBlock(message=f"MCP execution error: {e}"),
+                ],
                 meta=meta,
             )
 

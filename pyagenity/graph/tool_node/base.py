@@ -6,6 +6,7 @@ This preserves the public behavior while making the implementation modular.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 import sys
 import typing as t
@@ -13,11 +14,11 @@ import typing as t
 from injectq import Inject
 
 from pyagenity.adapters.tools import ComposioAdapter
-from pyagenity.graph.utils.utils import publish_event
+from pyagenity.publisher.events import ContentType, Event, EventModel, EventType
+from pyagenity.publisher.publish import publish_event
 from pyagenity.state import AgentState
 from pyagenity.utils import CallbackManager
-from pyagenity.utils.message import Message
-from pyagenity.utils.streaming import ContentType, Event, EventModel, EventType
+from pyagenity.utils.message import ErrorBlock, Message, TextBlock, ToolCallBlock, ToolResultBlock
 
 from . import deps
 from .executors import ComposioMixin, KwargsResolverMixin, LangChainMixin, LocalExecMixin, MCPMixin
@@ -40,7 +41,7 @@ class ToolNode(
     def __init__(
         self,
         functions: t.Iterable[t.Callable],
-        client: t.Any | None = None,
+        client: deps.Client | None = None,  # type: ignore
         composio_adapter: ComposioAdapter | None = None,
         langchain_adapter: t.Any | None = None,
     ) -> None:
@@ -60,7 +61,7 @@ class ToolNode(
             logger.debug("ToolNode initialized with MCP client")
 
         self._funcs: dict[str, t.Callable] = {}
-        self._client: t.Any | None = client
+        self._client: deps.Client | None = client  # type: ignore
         self._composio: ComposioAdapter | None = composio_adapter
         self._langchain: t.Any | None = langchain_adapter
 
@@ -116,6 +117,9 @@ class ToolNode(
             event=Event.TOOL_EXECUTION,
         )
         event.node_name = name
+        # Attach structured tool call block
+        with contextlib.suppress(Exception):
+            event.content_blocks = [ToolCallBlock(id=tool_call_id, name=name, args=args)]
         publish_event(event)
 
         if name in self.mcp_tools:
@@ -129,6 +133,11 @@ class ToolNode(
                 callback_manager,
             )
             event.data["message"] = res.model_dump()
+            # Attach tool result block mirroring the tool output
+            with contextlib.suppress(Exception):
+                event.content_blocks = [
+                    ToolResultBlock(call_id=tool_call_id, output=res.model_dump())
+                ]
             event.event_type = EventType.END
             event.content_type = [ContentType.TOOL_RESULT, ContentType.MESSAGE]
             publish_event(event)
@@ -145,6 +154,10 @@ class ToolNode(
                 callback_manager,
             )
             event.data["message"] = res.model_dump()
+            with contextlib.suppress(Exception):
+                event.content_blocks = [
+                    ToolResultBlock(call_id=tool_call_id, output=res.model_dump())
+                ]
             event.event_type = EventType.END
             event.content_type = [ContentType.TOOL_RESULT, ContentType.MESSAGE]
             publish_event(event)
@@ -161,6 +174,10 @@ class ToolNode(
                 callback_manager,
             )
             event.data["message"] = res.model_dump()
+            with contextlib.suppress(Exception):
+                event.content_blocks = [
+                    ToolResultBlock(call_id=tool_call_id, output=res.model_dump())
+                ]
             event.event_type = EventType.END
             event.content_type = [ContentType.TOOL_RESULT, ContentType.MESSAGE]
             publish_event(event)
@@ -178,6 +195,10 @@ class ToolNode(
                 callback_manager,
             )
             event.data["message"] = res.model_dump()
+            with contextlib.suppress(Exception):
+                event.content_blocks = [
+                    ToolResultBlock(call_id=tool_call_id, output=res.model_dump())
+                ]
             event.event_type = EventType.END
             event.content_type = [ContentType.TOOL_RESULT, ContentType.MESSAGE]
             publish_event(event)
@@ -189,9 +210,15 @@ class ToolNode(
         event.content_type = [ContentType.TOOL_RESULT, ContentType.ERROR]
         publish_event(event)
         return Message.tool_message(
-            content=error_msg,
-            tool_call_id=tool_call_id,
-            is_error=True,
+            content=[
+                ErrorBlock(text=error_msg),  # type: ignore
+                ToolResultBlock(
+                    call_id=tool_call_id,
+                    output=error_msg,
+                    is_error=True,
+                    status="failed",
+                ),
+            ],
         )
 
     async def stream(
@@ -212,10 +239,12 @@ class ToolNode(
             event=Event.TOOL_EXECUTION,
         )
         event.node_name = "ToolNode"
+        with contextlib.suppress(Exception):
+            event.content_blocks = [ToolCallBlock(id=tool_call_id, name=name, args=args)]
         publish_event(event)
 
         if name in self.mcp_tools:
-            event.metadata["is_mcp"] = True
+            event.metadata["function_type"] = "mcp"
             yield event
             message = await self._mcp_execute(
                 name,
@@ -225,6 +254,10 @@ class ToolNode(
                 callback_manager,
             )
             event.data["message"] = message.model_dump()
+            with contextlib.suppress(Exception):
+                event.content_blocks = [
+                    ToolResultBlock(call_id=tool_call_id, output=message.model_dump())
+                ]
             event.event_type = EventType.END
             event.content_type = [ContentType.TOOL_RESULT, ContentType.MESSAGE]
             yield event
@@ -232,7 +265,7 @@ class ToolNode(
             return
 
         if name in self.composio_tools:
-            event.metadata["is_composio"] = True
+            event.metadata["function_type"] = "composio"
             yield event
             message = await self._composio_execute(
                 name,
@@ -242,6 +275,10 @@ class ToolNode(
                 callback_manager,
             )
             event.data["message"] = message.model_dump()
+            with contextlib.suppress(Exception):
+                event.content_blocks = [
+                    ToolResultBlock(call_id=tool_call_id, output=message.model_dump())
+                ]
             event.event_type = EventType.END
             event.content_type = [ContentType.TOOL_RESULT, ContentType.MESSAGE]
             yield event
@@ -249,7 +286,7 @@ class ToolNode(
             return
 
         if name in self.langchain_tools:
-            event.metadata["is_langchain"] = True
+            event.metadata["function_type"] = "langchain"
             yield event
             message = await self._langchain_execute(
                 name,
@@ -259,6 +296,10 @@ class ToolNode(
                 callback_manager,
             )
             event.data["message"] = message.model_dump()
+            with contextlib.suppress(Exception):
+                event.content_blocks = [
+                    ToolResultBlock(call_id=tool_call_id, output=message.model_dump())
+                ]
             event.event_type = EventType.END
             event.content_type = [ContentType.TOOL_RESULT, ContentType.MESSAGE]
             yield event
@@ -266,7 +307,7 @@ class ToolNode(
             return
 
         if name in self._funcs:
-            event.metadata["is_mcp"] = False
+            event.metadata["function_type"] = "internal"
             yield event
 
             result = await self._internal_execute(
@@ -278,6 +319,10 @@ class ToolNode(
                 callback_manager,
             )
             event.data["message"] = result.model_dump()
+            with contextlib.suppress(Exception):
+                event.content_blocks = [
+                    ToolResultBlock(call_id=tool_call_id, output=result.model_dump())
+                ]
             event.event_type = EventType.END
             event.content_type = [ContentType.TOOL_RESULT, ContentType.MESSAGE]
             yield event
@@ -292,7 +337,13 @@ class ToolNode(
         publish_event(event)
 
         yield Message.tool_message(
-            content=error_msg,
-            tool_call_id=tool_call_id,
-            is_error=True,
+            content=[
+                ErrorBlock(text=error_msg),  # type: ignore
+                ToolResultBlock(
+                    call_id=tool_call_id,
+                    output=error_msg,
+                    is_error=True,
+                    status="failed",
+                ),
+            ],
         )

@@ -18,7 +18,7 @@ from pyagenity.utils import (
     ResponseGranularity,
 )
 from pyagenity.utils.background_task_manager import BackgroundTaskManager
-from pyagenity.utils.streaming import EventModel
+from pyagenity.utils.message import Message
 
 from .utils.invoke_handler import InvokeHandler
 from .utils.stream_handler import StreamHandler
@@ -161,10 +161,10 @@ class CompiledGraph[StateT: AgentState]:
         input_data: dict[str, Any],
         config: dict[str, Any] | None = None,
         response_granularity: ResponseGranularity = ResponseGranularity.LOW,
-    ) -> Generator[EventModel]:
+    ) -> Generator[Message]:
         """Execute the graph synchronously with streaming support.
 
-        Yields EventModel objects containing incremental responses.
+        Yields Message objects containing incremental responses.
         If nodes return streaming responses, yields them directly.
         If nodes return complete responses, simulates streaming by chunking.
 
@@ -174,7 +174,7 @@ class CompiledGraph[StateT: AgentState]:
             response_granularity: Response parsing granularity
 
         Yields:
-            EventModel objects with incremental content
+            Message objects with incremental content
         """
 
         # For sync streaming, we'll use asyncio.run to handle the async implementation
@@ -217,10 +217,10 @@ class CompiledGraph[StateT: AgentState]:
         input_data: dict[str, Any],
         config: dict[str, Any] | None = None,
         response_granularity: ResponseGranularity = ResponseGranularity.LOW,
-    ) -> AsyncIterator[EventModel]:
+    ) -> AsyncIterator[Message]:
         """Execute the graph asynchronously with streaming support.
 
-        Yields EventModel objects containing incremental responses.
+        Yields Message objects containing incremental responses.
         If nodes return streaming responses, yields them directly.
         If nodes return complete responses, simulates streaming by chunking.
 
@@ -230,7 +230,7 @@ class CompiledGraph[StateT: AgentState]:
             response_granularity: Response parsing granularity
 
         Yields:
-            EventModel objects with incremental content
+            Message objects with incremental content
         """
 
         cfg = self._prepare_config(config, is_stream=True)

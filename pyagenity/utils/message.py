@@ -3,7 +3,7 @@ import asyncio
 import logging
 from collections.abc import Awaitable
 from datetime import datetime
-from typing import Any, Literal
+from typing import Annotated, Any, Literal, Union
 from uuid import uuid4
 
 from injectq import InjectQ
@@ -63,6 +63,137 @@ class TokenUsages(BaseModel):
     reasoning_tokens: int = 0
     cache_creation_input_tokens: int = 0
     cache_read_input_tokens: int = 0
+    # Optional modality-specific usage fields for multimodal models
+    image_tokens: int | None = 0
+    audio_tokens: int | None = 0
+
+
+# --- Multimodal content primitives ---
+
+
+class MediaRef(BaseModel):
+    """Reference to media content (image/audio/video/document/data).
+
+    Prefer referencing by URL or provider file_id over inlining base64 for large payloads.
+    """
+
+    kind: Literal["url", "file_id", "data"] = "url"
+    url: str | None = None  # http(s) or data: URL
+    file_id: str | None = None  # provider-managed ID (e.g., OpenAI/Gemini)
+    data_base64: str | None = None  # small payloads only
+    mime_type: str | None = None
+    size_bytes: int | None = None
+    sha256: str | None = None
+    filename: str | None = None
+    # Media-specific hints
+    width: int | None = None
+    height: int | None = None
+    duration_ms: int | None = None
+    page: int | None = None
+
+
+class AnnotationRef(BaseModel):
+    url: str | None = None
+    file_id: str | None = None
+    page: int | None = None
+    index: int | None = None
+    title: str | None = None
+
+
+class TextBlock(BaseModel):
+    type: Literal["text"] = "text"
+    text: str
+    annotations: list[AnnotationRef] = Field(default_factory=list)
+
+
+class ImageBlock(BaseModel):
+    type: Literal["image"] = "image"
+    media: MediaRef
+    alt_text: str | None = None
+    bbox: list[float] | None = None  # [x1,y1,x2,y2] if applicable
+
+
+class AudioBlock(BaseModel):
+    type: Literal["audio"] = "audio"
+    media: MediaRef
+    transcript: str | None = None
+    sample_rate: int | None = None
+    channels: int | None = None
+
+
+class VideoBlock(BaseModel):
+    type: Literal["video"] = "video"
+    media: MediaRef
+    thumbnail: MediaRef | None = None
+
+
+class DocumentBlock(BaseModel):
+    type: Literal["document"] = "document"
+    media: MediaRef
+    pages: list[int] | None = None
+    excerpt: str | None = None
+
+
+class DataBlock(BaseModel):
+    type: Literal["data"] = "data"
+    mime_type: str
+    data_base64: str | None = None
+    media: MediaRef | None = None
+
+
+class ToolCallBlock(BaseModel):
+    type: Literal["tool_call"] = "tool_call"
+    id: str
+    name: str
+    args: dict[str, Any] = Field(default_factory=dict)
+    tool_type: str | None = None  # e.g., web_search, file_search, computer_use
+
+
+class ToolResultBlock(BaseModel):
+    type: Literal["tool_result"] = "tool_result"
+    call_id: str
+    output: Any = None  # str | dict | MediaRef | list[ContentBlock-like]
+    is_error: bool = False
+    status: Literal["completed", "failed"] | None = None
+
+
+class ReasoningBlock(BaseModel):
+    type: Literal["reasoning"] = "reasoning"
+    summary: str
+    details: list[str] | None = None
+
+
+class AnnotationBlock(BaseModel):
+    type: Literal["annotation"] = "annotation"
+    kind: Literal["citation", "note"] = "citation"
+    refs: list[AnnotationRef] = Field(default_factory=list)
+    spans: list[tuple[int, int]] | None = None
+
+
+class ErrorBlock(BaseModel):
+    type: Literal["error"] = "error"
+    message: str
+    code: str | None = None
+    data: dict[str, Any] | None = None
+
+
+# Discriminated union over the "type" field
+ContentBlock = Annotated[
+    Union[
+        TextBlock,
+        ImageBlock,
+        AudioBlock,
+        VideoBlock,
+        DocumentBlock,
+        DataBlock,
+        ToolCallBlock,
+        ToolResultBlock,
+        ReasoningBlock,
+        AnnotationBlock,
+        ErrorBlock,
+    ],
+    Field(discriminator="type"),
+]
 
 
 class Message(BaseModel):
@@ -78,7 +209,6 @@ class Message(BaseModel):
         role (Literal["user", "assistant", "system", "tool"]): The role of the message sender.
         content (str): The message content.
         tools_calls (list[dict[str, Any]] | None): Tool call information, if any.
-        tool_call_id (str | None): Tool call identifier, if any.
         function_call (dict[str, Any] | None): Function call information, if any.
         reasoning (str | None): Reasoning or explanation, if any.
         timestamp (datetime | None): Timestamp of the message.
@@ -89,11 +219,10 @@ class Message(BaseModel):
 
     message_id: str | int
     role: Literal["user", "assistant", "system", "tool"]
-    content: str
+    # The message content can be simple text or a list of structured content blocks
+    content: list[ContentBlock]
+    delta: bool = False  # Indicates if this is a delta/partial message
     tools_calls: list[dict[str, Any]] | None = None
-    # Mainly used for reply to tool calls
-    tool_call_id: str | None = None
-    function_call: dict[str, Any] | None = None
     reasoning: str | None = None
     timestamp: datetime | None = Field(default_factory=datetime.now)
     metadata: dict[str, Any] = Field(default_factory=dict)
@@ -101,9 +230,9 @@ class Message(BaseModel):
     raw: dict[str, Any] | None = None
 
     @classmethod
-    def from_text(
+    def text_message(
         cls,
-        data: str,
+        content: str,
         role: Literal["user", "assistant", "system", "tool"] = "user",
         message_id: str | None = None,
     ) -> "Message":
@@ -122,7 +251,7 @@ class Message(BaseModel):
         return cls(
             message_id=generate_id(message_id),
             role=role,
-            content=data,
+            content=[TextBlock(text=content)],
             timestamp=datetime.now(),
             metadata={},
         )
@@ -166,13 +295,12 @@ class Message(BaseModel):
         # TODO: Add fallback for OpenAI style dict if needed
 
         try:
+            content = data["content"]
             return cls(
                 message_id=data.get("message_id", generate_id(None)),
                 role=data["role"],
-                content=data["content"],
+                content=content,
                 tools_calls=data.get("tools_calls"),
-                tool_call_id=data.get("tool_call_id"),
-                function_call=data.get("function_call"),
                 reasoning=data.get("reasoning"),
                 timestamp=timestamp,
                 metadata=data.get("metadata", {}),
@@ -186,9 +314,7 @@ class Message(BaseModel):
     @classmethod
     def tool_message(
         cls,
-        tool_call_id: str,
-        content: str,
-        is_error: bool = False,
+        content: list[ContentBlock],
         message_id: str | None = None,
         meta: dict[str, Any] | None = None,
     ):
@@ -196,7 +322,6 @@ class Message(BaseModel):
         Create a tool message, optionally marking it as an error.
 
         Args:
-            tool_call_id (str): The tool call identifier.
             content (str): The message content.
             is_error (bool): Whether this message represents an error.
             message_id (str | None): Optional message ID.
@@ -206,10 +331,6 @@ class Message(BaseModel):
             Message: The created tool message instance.
         """
         res = content
-        if is_error:
-            res = f'{{"success": False, "error": {content}}}'
-
-        logger.debug("Creating tool message with tool_call_id: %s", tool_call_id)
         msg_id = generate_id(message_id)
         return cls(
             message_id=msg_id,
@@ -217,43 +338,44 @@ class Message(BaseModel):
             content=res,
             timestamp=datetime.now(),
             metadata=meta or {},
-            tool_call_id=tool_call_id,
         )
 
-    @classmethod
-    def create(
-        cls,
-        role: Literal["user", "assistant", "system", "tool"] = "assistant",
-        content: str = "",
-        reasoning: str = "",
-        message_id: str | None = None,
-        tool_call_id: str | None = None,
-        tools_calls: list[dict[str, Any]] | None = None,
-        meta: dict[str, Any] | None = None,
-        raw: dict[str, Any] | None = None,
-    ):
-        """
-        Create a tool message, optionally marking it as an error.
+    # --- Convenience helpers ---
+    def text(self) -> str:
+        """Best-effort text extraction from content.
 
-        Args:
-            tool_call_id (str): The tool call identifier.
-            content (str): The message content.
-            is_error (bool): Whether this message represents an error.
-            message_id (str | None): Optional message ID.
-            meta (dict[str, Any] | None): Optional metadata.
-
-        Returns:
-            Message: The created tool message instance.
+        - If content is a string, return it.
+        - If it's a list of blocks, join text fields and tool_result string outputs.
         """
-        msg_id = generate_id(message_id)
-        return cls(
-            message_id=msg_id,
-            role=role,
-            content=content,
-            reasoning=reasoning,
-            timestamp=datetime.now(),
-            metadata=meta or {},
-            tools_calls=tools_calls,
-            tool_call_id=tool_call_id,
-            raw=raw,
-        )
+        parts: list[str] = []
+        for block in self.content:
+            if isinstance(block, TextBlock):
+                parts.append(block.text)
+            elif isinstance(block, ToolResultBlock) and isinstance(block.output, str):
+                parts.append(block.output)
+        return "".join(parts)
+
+    def attach_media(
+        self,
+        media: MediaRef,
+        as_type: Literal["image", "audio", "video", "document"],
+    ) -> None:
+        """Append a media block to the content (creates block list if content was text)."""
+        block: ContentBlock
+        if as_type == "image":
+            block = ImageBlock(media=media)
+        elif as_type == "audio":
+            block = AudioBlock(media=media)
+        elif as_type == "video":
+            block = VideoBlock(media=media)
+        elif as_type == "document":
+            block = DocumentBlock(media=media)
+        else:
+            raise ValueError(f"Unsupported media type: {as_type}")
+
+        if isinstance(self.content, str):
+            self.content = [TextBlock(text=self.content), block]
+        elif isinstance(self.content, list):
+            self.content.append(block)
+        else:
+            self.content = [block]

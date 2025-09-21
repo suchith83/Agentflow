@@ -14,9 +14,8 @@ import json
 import logging
 from typing import Any
 
-from pyagenity.utils.streaming import EventModel
-
 from .base_publisher import BasePublisher
+from .events import EventModel
 
 
 logger = logging.getLogger(__name__)

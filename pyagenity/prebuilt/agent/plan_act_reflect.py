@@ -43,7 +43,7 @@ def _should_act(state: AgentState) -> str:
         return "ACT"
 
     # If tool responded, reflect
-    if last.role == "tool" and last.tool_call_id is not None:
+    if last.role == "tool" and last is not None:
         return "REFLECT"
 
     return END

@@ -82,7 +82,7 @@ class TestInMemoryCheckpointer:
         checkpointer = InMemoryCheckpointer()
 
         thread_config = {"thread_id": "test_thread"}
-        messages = [Message.from_text("Hello", "user")]
+        messages = [Message.text_message("Hello", "user")]
 
         # Put messages
         checkpointer.put_messages(thread_config, messages)
@@ -144,7 +144,7 @@ class TestInMemoryCheckpointer:
         """Test async put messages."""
         checkpointer = InMemoryCheckpointer()
         config = {"thread_id": "test_thread"}
-        messages = [Message.from_text("Hello", "user")]
+        messages = [Message.text_message("Hello", "user")]
         result = await checkpointer.aput_messages(config, messages)
         assert result is True  # noqa: S101
 
@@ -153,7 +153,7 @@ class TestInMemoryCheckpointer:
         """Test async list messages."""
         checkpointer = InMemoryCheckpointer()
         config = {"thread_id": "test_thread"}
-        messages = [Message.from_text("Hello", "user")]
+        messages = [Message.text_message("Hello", "user")]
         await checkpointer.aput_messages(config, messages)
         result = await checkpointer.alist_messages(config)
         assert len(result) == 1  # noqa: S101
