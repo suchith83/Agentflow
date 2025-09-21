@@ -19,7 +19,7 @@ def get_weather(
     location: str,
     tool_call_id: str | None = None,
     state: AgentState | None = None,
-) -> Message:
+) -> str:
     """
     Get the current weather for a specific location.
     This demo shows injectable parameters: tool_call_id and state are automatically injected.
@@ -30,11 +30,7 @@ def get_weather(
     if state and hasattr(state, "context"):
         print(f"Number of messages in context: {len(state.context)}")  # type: ignore
 
-    res = f"The weather in {location} is sunny"
-    return Message.tool_message(
-        content=res,
-        tool_call_id=tool_call_id,  # type: ignore
-    )
+    return f"The weather in {location} is sunny"
 
 
 tool_node = ToolNode([get_weather])
