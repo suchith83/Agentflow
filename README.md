@@ -10,7 +10,6 @@
 
 PyAgenity is a lightweight Python framework for building intelligent agents and orchestrating multi-agent workflows on top of the LiteLLM unified LLM interface.
 
-
 ---
 
 ## Features
