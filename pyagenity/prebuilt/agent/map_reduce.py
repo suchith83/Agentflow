@@ -52,7 +52,7 @@ class MapReduceAgent[StateT: AgentState]:
             container=container,
         )
 
-    def compile(
+    def compile(  # noqa: PLR0912
         self,
         map_node: Callable | ToolNode | tuple[Callable | ToolNode, str],
         reduce_node: Callable | tuple[Callable, str],
@@ -65,6 +65,7 @@ class MapReduceAgent[StateT: AgentState]:
         callback_manager: CallbackManager = CallbackManager(),
     ) -> CompiledGraph:
         # Handle split_node
+        split_name = "SPLIT"
         if split_node:
             if isinstance(split_node, tuple):
                 split_func, split_name = split_node

@@ -137,7 +137,7 @@ class DeepResearchAgent[StateT: AgentState]:
         exec_meta.internal_data.setdefault("dr_iters", 0)
         exec_meta.internal_data.setdefault("dr_heavy_mode", bool(heavy_mode))
 
-    def compile(
+    def compile(  # noqa: PLR0912
         self,
         plan_node: Callable | tuple[Callable, str],
         research_tool_node: ToolNode | tuple[ToolNode, str],

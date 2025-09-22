@@ -98,7 +98,7 @@ class ToolNode(
             tools.extend(lc)
         return tools
 
-    async def invoke(
+    async def invoke(  # noqa: PLR0915
         self,
         name: str,
         args: dict,
@@ -221,7 +221,7 @@ class ToolNode(
             ],
         )
 
-    async def stream(
+    async def stream(  # noqa: PLR0915
         self,
         name: str,
         args: dict,

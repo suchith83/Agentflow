@@ -61,7 +61,7 @@ class RouterAgent[StateT: AgentState]:
             container=container,
         )
 
-    def compile(
+    def compile(  # noqa: PLR0912
         self,
         router_node: Callable | tuple[Callable, str],
         routes: dict[str, Callable | ToolNode | tuple[Callable | ToolNode, str]],

@@ -130,7 +130,7 @@ class StreamNodeHandler(BaseLoggingMixin):
 
         return input_data
 
-    async def _call_normal_node(
+    async def _call_normal_node(  # noqa: PLR0912, PLR0915
         self,
         state: "AgentState",
         config: dict[str, Any],

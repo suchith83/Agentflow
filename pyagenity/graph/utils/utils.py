@@ -61,7 +61,7 @@ def _update_state_fields(state, partial: dict):
             setattr(state, k, v)
 
 
-async def load_or_create_state[StateT: AgentState](
+async def load_or_create_state[StateT: AgentState](  # noqa: PLR0912, PLR0915
     input_data: dict[str, Any],
     config: dict[str, Any],
     old_state: StateT,
@@ -166,7 +166,7 @@ async def load_or_create_state[StateT: AgentState](
     return state  # type: ignore[return-value]
 
 
-async def process_node_result[StateT: AgentState](
+async def process_node_result[StateT: AgentState](  # noqa: PLR0915
     result: Any,
     state: StateT,
     messages: list[Message],

@@ -52,7 +52,7 @@ class SupervisorTeamAgent[StateT: AgentState]:
             container=container,
         )
 
-    def compile(
+    def compile(  # noqa: PLR0912
         self,
         supervisor_node: Callable | tuple[Callable, str],
         workers: dict[str, Callable | ToolNode | tuple[Callable | ToolNode, str]],

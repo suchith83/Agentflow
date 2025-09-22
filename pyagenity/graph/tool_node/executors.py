@@ -40,7 +40,7 @@ class ComposioMixin:
             logger.exception("Failed to fetch Composio tools: %s", e)
         return tools
 
-    async def _composio_execute(
+    async def _composio_execute(  # noqa: PLR0915
         self,
         name: str,
         args: dict,
@@ -223,7 +223,7 @@ class LangChainMixin:
             logger.warning("Failed to fetch LangChain tools: %s", e)
         return tools
 
-    async def _langchain_execute(
+    async def _langchain_execute(  # noqa: PLR0915
         self,
         name: str,
         args: dict,
