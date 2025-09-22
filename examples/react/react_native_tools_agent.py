@@ -10,6 +10,7 @@ import logging
 
 from litellm import acompletion
 
+from pyagenity.adapters.llm.model_response_converter import ModelResponseConverter
 from pyagenity.checkpointer import InMemoryCheckpointer
 from pyagenity.graph import StateGraph, ToolNode
 from pyagenity.prebuilt.tool import filter_tools, get_native_tools
@@ -48,7 +49,11 @@ async def main_agent(state: AgentState):
         return await acompletion(model="gemini/gemini-2.5-flash", messages=messages)
 
     tools = await tool_node.all_tools()
-    return await acompletion(model="gemini/gemini-2.5-flash", messages=messages, tools=tools)
+    res = await acompletion(model="gemini/gemini-2.5-flash", messages=messages, tools=tools)
+    return ModelResponseConverter(
+        res,
+        converter="litellm",
+    )
 
 
 def should_use_tools(state: AgentState) -> str:
@@ -74,7 +79,9 @@ app = graph.compile(checkpointer=checkpointer)
 
 if __name__ == "__main__":
     inp = {
-        "messages": [Message.from_text("Fetch https://example.com and save it to folder/page.txt")]
+        "messages": [
+            Message.text_message("Fetch https://example.com and save it to folder/page.txt")
+        ]
     }
     cfg = {"thread_id": "demo-1", "recursion_limit": 10}
     res = app.invoke(inp, config=cfg)

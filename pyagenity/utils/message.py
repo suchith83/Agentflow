@@ -219,7 +219,6 @@ class Message(BaseModel):
 
     message_id: str | int = Field(default_factory=lambda: generate_id(None))
     role: Literal["user", "assistant", "system", "tool"]
-    # The message content can be simple text or a list of structured content blocks
     content: list[ContentBlock]
     delta: bool = False  # Indicates if this is a delta/partial message
     tools_calls: list[dict[str, Any]] | None = None

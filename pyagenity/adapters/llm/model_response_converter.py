@@ -24,11 +24,11 @@ class ModelResponseConverter:
         self.response = response
 
         if isinstance(converter, str) and converter == "litellm":
-            from .litellm_converter import LiteLLMConverter
+            from .litellm_converter import LiteLLMConverter  # noqa: PLC0415
 
             self.converter = LiteLLMConverter()
         else:
-            self.converter = converter
+            raise ValueError(f"Unsupported converter: {converter}")
 
     async def invoke(self) -> Message:
         """Call the underlying function and convert a non-streaming response to Message."""

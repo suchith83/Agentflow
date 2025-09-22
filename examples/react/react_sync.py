@@ -77,6 +77,7 @@ def main_agent(
             tools=tools + mcp_tools,
         )
 
+    # Return str, Message, AgentState, Command or ModelResponseConverter
     return ModelResponseConverter(
         response,
         converter="litellm",

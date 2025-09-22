@@ -214,8 +214,8 @@ class LiteLLMConverter(BaseConverter):
 
                 if message:
                     yield message
-        except Exception:
-            logging.exception("Error processing stream chunk")
+        except Exception:  # noqa: S110
+            pass
 
         try:
             # lets use developer is using completion
@@ -233,8 +233,8 @@ class LiteLLMConverter(BaseConverter):
 
                 if message:
                     yield message
-        except Exception:
-            logging.exception("Error processing stream chunk")
+        except Exception:  # noqa: S110
+            pass
 
         # Loop done
         metadata = meta or {}
