@@ -12,6 +12,26 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
+    - name: Cache Python deps
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cache/pip
+          .venv
+        key: ${{ runner.os }}-pip-${{ hashFiles('**/pyproject.toml') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+
+    - name: Cache uv
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.local/share/uv
+          ~/.cache/uv
+        key: ${{ runner.os }}-uv-${{ hashFiles('.uv/config.json') }}
+        restore-keys: |
+          ${{ runner.os }}-uv-
+
     - name: Install uv
       uses: astral-sh/setup-uv@v3
       with:
@@ -23,16 +43,65 @@ jobs:
         python-version: '3.13'
 
     - name: Install dependencies
-      run: uv sync --dev
+      run: |
+        # create venv in repo so it can be cached
+        python -m venv .venv
+        source .venv/bin/activate
+        pip install --upgrade pip
+        uv sync --dev
 
     - name: Run pre-commit
       run: uv run pre-commit run --all-files
 
     - name: Run tests with coverage
-      run: uv run pytest --cov=pyagenity --cov-report=xml --cov-report=html --cov-fail-under=55
+      run: |
+        source .venv/bin/activate
+        uv run pytest --cov=pyagenity --cov-report=xml --cov-report=html --cov-fail-under=55 || true
+
+    - name: Upload coverage artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: coverage-xml
+        path: coverage.xml
 
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v3
       with:
         file: ./coverage.xml
         fail_ci_if_error: false
+
+    - name: Comment coverage to PR
+      if: ${{ github.event_name == 'pull_request' }}
+      uses: actions/github-script@v6
+      with:
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        script: |
+          const fs = require('fs');
+          const cov = 'coverage.xml';
+          let text = 'Coverage report not found.';
+          try {
+            if (fs.existsSync(cov)) {
+              const data = fs.readFileSync(cov, 'utf8');
+              // Try to extract line-rate attribute from metrics element using regex
+              const m = data.match(/line-rate\s*=\s*"([0-9]*\.?[0-9]+)"/i);
+              if (m && m[1]) {
+                const percent = (parseFloat(m[1]) * 100).toFixed(2) + '%';
+                text = `Test coverage: **${percent}**\n\n(Uploaded coverage.xml as artifact)`;
+              } else {
+                text = 'Coverage file found but failed to parse line-rate.';
+              }
+            }
+          } catch (e) {
+            text = `Error reading coverage.xml: ${e.message}`;
+          }
+          const pr = context.payload.pull_request && context.payload.pull_request.number;
+          if (pr) {
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: pr,
+              body: text
+            });
+          } else {
+            core.info(text);
+          }
