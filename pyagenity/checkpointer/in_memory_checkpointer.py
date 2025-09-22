@@ -4,6 +4,7 @@ from collections import defaultdict
 from typing import TYPE_CHECKING, Any, TypeVar
 
 from pyagenity.utils import Message
+from pyagenity.utils.thread_info import ThreadInfo
 
 from .base_checkpointer import BaseCheckpointer
 
@@ -271,25 +272,25 @@ class InMemoryCheckpointer[StateT: AgentState](BaseCheckpointer[StateT]):
     async def aput_thread(
         self,
         config: dict[str, Any],
-        thread_info: dict[str, Any],
+        thread_info: ThreadInfo,
     ) -> bool:
         """Store thread info asynchronously."""
         key = self._get_config_key(config)
         async with self._threads_lock:
-            self._threads[key] = thread_info.copy()
+            self._threads[key] = thread_info.model_dump()
             logger.debug(f"Stored thread info for key: {key}")
             return True
 
     async def aget_thread(
         self,
         config: dict[str, Any],
-    ) -> dict[str, Any] | None:
+    ) -> ThreadInfo | None:
         """Retrieve thread info asynchronously."""
         key = self._get_config_key(config)
         async with self._threads_lock:
             thread = self._threads.get(key)
             logger.debug(f"Retrieved thread for key: {key}, found: {thread is not None}")
-            return thread.copy() if thread else None
+            return ThreadInfo.model_validate(thread) if thread else None
 
     async def alist_threads(
         self,
@@ -297,7 +298,7 @@ class InMemoryCheckpointer[StateT: AgentState](BaseCheckpointer[StateT]):
         search: str | None = None,
         offset: int | None = None,
         limit: int | None = None,
-    ) -> list[dict[str, Any]]:
+    ) -> list[ThreadInfo]:
         """List all threads asynchronously with optional filtering."""
         async with self._threads_lock:
             threads = list(self._threads.values())
@@ -313,7 +314,7 @@ class InMemoryCheckpointer[StateT: AgentState](BaseCheckpointer[StateT]):
             # Apply offset and limit
             start = offset or 0
             end = (start + limit) if limit else None
-            return [thread.copy() for thread in threads[start:end]]
+            return [ThreadInfo.model_validate(thread) for thread in threads[start:end]]
 
     async def aclean_thread(self, config: dict[str, Any]) -> bool:
         """Clean/delete thread asynchronously."""
@@ -328,19 +329,19 @@ class InMemoryCheckpointer[StateT: AgentState](BaseCheckpointer[StateT]):
     # -------------------------
     # Thread methods sync
     # -------------------------
-    def put_thread(self, config: dict[str, Any], thread_info: dict[str, Any]) -> bool:
+    def put_thread(self, config: dict[str, Any], thread_info: ThreadInfo) -> bool:
         """Store thread info synchronously."""
         key = self._get_config_key(config)
-        self._threads[key] = thread_info.copy()
+        self._threads[key] = thread_info.model_dump()
         logger.debug(f"Stored thread info for key: {key}")
         return True
 
-    def get_thread(self, config: dict[str, Any]) -> dict[str, Any] | None:
+    def get_thread(self, config: dict[str, Any]) -> ThreadInfo | None:
         """Retrieve thread info synchronously."""
         key = self._get_config_key(config)
         thread = self._threads.get(key)
         logger.debug(f"Retrieved thread for key: {key}, found: {thread is not None}")
-        return thread.copy() if thread else None
+        return ThreadInfo.model_validate(thread) if thread else None
 
     def list_threads(
         self,
@@ -348,7 +349,7 @@ class InMemoryCheckpointer[StateT: AgentState](BaseCheckpointer[StateT]):
         search: str | None = None,
         offset: int | None = None,
         limit: int | None = None,
-    ) -> list[dict[str, Any]]:
+    ) -> list[ThreadInfo]:
         """List all threads synchronously with optional filtering."""
         threads = list(self._threads.values())
 
@@ -363,7 +364,7 @@ class InMemoryCheckpointer[StateT: AgentState](BaseCheckpointer[StateT]):
         # Apply offset and limit
         start = offset or 0
         end = (start + limit) if limit else None
-        return [thread.copy() for thread in threads[start:end]]
+        return [ThreadInfo.model_validate(thread) for thread in threads[start:end]]
 
     def clean_thread(self, config: dict[str, Any]) -> bool:
         """Clean/delete thread synchronously."""

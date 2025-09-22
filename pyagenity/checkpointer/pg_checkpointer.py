@@ -6,6 +6,8 @@ from typing import Any, TypeVar
 
 from injectq import InjectQ
 
+from pyagenity.utils.thread_info import ThreadInfo
+
 
 try:
     import asyncpg
@@ -837,7 +839,7 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
     async def aput_thread(
         self,
         config: dict[str, Any],
-        thread_info: dict[str, Any],
+        thread_info: ThreadInfo,
     ) -> Any | None:
         """Create or update thread information."""
         thread_id, user_id = self._validate_config(config)
@@ -845,8 +847,15 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
         logger.debug("Storing thread info for thread_id=%s, user_id=%s", thread_id, user_id)
 
         try:
-            thread_name = thread_info.get("thread_name", f"Thread {thread_id}")
-            meta = thread_info.get("meta", {})
+            thread_name = thread_info.thread_name or f"Thread {thread_id}"
+            meta = thread_info.metadata or {}
+            user_id = thread_info.user_id or user_id
+            meta.update(
+                {
+                    "stop_requested": thread_info.stop_requested,
+                    "run_id": thread_info.run_id,
+                }
+            )
 
             async def _put_thread():
                 async with (await self._get_pg_pool()).acquire() as conn:
@@ -875,7 +884,7 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
     async def aget_thread(
         self,
         config: dict[str, Any],
-    ) -> dict[str, Any] | None:
+    ) -> ThreadInfo | None:
         """Get thread information."""
         thread_id, user_id = self._validate_config(config)
 
@@ -898,14 +907,16 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
             row = await self._retry_on_connection_error(_get_thread, max_retries=3)
 
             if row:
-                return {
-                    "thread_id": row["thread_id"],
-                    "thread_name": row["thread_name"],
-                    "user_id": row["user_id"],
-                    "created_at": row["created_at"],
-                    "updated_at": row["updated_at"],
-                    "meta": row["meta"] or {},
-                }
+                return ThreadInfo(
+                    thread_id=thread_id,
+                    thread_name=row["thread_name"] if row else None,
+                    user_id=user_id,
+                    metadata=row["meta"] if row else {},
+                    stop_requested=row["meta"].get("stop_requested", False)
+                    if row and row["meta"]
+                    else False,
+                    run_id=row["meta"].get("run_id") if row and row["meta"] else None,
+                )
 
             logger.debug("Thread not found for thread_id=%s, user_id=%s", thread_id, user_id)
             return None
@@ -920,7 +931,7 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
         search: str | None = None,
         offset: int | None = None,
         limit: int | None = None,
-    ) -> list[dict[str, Any]]:
+    ) -> list[ThreadInfo]:
         """List threads for a user with optional search and pagination."""
         user_id = config.get("user_id")
 
@@ -966,14 +977,17 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
                 rows = []
 
             threads = [
-                {
-                    "thread_id": row["thread_id"],
-                    "thread_name": row["thread_name"],
-                    "user_id": row["user_id"],
-                    "created_at": row["created_at"],
-                    "updated_at": row["updated_at"],
-                    "meta": row["meta"] or {},
-                }
+                ThreadInfo(
+                    thread_id=row["thread_id"],
+                    thread_name=row["thread_name"],
+                    user_id=row["user_id"],
+                    metadata=row["meta"] or {},
+                    stop_requested=row["meta"].get("stop_requested", False)
+                    if row["meta"]
+                    else False,
+                    run_id=row["meta"].get("run_id") if row["meta"] else None,
+                    updated_at=row["updated_at"],
+                )
                 for row in rows
             ]
 
@@ -1016,12 +1030,12 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
     def put_thread(
         self,
         config: dict[str, Any],
-        thread_info: dict[str, Any],
+        thread_info: ThreadInfo,
     ) -> Any | None:
         """Sync version of put_thread."""
         return asyncio.run(self.aput_thread(config, thread_info))
 
-    def get_thread(self, config: dict[str, Any]) -> dict[str, Any] | None:
+    def get_thread(self, config: dict[str, Any]) -> ThreadInfo | None:
         """Sync version of get_thread."""
         return asyncio.run(self.aget_thread(config))
 
@@ -1031,7 +1045,7 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
         search: str | None = None,
         offset: int | None = None,
         limit: int | None = None,
-    ) -> list[dict[str, Any]]:
+    ) -> list[ThreadInfo]:
         """Sync version of list_threads."""
         return asyncio.run(self.alist_threads(config, search, offset, limit))
 

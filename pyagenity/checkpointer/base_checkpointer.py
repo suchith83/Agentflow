@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING, Any, TypeVar
 
 from pyagenity.state import AgentState
 from pyagenity.utils import Message
+from pyagenity.utils.thread_info import ThreadInfo
 
 
 logger = logging.getLogger(__name__)
@@ -148,7 +149,7 @@ class BaseCheckpointer[StateT: AgentState](ABC):
     async def aput_thread(
         self,
         config: dict[str, Any],
-        thread_info: dict[str, Any],
+        thread_info: ThreadInfo,
     ) -> Any | None:
         raise NotImplementedError
 
@@ -156,7 +157,7 @@ class BaseCheckpointer[StateT: AgentState](ABC):
     async def aget_thread(
         self,
         config: dict[str, Any],
-    ) -> dict[str, Any] | None:
+    ) -> ThreadInfo | None:
         raise NotImplementedError
 
     @abstractmethod
@@ -166,7 +167,7 @@ class BaseCheckpointer[StateT: AgentState](ABC):
         search: str | None = None,
         offset: int | None = None,
         limit: int | None = None,
-    ) -> list[dict[str, Any]]:
+    ) -> list[ThreadInfo]:
         raise NotImplementedError
 
     @abstractmethod
@@ -177,11 +178,11 @@ class BaseCheckpointer[StateT: AgentState](ABC):
     # Thread methods sync
     # -------------------------
     @abstractmethod
-    def put_thread(self, config: dict[str, Any], thread_info: dict[str, Any]) -> Any | None:
+    def put_thread(self, config: dict[str, Any], thread_info: ThreadInfo) -> Any | None:
         raise NotImplementedError
 
     @abstractmethod
-    def get_thread(self, config: dict[str, Any]) -> dict[str, Any] | None:
+    def get_thread(self, config: dict[str, Any]) -> ThreadInfo | None:
         raise NotImplementedError
 
     @abstractmethod
@@ -191,7 +192,7 @@ class BaseCheckpointer[StateT: AgentState](ABC):
         search: str | None = None,
         offset: int | None = None,
         limit: int | None = None,
-    ) -> list[dict[str, Any]]:
+    ) -> list[ThreadInfo]:
         raise NotImplementedError
 
     @abstractmethod

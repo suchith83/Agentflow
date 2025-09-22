@@ -4,6 +4,7 @@ import pytest
 
 from pyagenity.checkpointer import BaseCheckpointer, InMemoryCheckpointer
 from pyagenity.utils import Message
+from pyagenity.utils.thread_info import ThreadInfo
 
 
 class TestInMemoryCheckpointer:
@@ -66,7 +67,8 @@ class TestInMemoryCheckpointer:
             # Save state
             checkpointer.put_state(config, data)
             # Save thread info so list_threads can find it
-            checkpointer.put_thread(config, {"thread_id": checkpoint_id, "name": checkpoint_id})
+            info = ThreadInfo(thread_id=checkpoint_id, thread_name=checkpoint_id)
+            checkpointer.put_thread(config, info)
 
         # List checkpoints - this tests threads functionality
         config = {"thread_id": "test_thread"}
@@ -163,7 +165,7 @@ class TestInMemoryCheckpointer:
         """Test async put thread."""
         checkpointer = InMemoryCheckpointer()
         config = {"thread_id": "test_thread"}
-        thread_info = {"name": "test"}
+        thread_info = ThreadInfo(thread_id="test_thread", thread_name="test")
         result = await checkpointer.aput_thread(config, thread_info)
         assert result is True  # noqa: S101
 
@@ -172,7 +174,7 @@ class TestInMemoryCheckpointer:
         """Test async get thread."""
         checkpointer = InMemoryCheckpointer()
         config = {"thread_id": "test_thread"}
-        thread_info = {"name": "test"}
+        thread_info = ThreadInfo(thread_id="test_thread", thread_name="test")
         await checkpointer.aput_thread(config, thread_info)
         result = await checkpointer.aget_thread(config)
         assert result == thread_info  # noqa: S101

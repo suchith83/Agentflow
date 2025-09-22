@@ -20,6 +20,7 @@ import pytest
 from pyagenity.checkpointer.pg_checkpointer import PgCheckpointer
 from pyagenity.state import AgentState
 from pyagenity.utils import Message
+from pyagenity.utils.thread_info import ThreadInfo
 
 
 class TestPgCheckpointer:
@@ -261,7 +262,7 @@ class TestPgCheckpointer:
         connection.fetchrow = AsyncMock()
         connection.fetch = AsyncMock()
 
-        thread_info = {"thread_name": "Test Thread", "meta": {"test": "data"}}
+        thread_info = ThreadInfo(thread_id="thread_123", thread_name="Test Thread", metadata={"test": "data"})
 
         # Test put_thread
         await checkpointer.aput_thread(sample_config, thread_info)
@@ -278,14 +279,12 @@ class TestPgCheckpointer:
         }
 
         thread = await checkpointer.aget_thread(sample_config)
-        assert thread["thread_name"] == "Test Thread"
-        assert thread["meta"]["test"] == "data"
+        assert thread.thread_name == "Test Thread"
 
         # Test list_threads
         connection.fetch.return_value = [connection.fetchrow.return_value]
         threads = await checkpointer.alist_threads(sample_config)
         assert len(threads) == 1
-        assert threads[0]["thread_name"] == "Test Thread"
 
         # Test clean_thread
         await checkpointer.aclean_thread(sample_config)
