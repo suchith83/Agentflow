@@ -1,0 +1,1 @@
+::: pyagenity.exceptions

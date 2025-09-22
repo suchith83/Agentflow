@@ -8,8 +8,10 @@ from injectq import Inject
 
 from pyagenity.exceptions import NodeError
 from pyagenity.graph.tool_node import ToolNode
-from pyagenity.graph.utils.utils import process_node_result, publish_event
+from pyagenity.graph.utils.utils import process_node_result
 from pyagenity.publisher import BasePublisher
+from pyagenity.publisher.events import ContentType, Event, EventModel, EventType
+from pyagenity.publisher.publish import publish_event
 from pyagenity.state import AgentState
 from pyagenity.utils import (
     CallbackContext,
@@ -18,13 +20,14 @@ from pyagenity.utils import (
     Message,
     call_sync_or_async,
 )
-from pyagenity.utils.streaming import ContentType, Event, EventModel, EventType
+
+from .handler_mixins import BaseLoggingMixin
 
 
 logger = logging.getLogger(__name__)
 
 
-class InvokeNodeHandler:
+class InvokeNodeHandler(BaseLoggingMixin):
     def __init__(
         self,
         name: str,
@@ -191,12 +194,19 @@ class InvokeNodeHandler:
 
             # Process result and publish END event
             messages = []
-            new_state, messages, next_node = process_node_result(result, state, messages)
+            new_state, messages, next_node = await process_node_result(result, state, messages)
             event.data["state"] = new_state.model_dump()
             event.event_type = EventType.END
             event.metadata["status"] = "Function execution completed"
             event.data["messages"] = [m.model_dump() for m in messages] if messages else []
             event.data["next_node"] = next_node
+            # mirror simple content + structured blocks for the last message
+            if messages:
+                last = messages[-1]
+                event.content = last.text() if isinstance(last.content, list) else last.content
+                if isinstance(last.content, list):
+                    event.content_blocks = last.content
+
             publish_event(event)
 
             return {

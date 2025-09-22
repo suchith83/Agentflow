@@ -32,8 +32,8 @@ class StateGraph[StateT: AgentState]:
     """Main graph class for orchestrating multi-agent workflows.
 
     This class provides the core functionality for building and managing stateful
-    agent workflows. It is similar to LangGraph's StateGraph but designed for
-    direct LiteLLM integration with support for dependency injection.
+    agent workflows. It is similar to LangGraph's StateGraph
+    integration with support for dependency injection.
 
     The graph is generic over state types to support custom AgentState subclasses,
     allowing for type-safe state management throughout the workflow execution.
@@ -377,13 +377,13 @@ class StateGraph[StateT: AgentState]:
         # Import here to avoid circular import at module import time
         # Now update Checkpointer
         if checkpointer is None:
-            from pyagenity.checkpointer import InMemoryCheckpointer  # noqa: PLC0415
+            from pyagenity.checkpointer import InMemoryCheckpointer
 
             checkpointer = InMemoryCheckpointer[StateT]()
             logger.debug("No checkpointer provided, using InMemoryCheckpointer")
 
         # Import the CompiledGraph class
-        from .compiled_graph import CompiledGraph  # noqa: PLC0415
+        from .compiled_graph import CompiledGraph
 
         # Setup dependencies
         self._container.bind_instance(

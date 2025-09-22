@@ -1,7 +1,7 @@
 import logging
 from typing import TYPE_CHECKING, Any, Union
 
-from .message import Message
+from .message import Message, ToolResultBlock
 
 
 if TYPE_CHECKING:
@@ -13,20 +13,27 @@ logger = logging.getLogger(__name__)
 
 def _convert_dict(message: Message) -> dict[str, Any]:
     if message.role == "tool":
+        content = message.content
+        call_id = ""
+        for i in content:
+            if isinstance(i, ToolResultBlock):
+                call_id = i.call_id
+                break
+
         return {
             "role": message.role,
-            "content": message.content,
-            "tool_call_id": message.tool_call_id,
+            "content": message.text(),
+            "tool_call_id": call_id,
         }
 
     if message.role == "assistant" and message.tools_calls:
         return {
             "role": message.role,
-            "content": message.content if message.content else "",
+            "content": message.text(),
             "tool_calls": message.tools_calls,
         }
 
-    return {"role": message.role, "content": message.content}
+    return {"role": message.role, "content": message.text()}
 
 
 def convert_messages(

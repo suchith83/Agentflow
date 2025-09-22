@@ -1,18 +1,13 @@
 # TODO:
-1. Allow more types of streaming response, it only supported by litellm right now.
+1. Allow more types of streaming response, it only supported by litellm right now. (Partially done)
 2. All stop current execution, From frontend, we can stop the execution of a graph.
 3. All Remote Node support, that can be used to run nodes on remote machines.
 4. Allow different types of response like image, audio, video etc.
 
 
-
-
-
-Cancel Current Call, that need to be allowed
-
-
-
-# Feedback:
-2. Branching support for chat models
-3. Remote Node support
-
+# Top Priority Tasks
+1. Context Management: Store using Qdrant
+2. Integrate with mem0/zep for memory management
+3. Add More LLM Converter: Google, OpenAI
+4. Add More Tool Ecosystem: Google Tools, and OpenAI Tools
+5. Add Prebuilt Agents:

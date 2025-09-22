@@ -54,7 +54,7 @@ class SequentialAgent[StateT: AgentState]:
 
     def compile(
         self,
-        steps: Sequence[tuple[str, Callable | ToolNode]],
+        steps: Sequence[tuple[str, Callable | ToolNode] | tuple[Callable | ToolNode, str]],
         checkpointer: BaseCheckpointer[StateT] | None = None,
         store: BaseStore | None = None,
         interrupt_before: list[str] | None = None,
@@ -62,20 +62,29 @@ class SequentialAgent[StateT: AgentState]:
         callback_manager: CallbackManager = CallbackManager(),
     ) -> CompiledGraph:
         if not steps or len(steps) == 0:
-            raise ValueError("steps must be a non-empty sequence of (name, callable/ToolNode)")
+            raise ValueError(
+                "steps must be a non-empty sequence of (name, callable/ToolNode) o"
+                "or (callable/ToolNode, name)"
+            )
 
         # Add nodes
-        for name, func in steps:
+        step_names = []
+        for step in steps:
+            if isinstance(step[0], str):
+                name, func = step
+            else:
+                func, name = step
             if not (callable(func) or isinstance(func, ToolNode)):
                 raise ValueError(f"Step '{name}' must be a callable or ToolNode")
             self._graph.add_node(name, func)  # type: ignore[arg-type]
+            step_names.append(name)
 
         # Static edges in order
-        for i in range(len(steps) - 1):
-            self._graph.add_edge(steps[i][0], steps[i + 1][0])
+        for i in range(len(step_names) - 1):
+            self._graph.add_edge(step_names[i], step_names[i + 1])
 
         # Entry is the first step
-        self._graph.set_entry_point(steps[0][0])
+        self._graph.set_entry_point(step_names[0])
 
         # No explicit edge to END needed; the engine will end if no outgoing edges remain.
         return self._graph.compile(

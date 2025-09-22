@@ -5,13 +5,14 @@ from collections.abc import AsyncGenerator, AsyncIterable, Callable
 from typing import Any, Union
 
 from injectq import Inject
-from litellm import CustomStreamWrapper
-from litellm.types.utils import ModelResponseStream
 
+from pyagenity.adapters.llm.model_response_converter import ModelResponseConverter
 from pyagenity.exceptions import NodeError
 from pyagenity.graph.tool_node import ToolNode
 from pyagenity.graph.utils.stream_utils import check_non_streaming
-from pyagenity.graph.utils.utils import process_node_result, publish_event
+from pyagenity.graph.utils.utils import process_node_result
+from pyagenity.publisher.events import ContentType, Event, EventModel, EventType
+from pyagenity.publisher.publish import publish_event
 from pyagenity.state import AgentState
 from pyagenity.utils import (
     CallbackContext,
@@ -20,13 +21,15 @@ from pyagenity.utils import (
     Message,
     call_sync_or_async,
 )
-from pyagenity.utils.streaming import ContentType, Event, EventModel, EventType
+from pyagenity.utils.command import Command
+
+from .handler_mixins import BaseLoggingMixin
 
 
 logger = logging.getLogger(__name__)
 
 
-class StreamNodeHandler:
+class StreamNodeHandler(BaseLoggingMixin):
     def __init__(
         self,
         name: str,
@@ -127,12 +130,12 @@ class StreamNodeHandler:
 
         return input_data
 
-    async def _call_normal_node(
+    async def _call_normal_node(  # noqa: PLR0912, PLR0915
         self,
         state: "AgentState",
         config: dict[str, Any],
         callback_mgr: CallbackManager,
-    ) -> AsyncIterable[dict[str, Any] | EventModel | Message]:
+    ) -> AsyncIterable[dict[str, Any] | Message]:
         logger.debug("Node '%s' calling normal function", self.name)
         result: dict[str, Any] | Message = {}
 
@@ -167,12 +170,6 @@ class StreamNodeHandler:
             },
         )
         publish_event(event)
-        yield event
-
-        stream_event = EventModel.stream(
-            config,
-            node_name=self.name,
-        )
 
         try:
             logger.debug("Node '%s' executing before_invoke callbacks", self.name)
@@ -181,7 +178,6 @@ class StreamNodeHandler:
             logger.debug("Node '%s' executing function", self.name)
             event.event_type = EventType.PROGRESS
             event.content = "Function execution started"
-            yield event
             publish_event(event)
 
             # Execute the actual function
@@ -200,25 +196,44 @@ class StreamNodeHandler:
             ################### Logics for streaming ##########################
             ##############################################################################
             """
-            1. First check user sending any streaming or not, we can use AsyncIterable
-            If yes, we need to yield from it and collect chunks, we expect user are sending
-            chunks[text] in each yield, we will collect all and send as final response and
-            save inside message...
-            2. As this library has first class support for litellm, we will check if its
-            returning CustomStreamWrapper, if yes we will yield from it directly
-            3. If its normal response, we will convert to dict and send as normal response
+            Check user sending command or not
+            if command then we will check its streaming or not
+            if streaming then we will yield from converter stream
+            if not streaming then we will convert it and yield end event
+            if its not command then we will check its streaming or not
+            if streaming then we will yield from converter stream
+            if not streaming then we will convert it and yield end event
             """
             # first check its sync and not streaming
+            next_node = None
+            final_result = result
+            # if type of command then we will update it
+            if isinstance(result, Command):
+                # now check the updated
+                if result.update:
+                    final_result = result.update
+
+                if result.state:
+                    state = result.state
+                    for msg in state.context:
+                        yield msg
+
+                next_node = result.goto
+
             messages = []
-            if check_non_streaming(result):
-                new_state, messages, next_node = process_node_result(result, state, messages)
+            if check_non_streaming(final_result):
+                new_state, messages, next_node = await process_node_result(
+                    final_result,
+                    state,
+                    messages,
+                )
                 event.data["state"] = new_state.model_dump()
                 event.event_type = EventType.END
-                event.content = "Function execution completed"
                 event.data["messages"] = [m.model_dump() for m in messages] if messages else []
                 event.data["next_node"] = next_node
                 publish_event(event)
-                yield event
+                for m in messages:
+                    yield m
 
                 yield {
                     "is_non_streaming": True,
@@ -228,102 +243,43 @@ class StreamNodeHandler:
                 }
                 return  # done
 
-            # Now check its streaming
-            # Lets handle litellm streaming first
-
-            if isinstance(result, CustomStreamWrapper):
-                accumulated_content = ""
-                tool_calls = []
-                tool_ids = set()
-                accumulated_reasoning_content = ""
-                seq = 0
-                async for chunk in result:
-                    if not chunk:
-                        continue
-
-                    msg: ModelResponseStream = chunk  # type: ignore
-                    if msg is None:
-                        continue
-                    if msg.choices is None or len(msg.choices) == 0:
-                        continue
-                    delta = msg.choices[0].delta
-                    if delta is None:
-                        continue
-
-                    stream_event.content = delta.content if delta.content else ""
-                    stream_event.data = {
-                        "reasoning_content": getattr(delta, "reasoning_content", "") or "",
-                    }
-                    seq += 1
-                    stream_event.sequence_id = seq
-                    yield stream_event
-
-                    accumulated_content += delta.content if delta.content else ""
-                    accumulated_reasoning_content += getattr(delta, "reasoning_content", "") or ""
-                    if delta.tool_calls:
-                        for tc in delta.tool_calls:
-                            if not tc:
-                                continue
-
-                            if tc.id in tool_ids:
-                                continue
-
-                            tool_ids.add(tc.id)
-                            tool_calls.append(tc.model_dump())
-
-                    # yield tool calls as well
-                    if tool_calls and len(tool_calls) > 0:
-                        seq += 1
-                        stream_event.data["tool_calls"] = tool_calls
-                        stream_event.content = ""
-                        stream_event.delta = True
-                        stream_event.sequence_id = seq
-                        yield stream_event
-
-                # Loop done, now send final response
-                message = Message.create(
-                    role="assistant",
-                    content=accumulated_content,
-                    reasoning=accumulated_reasoning_content,
-                    tools_calls=tool_calls,
+            # If the result is a ConverterCall with stream=True, use the converter
+            if isinstance(result, ModelResponseConverter) and result.response:
+                stream_gen = result.stream(
+                    config,
+                    node_name=self.name,
                     meta={
-                        "node": self.name,
                         "function_name": getattr(self.func, "__name__", str(self.func)),
-                        "last_message": last_message.model_dump() if last_message else None,
                     },
                 )
-                messages.append(message)
-
-                stream_event.event_type = EventType.END
-                stream_event.content = accumulated_content
-                stream_event.sequence_id = seq + 1
-                stream_event.delta = False
-                stream_event.content_type = [
-                    ContentType.MESSAGE,
-                    ContentType.REASONING,
-                    ContentType.TEXT,
-                ]
-                stream_event.data = {
-                    "state": state.model_dump(),
-                    "messages": [m.model_dump() for m in messages] if messages else [],
-                    "next_node": None,
-                    "reasoning_content": accumulated_reasoning_content,
-                    "final_response": accumulated_content,
-                    "tool_calls": tool_calls,
-                }
-                yield stream_event
-
-                logger.info("Node '%s' execution completed successfully", self.name)
-                # yield message, that will be collected upstream
-                yield message
-
+                # this will return event_model or message
+                async for item in stream_gen:
+                    if isinstance(item, Message) and not item.delta:
+                        messages.append(item)
+                    yield item
             # Things are done, so publish event and yield final response
             event.event_type = EventType.END
-            event.content = "Function execution completed"
-            event.data["message"] = messages[0].model_dump() if messages else None
+            if messages:
+                final_msg = messages[-1]
+                event.data["message"] = final_msg.model_dump()
+                # Populate simple content and structured blocks when available
+                event.content = (
+                    final_msg.text() if isinstance(final_msg.content, list) else final_msg.content
+                )
+                if isinstance(final_msg.content, list):
+                    event.content_blocks = final_msg.content
+            else:
+                event.data["message"] = None
+                event.content = ""
+                event.content_blocks = None
             event.content_type = [ContentType.MESSAGE, ContentType.STATE]
             publish_event(event)
-            yield event
+            # if user use command and its streaming in that case we need to handle next node also
+            yield {
+                "is_non_streaming": False,
+                "messages": messages,
+                "next_node": next_node,
+            }
 
         except Exception as e:
             logger.warning(
@@ -343,7 +299,6 @@ class StreamNodeHandler:
                 event.data["message"] = recovery_result.model_dump()
                 event.content_type = [ContentType.MESSAGE, ContentType.STATE]
                 publish_event(event)
-                yield event
 
                 yield recovery_result
             else:
@@ -354,7 +309,6 @@ class StreamNodeHandler:
                 event.data["error"] = str(e)
                 event.content_type = [ContentType.ERROR, ContentType.STATE]
                 publish_event(event)
-                yield event
                 raise
 
     async def stream(
@@ -362,7 +316,7 @@ class StreamNodeHandler:
         config: dict[str, Any],
         state: AgentState,
         callback_mgr: CallbackManager = Inject[CallbackManager],
-    ) -> AsyncGenerator[dict[str, Any] | EventModel | Message]:
+    ) -> AsyncGenerator[dict[str, Any] | Message]:
         """Execute the node function with dependency injection support and callback hooks."""
         logger.info("Executing node '%s'", self.name)
         logger.debug(

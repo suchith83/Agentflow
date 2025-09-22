@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import datetime
 import logging
 from collections.abc import AsyncIterator, Generator
@@ -17,7 +18,7 @@ from pyagenity.utils import (
     ResponseGranularity,
 )
 from pyagenity.utils.background_task_manager import BackgroundTaskManager
-from pyagenity.utils.streaming import EventModel
+from pyagenity.utils.message import Message
 
 from .utils.invoke_handler import InvokeHandler
 from .utils.stream_handler import StreamHandler
@@ -160,10 +161,10 @@ class CompiledGraph[StateT: AgentState]:
         input_data: dict[str, Any],
         config: dict[str, Any] | None = None,
         response_granularity: ResponseGranularity = ResponseGranularity.LOW,
-    ) -> Generator[EventModel]:
+    ) -> Generator[Message]:
         """Execute the graph synchronously with streaming support.
 
-        Yields EventModel objects containing incremental responses.
+        Yields Message objects containing incremental responses.
         If nodes return streaming responses, yields them directly.
         If nodes return complete responses, simulates streaming by chunking.
 
@@ -173,7 +174,7 @@ class CompiledGraph[StateT: AgentState]:
             response_granularity: Response parsing granularity
 
         Yields:
-            EventModel objects with incremental content
+            Message objects with incremental content
         """
 
         # For sync streaming, we'll use asyncio.run to handle the async implementation
@@ -181,9 +182,14 @@ class CompiledGraph[StateT: AgentState]:
             async for chunk in self.astream(input_data, config, response_granularity):
                 yield chunk
 
-        # Use a helper to convert async generator to sync generator
+        # Convert async generator to sync iteration with a dedicated event loop
         gen = _async_stream()
         loop = asyncio.new_event_loop()
+        policy = asyncio.get_event_loop_policy()
+        try:
+            previous_loop = policy.get_event_loop()
+        except Exception:
+            previous_loop = None
         asyncio.set_event_loop(loop)
         logger.info("Synchronous streaming started")
 
@@ -195,7 +201,15 @@ class CompiledGraph[StateT: AgentState]:
                 except StopAsyncIteration:
                     break
         finally:
-            loop.close()
+            # Attempt to close the async generator cleanly
+            with contextlib.suppress(Exception):
+                loop.run_until_complete(gen.aclose())  # type: ignore[attr-defined]
+            # Restore previous loop if any, then close created loop
+            try:
+                if previous_loop is not None:
+                    asyncio.set_event_loop(previous_loop)
+            finally:
+                loop.close()
         logger.info("Synchronous streaming completed")
 
     async def astream(
@@ -203,10 +217,10 @@ class CompiledGraph[StateT: AgentState]:
         input_data: dict[str, Any],
         config: dict[str, Any] | None = None,
         response_granularity: ResponseGranularity = ResponseGranularity.LOW,
-    ) -> AsyncIterator[EventModel]:
+    ) -> AsyncIterator[Message]:
         """Execute the graph asynchronously with streaming support.
 
-        Yields EventModel objects containing incremental responses.
+        Yields Message objects containing incremental responses.
         If nodes return streaming responses, yields them directly.
         If nodes return complete responses, simulates streaming by chunking.
 
@@ -216,7 +230,7 @@ class CompiledGraph[StateT: AgentState]:
             response_granularity: Response parsing granularity
 
         Yields:
-            EventModel objects with incremental content
+            Message objects with incremental content
         """
 
         cfg = self._prepare_config(config, is_stream=True)

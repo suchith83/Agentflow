@@ -6,13 +6,12 @@ Allows combining state updates with control flow similar to LangGraph's Command.
 
 from typing import TYPE_CHECKING, TypeVar, Union
 
-from litellm.types.utils import ModelResponse
-
 from pyagenity.utils.message import Message
 
 
 if TYPE_CHECKING:
     # Import only for type checking to avoid circular imports at runtime
+    from pyagenity.adapters.llm.base_converter import BaseConverter
     from pyagenity.state import AgentState
 
 
@@ -31,9 +30,10 @@ class Command[StateT: AgentState]:
 
     def __init__(
         self,
-        update: Union["StateT", None, ModelResponse, Message, str] = None,
+        update: Union["StateT", None, Message, str, "BaseConverter"] = None,
         goto: str | None = None,
         graph: str | None = None,
+        state: StateT | None = None,
     ):
         """
         Initialize a Command.
@@ -46,6 +46,10 @@ class Command[StateT: AgentState]:
         self.update = update
         self.goto = goto
         self.graph = graph
+        self.state = state
 
     def __repr__(self) -> str:
-        return f"Command(update={self.update}, goto={self.goto}, graph={self.graph})"
+        return (
+            f"Command(update={self.update}, goto={self.goto}, \n"
+            f" graph={self.graph}, state={self.state})"
+        )

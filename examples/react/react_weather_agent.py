@@ -1,6 +1,7 @@
 from dotenv import load_dotenv
 from litellm import acompletion
 
+from pyagenity.adapters.llm.model_response_converter import ModelResponseConverter
 from pyagenity.checkpointer import InMemoryCheckpointer
 from pyagenity.graph import StateGraph, ToolNode
 from pyagenity.state.agent_state import AgentState
@@ -18,7 +19,7 @@ def get_weather(
     location: str,
     tool_call_id: str | None = None,
     state: AgentState | None = None,
-) -> Message:
+) -> str:
     """
     Get the current weather for a specific location.
     This demo shows injectable parameters: tool_call_id and state are automatically injected.
@@ -29,11 +30,7 @@ def get_weather(
     if state and hasattr(state, "context"):
         print(f"Number of messages in context: {len(state.context)}")  # type: ignore
 
-    res = f"The weather in {location} is sunny"
-    return Message.tool_message(
-        content=res,
-        tool_call_id=tool_call_id,  # type: ignore
-    )
+    return f"The weather in {location} is sunny"
 
 
 tool_node = ToolNode([get_weather])
@@ -65,12 +62,7 @@ async def main_agent(
     mcp_tools = []
 
     # Check if the last message is a tool result - if so, make final response without tools
-    if (
-        state.context
-        and len(state.context) > 0
-        and state.context[-1].role == "tool"
-        and state.context[-1].tool_call_id is not None
-    ):
+    if state.context and len(state.context) > 0 and state.context[-1].role == "tool":
         # Make final response without tools since we just got tool results
         response = await acompletion(
             model="gemini/gemini-2.5-flash",
@@ -85,7 +77,10 @@ async def main_agent(
             tools=tools + mcp_tools,
         )
 
-    return response
+    return ModelResponseConverter(
+        response,
+        converter="litellm",
+    )
 
 
 def should_use_tools(state: AgentState) -> str:
@@ -105,7 +100,7 @@ def should_use_tools(state: AgentState) -> str:
         return "TOOL"
 
     # If last message is a tool result, we should be done (AI will make final response)
-    if last_message.role == "tool" and last_message.tool_call_id is not None:
+    if last_message.role == "tool":
         return "MAIN"
 
     # Default to END for other cases
@@ -135,7 +130,7 @@ app = graph.compile(
 
 # now run it
 
-inp = {"messages": [Message.from_text("Please call the get_weather function for New York City")]}
+inp = {"messages": [Message.text_message("Please call the get_weather function for New York City")]}
 config = {"thread_id": "12345", "recursion_limit": 10}
 
 res = app.invoke(inp, config=config)

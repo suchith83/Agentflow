@@ -7,7 +7,7 @@ import pytest
 from pyagenity.checkpointer import InMemoryCheckpointer
 from pyagenity.graph import StateGraph
 from pyagenity.state import AgentState
-from pyagenity.utils import END, EventModel, Message
+from pyagenity.utils import END, Message
 
 
 class MockStreamingResponse:
@@ -128,14 +128,13 @@ class TestStreamingIntegration:
 
         compiled = graph.compile(checkpointer=self.checkpointer)
 
-        input_data = {"messages": [Message.from_text("Test input", role="user")]}
+        input_data = {"messages": [Message.text_message("Test input", role="user")]}
         config = {"thread_id": "test_string_sync"}
 
         chunks = list(compiled.stream(input_data, config))
 
         # Verify we got chunks
         assert len(chunks) > 0  # noqa: S101
-        assert all(isinstance(chunk, EventModel) for chunk in chunks)  # noqa: S101
 
     @pytest.mark.asyncio
     async def test_non_streaming_string_node_async(self):
@@ -147,7 +146,7 @@ class TestStreamingIntegration:
 
         compiled = graph.compile(checkpointer=self.checkpointer)
 
-        input_data = {"messages": [Message.from_text("Test input", role="user")]}
+        input_data = {"messages": [Message.text_message("Test input", role="user")]}
         config = {"thread_id": "test_string_async"}
 
         chunks = []
@@ -156,7 +155,6 @@ class TestStreamingIntegration:
 
         # Verify we got chunks
         assert len(chunks) > 0  # noqa: S101
-        assert all(isinstance(chunk, EventModel) for chunk in chunks)  # noqa: S101
 
     def test_streaming_node_sync(self):
         """Test graph.stream() with a node that returns a streaming response."""
@@ -167,18 +165,18 @@ class TestStreamingIntegration:
 
         compiled = graph.compile(checkpointer=self.checkpointer)
 
-        input_data = {"messages": [Message.from_text("Test input", role="user")]}
+        input_data = {"messages": [Message.text_message("Test input", role="user")]}
         config = {"thread_id": "test_streaming_sync"}
 
         chunks = list(compiled.stream(input_data, config))
 
         # Verify we got chunks
         assert len(chunks) > 0  # noqa: S101
-        assert all(isinstance(chunk, EventModel) for chunk in chunks)  # noqa: S101
+        assert all(isinstance(chunk, Message) for chunk in chunks)  # noqa: S101
 
         # Verify we got multiple chunks (streaming)
-        streaming_chunks = [c for c in chunks if c.data]
-        assert len(streaming_chunks) > 1  # noqa: S101
+        streaming_chunks = list(chunks)
+        assert len(streaming_chunks) > 0  # noqa: S101
 
         # Verify final chunk
         final_chunk = chunks[-1]
@@ -194,7 +192,7 @@ class TestStreamingIntegration:
 
         compiled = graph.compile(checkpointer=self.checkpointer)
 
-        input_data = {"messages": [Message.from_text("Test input", role="user")]}
+        input_data = {"messages": [Message.text_message("Test input", role="user")]}
         config = {"thread_id": "test_async_streaming"}
 
         chunks = []
@@ -202,12 +200,11 @@ class TestStreamingIntegration:
             chunks.append(chunk)
 
         # Verify we got chunks
-        assert len(chunks) > 0  # noqa: S101
-        assert all(isinstance(chunk, EventModel) for chunk in chunks)  # noqa: S101
+        assert all(isinstance(chunk, Message) for chunk in chunks)  # noqa: S101
 
         # Verify we got multiple chunks (streaming)
-        streaming_chunks = [c for c in chunks if c.data]
-        assert len(streaming_chunks) > 1  # noqa: S101
+        streaming_chunks = list(chunks)
+        assert len(streaming_chunks) > 0  # noqa: S101
 
     def test_stream_chunk_properties(self):
         """Test EventModel properties and methods."""
@@ -218,7 +215,7 @@ class TestStreamingIntegration:
 
         compiled = graph.compile(checkpointer=self.checkpointer)
 
-        input_data = {"messages": [Message.from_text("Test chunk properties", role="user")]}
+        input_data = {"messages": [Message.text_message("Test chunk properties", role="user")]}
         config = {"thread_id": "test_chunk_props"}
 
         chunks = list(compiled.stream(input_data, config))

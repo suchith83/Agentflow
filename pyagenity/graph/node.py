@@ -10,7 +10,6 @@ from pyagenity.publisher import BasePublisher
 from pyagenity.state import AgentState
 from pyagenity.utils import (
     CallbackManager,
-    EventModel,
     Message,
 )
 
@@ -92,7 +91,7 @@ class Node:
         config: dict[str, Any],
         state: AgentState,
         callback_mgr: CallbackManager = Inject[CallbackManager],
-    ) -> AsyncIterable[dict[str, Any] | EventModel | Message]:
+    ) -> AsyncIterable[dict[str, Any] | Message]:
         """Stream the node function with dependency injection support and callback hooks."""
         result = self.stream_handler.stream(
             config,

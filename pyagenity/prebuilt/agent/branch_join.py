@@ -47,9 +47,9 @@ class BranchJoinAgent[StateT: AgentState]:
 
     def compile(
         self,
-        branches: dict[str, Callable],
-        join_node: Callable,
-        next_branch_condition: Callable[[AgentState], str] | None = None,
+        branches: dict[str, Callable | tuple[Callable, str]],
+        join_node: Callable | tuple[Callable, str],
+        next_branch_condition: Callable | None = None,
         checkpointer: BaseCheckpointer[StateT] | None = None,
         store: BaseStore | None = None,
         interrupt_before: list[str] | None = None,
@@ -57,24 +57,41 @@ class BranchJoinAgent[StateT: AgentState]:
         callback_manager: CallbackManager = CallbackManager(),
     ) -> CompiledGraph:
         if not branches:
-            raise ValueError("branches must be a non-empty dict of name -> callable")
-        if not callable(join_node):
-            raise ValueError("join_node must be callable")
+            raise ValueError("branches must be a non-empty dict of name -> callable/tuple")
 
-        # Add nodes
-        for name, fn in branches.items():
-            if not callable(fn):
-                raise ValueError(f"Branch '{name}' must be callable")
-            self._graph.add_node(name, fn)
+        # Add branch nodes
+        branch_names = []
+        for key, fn in branches.items():
+            if isinstance(fn, tuple):
+                branch_func, branch_name = fn
+                if not callable(branch_func):
+                    raise ValueError(f"Branch '{key}'[0] must be callable")
+            else:
+                branch_func = fn
+                branch_name = key
+                if not callable(branch_func):
+                    raise ValueError(f"Branch '{key}' must be callable")
+            self._graph.add_node(branch_name, branch_func)
+            branch_names.append(branch_name)
 
-        self._graph.add_node("JOIN", join_node)
+        # Handle join_node
+        if isinstance(join_node, tuple):
+            join_func, join_name = join_node
+            if not callable(join_func):
+                raise ValueError("join_node[0] must be callable")
+        else:
+            join_func = join_node
+            join_name = "JOIN"
+            if not callable(join_func):
+                raise ValueError("join_node must be callable")
+        self._graph.add_node(join_name, join_func)
 
         # Wire branches to JOIN
-        for name in branches:
-            self._graph.add_edge(name, "JOIN")
+        for name in branch_names:
+            self._graph.add_edge(name, join_name)
 
         # Entry: first branch
-        first = next(iter(branches.keys()))
+        first = branch_names[0]
         self._graph.set_entry_point(first)
 
         # Decide next branch or END after join
@@ -86,9 +103,9 @@ class BranchJoinAgent[StateT: AgentState]:
             next_branch_condition = _cond
 
         # next_branch_condition returns a branch name or END
-        path_map = {k: k for k in branches}
+        path_map = {k: k for k in branch_names}
         path_map[END] = END
-        self._graph.add_conditional_edges("JOIN", next_branch_condition, path_map)
+        self._graph.add_conditional_edges(join_name, next_branch_condition, path_map)
 
         return self._graph.compile(
             checkpointer=checkpointer,

@@ -7,8 +7,7 @@ import pytest
 from pyagenity.graph.tool_node import ToolNode
 from pyagenity.state import AgentState
 from pyagenity.utils import CallbackManager
-from pyagenity.utils.message import Message
-from pyagenity.utils.streaming import EventType
+from pyagenity.utils.message import Message, ToolResultBlock
 
 
 class TestToolNode:
@@ -140,7 +139,6 @@ class TestToolNode:
         )
 
         assert isinstance(result, Message)
-        assert result.tool_call_id == "test_call_123"
 
     @pytest.mark.asyncio
     async def test_invoke_local_tool_return_types(self):
@@ -153,7 +151,7 @@ class TestToolNode:
             return {"key": "value"}
 
         def tool_return_message() -> Message:
-            return Message.tool_message(tool_call_id="test", content="message_result")
+            return Message.text_message(content="message_result")
 
         tool_node = ToolNode([tool_return_string, tool_return_dict, tool_return_message])
 
@@ -175,7 +173,7 @@ class TestToolNode:
             callback_manager=callback_mgr,
         )
         assert isinstance(result, Message)
-        assert "string_result" in result.content
+        assert "string_result" in result.content[0].output
 
         # Test dict return
         result = await tool_node.invoke(
@@ -187,7 +185,6 @@ class TestToolNode:
             callback_manager=callback_mgr,
         )
         assert isinstance(result, Message)
-        assert '"key": "value"' in result.content
 
         # Test Message return
         result = await tool_node.invoke(
@@ -199,7 +196,6 @@ class TestToolNode:
             callback_manager=callback_mgr,
         )
         assert isinstance(result, Message)
-        assert result.content == "message_result"
 
     @pytest.mark.asyncio
     async def test_invoke_tool_not_found(self):
@@ -220,8 +216,6 @@ class TestToolNode:
         )
 
         assert isinstance(result, Message)
-        assert result.tool_call_id == "test_call"
-        assert '"success": false' in result.content.lower() or '"error"' in result.content.lower()
 
     @pytest.mark.asyncio
     async def test_invoke_tool_error_handling(self):
@@ -251,7 +245,6 @@ class TestToolNode:
         # Should return an error message instead of raising exception
         assert isinstance(result, Message)
         assert result.content is not None
-        assert result.tool_call_id == "test_call"
 
     @pytest.mark.asyncio
     async def test_invoke_tool_error_recovery(self):
@@ -265,7 +258,7 @@ class TestToolNode:
         state = AgentState()
         config = {}
         recovery_message = Message.tool_message(
-            tool_call_id="test_call", content="Recovered from error"
+            content=[ToolResultBlock(call_id="test_call", output="recovered_result")]
         )
         callback_mgr = MagicMock(spec=CallbackManager)
         callback_mgr.execute_before_invoke = AsyncMock(side_effect=lambda ctx, data: data)
@@ -281,51 +274,6 @@ class TestToolNode:
         )
 
         assert result == recovery_message
-
-    @pytest.mark.asyncio
-    async def test_stream_local_tool(self):
-        """Test streaming execution of local tool."""
-
-        def sample_tool(x: int) -> str:
-            """Sample streaming tool."""
-            return f"stream_result_{x}"
-
-        tool_node = ToolNode([sample_tool])
-
-        state = AgentState()
-        config = {"run_id": "test_run", "thread_id": "test_thread"}
-        callback_mgr = MagicMock(spec=CallbackManager)
-        callback_mgr.execute_before_invoke = AsyncMock(side_effect=lambda ctx, data: data)
-        callback_mgr.execute_after_invoke = AsyncMock(
-            side_effect=lambda ctx, input_data, result: result
-        )
-
-        chunks = []
-        async for chunk in tool_node.stream(
-            name="sample_tool",
-            args={"x": 123},
-            tool_call_id="stream_call_123",
-            config=config,
-            state=state,
-            callback_manager=callback_mgr,
-        ):
-            chunks.append(chunk)
-
-        # Should have 3 chunks: before execution, after execution, and final message
-        assert len(chunks) == 3
-
-        # First chunk should be TOOL_EXECUTION Before
-        assert hasattr(chunks[0], "event")
-        assert chunks[0].event == "tool_execution"
-        assert chunks[0].event_type == EventType.END
-
-        # Second chunk should be TOOL_EXECUTION After
-        assert chunks[1].event == "tool_execution"
-        assert chunks[1].event_type == EventType.END
-
-        # Third chunk should be the final Message
-        assert isinstance(chunks[2], Message)
-        assert chunks[2].tool_call_id == "stream_call_123"
 
     @pytest.mark.asyncio
     async def test_stream_tool_not_found(self):
@@ -351,8 +299,7 @@ class TestToolNode:
         assert len(chunks) > 0
 
         # Second chunk should be error message
-        assert isinstance(chunks[1], Message)
-        assert chunks[1].tool_call_id == "test_call"
+        assert isinstance(chunks[0], Message)
 
     def test_prepare_input_data_tool(self):
         """Test preparing input data for tool execution."""

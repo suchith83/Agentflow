@@ -61,10 +61,10 @@ class RouterAgent[StateT: AgentState]:
             container=container,
         )
 
-    def compile(
+    def compile(  # noqa: PLR0912
         self,
-        router_node: Callable,
-        routes: dict[str, Callable | ToolNode],
+        router_node: Callable | tuple[Callable, str],
+        routes: dict[str, Callable | ToolNode | tuple[Callable | ToolNode, str]],
         condition: Callable[[AgentState], str] | None = None,
         path_map: dict[str, str] | None = None,
         checkpointer: BaseCheckpointer[StateT] | None = None,
@@ -73,25 +73,41 @@ class RouterAgent[StateT: AgentState]:
         interrupt_after: list[str] | None = None,
         callback_manager: CallbackManager = CallbackManager(),
     ) -> CompiledGraph:
-        if not callable(router_node):
-            raise ValueError("router_node must be a callable function")
+        # Handle router_node
+        if isinstance(router_node, tuple):
+            router_func, router_name = router_node
+            if not callable(router_func):
+                raise ValueError("router_node[0] must be callable")
+        else:
+            router_func = router_node
+            router_name = "ROUTER"
+            if not callable(router_func):
+                raise ValueError("router_node must be callable")
 
         if not routes:
-            raise ValueError("routes must be a non-empty dict of name -> callable/ToolNode")
-
-        # Add ROUTER as entry
-        self._graph.add_node("ROUTER", router_node)
+            raise ValueError("routes must be a non-empty dict of name -> callable/ToolNode/tuple")
 
         # Add route nodes
-        for name, func in routes.items():
-            if not (callable(func) or isinstance(func, ToolNode)):
-                raise ValueError(f"Route '{name}' must be a callable or ToolNode")
-            self._graph.add_node(name, func)  # type: ignore[arg-type]
+        route_names = []
+        for key, func in routes.items():
+            if isinstance(func, tuple):
+                route_func, route_name = func
+                if not (callable(route_func) or isinstance(route_func, ToolNode)):
+                    raise ValueError(f"Route '{key}'[0] must be callable or ToolNode")
+            else:
+                route_func = func
+                route_name = key
+                if not (callable(route_func) or isinstance(route_func, ToolNode)):
+                    raise ValueError(f"Route '{key}' must be callable or ToolNode")
+            self._graph.add_node(route_name, route_func)
+            route_names.append(route_name)
+
+        # Add router node as entry
+        self._graph.add_node(router_name, router_func)
 
         # Build default condition/path_map if needed
-        if condition is None and len(routes) == 1:
-            # If there's only one route, always choose it
-            only = next(iter(routes.keys()))
+        if condition is None and len(route_names) == 1:
+            only = route_names[0]
 
             def _always(_: AgentState) -> str:
                 return only
@@ -99,27 +115,27 @@ class RouterAgent[StateT: AgentState]:
             condition = _always
             path_map = {only: only, END: END}
 
-        if condition is None and len(routes) > 1:
+        if condition is None and len(route_names) > 1:
             raise ValueError("condition must be provided when multiple routes are defined")
 
         # If path_map is not provided, assume router returns exact route names
         if path_map is None:
-            path_map = {k: k for k in routes}
+            path_map = {k: k for k in route_names}
             path_map[END] = END
 
-        # Conditional edges from ROUTER based on condition results
+        # Conditional edges from router node based on condition results
         self._graph.add_conditional_edges(
-            "ROUTER",
+            router_name,
             condition,  # type: ignore[arg-type]
             path_map,
         )
 
-        # Loop back to ROUTER from each route node
-        for name in routes:
-            self._graph.add_edge(name, "ROUTER")
+        # Loop back to router node from each route node
+        for name in route_names:
+            self._graph.add_edge(name, router_name)
 
         # Entry
-        self._graph.set_entry_point("ROUTER")
+        self._graph.set_entry_point(router_name)
 
         return self._graph.compile(
             checkpointer=checkpointer,

@@ -1,4 +1,4 @@
-from __future__ import annotations
+from __future__ import annotations  # isort: skip_file
 
 import logging
 from typing import Any, TypeVar
@@ -13,17 +13,18 @@ from pyagenity.graph.utils.utils import (
     get_next_node,
     load_or_create_state,
     parse_response,
-    publish_event,
     sync_data,
 )
+from pyagenity.publisher.events import ContentType, Event, EventModel, EventType
+from pyagenity.publisher.publish import publish_event
 from pyagenity.state import AgentState, ExecutionStatus
-from pyagenity.utils import (
-    END,
-    Message,
-    ResponseGranularity,
-)
+from pyagenity.utils import END, Message, ResponseGranularity
 from pyagenity.utils.reducers import add_messages
-from pyagenity.utils.streaming import ContentType, Event, EventModel, EventType
+
+from .handler_mixins import (
+    BaseLoggingMixin,
+    InterruptConfigMixin,
+)
 
 
 StateT = TypeVar("StateT", bound=AgentState)
@@ -31,7 +32,10 @@ StateT = TypeVar("StateT", bound=AgentState)
 logger = logging.getLogger(__name__)
 
 
-class InvokeHandler[StateT: AgentState]:
+class InvokeHandler[StateT: AgentState](
+    BaseLoggingMixin,
+    InterruptConfigMixin,
+):
     @inject
     def __init__(
         self,
@@ -42,8 +46,11 @@ class InvokeHandler[StateT: AgentState]:
     ):
         self.nodes: dict[str, Node] = nodes
         self.edges: list[Edge] = edges
+        # Keep existing attributes for backward-compatibility
         self.interrupt_before = interrupt_before or []
         self.interrupt_after = interrupt_after or []
+        # And set via mixin for a single source of truth
+        self._set_interrupts(interrupt_before, interrupt_after)
 
     async def _check_interrupted(
         self,
@@ -80,9 +87,9 @@ class InvokeHandler[StateT: AgentState]:
         config: dict[str, Any],
     ) -> bool:
         """Check for interrupts and save state if needed. Returns True if interrupted."""
-        interrupt_nodes = (
+        interrupt_nodes: list[str] = (
             self.interrupt_before if interrupt_type == "before" else self.interrupt_after
-        )
+        ) or []
 
         if current_node in interrupt_nodes:
             status = (
@@ -111,7 +118,7 @@ class InvokeHandler[StateT: AgentState]:
         )
         return False
 
-    async def _execute_graph(
+    async def _execute_graph(  # noqa: PLR0912, PLR0915
         self,
         state: StateT,
         config: dict[str, Any],
@@ -243,6 +250,11 @@ class InvokeHandler[StateT: AgentState]:
                 event.event_type = EventType.UPDATE
                 event.data["state"] = state.model_dump()
                 event.data["messages"] = [m.model_dump() for m in messages] if messages else []
+                if messages:
+                    lm = messages[-1]
+                    event.content = lm.text() if isinstance(lm.content, list) else lm.content
+                    if isinstance(lm.content, list):
+                        event.content_blocks = lm.content
                 event.content_type = [ContentType.STATE, ContentType.MESSAGE]
                 publish_event(event)
 
@@ -322,6 +334,11 @@ class InvokeHandler[StateT: AgentState]:
             event.event_type = EventType.END
             event.data["state"] = state.model_dump()
             event.data["messages"] = [m.model_dump() for m in messages] if messages else []
+            if messages:
+                fm = messages[-1]
+                event.content = fm.text() if isinstance(fm.content, list) else fm.content
+                if isinstance(fm.content, list):
+                    event.content_blocks = fm.content
             event.content_type = [ContentType.STATE, ContentType.MESSAGE]
             event.metadata["status"] = "Graph execution completed"
             event.metadata["step"] = step

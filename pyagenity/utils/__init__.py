@@ -21,32 +21,46 @@ from .constants import END, START, ExecutionState, ResponseGranularity, StorageL
 from .converter import convert_messages
 
 # Export from message.py
-from .message import Message, TokenUsages
+from .message import (
+    AnnotationBlock,
+    ContentBlock,
+    DataBlock,
+    ErrorBlock,
+    Message,
+    ReasoningBlock,
+    TextBlock,
+    TokenUsages,
+    ToolCallBlock,
+    ToolResultBlock,
+)
 
 # Export from reducers.py
 from .reducers import add_messages, append_items, replace_messages, replace_value
-from .streaming import ContentType, Event, EventModel, EventType
 
 
 __all__ = [
     "END",
     "START",
     "AfterInvokeCallback",
+    "AnnotationBlock",
     "BeforeInvokeCallback",
     "CallbackContext",
     "CallbackManager",
     "Command",
-    "ContentType",
-    "Event",
-    "EventModel",
-    "EventType",
+    "ContentBlock",
+    "DataBlock",
+    "ErrorBlock",
     "ExecutionState",
     "InvocationType",
     "Message",
     "OnErrorCallback",
+    "ReasoningBlock",
     "ResponseGranularity",
     "StorageLevel",
+    "TextBlock",
     "TokenUsages",
+    "ToolCallBlock",
+    "ToolResultBlock",
     "add_messages",
     "append_items",
     "call_sync_or_async",

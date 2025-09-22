@@ -2,14 +2,15 @@
 
 from pyagenity.graph import CompiledGraph, StateGraph, ToolNode
 from pyagenity.publisher import ConsolePublisher
+from pyagenity.publisher.events import Event, EventModel, EventType
 from pyagenity.state import AgentState
 from pyagenity.utils import END, Message
-from pyagenity.utils.streaming import Event, EventModel, EventType
+from pyagenity.utils.message import ToolResultBlock
 
 
 def dummy_ai_agent(state: AgentState) -> dict:
     """Dummy AI agent that returns a simple response."""
-    return {"messages": [Message.from_text("AI response", role="assistant")]}
+    return {"messages": [Message.text_message("AI response", role="assistant")]}
 
 
 def dummy_tool_function(input_text: str) -> str:
@@ -50,15 +51,15 @@ class TestBasicIntegration:
         """Test state handling with messages."""
         # Create state with messages
         messages = [
-            Message.from_text("Hello", role="user"),
-            Message.from_text("Hi there!", role="assistant"),
+            Message.text_message("Hello", role="user"),
+            Message.text_message("Hi there!", role="assistant"),
         ]
 
         state = AgentState(context=messages)
 
         # Test state creation and message handling
         assert len(state.context) == 2  # noqa: S101  # noqa: PLR2004
-        assert state.context[0].content == "Hello"  # noqa: S101
+        assert state.context[0].content[0].text == "Hello"  # noqa: S101
         assert state.context[1].role == "assistant"  # noqa: S101
 
     def test_publisher_integration(self):
@@ -141,12 +142,14 @@ class TestBasicIntegration:
     def test_message_operations(self):
         """Test various message operations."""
         # Test different message creation methods
-        user_msg = Message.from_text("User message", role="user")
+        user_msg = Message.text_message("User message", role="user")
         assert user_msg.role == "user"  # noqa: S101
 
         # Test tool message
-        tool_msg = Message.tool_message("tool_call_1", "Tool result")
-        assert tool_msg.content == "Tool result"  # noqa: S101
+        tool_msg = Message.tool_message(
+            content=[ToolResultBlock(output="Tool result", call_id="1234")]
+        )
+        assert tool_msg.content[0].output == "Tool result"  # noqa: S101
 
         # Test message copy
         copied_msg = user_msg.copy()
@@ -169,7 +172,7 @@ class TestBasicIntegration:
 
     def test_error_handling_integration(self):
         """Test error handling with custom exceptions."""
-        from pyagenity.exceptions import GraphError, NodeError  # noqa: PLC0415
+        from pyagenity.exceptions import GraphError, NodeError
 
         # Test exception creation and inheritance
         graph_error = GraphError("Graph failed")
@@ -188,9 +191,9 @@ class TestBasicIntegration:
 def test_framework_import_coverage():
     """Test importing various framework components for coverage."""
     # Import and instantiate various components
-    from pyagenity.graph import Edge  # noqa: PLC0415
-    from pyagenity.state import ExecutionState, MessageContextManager  # noqa: PLC0415
-    from pyagenity.utils import Command, add_messages  # noqa: PLC0415
+    from pyagenity.graph import Edge
+    from pyagenity.state import ExecutionState, MessageContextManager
+    from pyagenity.utils import Command, add_messages
 
     # Test Edge creation
     edge = Edge(from_node="a", to_node="b")
@@ -216,7 +219,7 @@ def test_framework_import_coverage():
     assert cmd.goto == "next_node"  # noqa: S101
 
     # Test add_messages function
-    msg1 = [Message.from_text("Hello")]
-    msg2 = [Message.from_text("World")]
+    msg1 = [Message.text_message("Hello")]
+    msg2 = [Message.text_message("World")]
     combined = add_messages(msg1, msg2)
     assert len(combined) == 2  # noqa: S101  # noqa: PLR2004

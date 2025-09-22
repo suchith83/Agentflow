@@ -307,7 +307,11 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
 
         return thread_id, user_id
 
-    def _get_thread_key(self, thread_id: str | int, user_id: str | int) -> str:
+    def _get_thread_key(
+        self,
+        thread_id: str | int,
+        user_id: str | int,
+    ) -> str:
         """Get Redis cache key for thread state."""
         return f"state_cache:{thread_id}:{user_id}"
 
@@ -321,15 +325,30 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
 
         return json.dumps(state.model_dump(), default=enum_handler)
 
-    def _deserialize_state(self, data: str, state_class: type[StateT]) -> StateT:
+    def _deserialize_state(
+        self,
+        data: str,
+        state_class: type[StateT],
+    ) -> StateT:
         """Deserialize JSON string back to state object."""
         return state_class.model_validate(json.loads(data))
 
-    async def _run_sync(self, func, *args, **kwargs):
+    async def _run_sync(
+        self,
+        func,
+        *args,
+        **kwargs,
+    ):
         """Run a synchronous function in a thread pool."""
         return await asyncio.to_thread(func, *args, **kwargs)
 
-    async def _retry_on_connection_error(self, operation, *args, max_retries=3, **kwargs):
+    async def _retry_on_connection_error(
+        self,
+        operation,
+        *args,
+        max_retries=3,
+        **kwargs,
+    ):
         """Retry database operations on connection errors."""
         last_exception = None
 
@@ -372,7 +391,11 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
     #### STATE METHODS ########
     ###########################
 
-    async def aput_state(self, config: dict[str, Any], state: StateT) -> StateT:
+    async def aput_state(
+        self,
+        config: dict[str, Any],
+        state: StateT,
+    ) -> StateT:
         """Store state in PostgreSQL and optionally cache in Redis."""
         thread_id, user_id = self._validate_config(config)
 
@@ -475,6 +498,7 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
             state_json = self._serialize_state(state)
             await self.redis.setex(cache_key, self.cache_ttl, state_json)
             logger.debug("State cached with key=%s, ttl=%d", cache_key, self.cache_ttl)
+            return True
 
         except Exception as e:
             logger.error("Failed to cache state for thread_id=%s: %s", thread_id, e)
@@ -513,7 +537,10 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
             return await self.aget_state(config)
 
     async def _ensure_thread_exists(
-        self, thread_id: str | int, user_id: str | int, config: dict[str, Any]
+        self,
+        thread_id: str | int,
+        user_id: str | int,
+        config: dict[str, Any],
     ) -> None:
         """Ensure thread exists in database, create if not."""
         try:
@@ -614,7 +641,6 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
                             message.role,
                             message.content,
                             json.dumps(message.tools_calls) if message.tools_calls else None,
-                            message.tool_call_id,
                             message.reasoning,
                             message.usages.total_tokens if message.usages else 0,
                             json.dumps(message.usages.model_dump()) if message.usages else None,
@@ -722,7 +748,11 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
             logger.error("Failed to list messages for thread_id=%s: %s", thread_id, e)
             raise
 
-    async def adelete_message(self, config: dict[str, Any], message_id: str | int) -> Any | None:
+    async def adelete_message(
+        self,
+        config: dict[str, Any],
+        message_id: str | int,
+    ) -> Any | None:
         """Delete a message by ID."""
         thread_id = config.get("thread_id")
 
@@ -743,6 +773,7 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
 
             await self._retry_on_connection_error(_delete_message, max_retries=3)
             logger.info("Deleted message_id=%s", message_id)
+            return None
 
         except Exception as e:
             logger.error("Failed to delete message_id=%s: %s", message_id, e)
@@ -750,7 +781,7 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
 
     def _row_to_message(self, row) -> Message:
         """Convert database row to Message object."""
-        from pyagenity.utils.message import TokenUsages  # noqa: PLC0415
+        from pyagenity.utils.message import TokenUsages
 
         usages = None
         if row["usages"]:
@@ -762,7 +793,6 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
             role=row["role"],
             content=row["content"],
             tools_calls=json.loads(row["tool_calls"]) if row["tool_calls"] else None,
-            tool_call_id=row["tool_call_id"],
             reasoning=row["reasoning"],
             timestamp=row["created_at"],
             metadata=json.loads(row["meta"]) if row["meta"] else {},
@@ -983,7 +1013,11 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
             raise
 
     # Sync variants
-    def put_thread(self, config: dict[str, Any], thread_info: dict[str, Any]) -> Any | None:
+    def put_thread(
+        self,
+        config: dict[str, Any],
+        thread_info: dict[str, Any],
+    ) -> Any | None:
         """Sync version of put_thread."""
         return asyncio.run(self.aput_thread(config, thread_info))
 

@@ -71,8 +71,8 @@ class GuardedAgent[StateT: AgentState]:
 
     def compile(
         self,
-        produce_node: Callable,
-        repair_node: Callable,
+        produce_node: Callable | tuple[Callable, str],
+        repair_node: Callable | tuple[Callable, str],
         validator: Callable[[AgentState], bool],
         max_attempts: int = 2,
         checkpointer: BaseCheckpointer[StateT] | None = None,
@@ -81,19 +81,42 @@ class GuardedAgent[StateT: AgentState]:
         interrupt_after: list[str] | None = None,
         callback_manager: CallbackManager = CallbackManager(),
     ) -> CompiledGraph:
-        if not callable(produce_node) or not callable(repair_node):
-            raise ValueError("produce_node and repair_node must be callable")
+        # Handle produce_node
+        if isinstance(produce_node, tuple):
+            produce_func, produce_name = produce_node
+            if not callable(produce_func):
+                raise ValueError("produce_node[0] must be callable")
+        else:
+            produce_func = produce_node
+            produce_name = "PRODUCE"
+            if not callable(produce_func):
+                raise ValueError("produce_node must be callable")
 
-        self._graph.add_node("PRODUCE", produce_node)
-        self._graph.add_node("REPAIR", repair_node)
+        # Handle repair_node
+        if isinstance(repair_node, tuple):
+            repair_func, repair_name = repair_node
+            if not callable(repair_func):
+                raise ValueError("repair_node[0] must be callable")
+        else:
+            repair_func = repair_node
+            repair_name = "REPAIR"
+            if not callable(repair_func):
+                raise ValueError("repair_node must be callable")
+
+        self._graph.add_node(produce_name, produce_func)
+        self._graph.add_node(repair_name, repair_func)
 
         # produce -> END or REPAIR
         condition = _guard_condition_factory(validator, max_attempts)
-        self._graph.add_conditional_edges("PRODUCE", condition, {"REPAIR": "REPAIR", END: END})
+        self._graph.add_conditional_edges(
+            produce_name,
+            condition,
+            {repair_name: repair_name, END: END},
+        )
         # repair -> produce
-        self._graph.add_edge("REPAIR", "PRODUCE")
+        self._graph.add_edge(repair_name, produce_name)
 
-        self._graph.set_entry_point("PRODUCE")
+        self._graph.set_entry_point(produce_name)
 
         return self._graph.compile(
             checkpointer=checkpointer,

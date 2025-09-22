@@ -69,12 +69,7 @@ async def main_agent(
 
     is_stream = config.get("is_stream", False)
 
-    if (
-        state.context
-        and len(state.context) > 0
-        and state.context[-1].role == "tool"
-        and state.context[-1].tool_call_id is not None
-    ):
+    if state.context and len(state.context) > 0 and state.context[-1].role == "tool":
         response = await acompletion(
             model="gemini/gemini-2.5-flash",
             messages=messages,
@@ -116,12 +111,7 @@ def main_agent_sync(
     is_stream = config.get("is_stream", False)
 
     async def _async_call():
-        if (
-            state.context
-            and len(state.context) > 0
-            and state.context[-1].role == "tool"
-            and state.context[-1].tool_call_id is not None
-        ):
+        if state.context and len(state.context) > 0 and state.context[-1].role == "tool":
             response = await acompletion(
                 model="gemini/gemini-2.5-flash",
                 messages=messages,
@@ -156,7 +146,7 @@ def should_use_tools(state: AgentState) -> str:
     ):
         return "TOOL"
 
-    if last_message.role == "tool" and last_message.tool_call_id is not None:
+    if last_message.role == "tool":
         return END
 
     return END
@@ -182,7 +172,7 @@ app = graph.compile(
 
 
 async def run_stream_test() -> None:
-    inp = {"messages": [Message.from_text("Call get_weather for Tokyo, then reply.")]}
+    inp = {"messages": [Message.text_message("Call get_weather for Tokyo, then reply.")]}
     config = {"thread_id": "stream-1", "recursion_limit": 10}
 
     logging.info("--- streaming start ---")
@@ -215,7 +205,7 @@ async def run_sync_test() -> None:
         checkpointer=checkpointer,
     )
 
-    inp = {"messages": [Message.from_text("Call get_weather for Tokyo, then reply.")]}
+    inp = {"messages": [Message.text_message("Call get_weather for Tokyo, then reply.")]}
     config = {"thread_id": "sync-1", "recursion_limit": 10}
 
     logging.info("--- sync test start ---")
@@ -257,12 +247,7 @@ async def run_sync_stream_test() -> None:
         is_stream = True
 
         async def _async_call():
-            if (
-                state.context
-                and len(state.context) > 0
-                and state.context[-1].role == "tool"
-                and state.context[-1].tool_call_id is not None
-            ):
+            if state.context and len(state.context) > 0 and state.context[-1].role == "tool":
                 response = await acompletion(
                     model="gemini/gemini-2.5-flash",
                     messages=messages,
@@ -297,7 +282,7 @@ async def run_sync_stream_test() -> None:
         checkpointer=checkpointer,
     )
 
-    inp = {"messages": [Message.from_text("Call get_weather for Tokyo, then reply.")]}
+    inp = {"messages": [Message.text_message("Call get_weather for Tokyo, then reply.")]}
     config = {"thread_id": "sync-stream-1", "recursion_limit": 10}
 
     logging.info("--- sync stream test start ---")
@@ -334,12 +319,7 @@ async def run_non_stream_test() -> None:
         # Always disable streaming
         is_stream = False
 
-        if (
-            state.context
-            and len(state.context) > 0
-            and state.context[-1].role == "tool"
-            and state.context[-1].tool_call_id is not None
-        ):
+        if state.context and len(state.context) > 0 and state.context[-1].role == "tool":
             response = await acompletion(
                 model="gemini/gemini-2.5-flash",
                 messages=messages,
@@ -372,7 +352,7 @@ async def run_non_stream_test() -> None:
         checkpointer=checkpointer,
     )
 
-    inp = {"messages": [Message.from_text("Call get_weather for Tokyo, then reply.")]}
+    inp = {"messages": [Message.text_message("Call get_weather for Tokyo, then reply.")]}
     config = {"thread_id": "non-stream-1", "recursion_limit": 10}
 
     logging.info("--- non-stream test start ---")

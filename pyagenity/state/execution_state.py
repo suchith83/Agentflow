@@ -1,5 +1,6 @@
 """
-Execution state management for graph execution with pause/resume functionality.
+Execution state management for graph execution with pause/resume
+functionality.
 """
 
 import logging

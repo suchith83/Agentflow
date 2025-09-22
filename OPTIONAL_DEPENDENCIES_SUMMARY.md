@@ -22,6 +22,14 @@ mcp = [
     "fastmcp>=2.11.3",
     "mcp>=1.13.0"
 ]
+composio = [
+    "composio>=0.8.0"
+]
+langchain = [
+    "langchain-core>=0.3.0",
+    "langchain-community>=0.3.0",
+    "tavily-python>=0.5.0"
+]
 redis = ["redis>=4.2"]
 kafka = ["aiokafka>=0.8.0"]
 rabbitmq = ["aio-pika>=9.0.0"]
@@ -63,6 +71,30 @@ if client is not None:
             "MCP client functionality requires 'fastmcp' and 'mcp' packages. "
             "Install with: pip install pyagenity[mcp]"
         )
+```
+
+**Added Composio optional dependency handling and adapter integration:**
+- New integrations package at `pyagenity/integrations/` with `composio_adapter.py`
+- `ToolNode` constructor accepts `composio_adapter` and can discover/execute Composio tools
+- Discovery via `list_raw_tools_for_llm` to expose tools as function-calling specs
+- Execution path `_composio_execute` mirrors MCP/local flows with callbacks and events
+
+Install the extra to enable:
+
+```bash
+pip install pyagenity[composio]
+```
+
+**Added LangChain optional dependency handling and adapter integration:**
+- New adapter at `pyagenity/adapters/tools/langchain_adapter.py` with a selective set (Tavily, Requests)
+- `ToolNode` constructor accepts `langchain_adapter` and can discover/execute LangChain tools
+- Discovery via `list_tools_for_llm` to expose tools as function-calling specs
+- Execution path `_langchain_execute` mirrors other flows with callbacks and events
+
+Install the extra to enable:
+
+```bash
+pip install pyagenity[langchain]
 ```
 
 ### 4. Updated `checkpointer/__init__.py`
@@ -111,9 +143,47 @@ pip install pyagenity[mcp]
 **Adds:** fastmcp, mcp
 **Enables:** MCP client integration in ToolNode
 
+### With Composio Tools
+```bash
+pip install pyagenity[composio]
+```
+**Adds:** composio
+**Enables:** Composio adapter integration in ToolNode for tool discovery and execution
+
+### With LangChain Tools (registry-based)
+```bash
+pip install pyagenity[langchain]
+```
+**Adds:** langchain-core, langchain-community, tavily-python, langchain-tavily
+**Enables:** LangChain adapter integration in ToolNode. Register any LangChain tools you like, or rely on the default autoload of a couple of common tools.
+
+Basic usage:
+
+```python
+from pyagenity.adapters.tools.langchain_adapter import LangChainAdapter
+from pyagenity.graph import ToolNode
+
+# Create adapter and register arbitrary LangChain tools
+adapter = LangChainAdapter()  # autoloads a couple defaults if registry empty
+
+# You can also register your own tools explicitly
+# from langchain_community.tools import DuckDuckGoSearchRun
+# adapter.register_tool(DuckDuckGoSearchRun())
+
+tool_node = ToolNode([], langchain_adapter=adapter)
+tools_for_llm = tool_node.all_tools_sync()  # returns unified function-calling schemas
+```
+
+To disable the convenience autoload:
+
+```python
+adapter = LangChainAdapter(autoload_default_tools=False)
+adapter.register_tools([your_tool, another_tool])
+```
+
 ### Multiple Extras
 ```bash
-pip install pyagenity[pg_checkpoint,mcp,redis]
+pip install pyagenity[pg_checkpoint,mcp,composio,langchain,redis]
 ```
 
 ## Error Messages
@@ -130,6 +200,12 @@ from pyagenity.checkpointer import PgCheckpointer
 tool_node = ToolNode([], client=mcp_client)
 # ImportError: MCP client functionality requires 'fastmcp' and 'mcp' packages.
 # Install with: pip install pyagenity[mcp]
+
+# Without langchain extra
+# When constructing the adapter directly
+from pyagenity.adapters.tools.langchain_adapter import LangChainAdapter
+# ImportError: LangChainAdapter requires 'langchain-core' and optional integrations.
+# Install with: pip install pyagenity[langchain]
 ```
 
 ## Testing

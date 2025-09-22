@@ -1,4 +1,4 @@
-from __future__ import annotations
+from __future__ import annotations  # isort: skip_file
 
 import logging
 import time
@@ -10,21 +10,21 @@ from injectq import inject
 from pyagenity.exceptions import GraphRecursionError
 from pyagenity.graph.edge import Edge
 from pyagenity.graph.node import Node
+from pyagenity.publisher.events import ContentType, Event, EventModel, EventType
+from pyagenity.publisher.publish import publish_event
 from pyagenity.state import AgentState, ExecutionStatus
-from pyagenity.utils import (
-    END,
-    Message,
-    ResponseGranularity,
-    add_messages,
-)
-from pyagenity.utils.streaming import ContentType, Event, EventModel, EventType
+from pyagenity.utils import END, Message, ResponseGranularity, add_messages
+from pyagenity.utils.message import ErrorBlock
 
+from .handler_mixins import (
+    BaseLoggingMixin,
+    InterruptConfigMixin,
+)
 from .utils import (
     call_realtime_sync,
     get_next_node,
     load_or_create_state,
     process_node_result,
-    publish_event,
     sync_data,
 )
 
@@ -34,7 +34,10 @@ StateT = TypeVar("StateT", bound=AgentState)
 logger = logging.getLogger(__name__)
 
 
-class StreamHandler[StateT: AgentState]:
+class StreamHandler[StateT: AgentState](
+    BaseLoggingMixin,
+    InterruptConfigMixin,
+):
     @inject
     def __init__(
         self,
@@ -47,6 +50,7 @@ class StreamHandler[StateT: AgentState]:
         self.edges: list[Edge] = edges
         self.interrupt_before = interrupt_before or []
         self.interrupt_after = interrupt_after or []
+        self._set_interrupts(interrupt_before, interrupt_after)
 
     async def _check_interrupted(
         self,
@@ -83,9 +87,9 @@ class StreamHandler[StateT: AgentState]:
         config: dict[str, Any],
     ) -> bool:
         """Check for interrupts and save state if needed. Returns True if interrupted."""
-        interrupt_nodes = (
+        interrupt_nodes: list[str] = (
             self.interrupt_before if interrupt_type == "before" else self.interrupt_after
-        )
+        ) or []
 
         if current_node in interrupt_nodes:
             status = (
@@ -114,11 +118,12 @@ class StreamHandler[StateT: AgentState]:
         )
         return False
 
-    async def _execute_graph(
+    async def _execute_graph(  # noqa: PLR0912, PLR0915
         self,
         state: StateT,
+        input_data: dict[str, Any],
         config: dict[str, Any],
-    ) -> AsyncIterable[EventModel | dict[str, Any]]:
+    ) -> AsyncIterable[Message]:
         """
         Execute the entire graph with support for interrupts and resuming.
 
@@ -136,14 +141,14 @@ class StreamHandler[StateT: AgentState]:
         max_steps = config.get("recursion_limit", 25)
         logger.debug("Max steps limit set to %d", max_steps)
 
-        last_human_message = state.context[-1] if state.context else None
-        if last_human_message and last_human_message.role != "user":
-            msg = [msg for msg in reversed(state.context) if msg.role == "user"]
-            last_human_message = msg[0] if msg else None
-
-        if last_human_message:
-            logger.debug("Last human message: %s", last_human_message.content)
-            messages.append(last_human_message)
+        last_human_messages = input_data.get("messages", []) or []
+        # Stream initial input messages (e.g., human messages) so callers see full conversation
+        # Only emit when present and avoid duplicates by tracking message_ids and existing context
+        for m in last_human_messages:
+            if m.message_id not in messages_ids:
+                messages.append(m)
+                messages_ids.add(m.message_id)
+                yield m
 
         # Get current execution info from state
         current_node = state.execution_meta.current_node
@@ -174,7 +179,6 @@ class StreamHandler[StateT: AgentState]:
                 event.event_type = EventType.PROGRESS
                 event.metadata["status"] = f"Executing step {step} at node '{current_node}'"
                 publish_event(event)
-                yield event
 
                 # Check for interrupt_before
                 if await self._check_and_handle_interrupt(
@@ -189,7 +193,6 @@ class StreamHandler[StateT: AgentState]:
                     event.metadata["interrupted"] = "Before"
                     event.data["interrupted"] = "Before"
                     publish_event(event)
-                    yield event
                     return
 
                 # Execute current node
@@ -204,35 +207,50 @@ class StreamHandler[StateT: AgentState]:
                 # Process result and get next node
                 next_node = None
                 async for rs in result:
-                    if isinstance(rs, EventModel):
-                        # Forward node events
+                    if isinstance(rs, Message) and rs.delta:
+                        # Yield delta messages immediately for streaming
                         yield rs
-                    elif isinstance(rs, dict) and "is_non_streaming" in rs:
-                        state = rs.get("state", state)
-                        new_messages = rs.get("messages", [])
-                        for m in new_messages:
-                            if m.message_id not in messages_ids:
-                                messages.append(m)
-                                messages_ids.add(m.message_id)
-                        next_node = rs.get("next_node", next_node)
-                    elif isinstance(rs, Message):
+
+                    elif isinstance(rs, Message) and not rs.delta:
+                        yield rs
+
                         if rs.message_id not in messages_ids:
                             messages.append(rs)
                             messages_ids.add(rs.message_id)
-                            state.context = add_messages(state.context, [rs])
-                        logger.debug(
-                            "Appended message from node '%s', total messages: %d",
-                            current_node,
-                            len(messages),
-                        )
+
+                    elif isinstance(rs, dict) and "is_non_streaming" in rs:
+                        if rs["is_non_streaming"]:
+                            state = rs.get("state", state)
+                            new_messages = rs.get("messages", [])
+                            for m in new_messages:
+                                if m.message_id not in messages_ids and not m.delta:
+                                    messages.append(m)
+                                    messages_ids.add(m.message_id)
+                                yield m
+                            next_node = rs.get("next_node", next_node)
+                        else:
+                            # Streaming path completed: ensure any collected messages are persisted
+                            new_messages = rs.get("messages", [])
+                            for m in new_messages:
+                                if m.message_id not in messages_ids and not m.delta:
+                                    messages.append(m)
+                                    messages_ids.add(m.message_id)
+                                    yield m
+                            next_node = rs.get("next_node", next_node)
                     else:
-                        # Process as node result
+                        # Process as node result (non-streaming path)
                         try:
-                            state, messages, next_node = process_node_result(
+                            state, new_messages, next_node = await process_node_result(
                                 rs,
                                 state,
-                                messages,
+                                [],
                             )
+                            for m in new_messages:
+                                if m.message_id not in messages_ids and not m.delta:
+                                    messages.append(m)
+                                    messages_ids.add(m.message_id)
+                                    state.context = add_messages(state.context, [m])
+                                    yield m
                         except Exception as e:
                             logger.error("Failed to process node result: %s", e)
 
@@ -252,9 +270,13 @@ class StreamHandler[StateT: AgentState]:
                 event.event_type = EventType.UPDATE
                 event.data["state"] = state.model_dump()
                 event.data["messages"] = [m.model_dump() for m in messages] if messages else []
+                if messages:
+                    lm = messages[-1]
+                    event.content = lm.text() if isinstance(lm.content, list) else lm.content
+                    if isinstance(lm.content, list):
+                        event.content_blocks = lm.content
                 event.content_type = [ContentType.STATE, ContentType.MESSAGE]
                 publish_event(event)
-                yield event
 
                 # Check for interrupt_after
                 if await self._check_and_handle_interrupt(
@@ -274,9 +296,7 @@ class StreamHandler[StateT: AgentState]:
                     event.metadata["interrupted"] = "After"
                     event.data["state"] = state.model_dump()
                     publish_event(event)
-                    yield event
                     return
-
                 # Get next node
                 if next_node is None:
                     current_node = get_next_node(current_node, state, self.edges)
@@ -294,7 +314,6 @@ class StreamHandler[StateT: AgentState]:
                 event.metadata["State_Updated"] = "State Updated"
                 event.data["state"] = state.model_dump()
                 publish_event(event)
-                yield event
 
                 if step >= max_steps:
                     error_msg = "Graph execution exceeded maximum steps"
@@ -308,7 +327,11 @@ class StreamHandler[StateT: AgentState]:
                     event.metadata["step"] = step
                     event.metadata["current_node"] = current_node
                     publish_event(event)
-                    yield event
+
+                    yield Message(
+                        role="assistant",
+                        content=[ErrorBlock(text=error_msg)],  # type: ignore
+                    )
 
                     raise GraphRecursionError(
                         f"Graph execution exceeded recursion limit: {max_steps}"
@@ -332,13 +355,17 @@ class StreamHandler[StateT: AgentState]:
             event.event_type = EventType.END
             event.data["state"] = state.model_dump()
             event.data["messages"] = [m.model_dump() for m in messages] if messages else []
+            if messages:
+                fm = messages[-1]
+                event.content = fm.text() if isinstance(fm.content, list) else fm.content
+                if isinstance(fm.content, list):
+                    event.content_blocks = fm.content
             event.content_type = [ContentType.STATE, ContentType.MESSAGE]
             event.metadata["status"] = "Graph execution completed"
             event.metadata["step"] = step
             event.metadata["current_node"] = current_node
             event.metadata["is_context_trimmed"] = is_context_trimmed
             publish_event(event)
-            yield event
 
         except Exception as e:
             # Handle execution errors
@@ -365,7 +392,7 @@ class StreamHandler[StateT: AgentState]:
         config: dict[str, Any],
         default_state: StateT,
         response_granularity: ResponseGranularity = ResponseGranularity.LOW,
-    ) -> AsyncGenerator[EventModel]:
+    ) -> AsyncGenerator[Message]:
         """Execute the graph asynchronously.
 
         Auto-detects whether to start fresh execution or resume from interrupted state
@@ -433,12 +460,9 @@ class StreamHandler[StateT: AgentState]:
         # Now start Execution
         # Execute graph
         logger.debug("Beginning graph execution")
-        result = self._execute_graph(state, config)
+        result = self._execute_graph(state, input_data, config)
         async for chunk in result:
-            # only StreamChunk will be shared with caller
-            # Other types are used for internal handling
-            if isinstance(chunk, EventModel):
-                yield chunk
+            yield chunk
 
         # Publish graph completion event
         time_taken = time.time() - start_time
