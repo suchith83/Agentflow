@@ -214,7 +214,7 @@ class LiteLLMConverter(BaseConverter):
 
                 if message:
                     yield message
-        except Exception:  # noqa: S110
+        except Exception:  # noqa: S110 # nosec B110
             pass
 
         try:
@@ -233,7 +233,7 @@ class LiteLLMConverter(BaseConverter):
 
                 if message:
                     yield message
-        except Exception:  # noqa: S110
+        except Exception:  # noqa: S110 # nosec B110
             pass
 
         # Loop done

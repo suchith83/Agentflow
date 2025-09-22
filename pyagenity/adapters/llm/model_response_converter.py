@@ -24,7 +24,7 @@ class ModelResponseConverter:
         self.response = response
 
         if isinstance(converter, str) and converter == "litellm":
-            from .litellm_converter import LiteLLMConverter  # noqa: PLC0415
+            from .litellm_converter import LiteLLMConverter
 
             self.converter = LiteLLMConverter()
         else:
