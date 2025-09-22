@@ -69,39 +69,3 @@ jobs:
       with:
         file: ./coverage.xml
         fail_ci_if_error: false
-
-    - name: Comment coverage to PR
-      if: ${{ github.event_name == 'pull_request' }}
-      uses: actions/github-script@v6
-      with:
-        github-token: ${{ secrets.GITHUB_TOKEN }}
-        script: |
-          const fs = require('fs');
-          const cov = 'coverage.xml';
-          let text = 'Coverage report not found.';
-          try {
-            if (fs.existsSync(cov)) {
-              const data = fs.readFileSync(cov, 'utf8');
-              // Try to extract line-rate attribute from metrics element using regex
-              const m = data.match(/line-rate\s*=\s*"([0-9]*\.?[0-9]+)"/i);
-              if (m && m[1]) {
-                const percent = (parseFloat(m[1]) * 100).toFixed(2) + '%';
-                text = `Test coverage: **${percent}**\n\n(Uploaded coverage.xml as artifact)`;
-              } else {
-                text = 'Coverage file found but failed to parse line-rate.';
-              }
-            }
-          } catch (e) {
-            text = `Error reading coverage.xml: ${e.message}`;
-          }
-          const pr = context.payload.pull_request && context.payload.pull_request.number;
-          if (pr) {
-            await github.rest.issues.createComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: pr,
-              body: text
-            });
-          } else {
-            core.info(text);
-          }
