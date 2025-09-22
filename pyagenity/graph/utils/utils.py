@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import logging
 from collections.abc import Callable
 from typing import Any, TypeVar
@@ -120,8 +121,6 @@ async def load_or_create_state[StateT: AgentState](  # noqa: PLR0912, PLR0915
 
     # Create new state by deep copying the graph's prototype state
     logger.info("Creating new state from graph prototype")
-    import copy
-
     state = copy.deepcopy(old_state)
 
     # Ensure core AgentState fields are properly initialized
@@ -164,6 +163,32 @@ async def load_or_create_state[StateT: AgentState](  # noqa: PLR0912, PLR0915
             next_node = END
         state.set_current_node(next_node)
     return state  # type: ignore[return-value]
+
+
+async def is_stop_requested(
+    config: dict[str, Any],
+    checkpointer: BaseCheckpointer = Inject[BaseCheckpointer],
+) -> tuple[bool, dict[str, Any] | None]:
+    """Check if a stop was requested for the current thread.
+
+    Uses the checkpointer's thread store keyed by thread_id to see if a frontend
+    has requested a stop of the running graph. Returns a tuple of (flag, info).
+
+    Contract:
+    - Input: config with a valid 'thread_id'
+    - Output: (True, info) if stop_requested present, else (False, None)
+    - Safe when no checkpointer or thread info exists
+    """
+    try:
+        if not checkpointer:
+            return False, None
+        info = await checkpointer.aget_thread(config)
+        if info and info.get("stop_requested"):
+            return True, info
+        return False, None
+    except Exception as exc:  # Be defensive; don't break graph on aux check
+        logger.debug("Stop check failed: %s", exc)
+        return False, None
 
 
 async def process_node_result[StateT: AgentState](  # noqa: PLR0915
@@ -376,8 +401,6 @@ async def sync_data(
     context_manager: BaseContextManager = Inject[BaseContextManager],  # will be auto-injected
 ) -> bool:
     """Sync the current state and messages to the checkpointer."""
-    import copy
-
     is_context_trimmed = False
 
     new_state = copy.deepcopy(state)

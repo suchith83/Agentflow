@@ -156,6 +156,49 @@ class CompiledGraph[StateT: AgentState]:
             response_granularity,
         )
 
+    def stop(self, config: dict[str, Any]) -> dict[str, Any]:
+        """Request the current graph execution to stop (sync helper).
+
+        This sets a stop flag in the checkpointer's thread store keyed by thread_id.
+        Handlers periodically check this flag and interrupt execution.
+        Returns a small status dict.
+        """
+        return asyncio.run(self.astop(config))
+
+    async def astop(self, config: dict[str, Any]) -> dict[str, Any]:
+        """Request the current graph execution to stop (async).
+
+        Contract:
+        - Requires a valid thread_id in config
+        - If no active thread or no checkpointer, returns not-running
+        - If state exists and is running, set stop_requested flag in thread info
+        """
+        cfg = self._prepare_config(config, is_stream=bool(config.get("is_stream", False)))
+        if not self._checkpointer:
+            return {"ok": False, "reason": "no-checkpointer"}
+
+        # Load state to see if this thread is running
+        state = await self._checkpointer.aget_state_cache(
+            cfg
+        ) or await self._checkpointer.aget_state(cfg)
+        if not state:
+            return {"ok": False, "running": False, "reason": "no-state"}
+
+        running = state.is_running() and not state.is_interrupted()
+        # Set stop flag regardless; handlers will act if running
+        thread_info = await self._checkpointer.aget_thread(cfg) or {}
+        thread_info.update(
+            {
+                "thread_id": cfg.get("thread_id"),
+                "stop_requested": True,
+                "updated_at": cfg.get("timestamp"),
+                "run_id": cfg.get("run_id"),
+            }
+        )
+        await self._checkpointer.aput_thread(cfg, thread_info)
+
+        return {"ok": True, "running": running, "thread": thread_info}
+
     def stream(
         self,
         input_data: dict[str, Any],

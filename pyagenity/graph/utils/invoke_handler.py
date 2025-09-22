@@ -13,6 +13,7 @@ from pyagenity.graph.utils.utils import (
     get_next_node,
     load_or_create_state,
     parse_response,
+    is_stop_requested,
     sync_data,
 )
 from pyagenity.publisher.events import ContentType, Event, EventModel, EventType
@@ -177,6 +178,28 @@ class InvokeHandler[StateT: AgentState](
                 event.event_type = EventType.PROGRESS
                 publish_event(event)
 
+                # Check if a stop was requested externally (e.g., frontend)
+                stop, stop_info = await is_stop_requested(config)
+                if stop:
+                    logger.info(
+                        "Stop requested for thread '%s' at node '%s'",
+                        config.get("thread_id"),
+                        current_node,
+                    )
+                    state.set_interrupt(
+                        current_node,
+                        "stop_requested",
+                        ExecutionStatus.INTERRUPTED_AFTER,
+                        data={"source": "stop", "info": stop_info},
+                    )
+                    await sync_data(state=state, config=config, messages=messages, trim=True)
+                    event.event_type = EventType.INTERRUPTED
+                    event.metadata["interrupted"] = "Stop"
+                    event.metadata["status"] = "Graph execution stopped by request"
+                    event.data["state"] = state.model_dump()
+                    publish_event(event)
+                    return state, messages
+
                 # Check for interrupt_before
                 if await self._check_and_handle_interrupt(
                     current_node,
@@ -257,6 +280,28 @@ class InvokeHandler[StateT: AgentState](
                         event.content_blocks = lm.content
                 event.content_type = [ContentType.STATE, ContentType.MESSAGE]
                 publish_event(event)
+
+                # Check stop again after node execution
+                stop, stop_info = await is_stop_requested(config)
+                if stop:
+                    logger.info(
+                        "Stop requested for thread '%s' after node '%s'",
+                        config.get("thread_id"),
+                        current_node,
+                    )
+                    state.set_interrupt(
+                        current_node,
+                        "stop_requested",
+                        ExecutionStatus.INTERRUPTED_AFTER,
+                        data={"source": "stop", "info": stop_info},
+                    )
+                    await sync_data(state=state, config=config, messages=messages, trim=True)
+                    event.event_type = EventType.INTERRUPTED
+                    event.metadata["interrupted"] = "Stop"
+                    event.metadata["status"] = "Graph execution stopped by request"
+                    event.data["state"] = state.model_dump()
+                    publish_event(event)
+                    return state, messages
 
                 # Check for interrupt_after
                 if await self._check_and_handle_interrupt(

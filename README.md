@@ -642,6 +642,62 @@ python examples/react_stream/stream_react_agent.py sync-stream
 
 ---
 
+## Stopping a running graph
+
+You can cooperatively stop an in-flight execution (invoke or stream) from your UI/frontend by setting a stop flag in the checkpointer’s thread store. Handlers poll this flag and gracefully interrupt the run.
+
+Contract:
+- Provide a stable `thread_id` in the `config` for both the running graph and the stop request
+- Call `app.stop(config)` (sync) or `await app.astop(config)` (async)
+- The stop method returns a small status dict with `ok`, `running`, and `thread` info
+
+Minimal example:
+
+```python
+from pyagenity.checkpointer import InMemoryCheckpointer
+from pyagenity.graph import StateGraph
+from pyagenity.state.agent_state import AgentState
+from pyagenity.utils import Message
+from pyagenity.utils.constants import END
+
+checkpointer = InMemoryCheckpointer()
+
+async def main_agent(state: AgentState, config: dict | None = None):
+    # Produce chunks (streaming) or any long-running work
+    import asyncio
+    for i in range(10):
+        await asyncio.sleep(0.3)
+        yield Message.text_message(f"Chunk {i+1}")
+
+def router(state: AgentState) -> str:
+    return END
+
+graph = StateGraph()
+graph.add_node("MAIN", main_agent)
+graph.add_conditional_edges("MAIN", router, {END: END})
+graph.set_entry_point("MAIN")
+app = graph.compile(checkpointer=checkpointer)
+
+config = {"thread_id": "demo-thread", "is_stream": True}
+inp = {"messages": [Message.text_message("Start, then stop soon")]} 
+
+# Start streaming in a background thread/task and then request stop:
+import threading, time
+def reader():
+    for chunk in app.stream(inp, config=config):
+        print("STREAM:", getattr(chunk, "content", chunk))
+
+t = threading.Thread(target=reader, daemon=True)
+t.start()
+time.sleep(1.0)
+print("Stop status:", app.stop(config))
+t.join(timeout=5)
+```
+
+See runnable examples in `examples/react_stream/stop_stream.py` and `examples/react_stream/stop_stream_litellm.py`.
+
+---
+
 ## Roadmap
 
 

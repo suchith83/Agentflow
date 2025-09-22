@@ -25,6 +25,7 @@ from .utils import (
     get_next_node,
     load_or_create_state,
     process_node_result,
+    is_stop_requested,
     sync_data,
 )
 
@@ -207,6 +208,27 @@ class StreamHandler[StateT: AgentState](
                 # Process result and get next node
                 next_node = None
                 async for rs in result:
+                    # Allow stop to break inner result loop as well
+                    stop, stop_info = await is_stop_requested(config)
+                    if stop:
+                        logger.info(
+                            "Stop requested for thread '%s' while streaming node '%s'",
+                            config.get("thread_id"),
+                            current_node,
+                        )
+                        state.set_interrupt(
+                            current_node,
+                            "stop_requested",
+                            ExecutionStatus.INTERRUPTED_AFTER,
+                            data={"source": "stop", "info": stop_info},
+                        )
+                        await call_realtime_sync(state, config)
+                        event.event_type = EventType.INTERRUPTED
+                        event.metadata["interrupted"] = "Stop"
+                        event.metadata["status"] = "Graph execution stopped by request"
+                        event.data["state"] = state.model_dump()
+                        publish_event(event)
+                        return
                     if isinstance(rs, Message) and rs.delta:
                         # Yield delta messages immediately for streaming
                         yield rs
@@ -294,6 +316,28 @@ class StreamHandler[StateT: AgentState](
                     event.event_type = EventType.INTERRUPTED
                     event.data["interrupted"] = "After"
                     event.metadata["interrupted"] = "After"
+                    event.data["state"] = state.model_dump()
+                    publish_event(event)
+                    return
+
+                # Global stop check after node execution
+                stop, stop_info = await is_stop_requested(config)
+                if stop:
+                    logger.info(
+                        "Stop requested for thread '%s' after node '%s'",
+                        config.get("thread_id"),
+                        current_node,
+                    )
+                    state.set_interrupt(
+                        current_node,
+                        "stop_requested",
+                        ExecutionStatus.INTERRUPTED_AFTER,
+                        data={"source": "stop", "info": stop_info},
+                    )
+                    await call_realtime_sync(state, config)
+                    event.event_type = EventType.INTERRUPTED
+                    event.metadata["interrupted"] = "Stop"
+                    event.metadata["status"] = "Graph execution stopped by request"
                     event.data["state"] = state.model_dump()
                     publish_event(event)
                     return
