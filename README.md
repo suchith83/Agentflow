@@ -679,7 +679,7 @@ graph.set_entry_point("MAIN")
 app = graph.compile(checkpointer=checkpointer)
 
 config = {"thread_id": "demo-thread", "is_stream": True}
-inp = {"messages": [Message.text_message("Start, then stop soon")]} 
+inp = {"messages": [Message.text_message("Start, then stop soon")]}
 
 # Start streaming in a background thread/task and then request stop:
 import threading, time
