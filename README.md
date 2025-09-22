@@ -6,7 +6,7 @@
 ![Python](https://img.shields.io/pypi/pyversions/pyagenity)
 [![Coverage](https://img.shields.io/badge/coverage-63%25-yellow.svg)](#)
 
-**PyAgenity** is a lightweight Python framework for building intelligent agents and orchestrating multi-agent workflows on top of the [LiteLLM](https://github.com/BerriAI/litellm) unified LLM interface.
+**PyAgenity** is a lightweight Python framework for building intelligent agents and orchestrating multi-agent workflows, can be used with any LLM provider like OpenAI, Google Gemini, Anthropic Claude, etc.
 
 PyAgenity is a lightweight Python framework for building intelligent agents and orchestrating multi-agent workflows on top of the LiteLLM unified LLM interface.
 

@@ -1,1 +1,0 @@
-::: pyagenity.utils.streaming
