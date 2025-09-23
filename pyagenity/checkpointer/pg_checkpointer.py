@@ -850,12 +850,6 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
             thread_name = thread_info.thread_name or f"Thread {thread_id}"
             meta = thread_info.metadata or {}
             user_id = thread_info.user_id or user_id
-            meta.update(
-                {
-                    "stop_requested": thread_info.stop_requested,
-                    "run_id": thread_info.run_id,
-                }
-            )
 
             async def _put_thread():
                 async with (await self._get_pg_pool()).acquire() as conn:
@@ -912,10 +906,6 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
                     thread_name=row["thread_name"] if row else None,
                     user_id=user_id,
                     metadata=row["meta"] if row else {},
-                    stop_requested=row["meta"].get("stop_requested", False)
-                    if row and row["meta"]
-                    else False,
-                    run_id=row["meta"].get("run_id") if row and row["meta"] else None,
                 )
 
             logger.debug("Thread not found for thread_id=%s, user_id=%s", thread_id, user_id)
@@ -982,10 +972,6 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
                     thread_name=row["thread_name"],
                     user_id=row["user_id"],
                     metadata=row["meta"] or {},
-                    stop_requested=row["meta"].get("stop_requested", False)
-                    if row["meta"]
-                    else False,
-                    run_id=row["meta"].get("run_id") if row["meta"] else None,
                     updated_at=row["updated_at"],
                 )
                 for row in rows

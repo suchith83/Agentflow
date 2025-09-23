@@ -23,6 +23,14 @@ class ExecutionStatus(Enum):
     ERROR = "error"
 
 
+class StopRequestStatus(Enum):
+    """Status of graph execution."""
+
+    NONE = "none"
+    STOP_REQUESTED = "stop_requested"
+    STOPPED = "stopped"
+
+
 class ExecutionState(BaseModel):
     """
     Tracks the internal execution state of a graph.
@@ -43,6 +51,9 @@ class ExecutionState(BaseModel):
 
     # Thread/session identification
     thread_id: str | None = None
+
+    # Stop Current Execution Flag
+    stop_current_execution: StopRequestStatus = StopRequestStatus.NONE
 
     # Internal execution data (hidden from user)
     internal_data: dict[str, Any] = Field(default_factory=dict)
@@ -123,3 +134,13 @@ class ExecutionState(BaseModel):
         running = self.status == ExecutionStatus.RUNNING
         logger.debug("Execution is_running: %s (status: %s)", running, self.status.value)
         return running
+
+    def is_stopped_requested(self) -> bool:
+        """Check if execution is currently stopped."""
+        stopped = self.stop_current_execution == StopRequestStatus.STOP_REQUESTED
+        logger.debug(
+            "Execution is_stopped_requested: %s (stop_current_execution: %s)",
+            stopped,
+            self.stop_current_execution.value,
+        )
+        return stopped

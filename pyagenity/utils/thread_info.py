@@ -9,6 +9,4 @@ class ThreadInfo(BaseModel):
     thread_name: str | None = None
     user_id: int | str | None = None
     metadata: dict[str, Any] | None = None
-    stop_requested: bool = False
-    run_id: int | str | None = None
     updated_at: datetime | None = None
