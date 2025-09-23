@@ -13,7 +13,7 @@ from pyagenity.graph.utils.utils import (
     get_next_node,
     load_or_create_state,
     parse_response,
-    is_stop_requested,
+    reload_state,
     sync_data,
 )
 from pyagenity.publisher.events import ContentType, Event, EventModel, EventType
@@ -119,6 +119,39 @@ class InvokeHandler[StateT: AgentState](
         )
         return False
 
+    async def _check_stop_requested(
+        self,
+        state: StateT,
+        current_node: str,
+        event: EventModel,
+        messages: list[Message],
+        config: dict[str, Any],
+    ) -> bool:
+        """Check if a stop has been requested externally."""
+        state = await reload_state(config, state)  # type: ignore
+
+        # Check if a stop was requested externally (e.g., frontend)
+        if state.is_stopped_requested():
+            logger.info(
+                "Stop requested for thread '%s' at node '%s'",
+                config.get("thread_id"),
+                current_node,
+            )
+            state.set_interrupt(
+                current_node,
+                "stop_requested",
+                ExecutionStatus.INTERRUPTED_AFTER,
+                data={"source": "stop", "info": "requested via is_stopped_requested"},
+            )
+            await sync_data(state=state, config=config, messages=messages, trim=True)
+            event.event_type = EventType.INTERRUPTED
+            event.metadata["interrupted"] = "Stop"
+            event.metadata["status"] = "Graph execution stopped by request"
+            event.data["state"] = state.model_dump()
+            publish_event(event)
+            return True
+        return False
+
     async def _execute_graph(  # noqa: PLR0912, PLR0915
         self,
         state: StateT,
@@ -168,6 +201,17 @@ class InvokeHandler[StateT: AgentState](
         try:
             while current_node != END and step < max_steps:
                 logger.debug("Executing step %d at node '%s'", step, current_node)
+                # Reload state in each iteration to get latest (in case of external updates)
+                res = await self._check_stop_requested(
+                    state,
+                    current_node,
+                    event,
+                    messages,
+                    config,
+                )
+                if res:
+                    return state, messages
+
                 # Update execution metadata
                 state.set_current_node(current_node)
                 state.execution_meta.step = step
@@ -177,28 +221,6 @@ class InvokeHandler[StateT: AgentState](
                 event.metadata["current_node"] = current_node
                 event.event_type = EventType.PROGRESS
                 publish_event(event)
-
-                # Check if a stop was requested externally (e.g., frontend)
-                stop, stop_info = await is_stop_requested(config)
-                if stop:
-                    logger.info(
-                        "Stop requested for thread '%s' at node '%s'",
-                        config.get("thread_id"),
-                        current_node,
-                    )
-                    state.set_interrupt(
-                        current_node,
-                        "stop_requested",
-                        ExecutionStatus.INTERRUPTED_AFTER,
-                        data={"source": "stop", "info": stop_info},
-                    )
-                    await sync_data(state=state, config=config, messages=messages, trim=True)
-                    event.event_type = EventType.INTERRUPTED
-                    event.metadata["interrupted"] = "Stop"
-                    event.metadata["status"] = "Graph execution stopped by request"
-                    event.data["state"] = state.model_dump()
-                    publish_event(event)
-                    return state, messages
 
                 # Check for interrupt_before
                 if await self._check_and_handle_interrupt(
@@ -268,6 +290,17 @@ class InvokeHandler[StateT: AgentState](
                     len(messages),
                 )
 
+                # Check stop again after node execution
+                res = await self._check_stop_requested(
+                    state,
+                    current_node,
+                    event,
+                    messages,
+                    config,
+                )
+                if res:
+                    return state, messages
+
                 # Call realtime sync after node execution (if state/messages changed)
                 await call_realtime_sync(state, config)
                 event.event_type = EventType.UPDATE
@@ -280,28 +313,6 @@ class InvokeHandler[StateT: AgentState](
                         event.content_blocks = lm.content
                 event.content_type = [ContentType.STATE, ContentType.MESSAGE]
                 publish_event(event)
-
-                # Check stop again after node execution
-                stop, stop_info = await is_stop_requested(config)
-                if stop:
-                    logger.info(
-                        "Stop requested for thread '%s' after node '%s'",
-                        config.get("thread_id"),
-                        current_node,
-                    )
-                    state.set_interrupt(
-                        current_node,
-                        "stop_requested",
-                        ExecutionStatus.INTERRUPTED_AFTER,
-                        data={"source": "stop", "info": stop_info},
-                    )
-                    await sync_data(state=state, config=config, messages=messages, trim=True)
-                    event.event_type = EventType.INTERRUPTED
-                    event.metadata["interrupted"] = "Stop"
-                    event.metadata["status"] = "Graph execution stopped by request"
-                    event.data["state"] = state.model_dump()
-                    publish_event(event)
-                    return state, messages
 
                 # Check for interrupt_after
                 if await self._check_and_handle_interrupt(

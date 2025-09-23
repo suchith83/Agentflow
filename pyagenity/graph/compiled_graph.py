@@ -13,6 +13,7 @@ from injectq import InjectQ
 from pyagenity.checkpointer.base_checkpointer import BaseCheckpointer
 from pyagenity.publisher.base_publisher import BasePublisher
 from pyagenity.state import AgentState
+from pyagenity.state.execution_state import StopRequestStatus
 from pyagenity.store.base_store import BaseStore
 from pyagenity.utils import (
     ResponseGranularity,
@@ -186,18 +187,24 @@ class CompiledGraph[StateT: AgentState]:
 
         running = state.is_running() and not state.is_interrupted()
         # Set stop flag regardless; handlers will act if running
-        thread_info = await self._checkpointer.aget_thread(cfg) or {}
-        thread_info.update(
-            {
-                "thread_id": cfg.get("thread_id"),
-                "stop_requested": True,
-                "updated_at": cfg.get("timestamp"),
-                "run_id": cfg.get("run_id"),
-            }
-        )
-        await self._checkpointer.aput_thread(cfg, thread_info)
+        if running:
+            state.execution_meta.stop_current_execution = StopRequestStatus.STOP_REQUESTED
+            # update cache
+            # Cache update is enough; state will be picked up by running execution
+            # As its running, cache will be available immediately
+            await self._checkpointer.aput_state_cache(cfg, state)
+            # Fixme: consider putting to main state as well
+            # await self._checkpointer.aput_state(cfg, state)
+            logger.info("Set stop_current_execution flag for thread_id: %s", cfg.get("thread_id"))
+            return {"ok": True, "running": running}
 
-        return {"ok": True, "running": running, "thread": thread_info}
+        logger.info(
+            "No running execution to stop for thread_id: %s (running=%s, interrupted=%s)",
+            cfg.get("thread_id"),
+            running,
+            state.is_interrupted(),
+        )
+        return {"ok": True, "running": running, "reason": "not-running"}
 
     def stream(
         self,

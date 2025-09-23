@@ -96,10 +96,10 @@ async def load_or_create_state[StateT: AgentState](  # noqa: PLR0912, PLR0915
             )
             # Normalize legacy node names (backward compatibility)
             # Some older runs may have persisted 'start'/'end' instead of '__start__'/'__end__'
-            if existing_state.execution_meta.current_node == "start":
+            if existing_state.execution_meta.current_node == "__start__":
                 existing_state.execution_meta.current_node = START
                 logger.debug("Normalized legacy current_node 'start' to '%s'", START)
-            elif existing_state.execution_meta.current_node == "end":
+            elif existing_state.execution_meta.current_node == "__end__":
                 existing_state.execution_meta.current_node = END
                 logger.debug("Normalized legacy current_node 'end' to '%s'", END)
             # Merge new messages with existing context
@@ -157,38 +157,57 @@ async def load_or_create_state[StateT: AgentState](  # noqa: PLR0912, PLR0915
     if "current_node" in partial_state and partial_state["current_node"] is not None:
         # Normalize legacy values if provided in partial state
         next_node = partial_state["current_node"]
-        if next_node == "start":
+        if next_node == "__start__":
             next_node = START
-        elif next_node == "end":
+        elif next_node == "__end__":
             next_node = END
         state.set_current_node(next_node)
     return state  # type: ignore[return-value]
 
 
-async def is_stop_requested(
+async def reload_state[StateT: AgentState](
     config: dict[str, Any],
-    checkpointer: BaseCheckpointer = Inject[BaseCheckpointer],
-) -> tuple[bool, dict[str, Any] | None]:
-    """Check if a stop was requested for the current thread.
+    old_state: StateT,
+    checkpointer: BaseCheckpointer = Inject[BaseCheckpointer],  # will be auto-injected
+) -> StateT:
+    """Load existing state from checkpointer or create new state.
 
-    Uses the checkpointer's thread store keyed by thread_id to see if a frontend
-    has requested a stop of the running graph. Returns a tuple of (flag, info).
-
-    Contract:
-    - Input: config with a valid 'thread_id'
-    - Output: (True, info) if stop_requested present, else (False, None)
-    - Safe when no checkpointer or thread info exists
+    Attempts to fetch a realtime-synced state first, then falls back to
+    the persistent checkpointer. If no existing state is found, creates
+    a new state from the `StateGraph`'s prototype state and merges any
+    incoming messages. Supports partial state update via 'state' in input_data.
     """
-    try:
-        if not checkpointer:
-            return False, None
-        info = await checkpointer.aget_thread(config)
-        if info and info.get("stop_requested"):
-            return True, info
-        return False, None
-    except Exception as exc:  # Be defensive; don't break graph on aux check
-        logger.debug("Stop check failed: %s", exc)
-        return False, None
+    logger.debug("Loading or creating state with thread_id=%s", config.get("thread_id", "default"))
+
+    if not checkpointer:
+        return old_state
+
+    # first check realtime-synced state
+    existing_state: AgentState | None = await checkpointer.aget_state_cache(config)
+    if not existing_state:
+        logger.debug("No synced state found, trying persistent checkpointer")
+        # If no synced state, try to get from persistent checkpointer
+        existing_state = await checkpointer.aget_state(config)
+
+    if not existing_state:
+        logger.warning("No existing state found to reload, returning old state")
+        return old_state
+
+    logger.info(
+        "Loaded existing state with %d context messages, current_node=%s, step=%d",
+        len(existing_state.context) if existing_state.context else 0,
+        existing_state.execution_meta.current_node,
+        existing_state.execution_meta.step,
+    )
+    # Normalize legacy node names (backward compatibility)
+    # Some older runs may have persisted 'start'/'end' instead of '__start__'/'__end__'
+    if existing_state.execution_meta.current_node == "__start__":
+        existing_state.execution_meta.current_node = START
+        logger.debug("Normalized legacy current_node 'start' to '%s'", START)
+    elif existing_state.execution_meta.current_node == "__end__":
+        existing_state.execution_meta.current_node = END
+        logger.debug("Normalized legacy current_node 'end' to '%s'", END)
+    return existing_state
 
 
 async def process_node_result[StateT: AgentState](  # noqa: PLR0915

@@ -73,3 +73,8 @@ class AgentState(BaseModel):
     def error(self, error_msg: str) -> None:
         logger.error("Setting state error: %s", error_msg)
         self.execution_meta.error(error_msg)
+
+    def is_stopped_requested(self) -> bool:
+        stopped = self.execution_meta.is_stopped_requested()
+        logger.debug("State is_stopped_requested: %s", stopped)
+        return stopped
