@@ -87,7 +87,8 @@ def _make_file_tools(sandbox_root: str | None = None) -> list[t.Callable]:
             raise FileExistsError("File exists; set overwrite=True to replace")
         p.parent.mkdir(parents=True, exist_ok=True)
         Path(p).write_text(content, encoding=encoding)
-        return str(p.relative_to(root))
+        # Return path with forward slashes for consistency across platforms
+        return str(p.relative_to(root)).replace("\\", "/")
 
     def list_dir(path: str = ".", max_entries: int = 100) -> list[str]:
         """List entries under a sandboxed directory (non-recursive)."""
