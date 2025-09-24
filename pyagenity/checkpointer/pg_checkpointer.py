@@ -1,6 +1,5 @@
 import asyncio
-import threading
-from queue import Queue
+import contextlib
 import json
 import logging
 from enum import Enum
@@ -188,10 +187,8 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
                 config["pg_pool"], config["postgres_dsn"], config["pool_config"]
             )
         # Capture the current running loop for thread-safe sync wrapper execution
-        try:
+        with contextlib.suppress(RuntimeError):
             self._loop = asyncio.get_running_loop()
-        except RuntimeError:
-            pass
         return self._pg_pool
 
     def _get_sql_type(self, type_name: str) -> str:
@@ -319,7 +316,7 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
         thread_id = config.get("thread_id")
         user_id = config.get("user_id")
         if not user_id:
-            user_id="test-user"
+            user_id = "test-user"
 
         if not thread_id or not user_id:
             raise ValueError("Both thread_id and user_id must be provided in config")
@@ -355,7 +352,7 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
         This helper accepts either a JSON string or a pre-parsed Python object.
         """
         try:
-            if isinstance(data, (bytes, bytearray)):
+            if isinstance(data, bytes | bytearray):
                 data = data.decode()
             if isinstance(data, str):
                 return state_class.model_validate(json.loads(data))
@@ -380,13 +377,10 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
         """Run an async coroutine from a sync context safely.
 
         - If not in an event loop, use asyncio.run.
-        - If already in an event loop, execute the coroutine in a background thread with its own loop.
+        - If already in an event loop, execute the coroutine in a background thread.
         """
-        try:
+        with contextlib.suppress(RuntimeError):
             asyncio.get_running_loop()
-            in_loop = True
-        except RuntimeError:
-            in_loop = False
 
         # If we have a captured loop (from async usage), schedule on it from this sync context
         if self._loop is not None and self._loop.is_running():
@@ -712,7 +706,9 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
                             message.message_id,
                             thread_id,
                             message.role,
-                            json.dumps([block.model_dump(mode="json") for block in message.content]),
+                            json.dumps(
+                                [block.model_dump(mode="json") for block in message.content]
+                            ),
                             json.dumps(message.tools_calls) if message.tools_calls else None,
                             getattr(message, "tool_call_id", None),
                             message.reasoning,
@@ -720,16 +716,6 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
                             json.dumps(message.usages.model_dump()) if message.usages else None,
                             json.dumps({**(metadata or {}), **(message.metadata or {})}),
                         )
-
-                        print(f"message content raw:{message.content}\n")
-                        print(f"Message content:{json.dumps([block.model_dump(mode="json") for block in message.content])}\n")
-                        print(f"Message tools_calls raw:{message.tools_calls}\n")
-                        print(f"Message tools_calls:{json.dumps(message.tools_calls) if message.tools_calls else None}\n")
-                        print(f"Message reasoning:{message.reasoning}\n")
-                        print(f"Message timestamp:{message.timestamp}\n")
-                        print(f"Message usages raw:{message.usages}\n")
-                        print(f"Message usages:{json.dumps(message.usages.model_dump(mode="json")) if message.usages else None}\n")
-
 
             await self._retry_on_connection_error(_store_messages, max_retries=3)
             logger.info("Stored %d messages for thread_id=%s", len(messages), thread_id)
@@ -869,7 +855,7 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
             logger.error("Failed to delete message_id=%s: %s", message_id, e)
             raise
 
-    def _row_to_message(self, row) -> Message:
+    def _row_to_message(self, row) -> Message:  # noqa: PLR0912, PLR0915
         """Convert database row to Message object with robust JSON handling."""
         from pyagenity.utils.message import TokenUsages
 
@@ -880,7 +866,7 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
             try:
                 usages_dict = (
                     json.loads(usages_raw)
-                    if isinstance(usages_raw, (str, bytes, bytearray))
+                    if isinstance(usages_raw, str | bytes | bytearray)
                     else usages_raw
                 )
                 usages = TokenUsages(**usages_dict)
@@ -893,7 +879,7 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
             try:
                 tool_calls = (
                     json.loads(tool_calls_raw)
-                    if isinstance(tool_calls_raw, (str, bytes, bytearray))
+                    if isinstance(tool_calls_raw, str | bytes | bytearray)
                     else tool_calls_raw
                 )
             except Exception:
@@ -907,7 +893,7 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
             try:
                 metadata = (
                     json.loads(meta_raw)
-                    if isinstance(meta_raw, (str, bytes, bytearray))
+                    if isinstance(meta_raw, str | bytes | bytearray)
                     else meta_raw
                 )
             except Exception:
@@ -920,7 +906,7 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
         content_value: list[Any] = []
         if content_raw is None:
             content_value = []
-        elif isinstance(content_raw, (bytes, bytearray)):
+        elif isinstance(content_raw, bytes | bytearray):
             try:
                 parsed = json.loads(content_raw.decode())
                 if isinstance(parsed, list):
@@ -928,9 +914,7 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
                 elif isinstance(parsed, dict):
                     content_value = [parsed]
                 else:
-                    content_value = [
-                        {"type": "text", "text": str(parsed), "annotations": []}
-                    ]
+                    content_value = [{"type": "text", "text": str(parsed), "annotations": []}]
             except Exception:
                 content_value = [
                     {"type": "text", "text": content_raw.decode(errors="ignore"), "annotations": []}
@@ -944,21 +928,15 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
                 elif isinstance(parsed, dict):
                     content_value = [parsed]
                 else:
-                    content_value = [
-                        {"type": "text", "text": content_raw, "annotations": []}
-                    ]
+                    content_value = [{"type": "text", "text": content_raw, "annotations": []}]
             except Exception:
-                content_value = [
-                    {"type": "text", "text": content_raw, "annotations": []}
-                ]
+                content_value = [{"type": "text", "text": content_raw, "annotations": []}]
         elif isinstance(content_raw, list):
             content_value = content_raw
         elif isinstance(content_raw, dict):
             content_value = [content_raw]
         else:
-            content_value = [
-                {"type": "text", "text": str(content_raw), "annotations": []}
-            ]
+            content_value = [{"type": "text", "text": str(content_raw), "annotations": []}]
 
         return Message(
             message_id=row["message_id"],
@@ -1031,7 +1009,7 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
 
             async def _put_thread():
                 async with (await self._get_pg_pool()).acquire() as conn:
-                    result = await conn.execute(
+                    await conn.execute(
                         """
                         INSERT INTO threads (thread_id, thread_name, user_id, meta)
                         VALUES ($1, $2, $3, $4)
@@ -1045,10 +1023,6 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
                         user_id,
                         json.dumps(meta),
                     )
-                    
-                    print(f"Put thread result: {result}")
-                    print(f"Thread info: thread_id={thread_id}, json dump={json.dumps(meta)}")
-                    
 
             await self._retry_on_connection_error(_put_thread, max_retries=3)
             logger.info("Thread info stored for thread_id=%s", thread_id)
@@ -1087,7 +1061,9 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
             if row:
                 meta_dict = {}
                 if row["meta"]:
-                    meta_dict = json.loads(row["meta"]) if isinstance(row["meta"], str) else row["meta"]
+                    meta_dict = (
+                        json.loads(row["meta"]) if isinstance(row["meta"], str) else row["meta"]
+                    )
                 return ThreadInfo(
                     thread_id=thread_id,
                     thread_name=row["thread_name"] if row else None,
@@ -1162,7 +1138,9 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
             for row in rows:
                 meta_dict = {}
                 if row["meta"]:
-                    meta_dict = json.loads(row["meta"]) if isinstance(row["meta"], str) else row["meta"]
+                    meta_dict = (
+                        json.loads(row["meta"]) if isinstance(row["meta"], str) else row["meta"]
+                    )
                 threads.append(
                     ThreadInfo(
                         thread_id=row["thread_id"],
@@ -1174,9 +1152,6 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
                         updated_at=row["updated_at"],
                     )
                 )
-            
-            print("Listed %d threads for user_id=%s", len(threads), user_id)
-            print(f"ALL Threads: {threads}")
             logger.debug("Found %d threads for user_id=%s", len(threads), user_id)
             return threads
 
