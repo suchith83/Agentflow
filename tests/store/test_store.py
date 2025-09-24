@@ -1,5 +1,8 @@
 """Comprehensive tests for the store module."""
 
+import pytest
+import asyncio
+from unittest.mock import Mock, patch, AsyncMock
 from pyagenity.store import BaseStore
 
 
@@ -17,11 +20,16 @@ class TestBaseStore:
         """Test that BaseStore defines expected methods."""
         # Check for expected method names
         expected_methods = [
-            "get",
-            "put",
-            "delete",
-            "list",
-            "exists",
+            "update_memory",
+            "get_memory", 
+            "delete_memory",
+            "related_memory",
+            "aupdate_memory",
+            "aget_memory",
+            "adelete_memory", 
+            "arelated_memory",
+            "release",
+            "arelease",
         ]
 
         for method_name in expected_methods:
