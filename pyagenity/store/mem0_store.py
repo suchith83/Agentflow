@@ -12,39 +12,15 @@ from datetime import datetime
 from typing import Any
 from uuid import uuid4
 
-from .base_store import BaseStore, MemorySearchResult, MemoryRecord
 from pyagenity.utils.message import Message
+
+from .base_store import BaseStore, MemorySearchResult
+
 
 try:
     from mem0 import Memory
 except ImportError:
-    raise ImportError(
-        "Mem0 not installed. Install with: pip install mem0ai"
-    )
-
-"""
-Mem0 Store Implementation for PyAgenity Framework
-
-This module provides a concrete implementation of BaseStore using Mem0
-as the backend memory system. Mem0 provides high-level memory management
-with automatic vector storage, semantic search, and conversation tracking.
-"""
-
-import asyncio
-import logging
-from datetime import datetime
-from typing import Any
-from uuid import uuid4
-
-from .base_store import BaseStore, MemorySearchResult, MemoryRecord
-from pyagenity.utils.message import Message
-
-try:
-    from mem0 import Memory
-except ImportError:
-    raise ImportError(
-        "Mem0 not installed. Install with: pip install mem0ai"
-    )
+    raise ImportError("Mem0 not installed. Install with: pip install mem0ai")
 
 logger = logging.getLogger(__name__)
 
@@ -52,11 +28,11 @@ logger = logging.getLogger(__name__)
 class Mem0Store(BaseStore):
     """
     Mem0-based implementation of BaseStore for long-term memory.
-    
+
     This store provides a high-level interface to Mem0's memory management
     system, which handles vector storage, embeddings, and semantic search
     automatically.
-    
+
     Features:
     - Automatic embedding generation via Mem0
     - User and agent-centric memory management
@@ -64,18 +40,18 @@ class Mem0Store(BaseStore):
     - Memory lifecycle management (CRUD operations)
     - Conversation context tracking
     """
-    
+
     def __init__(
         self,
         config: dict[str, Any] | None = None,
         user_id: str | None = None,
         agent_id: str | None = None,
         app_id: str | None = None,
-        **kwargs
+        **kwargs,
     ):
         """
         Initialize Mem0Store.
-        
+
         Args:
             config: Mem0 configuration dict (llm, embedder, vector_store)
             user_id: Default user ID for memory operations
@@ -84,15 +60,15 @@ class Mem0Store(BaseStore):
             **kwargs: Additional arguments passed to BaseStore
         """
         super().__init__(**kwargs)
-        
+
         self.config = config or {}
         self.default_user_id = user_id or "default_user"
         self.default_agent_id = agent_id
         self.app_id = app_id or "pyagenity_app"
-        
+
         # Track memory_id to user_id mapping for retrieval
         self._memory_user_map: dict[str, str] = {}
-        
+
         # Initialize Mem0
         try:
             if config:
@@ -102,14 +78,14 @@ class Mem0Store(BaseStore):
         except Exception as e:
             logger.error(f"Failed to initialize Mem0 Memory: {e}")
             raise RuntimeError(f"Failed to initialize Mem0 Memory: {e}")
-        
+
         logger.info(
             f"Initialized Mem0Store for user: {self.default_user_id}, "
             f"agent: {self.default_agent_id}, app: {self.app_id}"
         )
-    
+
     # --- Core Memory Operations (BaseStore Interface) ---
-    
+
     def add(
         self,
         content: str,
@@ -122,7 +98,7 @@ class Mem0Store(BaseStore):
     ) -> str:
         """
         Add a new memory to Mem0.
-        
+
         Args:
             content: The memory content
             user_id: User identifier (defaults to instance default)
@@ -131,20 +107,20 @@ class Mem0Store(BaseStore):
             category: Memory category for organization
             metadata: Additional metadata
             **kwargs: Store-specific parameters
-            
+
         Returns:
             Memory ID
         """
         if not content or not content.strip():
             raise ValueError("Content cannot be empty")
-        
+
         # Use provided IDs or defaults
         effective_user_id = user_id or self.default_user_id
         effective_agent_id = agent_id or self.default_agent_id
-        
+
         # Generate memory ID
         memory_id = str(uuid4())
-        
+
         # Build comprehensive metadata
         mem0_metadata = {
             "memory_id": memory_id,
@@ -155,40 +131,40 @@ class Mem0Store(BaseStore):
             "created_at": datetime.now().isoformat(),
             **(metadata or {}),
         }
-        
+
         try:
             # Add memory to Mem0
             result = self.memory.add(
                 messages=[{"role": "user", "content": content}],
                 user_id=effective_user_id,
                 metadata=mem0_metadata,
-                **kwargs
+                **kwargs,
             )
-            
+
             # Extract the actual Mem0 ID if available
             mem0_id = None
             if isinstance(result, dict):
-                if "results" in result and result["results"]:
+                if result.get("results"):
                     mem0_id = result["results"][0].get("id")
                 elif "id" in result:
                     mem0_id = result["id"]
-            
+
             # Update metadata with Mem0 ID if available
             if mem0_id:
                 mem0_metadata["mem0_id"] = str(mem0_id)
                 # Re-add with updated metadata (Mem0 limitation workaround)
                 logger.debug(f"Mem0 assigned ID: {mem0_id} for memory: {memory_id}")
-            
+
             # Track the memory_id to user_id mapping for retrieval
             self._memory_user_map[memory_id] = effective_user_id
-            
+
             logger.info(f"Added memory {memory_id} for user {effective_user_id}")
             return memory_id
-            
+
         except Exception as e:
             logger.error(f"Failed to add memory: {e}")
             raise RuntimeError(f"Failed to add memory: {e}")
-    
+
     async def aadd(
         self,
         content: str,
@@ -203,10 +179,79 @@ class Mem0Store(BaseStore):
         # Mem0 doesn't have native async support, run in thread pool
         loop = asyncio.get_event_loop()
         return await loop.run_in_executor(
-            None, 
-            lambda: self.add(content, user_id, agent_id, memory_type, category, metadata, **kwargs)
+            None,
+            lambda: self.add(content, user_id, agent_id, memory_type, category, metadata, **kwargs),
         )
-    
+
+    def _build_mem0_filters(
+        self,
+        agent_id: str | None = None,
+        category: str | None = None,
+        filters: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """Build filters for Mem0 search, avoiding problematic fields."""
+        mem0_filters = {}
+        if agent_id:
+            mem0_filters["agent_id"] = agent_id
+        if category:
+            mem0_filters["category"] = category
+        if filters:
+            mem0_filters.update(filters)
+        return mem0_filters
+
+    def _should_skip_result(
+        self,
+        result: dict[str, Any],
+        memory_type: str | None,
+        score_threshold: float | None,
+        filters: dict[str, Any] | None,
+    ) -> bool:
+        """Check if a search result should be skipped based on filters."""
+        score = result.get("score", 0.0)
+        result_metadata = result.get("metadata", {})
+
+        # Apply score threshold
+        if score_threshold is not None and score < score_threshold:
+            return True
+
+        # Apply memory_type filter in post-processing
+        if memory_type and result_metadata.get("memory_type") != memory_type:
+            return True
+
+        # Apply app_id filter in post-processing
+        if self.app_id and result_metadata.get("app_id") != self.app_id:
+            return True
+
+        # Apply additional filters from the filters dict
+        if filters:
+            for filter_key, filter_value in filters.items():
+                metadata_value = result_metadata.get(filter_key)
+                if metadata_value != filter_value:
+                    return True
+
+        return False
+
+    def _create_search_result(
+        self, result: dict[str, Any], effective_user_id: str
+    ) -> MemorySearchResult:
+        """Create a MemorySearchResult from a Mem0 result."""
+        memory_content = result.get("memory", "")
+        result_metadata = result.get("metadata", {})
+        mem0_id = result.get("id")
+        score = result.get("score", 0.0)
+
+        return MemorySearchResult(
+            id=result_metadata.get("memory_id", str(mem0_id) if mem0_id else str(uuid4())),
+            content=memory_content,
+            score=float(score),
+            memory_type=result_metadata.get("memory_type", "episodic"),
+            metadata=result_metadata,
+            user_id=effective_user_id,
+            agent_id=result_metadata.get("agent_id"),
+            created_at=self._parse_datetime(result_metadata.get("created_at")),
+            updated_at=self._parse_datetime(result_metadata.get("updated_at")),
+        )
+
     def search(
         self,
         query: str,
@@ -221,7 +266,7 @@ class Mem0Store(BaseStore):
     ) -> list[MemorySearchResult]:
         """
         Search memories by content similarity.
-        
+
         Args:
             query: Search query
             user_id: Filter by user (defaults to instance default)
@@ -232,29 +277,15 @@ class Mem0Store(BaseStore):
             score_threshold: Minimum similarity score
             filters: Additional filters
             **kwargs: Store-specific parameters
-            
+
         Returns:
             List of matching memories
         """
         effective_user_id = user_id or self.default_user_id
-        
+
         # Build filters for Mem0
-        # Note: Mem0 with Qdrant requires indexed fields for filtering
-        # memory_type and app_id filtering cause index errors, so we filter in post-processing
-        mem0_filters = {}
-        if agent_id:
-            mem0_filters["agent_id"] = agent_id
-        # Skip memory_type and app_id filters to avoid Qdrant index errors
-        # if memory_type:
-        #     mem0_filters["memory_type"] = memory_type
-        if category:
-            mem0_filters["category"] = category
-        # Skip app_id filter to avoid Qdrant index errors  
-        # if self.app_id:
-        #     mem0_filters["app_id"] = self.app_id
-        if filters:
-            mem0_filters.update(filters)
-        
+        mem0_filters = self._build_mem0_filters(agent_id, category, filters)
+
         try:
             # Search in Mem0
             results = self.memory.search(
@@ -262,63 +293,27 @@ class Mem0Store(BaseStore):
                 user_id=effective_user_id,
                 limit=limit,
                 filters=mem0_filters if mem0_filters else None,
-                **kwargs
+                **kwargs,
             )
-            
+
             search_results = []
-            
+
             # Process Mem0 results
             if isinstance(results, dict) and "results" in results:
                 for result in results["results"]:
-                    score = result.get("score", 0.0)
-
-                    
-                    # Apply score threshold
-                    if score_threshold is not None and score < score_threshold:
+                    # Check if result should be skipped
+                    if self._should_skip_result(result, memory_type, score_threshold, filters):
                         continue
 
-                    
-                    # Extract memory data
-                    memory_content = result.get("memory", "")
-                    result_metadata = result.get("metadata", {})
-                    mem0_id = result.get("id")
-                    
-                    # Apply memory_type, app_id, and additional filters in post-processing
-                    if memory_type and result_metadata.get("memory_type") != memory_type:
-                        continue
-                    if self.app_id and result_metadata.get("app_id") != self.app_id:
-                        continue
-                    
-                    # Apply additional filters from the filters dict
-                    if filters:
-                        skip_result = False
-                        for filter_key, filter_value in filters.items():
-                            metadata_value = result_metadata.get(filter_key)
-                            if metadata_value != filter_value:
-                                skip_result = True
-                                break
-                        if skip_result:
-                            print("broke t filters")
-                            continue
-                    # Create MemorySearchResult
-                    search_results.append(MemorySearchResult(
-                        id=result_metadata.get("memory_id", str(mem0_id) if mem0_id else str(uuid4())),
-                        content=memory_content,
-                        score=float(score),
-                        memory_type=result_metadata.get("memory_type", "episodic"),
-                        metadata=result_metadata,
-                        user_id=effective_user_id,
-                        agent_id=result_metadata.get("agent_id"),
-                        created_at=self._parse_datetime(result_metadata.get("created_at")),
-                        updated_at=self._parse_datetime(result_metadata.get("updated_at")),
-                    ))
-            
+                    # Create search result
+                    search_results.append(self._create_search_result(result, effective_user_id))
+
             return search_results[:limit]
-            
+
         except Exception as e:
             logger.error(f"Search failed: {e}")
             raise RuntimeError(f"Search failed: {e}")
-    
+
     async def asearch(
         self,
         query: str,
@@ -336,25 +331,32 @@ class Mem0Store(BaseStore):
         return await loop.run_in_executor(
             None,
             lambda: self.search(
-                query, user_id, agent_id, memory_type, category, 
-                limit, score_threshold, filters, **kwargs
-            )
+                query,
+                user_id,
+                agent_id,
+                memory_type,
+                category,
+                limit,
+                score_threshold,
+                filters,
+                **kwargs,
+            ),
         )
-    
+
     def get(self, memory_id: str, **kwargs) -> MemorySearchResult | None:
         """
         Get a specific memory by ID.
-        
+
         Note: Mem0 doesn't provide direct ID-based retrieval,
         so we get all memories and filter by memory_id in metadata.
         """
         try:
             # First, check if we know which user this memory belongs to
             target_user_id = self._memory_user_map.get(memory_id, self.default_user_id)
-            
+
             # Get all memories for the target user
             all_memories = self.memory.get_all(user_id=target_user_id)
-            
+
             # Check memories for this specific memory_id
             for memory in all_memories:
                 metadata = memory.get("metadata", {})
@@ -370,18 +372,18 @@ class Mem0Store(BaseStore):
                         created_at=self._parse_datetime(metadata.get("created_at")),
                         updated_at=self._parse_datetime(metadata.get("updated_at")),
                     )
-            
+
             return None
-            
+
         except Exception as e:
             logger.error(f"Get operation failed: {e}")
             return None
-    
+
     async def aget(self, memory_id: str, **kwargs) -> MemorySearchResult | None:
         """Async version of get."""
         loop = asyncio.get_event_loop()
         return await loop.run_in_executor(None, lambda: self.get(memory_id, **kwargs))
-    
+
     def update(
         self,
         memory_id: str,
@@ -391,7 +393,7 @@ class Mem0Store(BaseStore):
     ) -> None:
         """
         Update an existing memory.
-        
+
         Note: Mem0's update capabilities are limited. We use the memory.update
         method if available, otherwise fall back to get + delete + add pattern.
         """
@@ -400,10 +402,10 @@ class Mem0Store(BaseStore):
             existing = self.get(memory_id)
             if not existing:
                 raise ValueError(f"Memory with ID {memory_id} not found")
-            
+
             # Try using Mem0's update method if available
             mem0_id = existing.metadata.get("mem0_id")
-            if hasattr(self.memory, 'update') and mem0_id:
+            if hasattr(self.memory, "update") and mem0_id:
                 update_data = {}
                 if content:
                     update_data["data"] = content
@@ -412,29 +414,29 @@ class Mem0Store(BaseStore):
                     updated_metadata = {**existing.metadata, **metadata}
                     updated_metadata["updated_at"] = datetime.now().isoformat()
                     update_data["metadata"] = updated_metadata
-                
+
                 if update_data:
                     self.memory.update(memory_id=mem0_id, **update_data)
                     logger.info(f"Updated memory {memory_id}")
                     return
-            
+
             # Fallback: manual update by recreating
             logger.warning("Using fallback update method (delete + add)")
-            
+
             # Prepare updated content and metadata
             updated_content = content if content is not None else existing.content
             updated_metadata = {**existing.metadata}
             if metadata:
                 updated_metadata.update(metadata)
             updated_metadata["updated_at"] = datetime.now().isoformat()
-            
+
             # Delete old memory (if we have mem0_id)
-            if mem0_id and hasattr(self.memory, 'delete'):
+            if mem0_id and hasattr(self.memory, "delete"):
                 try:
                     self.memory.delete(memory_id=mem0_id)
                 except Exception as e:
                     logger.warning(f"Failed to delete old memory during update: {e}")
-            
+
             # Add updated memory
             self.add(
                 content=updated_content,
@@ -443,13 +445,13 @@ class Mem0Store(BaseStore):
                 memory_type=existing.memory_type,
                 category=updated_metadata.get("category", "general"),
                 metadata=updated_metadata,
-                **kwargs
+                **kwargs,
             )
-            
+
         except Exception as e:
             logger.error(f"Update failed: {e}")
             raise RuntimeError(f"Update failed: {e}")
-    
+
     async def aupdate(
         self,
         memory_id: str,
@@ -462,7 +464,7 @@ class Mem0Store(BaseStore):
         await loop.run_in_executor(
             None, lambda: self.update(memory_id, content, metadata, **kwargs)
         )
-    
+
     def delete(self, memory_id: str, **kwargs) -> None:
         """Delete a memory by ID."""
         try:
@@ -471,27 +473,79 @@ class Mem0Store(BaseStore):
             if not existing:
                 logger.warning(f"Memory {memory_id} not found for deletion")
                 return
-            
+
             mem0_id = existing.metadata.get("mem0_id")
-            if mem0_id and hasattr(self.memory, 'delete'):
+            if mem0_id and hasattr(self.memory, "delete"):
                 self.memory.delete(memory_id=mem0_id)
                 logger.info(f"Deleted memory {memory_id} (Mem0 ID: {mem0_id})")
             else:
                 logger.warning(
                     f"Cannot delete memory {memory_id}: no Mem0 ID or delete method unavailable"
                 )
-            
+
         except Exception as e:
             logger.error(f"Delete failed: {e}")
             raise RuntimeError(f"Delete failed: {e}")
-    
+
     async def adelete(self, memory_id: str, **kwargs) -> None:
         """Async version of delete."""
         loop = asyncio.get_event_loop()
         await loop.run_in_executor(None, lambda: self.delete(memory_id, **kwargs))
-    
+
     # --- User/Agent Management Overrides ---
-    
+
+    def _parse_mem0_response(self, response: Any) -> list[dict]:
+        """Parse Mem0 response to extract memories list."""
+        if isinstance(response, list):
+            return response
+        if isinstance(response, dict) and "results" in response:
+            return response["results"]
+
+        logger.warning(f"Unexpected response format from Mem0.get_all(): {type(response)}")
+        return []
+
+    def _normalize_memory_dict(self, memory: Any) -> dict | None:
+        """Normalize memory data to dict format."""
+        if isinstance(memory, str):
+            return {"memory": memory, "metadata": {}}
+        if isinstance(memory, dict):
+            return memory
+
+        logger.warning(f"Unexpected memory format: {type(memory)}")
+        return None
+
+    def _apply_get_all_filters(
+        self,
+        metadata: dict[str, Any],
+        agent_id: str | None,
+        memory_type: str | None,
+        category: str | None,
+    ) -> bool:
+        """Check if memory should be filtered out based on criteria."""
+        return not (
+            (agent_id and metadata.get("agent_id") != agent_id)
+            or (memory_type and metadata.get("memory_type") != memory_type)
+            or (category and metadata.get("category") != category)
+            or (self.app_id and metadata.get("app_id") != self.app_id)
+        )
+
+    def _create_memory_result(
+        self, memory_dict: dict, effective_user_id: str
+    ) -> MemorySearchResult:
+        """Create MemorySearchResult from memory dict."""
+        metadata = memory_dict.get("metadata", {})
+        return MemorySearchResult(
+            id=metadata.get("memory_id", str(uuid4())),
+            content=memory_dict.get("memory", ""),
+            score=1.0,
+            memory_type=metadata.get("memory_type", "episodic"),
+            metadata=metadata,
+            user_id=effective_user_id,
+            agent_id=metadata.get("agent_id"),
+            created_at=self._parse_datetime(metadata.get("created_at")),
+            updated_at=self._parse_datetime(metadata.get("updated_at")),
+        )
+
     def get_all(
         self,
         user_id: str | None = None,
@@ -503,64 +557,37 @@ class Mem0Store(BaseStore):
     ) -> list[MemorySearchResult]:
         """Get all memories for a user/agent with optional filters."""
         effective_user_id = user_id or self.default_user_id
-        
+
         try:
             # Get all memories from Mem0
             all_memories_response = self.memory.get_all(user_id=effective_user_id)
-            
-            # Handle different response formats from Mem0
-            all_memories = []
-            if isinstance(all_memories_response, list):
-                all_memories = all_memories_response
-            elif isinstance(all_memories_response, dict) and "results" in all_memories_response:
-                all_memories = all_memories_response["results"]
-            else:
-                logger.warning(f"Unexpected response format from Mem0.get_all(): {type(all_memories_response)}")
-                return []
-            
+            all_memories = self._parse_mem0_response(all_memories_response)
+
             results = []
             for memory in all_memories:
-                # Handle case where memory might be a string or dict
-                if isinstance(memory, str):
-                    # If memory is just a string, create a minimal structure
-                    memory = {"memory": memory, "metadata": {}}
-                elif not isinstance(memory, dict):
-                    logger.warning(f"Unexpected memory format: {type(memory)}")
+                # Normalize memory to dict format
+                memory_dict = self._normalize_memory_dict(memory)
+                if memory_dict is None:
                     continue
-                
-                metadata = memory.get("metadata", {})
-                
+
+                metadata = memory_dict.get("metadata", {})
+
                 # Apply filters
-                if agent_id and metadata.get("agent_id") != agent_id:
+                if not self._apply_get_all_filters(metadata, agent_id, memory_type, category):
                     continue
-                if memory_type and metadata.get("memory_type") != memory_type:
-                    continue
-                if category and metadata.get("category") != category:
-                    continue
-                if self.app_id and metadata.get("app_id") != self.app_id:
-                    continue
-                
-                results.append(MemorySearchResult(
-                    id=metadata.get("memory_id", str(uuid4())),
-                    content=memory.get("memory", ""),
-                    score=1.0,
-                    memory_type=metadata.get("memory_type", "episodic"),
-                    metadata=metadata,
-                    user_id=effective_user_id,
-                    agent_id=metadata.get("agent_id"),
-                    created_at=self._parse_datetime(metadata.get("created_at")),
-                    updated_at=self._parse_datetime(metadata.get("updated_at")),
-                ))
-                
+
+                # Create result
+                results.append(self._create_memory_result(memory_dict, effective_user_id))
+
                 if len(results) >= limit:
                     break
-            
+
             return results
-            
+
         except Exception as e:
             logger.error(f"Failed to get all memories: {e}")
             return []
-    
+
     async def aget_all(
         self,
         user_id: str | None = None,
@@ -575,7 +602,7 @@ class Mem0Store(BaseStore):
         return await loop.run_in_executor(
             None, lambda: self.get_all(user_id, agent_id, memory_type, category, limit, **kwargs)
         )
-    
+
     def delete_all(
         self,
         user_id: str | None = None,
@@ -593,9 +620,9 @@ class Mem0Store(BaseStore):
                 memory_type=memory_type,
                 category=category,
                 limit=10000,  # Large limit to get all
-                **kwargs
+                **kwargs,
             )
-            
+
             count = 0
             for memory in memories_to_delete:
                 try:
@@ -603,13 +630,13 @@ class Mem0Store(BaseStore):
                     count += 1
                 except Exception as e:
                     logger.warning(f"Failed to delete memory {memory.id}: {e}")
-            
+
             return count
-            
+
         except Exception as e:
             logger.error(f"Failed to delete all memories: {e}")
             return 0
-    
+
     async def adelete_all(
         self,
         user_id: str | None = None,
@@ -623,7 +650,7 @@ class Mem0Store(BaseStore):
         return await loop.run_in_executor(
             None, lambda: self.delete_all(user_id, agent_id, memory_type, category, **kwargs)
         )
-    
+
     # --- Message-Specific Convenience Methods (Override BaseStore) ---
 
     def store_message(
@@ -634,23 +661,28 @@ class Mem0Store(BaseStore):
         additional_metadata: dict[str, Any] | None = None,
         **kwargs,
     ) -> str:
-        """Store a PyAgenity Message as memory using direct add method to avoid parameter conflicts."""
+        """
+        Store a PyAgenity Message as memory using direct add method
+        to avoid parameter conflicts.
+        """
         # Extract message content and role (using .text() method for proper content extraction)
         content = message.text()
         role = message.role
-        
+
         # Build metadata with message info
         message_metadata = {
             "role": role,
             "message_id": message.message_id,
-            "timestamp": message.timestamp.isoformat() if message.timestamp else datetime.now().isoformat(),
+            "timestamp": message.timestamp.isoformat()
+            if message.timestamp
+            else datetime.now().isoformat(),
             **(additional_metadata or {}),
         }
-        
+
         # Use memory_type from kwargs or default to "episodic" for messages (to match BaseStore)
         memory_type = kwargs.pop("memory_type", "episodic")
         category = kwargs.pop("category", "message")
-        
+
         # Call add method directly to avoid parameter conflicts
         return self.add(
             content=content,
@@ -659,7 +691,7 @@ class Mem0Store(BaseStore):
             memory_type=memory_type,
             category=category,
             metadata=message_metadata,
-            **kwargs
+            **kwargs,
         )
 
     async def astore_message(
@@ -674,7 +706,7 @@ class Mem0Store(BaseStore):
         loop = asyncio.get_event_loop()
         return await loop.run_in_executor(
             None,
-            lambda: self.store_message(message, user_id, agent_id, additional_metadata, **kwargs)
+            lambda: self.store_message(message, user_id, agent_id, additional_metadata, **kwargs),
         )
 
     def recall_similar_messages(
@@ -733,34 +765,34 @@ class Mem0Store(BaseStore):
         )
 
     # --- Utility Methods ---
-    
+
     def _parse_datetime(self, timestamp_str: str | None) -> datetime | None:
         """Parse ISO timestamp string to datetime object."""
         if not timestamp_str:
             return None
         try:
-            return datetime.fromisoformat(timestamp_str.replace('Z', '+00:00'))
+            return datetime.fromisoformat(timestamp_str.replace("Z", "+00:00"))
         except (ValueError, AttributeError):
             return None
-    
+
     def get_stats(self, user_id: str | None = None, agent_id: str | None = None) -> dict[str, Any]:
         """Get statistics about stored memories."""
         effective_user_id = user_id or self.default_user_id
-        
+
         try:
             memories = self.get_all(user_id=effective_user_id, agent_id=agent_id, limit=1000)
-            
+
             # Count by memory type and category
             memory_types = {}
             categories = {}
-            
+
             for memory in memories:
                 memory_type = memory.memory_type
                 category = memory.metadata.get("category", "general")
-                
+
                 memory_types[memory_type] = memory_types.get(memory_type, 0) + 1
                 categories[category] = categories.get(category, 0) + 1
-            
+
             return {
                 "total_memories": len(memories),
                 "user_id": effective_user_id,
@@ -771,18 +803,18 @@ class Mem0Store(BaseStore):
                 "memory_types_list": list(memory_types.keys()),
                 "categories_list": list(categories.keys()),
             }
-            
+
         except Exception as e:
             logger.error(f"Failed to get stats: {e}")
             return {"error": str(e)}
-    
+
     async def aget_stats(
         self, user_id: str | None = None, agent_id: str | None = None
     ) -> dict[str, Any]:
         """Async version of get_stats."""
         loop = asyncio.get_event_loop()
         return await loop.run_in_executor(None, lambda: self.get_stats(user_id, agent_id))
-    
+
     def cleanup(self) -> None:
         """Clean up resources."""
         try:
@@ -790,7 +822,7 @@ class Mem0Store(BaseStore):
             logger.info("Mem0Store cleanup completed")
         except Exception as e:
             logger.warning(f"Cleanup warning: {e}")
-    
+
     async def acleanup(self) -> None:
         """Async version of cleanup."""
         self.cleanup()
@@ -798,21 +830,22 @@ class Mem0Store(BaseStore):
 
 # Convenience factory functions
 
+
 def create_mem0_store(
     config: dict[str, Any] | None = None,
     user_id: str = "default_user",
     agent_id: str | None = None,
-    app_id: str = "pyagenity_app"
+    app_id: str = "pyagenity_app",
 ) -> Mem0Store:
     """
     Create a Mem0Store with the given configuration.
-    
+
     Args:
         config: Mem0 configuration dict
         user_id: User identifier for memory isolation
         agent_id: Agent identifier
         app_id: Application identifier
-        
+
     Returns:
         Configured Mem0Store instance
     """
@@ -828,11 +861,11 @@ def create_mem0_store_with_qdrant(
     user_id: str = "default_user",
     agent_id: str | None = None,
     app_id: str = "pyagenity_app",
-    **kwargs
+    **kwargs,
 ) -> Mem0Store:
     """
     Create a Mem0Store configured with Qdrant backend.
-    
+
     Args:
         qdrant_url: Qdrant server URL
         qdrant_api_key: Qdrant API key (for cloud)
@@ -848,7 +881,7 @@ def create_mem0_store_with_qdrant(
             - vector_store_config: Additional vector store config
             - embedder_config: Additional embedder config
             - llm_config: Additional LLM config
-        
+
     Returns:
         Mem0Store configured with Qdrant
     """
@@ -859,25 +892,17 @@ def create_mem0_store_with_qdrant(
                 "collection_name": collection_name,
                 "url": qdrant_url,
                 "api_key": qdrant_api_key,
-                **kwargs.get("vector_store_config", {})
-            }
+                **kwargs.get("vector_store_config", {}),
+            },
         },
         "embedder": {
             "provider": kwargs.get("embedder_provider", "openai"),
-            "config": {
-                "model": embedding_model,
-                **kwargs.get("embedder_config", {})
-            }
+            "config": {"model": embedding_model, **kwargs.get("embedder_config", {})},
         },
         "llm": {
             "provider": kwargs.get("llm_provider", "openai"),
-            "config": {
-                "model": llm_model,
-                **kwargs.get("llm_config", {})
-            }
-        }
+            "config": {"model": llm_model, **kwargs.get("llm_config", {})},
+        },
     }
 
-    print("config: ", config)
-    
     return Mem0Store(config=config, user_id=user_id, agent_id=agent_id, app_id=app_id)
