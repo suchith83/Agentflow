@@ -97,6 +97,7 @@ class SimplePersonalizedAgent:
             
             if 'results' in memory_results:
                 memories = [m['memory'] for m in memory_results['results']]
+            print(f"retreived {len(memories)} memories")
         except Exception as e:
             print(f"Memory retrieval error: {e}")
         
