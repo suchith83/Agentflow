@@ -1,3 +1,18 @@
+"""
+InvokeNodeHandler utilities for PyAgenity agent graph execution.
+
+This module provides the InvokeNodeHandler class, which manages the invocation of node functions
+and tool nodes within the agent graph. It supports dependency injection, callback hooks, event publishing,
+and error recovery for both regular and tool-based nodes.
+
+Classes:
+    InvokeNodeHandler: Handles execution of node functions and tool nodes with DI and callbacks.
+
+Usage:
+    handler = InvokeNodeHandler(name, func, publisher)
+    result = await handler.invoke(config, state)
+"""
+
 import inspect
 import json
 import logging
@@ -23,11 +38,21 @@ from pyagenity.utils import (
 
 from .handler_mixins import BaseLoggingMixin
 
-
 logger = logging.getLogger(__name__)
 
 
 class InvokeNodeHandler(BaseLoggingMixin):
+    """
+    Handles invocation of node functions and tool nodes in the agent graph.
+
+    Supports dependency injection, callback hooks, event publishing, and error recovery.
+
+    Args:
+        name (str): Name of the node.
+        func (Callable | ToolNode): The function or ToolNode to execute.
+        publisher (BasePublisher, optional): Event publisher for execution events.
+    """
+
     def __init__(
         self,
         name: str,
@@ -44,6 +69,17 @@ class InvokeNodeHandler(BaseLoggingMixin):
         state: AgentState,
         config: dict[str, Any],
     ) -> Message:
+        """
+        Execute a single tool call using the ToolNode.
+
+        Args:
+            tool_call (dict): Tool call specification.
+            state (AgentState): Current agent state.
+            config (dict): Node configuration.
+
+        Returns:
+            Message: Resulting message from tool execution.
+        """
         function_name = tool_call.get("function", {}).get("name", "")
         function_args: dict = json.loads(tool_call.get("function", {}).get("arguments", "{}"))
         tool_call_id = tool_call.get("id", "")
@@ -74,6 +110,20 @@ class InvokeNodeHandler(BaseLoggingMixin):
         state: "AgentState",
         config: dict[str, Any],
     ) -> list[Message]:
+        """
+        Execute all tool calls present in the last message.
+
+        Args:
+            last_message (Message): The last message containing tool calls.
+            state (AgentState): Current agent state.
+            config (dict): Node configuration.
+
+        Returns:
+            list[Message]: List of messages from tool executions.
+
+        Raises:
+            NodeError: If no tool calls are present.
+        """
         logger.debug("Node '%s' calling tools from message", self.name)
         result: list[Message] = []
         if (
@@ -102,6 +152,19 @@ class InvokeNodeHandler(BaseLoggingMixin):
         state: "AgentState",
         config: dict[str, Any],
     ) -> dict:
+        """
+        Prepare input data for function invocation, handling injectable parameters.
+
+        Args:
+            state (AgentState): Current agent state.
+            config (dict): Node configuration.
+
+        Returns:
+            dict: Input data for function call.
+
+        Raises:
+            TypeError: If required parameters are missing.
+        """
         sig = inspect.signature(self.func)  # type: ignore Tool node won't come here
         input_data = {}
         default_data = {
@@ -136,6 +199,20 @@ class InvokeNodeHandler(BaseLoggingMixin):
         config: dict[str, Any],
         callback_mgr: CallbackManager,
     ) -> dict[str, Any]:
+        """
+        Execute a regular node function with callback hooks and event publishing.
+
+        Args:
+            state (AgentState): Current agent state.
+            config (dict): Node configuration.
+            callback_mgr (CallbackManager): Callback manager for hooks.
+
+        Returns:
+            dict: Result containing new state, messages, and next node.
+
+        Raises:
+            Exception: If function execution fails and cannot be recovered.
+        """
         logger.debug("Node '%s' calling normal function", self.name)
         result: dict[str, Any] = {}
 
@@ -253,7 +330,20 @@ class InvokeNodeHandler(BaseLoggingMixin):
         state: AgentState,
         callback_mgr: CallbackManager = Inject[CallbackManager],
     ) -> dict[str, Any] | list[Message]:
-        """Execute the node function with dependency injection support and callback hooks."""
+        """
+        Execute the node function or ToolNode with dependency injection and callback hooks.
+
+        Args:
+            config (dict): Node configuration.
+            state (AgentState): Current agent state.
+            callback_mgr (CallbackManager, optional): Callback manager for hooks.
+
+        Returns:
+            dict | list[Message]: Result of node execution (regular node or tool node).
+
+        Raises:
+            NodeError: If execution fails or context is missing for tool nodes.
+        """
         logger.info("Executing node '%s'", self.name)
         logger.debug(
             "Node '%s' execution with state context size=%d, config keys=%s",

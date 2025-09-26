@@ -1,3 +1,21 @@
+"""Core utility functions for graph execution and state management.
+
+This module provides essential utilities for PyAgenity graph execution, including
+state management, message processing, response formatting, and execution flow control.
+These functions handle the low-level operations that support graph workflow execution.
+
+The utilities in this module are designed to work with PyAgenity's dependency injection
+system and provide consistent interfaces for common operations across different
+execution contexts.
+
+Key functionality areas:
+- State loading, creation, and synchronization
+- Message processing and deduplication
+- Response formatting based on granularity levels
+- Node execution result processing
+- Interrupt handling and execution flow control
+"""
+
 from __future__ import annotations
 
 import copy
@@ -32,7 +50,35 @@ async def parse_response(
     messages: list[Message],
     response_granularity: ResponseGranularity = ResponseGranularity.LOW,
 ) -> dict[str, Any]:
-    """Parse response based on granularity."""
+    """Parse and format execution response based on specified granularity level.
+
+    Formats the final response from graph execution according to the requested
+    granularity level, allowing clients to receive different levels of detail
+    depending on their needs.
+
+    Args:
+        state: The final agent state after graph execution.
+        messages: List of messages generated during execution.
+        response_granularity: Level of detail to include in the response:
+            - FULL: Returns complete state object and all messages
+            - PARTIAL: Returns context, summary, and messages
+            - LOW: Returns only the messages (default)
+
+    Returns:
+        Dictionary containing the formatted response with keys depending on
+        granularity level. Always includes 'messages' key with execution results.
+
+    Example:
+        ```python
+        # LOW granularity (default)
+        response = await parse_response(state, messages)
+        # Returns: {"messages": [Message(...), ...]}
+
+        # FULL granularity
+        response = await parse_response(state, messages, ResponseGranularity.FULL)
+        # Returns: {"state": AgentState(...), "messages": [Message(...), ...]}
+        ```
+    """
     match response_granularity:
         case ResponseGranularity.FULL:
             # Return full state and messages

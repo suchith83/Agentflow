@@ -282,6 +282,56 @@ class StateGraph[StateT: AgentState]:
         condition: Callable,
         path_map: dict[str, str] | None = None,
     ) -> "StateGraph":
+        """Add conditional routing between nodes based on runtime evaluation.
+
+        Creates dynamic routing logic where the next node is determined by evaluating
+        a condition function against the current state. This enables complex branching
+        logic, decision trees, and adaptive workflow routing.
+
+        Args:
+            from_node: Name of the source node where the condition is evaluated.
+            condition: Callable function that takes the current AgentState and returns
+                a value used for routing decisions. Should be deterministic and
+                side-effect free.
+            path_map: Optional dictionary mapping condition results to destination nodes.
+                If provided, the condition's return value is looked up in this mapping.
+                If None, the condition should return the destination node name directly.
+
+        Returns:
+            StateGraph: The graph instance for method chaining.
+
+        Raises:
+            ValueError: If the condition function or path_map configuration is invalid.
+
+        Example:
+            ```python
+            # Direct routing - condition returns node name
+            def route_by_priority(state):
+                priority = state.data.get("priority", "normal")
+                return "urgent_handler" if priority == "high" else "normal_handler"
+
+
+            graph.add_conditional_edges("classifier", route_by_priority)
+
+
+            # Mapped routing - condition result mapped to nodes
+            def get_category(state):
+                return state.data.get("category", "default")
+
+
+            category_map = {
+                "finance": "finance_processor",
+                "legal": "legal_processor",
+                "default": "general_processor",
+            }
+            graph.add_conditional_edges("categorizer", get_category, category_map)
+            ```
+
+        Note:
+            The condition function receives the current AgentState and should return
+            consistent results for the same state. If using path_map, ensure the
+            condition's return values match the map keys exactly.
+        """
         """Add conditional edges from a node based on a condition function.
 
         Creates edges that are traversed based on the result of a condition

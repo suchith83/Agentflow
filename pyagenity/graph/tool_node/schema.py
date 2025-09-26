@@ -1,4 +1,13 @@
-"""Schema utilities and local tool description building for ToolNode."""
+"""Schema utilities and local tool description building for ToolNode.
+
+This module provides the SchemaMixin class which handles automatic schema generation
+for local Python functions, converting their type annotations and signatures into
+OpenAI-compatible function schemas. It supports various Python types including
+primitives, Optional types, List types, and Literal enums.
+
+The schema generation process inspects function signatures and converts them to
+JSON Schema format suitable for use with language models and function calling APIs.
+"""
 
 from __future__ import annotations
 
@@ -9,12 +18,42 @@ from .constants import INJECTABLE_PARAMS
 
 
 class SchemaMixin:
-    """Provides schema helpers and local tool description building."""
+    """Mixin providing schema generation and local tool description building.
+
+    This mixin provides functionality to automatically generate JSON Schema definitions
+    from Python function signatures. It handles type annotation conversion, parameter
+    analysis, and OpenAI-compatible function schema generation for local tools.
+
+    The mixin is designed to be used with ToolNode to automatically generate tool
+    schemas without requiring manual schema definition for Python functions.
+
+    Attributes:
+        _funcs: Dictionary mapping function names to callable functions. This
+            attribute is expected to be provided by the mixing class.
+    """
 
     _funcs: dict[str, t.Callable]
 
     @staticmethod
     def _handle_optional_annotation(annotation: t.Any, default: t.Any) -> dict | None:
+        """Handle Optional type annotations and convert them to appropriate schemas.
+
+        Processes Optional[T] type annotations (Union[T, None]) and generates
+        schema for the non-None type. This method handles the common pattern
+        of optional parameters in function signatures.
+
+        Args:
+            annotation: The type annotation to process, potentially an Optional type.
+            default: The default value for the parameter, used for schema generation.
+
+        Returns:
+            Dictionary containing the JSON schema for the non-None type if the
+            annotation is Optional, None otherwise.
+
+        Example:
+            Optional[str] -> {"type": "string"}
+            Optional[int] -> {"type": "integer"}
+        """
         args = getattr(annotation, "__args__", None)
         if args and any(a is type(None) for a in args):
             non_none = [a for a in args if a is not type(None)]
@@ -24,6 +63,26 @@ class SchemaMixin:
 
     @staticmethod
     def _handle_complex_annotation(annotation: t.Any) -> dict:
+        """Handle complex type annotations like List, Literal, and generic types.
+
+        Processes generic type annotations that aren't simple primitive types,
+        including container types like List and special types like Literal enums.
+        Falls back to string type for unrecognized complex types.
+
+        Args:
+            annotation: The complex type annotation to process (e.g., List[str],
+                Literal["a", "b", "c"]).
+
+        Returns:
+            Dictionary containing the appropriate JSON schema for the complex type.
+            For List types, returns array schema with item type.
+            For Literal types, returns enum schema with allowed values.
+            For unknown types, returns string type as fallback.
+
+        Example:
+            List[str] -> {"type": "array", "items": {"type": "string"}}
+            Literal["red", "green"] -> {"type": "string", "enum": ["red", "green"]}
+        """
         origin = getattr(annotation, "__origin__", None)
         if origin is list:
             item_type = getattr(annotation, "__args__", (str,))[0]
@@ -41,6 +100,27 @@ class SchemaMixin:
 
     @staticmethod
     def _annotation_to_schema(annotation: t.Any, default: t.Any) -> dict:
+        """Convert a Python type annotation to JSON Schema format.
+
+        Main entry point for type annotation conversion. Handles both simple
+        and complex types by delegating to appropriate helper methods.
+        Includes default value handling when present.
+
+        Args:
+            annotation: The Python type annotation to convert (e.g., str, int,
+                Optional[str], List[int]).
+            default: The default value for the parameter, included in schema
+                if not inspect._empty.
+
+        Returns:
+            Dictionary containing the JSON schema representation of the type
+            annotation, including default values where applicable.
+
+        Example:
+            str -> {"type": "string"}
+            int -> {"type": "integer"}
+            str with default "hello" -> {"type": "string", "default": "hello"}
+        """
         schema = SchemaMixin._handle_optional_annotation(annotation, default)
         if schema:
             return schema
@@ -63,6 +143,52 @@ class SchemaMixin:
         return schema
 
     def get_local_tool(self) -> list[dict]:
+        """Generate OpenAI-compatible tool definitions for all registered local functions.
+
+        Inspects all registered functions in _funcs and automatically generates
+        tool schemas by analyzing function signatures, type annotations, and docstrings.
+        Excludes injectable parameters that are provided by the framework.
+
+        Returns:
+            List of tool definitions in OpenAI function calling format. Each
+            definition includes the function name, description (from docstring),
+            and complete parameter schema with types and required fields.
+
+        Example:
+            For a function:
+            ```python
+            def calculate(a: int, b: int, operation: str = "add") -> int:
+                '''Perform arithmetic calculation.'''
+                return a + b if operation == "add" else a - b
+            ```
+
+            Returns:
+            ```python
+            [
+                {
+                    "type": "function",
+                    "function": {
+                        "name": "calculate",
+                        "description": "Perform arithmetic calculation.",
+                        "parameters": {
+                            "type": "object",
+                            "properties": {
+                                "a": {"type": "integer"},
+                                "b": {"type": "integer"},
+                                "operation": {"type": "string", "default": "add"},
+                            },
+                            "required": ["a", "b"],
+                        },
+                    },
+                }
+            ]
+            ```
+
+        Note:
+            Parameters listed in INJECTABLE_PARAMS (like 'state', 'config',
+            'tool_call_id') are automatically excluded from the generated schema
+            as they are provided by the framework during execution.
+        """
         tools: list[dict] = []
         for name, fn in self._funcs.items():
             sig = inspect.signature(fn)
