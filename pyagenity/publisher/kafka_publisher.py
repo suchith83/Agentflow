@@ -28,32 +28,21 @@ class KafkaPublisher(BasePublisher):
     It uses the aiokafka library to handle the producer operations. The publisher is
     lazily initialized and can be reused for multiple publishes.
 
-    Example:
-        >>> import asyncio
-        >>> from pyagenity.publisher.kafka_publisher import KafkaPublisher
-        >>> from pyagenity.models import EventModel
-        >>> async def main():
-        ...     config = {
-        ...         "bootstrap_servers": "localhost:9092",
-        ...         "topic": "my_topic",
-        ...         "client_id": "my_client",
-        ...     }
-        ...     publisher = KafkaPublisher(config)
-        ...     event = EventModel.stream({})
-        ...     await publisher.publish(event)
-        ...     await publisher.close()
-        >>> asyncio.run(main())
+    Attributes:
+        bootstrap_servers: Kafka bootstrap servers.
+        topic: Kafka topic to publish to.
+        client_id: Client ID for the producer.
+        _producer: Lazy-loaded Kafka producer instance.
     """
 
     def __init__(self, config: dict[str, Any] | None = None):
         """Initialize the KafkaPublisher.
 
         Args:
-            config (dict[str, Any] | None): Configuration dictionary. Defaults to None.
-                Supported keys:
-                - bootstrap_servers (str): Kafka bootstrap servers. Defaults to "localhost:9092".
-                - topic (str): Kafka topic to publish to. Defaults to "pyagenity.events".
-                - client_id (str | None): Client ID for the producer. Defaults to None.
+            config: Configuration dictionary. Supported keys:
+                - bootstrap_servers: Kafka bootstrap servers (default: "localhost:9092").
+                - topic: Kafka topic to publish to (default: "pyagenity.events").
+                - client_id: Client ID for the producer.
         """
         super().__init__(config or {})
         self.bootstrap_servers: str = self.config.get("bootstrap_servers", "localhost:9092")
@@ -68,7 +57,7 @@ class KafkaPublisher(BasePublisher):
         It imports aiokafka and starts the producer.
 
         Returns:
-            aiokafka.AIOKafkaProducer: The initialized producer instance.
+            The initialized producer instance.
 
         Raises:
             RuntimeError: If the 'aiokafka' package is not installed.
@@ -96,10 +85,10 @@ class KafkaPublisher(BasePublisher):
         """Publish an event to the Kafka topic.
 
         Args:
-            event (EventModel): The event to publish.
+            event: The event to publish.
 
         Returns:
-            Any: The result of the send_and_wait operation.
+            The result of the send_and_wait operation.
         """
         producer = await self._get_producer()
         payload = json.dumps(event.model_dump()).encode("utf-8")

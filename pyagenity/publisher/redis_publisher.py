@@ -27,16 +27,28 @@ logger = logging.getLogger(__name__)
 class RedisPublisher(BasePublisher):
     """Publish events to Redis via Pub/Sub channel or Stream.
 
-    Config keys (all optional):
-    - url: Redis URL (default: "redis://localhost:6379/0")
-    - mode: "pubsub" | "stream" (default: "pubsub")
-    - channel: Pub/Sub channel name (default: "pyagenity.events")
-    - stream: Stream name for XADD (default: "pyagenity.events")
-    - maxlen: For streams, approximate maxlen (int, optional)
-    - encoding: JSON encoding (default: "utf-8")
+    Attributes:
+        url: Redis URL.
+        mode: Publishing mode ('pubsub' or 'stream').
+        channel: Pub/Sub channel name.
+        stream: Stream name.
+        maxlen: Max length for streams.
+        encoding: Encoding for messages.
+        _redis: Redis client instance.
     """
 
     def __init__(self, config: dict[str, Any] | None = None):
+        """Initialize the RedisPublisher.
+
+        Args:
+            config: Configuration dictionary. Supported keys:
+                - url: Redis URL (default: "redis://localhost:6379/0").
+                - mode: Publishing mode ('pubsub' or 'stream', default: 'pubsub').
+                - channel: Pub/Sub channel name (default: "pyagenity.events").
+                - stream: Stream name (default: "pyagenity.events").
+                - maxlen: Max length for streams.
+                - encoding: Encoding (default: "utf-8").
+        """
         super().__init__(config or {})
         self.url: str = self.config.get("url", "redis://localhost:6379/0")
         self.mode: str = self.config.get("mode", "pubsub")
@@ -49,6 +61,14 @@ class RedisPublisher(BasePublisher):
         self._redis = None  # type: ignore[var-annotated]
 
     async def _get_client(self):
+        """Get or create the Redis client.
+
+        Returns:
+            The Redis client instance.
+
+        Raises:
+            RuntimeError: If connection fails.
+        """
         if self._redis is not None:
             return self._redis
 
@@ -70,6 +90,14 @@ class RedisPublisher(BasePublisher):
         return self._redis
 
     async def publish(self, event: EventModel) -> Any:
+        """Publish an event to Redis.
+
+        Args:
+            event: The event to publish.
+
+        Returns:
+            The result of the publish operation.
+        """
         client = await self._get_client()
         payload = json.dumps(event.model_dump()).encode(self.encoding)
 
@@ -84,6 +112,7 @@ class RedisPublisher(BasePublisher):
         return await client.publish(self.channel, payload)
 
     async def close(self):
+        """Close the Redis client."""
         if self._redis is not None:
             try:
                 await self._redis.close()
@@ -94,6 +123,7 @@ class RedisPublisher(BasePublisher):
                 self._redis = None
 
     def sync_close(self):
+        """Synchronously close the Redis client."""
         try:
             asyncio.run(self.close())
         except RuntimeError:

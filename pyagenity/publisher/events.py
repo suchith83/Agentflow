@@ -1,3 +1,16 @@
+"""
+Event and streaming primitives for agent graph execution.
+
+This module defines event types, content types, and the EventModel for structured streaming
+of execution updates, tool calls, state changes, messages, and errors in agent graphs.
+
+Classes:
+    Event: Enum for event sources (graph, node, tool, streaming).
+    EventType: Enum for event phases (start, progress, result, end, etc.).
+    ContentType: Enum for semantic content types (text, message, tool_call, etc.).
+    EventModel: Structured event chunk for streaming agent graph execution.
+"""
+
 import enum
 import time
 import uuid
@@ -9,7 +22,15 @@ from pyagenity.utils.message import ContentBlock
 
 
 class Event(str, enum.Enum):
-    # All the event source
+    """Enum for event sources in agent graph execution.
+
+    Values:
+        GRAPH_EXECUTION: Event from graph execution.
+        NODE_EXECUTION: Event from node execution.
+        TOOL_EXECUTION: Event from tool execution.
+        STREAMING: Event from streaming updates.
+    """
+
     GRAPH_EXECUTION = "graph_execution"
     NODE_EXECUTION = "node_execution"
     TOOL_EXECUTION = "tool_execution"
@@ -17,6 +38,18 @@ class Event(str, enum.Enum):
 
 
 class EventType(str, enum.Enum):
+    """Enum for event phases in agent graph execution.
+
+    Values:
+        START: Event marks start of execution.
+        PROGRESS: Event marks progress update.
+        RESULT: Event marks result produced.
+        END: Event marks end of execution.
+        UPDATE: Event marks update.
+        ERROR: Event marks error.
+        INTERRUPTED: Event marks interruption.
+    """
+
     START = "start"
     PROGRESS = "progress"
     RESULT = "result"
@@ -27,6 +60,24 @@ class EventType(str, enum.Enum):
 
 
 class ContentType(str, enum.Enum):
+    """Enum for semantic content types in agent graph streaming.
+
+    Values:
+        TEXT: Textual content.
+        MESSAGE: Message content.
+        REASONING: Reasoning content.
+        TOOL_CALL: Tool call content.
+        TOOL_RESULT: Tool result content.
+        IMAGE: Image content.
+        AUDIO: Audio content.
+        VIDEO: Video content.
+        DOCUMENT: Document content.
+        DATA: Data content.
+        STATE: State content.
+        UPDATE: Update content.
+        ERROR: Error content.
+    """
+
     TEXT = "text"
     MESSAGE = "message"
     REASONING = "reasoning"
@@ -44,12 +95,31 @@ class ContentType(str, enum.Enum):
 
 class EventModel(BaseModel):
     """
-    Represents a chunk of streamed data with event and content semantics.
+    Structured event chunk for streaming agent graph execution.
 
-    Designed for consistent and structured real-time streaming of execution updates, tool calls,
+    Represents a chunk of streamed data with event and content semantics, supporting both delta
+    (incremental) and full content. Used for real-time streaming of execution updates, tool calls,
     state changes, messages, and errors.
 
-    Supports both delta (incremental) and full content.
+    Attributes:
+        event: Type of the event source.
+        event_type: Phase of the event (start, progress, end, update).
+        content: Streamed textual content.
+        content_blocks: Structured content blocks for multimodal streaming.
+        delta: True if this is a delta update (incremental).
+        delta_type: Type of delta when delta=True.
+        block_index: Index of the content block this chunk applies to.
+        chunk_index: Per-block chunk index for ordering.
+        byte_offset: Byte offset for binary/media streaming.
+        data: Additional structured data.
+        content_type: Semantic type of content.
+        sequence_id: Monotonic sequence ID for stream ordering.
+        node_name: Name of the node producing this chunk.
+        run_id: Unique ID for this stream/run.
+        thread_id: Thread ID for this execution.
+        timestamp: UNIX timestamp of when chunk was created.
+        is_error: Marks this chunk as representing an error state.
+        metadata: Optional metadata for consumers.
     """
 
     # Event metadata
@@ -101,6 +171,12 @@ class EventModel(BaseModel):
     )
 
     class Config:
+        """Pydantic configuration for EventModel.
+
+        Attributes:
+            use_enum_values: Output enums as strings.
+        """
+
         use_enum_values = True  # Output enums as strings
 
     @classmethod
@@ -114,7 +190,20 @@ class EventModel(BaseModel):
         node_name: str = "",
         extra: dict[str, Any] | None = None,
     ) -> "EventModel":
-        """Create a default EventModel instance with minimal required fields."""
+        """Create a default EventModel instance with minimal required fields.
+
+        Args:
+            base_config: Base configuration for the event (thread/run/timestamp/user).
+            data: Structured data payload.
+            content_type: Semantic type(s) of content.
+            event: Event source type (default: GRAPH_EXECUTION).
+            event_type: Event phase (default: START).
+            node_name: Name of the node producing the event.
+            extra: Additional metadata.
+
+        Returns:
+            EventModel: The created event model instance.
+        """
         thread_id = base_config.get("thread_id", "")
         run_id = base_config.get("run_id", "")
 
@@ -144,7 +233,16 @@ class EventModel(BaseModel):
         node_name: str = "",
         extra: dict[str, Any] | None = None,
     ) -> "EventModel":
-        """Create a default EventModel instance with minimal required fields."""
+        """Create a default EventModel instance for streaming updates.
+
+        Args:
+            base_config: Base configuration for the event (thread/run/timestamp/user).
+            node_name: Name of the node producing the event.
+            extra: Additional metadata.
+
+        Returns:
+            EventModel: The created event model instance for streaming.
+        """
         thread_id = base_config.get("thread_id", "")
         run_id = base_config.get("run_id", "")
 

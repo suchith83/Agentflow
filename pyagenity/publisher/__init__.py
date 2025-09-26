@@ -39,6 +39,15 @@ __all__ = ["BasePublisher", "ConsolePublisher"]
 
 # Optional publishers
 def _try_import(name: str, attr: str):
+    """Attempt to import an attribute from a module.
+
+    Args:
+        name: The module name to import.
+        attr: The attribute name to get from the module.
+
+    Returns:
+        The attribute if successful, None otherwise.
+    """
     try:
         mod = importlib.import_module(name)
         return getattr(mod, attr)
@@ -47,6 +56,14 @@ def _try_import(name: str, attr: str):
 
 
 def _is_available(module_name: str) -> bool:
+    """Check if a module is available for import.
+
+    Args:
+        module_name: The name of the module to check.
+
+    Returns:
+        True if the module can be imported, False otherwise.
+    """
     try:
         importlib.import_module(module_name)
         return True

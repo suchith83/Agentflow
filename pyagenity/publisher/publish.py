@@ -7,6 +7,11 @@ from pyagenity.publisher.events import EventModel
 from pyagenity.utils.background_task_manager import BackgroundTaskManager
 
 
+"""Publish utilities for events.
+
+This module provides utilities for publishing events asynchronously using a background task manager.
+"""
+
 logger = logging.getLogger(__name__)
 
 
@@ -14,7 +19,12 @@ async def _publish_event_task(
     event: EventModel,
     publisher: BasePublisher | None,
 ) -> None:
-    """Publish an event if publisher is configured."""
+    """Publish an event asynchronously if publisher is configured.
+
+    Args:
+        event: The event to publish.
+        publisher: The publisher instance, or None.
+    """
     if publisher:
         try:
             await publisher.publish(event)
@@ -28,6 +38,12 @@ def publish_event(
     publisher: BasePublisher | None = Inject[BasePublisher],
     task_manager: BackgroundTaskManager = Inject[BackgroundTaskManager],
 ) -> None:
-    """Publish an event if publisher is configured."""
+    """Publish an event asynchronously using the background task manager.
+
+    Args:
+        event: The event to publish.
+        publisher: The publisher instance (injected).
+        task_manager: The background task manager (injected).
+    """
     # Store the task to prevent it from being garbage collected
     task_manager.create_task(_publish_event_task(event, publisher))
