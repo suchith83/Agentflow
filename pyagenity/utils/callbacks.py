@@ -135,9 +135,16 @@ OnErrorCallbackType = Union[
 
 
 class CallbackManager:
-    """Manages registration and execution of callbacks for different invocation types."""
+    """
+    Manages registration and execution of callbacks for different invocation types.
+
+    Handles before_invoke, after_invoke, and on_error callbacks for AI, TOOL, and MCP invocations.
+    """
 
     def __init__(self):
+        """
+        Initialize the CallbackManager with empty callback registries.
+        """
         self._before_callbacks: dict[InvocationType, list[BeforeInvokeCallbackType]] = {
             InvocationType.AI: [],
             InvocationType.TOOL: [],
@@ -157,23 +164,53 @@ class CallbackManager:
     def register_before_invoke(
         self, invocation_type: InvocationType, callback: BeforeInvokeCallbackType
     ) -> None:
-        """Register a before_invoke callback for a specific invocation type."""
+        """
+        Register a before_invoke callback for a specific invocation type.
+
+        Args:
+            invocation_type (InvocationType): The type of invocation (AI, TOOL, MCP).
+            callback (BeforeInvokeCallbackType): The callback to register.
+        """
         self._before_callbacks[invocation_type].append(callback)
 
     def register_after_invoke(
         self, invocation_type: InvocationType, callback: AfterInvokeCallbackType
     ) -> None:
-        """Register an after_invoke callback for a specific invocation type."""
+        """
+        Register an after_invoke callback for a specific invocation type.
+
+        Args:
+            invocation_type (InvocationType): The type of invocation (AI, TOOL, MCP).
+            callback (AfterInvokeCallbackType): The callback to register.
+        """
         self._after_callbacks[invocation_type].append(callback)
 
     def register_on_error(
         self, invocation_type: InvocationType, callback: OnErrorCallbackType
     ) -> None:
-        """Register an on_error callback for a specific invocation type."""
+        """
+        Register an on_error callback for a specific invocation type.
+
+        Args:
+            invocation_type (InvocationType): The type of invocation (AI, TOOL, MCP).
+            callback (OnErrorCallbackType): The callback to register.
+        """
         self._error_callbacks[invocation_type].append(callback)
 
     async def execute_before_invoke(self, context: CallbackContext, input_data: Any) -> Any:
-        """Execute all before_invoke callbacks for the given context."""
+        """
+        Execute all before_invoke callbacks for the given context.
+
+        Args:
+            context (CallbackContext): Context information about the invocation.
+            input_data (Any): The input data to be validated or modified.
+
+        Returns:
+            Any: The modified input data after all callbacks.
+
+        Raises:
+            Exception: If any callback fails.
+        """
         current_data = input_data
 
         for callback in self._before_callbacks[context.invocation_type]:
@@ -181,14 +218,12 @@ class CallbackManager:
                 if isinstance(callback, BeforeInvokeCallback):
                     current_data = await callback(context, current_data)
                 elif callable(callback):
-                    # Handle both sync and async callables
                     result = callback(context, current_data)
                     if hasattr(result, "__await__"):
                         current_data = await result
                     else:
                         current_data = result
             except Exception as e:
-                # If before_invoke callback fails, trigger error callbacks
                 await self.execute_on_error(context, input_data, e)
                 raise
 
@@ -197,7 +232,20 @@ class CallbackManager:
     async def execute_after_invoke(
         self, context: CallbackContext, input_data: Any, output_data: Any
     ) -> Any:
-        """Execute all after_invoke callbacks for the given context."""
+        """
+        Execute all after_invoke callbacks for the given context.
+
+        Args:
+            context (CallbackContext): Context information about the invocation.
+            input_data (Any): The original input data sent to the invocation.
+            output_data (Any): The output data returned from the invocation.
+
+        Returns:
+            Any: The modified output data after all callbacks.
+
+        Raises:
+            Exception: If any callback fails.
+        """
         current_output = output_data
 
         for callback in self._after_callbacks[context.invocation_type]:
@@ -205,14 +253,12 @@ class CallbackManager:
                 if isinstance(callback, AfterInvokeCallback):
                     current_output = await callback(context, input_data, current_output)
                 elif callable(callback):
-                    # Handle both sync and async callables
                     result = callback(context, input_data, current_output)
                     if hasattr(result, "__await__"):
                         current_output = await result
                     else:
                         current_output = result
             except Exception as e:
-                # If after_invoke callback fails, trigger error callbacks
                 await self.execute_on_error(context, input_data, e)
                 raise
 
@@ -223,9 +269,14 @@ class CallbackManager:
     ) -> Message | None:
         """
         Execute all on_error callbacks for the given context.
-        If any error happened then the result will be passed to the callbacks
-        And its expected that callbacks will return a recovery value as Message or None
-        If no callback returns a recovery value, None is returned.
+
+        Args:
+            context (CallbackContext): Context information about the invocation.
+            input_data (Any): The input data that caused the error.
+            error (Exception): The exception that occurred.
+
+        Returns:
+            Message | None: Recovery value from callbacks, or None if not handled.
         """
         recovery_value = None
 
@@ -235,24 +286,25 @@ class CallbackManager:
                 if isinstance(callback, OnErrorCallback):
                     result = await callback(context, input_data, error)
                 elif callable(callback):
-                    # Handle both sync and async callables
                     result = callback(context, input_data, error)
                     if hasattr(result, "__await__"):
                         result = await result  # type: ignore
 
-                # If any error callback returns a value, use it as recovery
                 if isinstance(result, Message) or result is None:
                     recovery_value = result
             except Exception as exc:
-                # If error callback itself fails, continue with other callbacks
-                # but don't let it break the error handling flow
                 logger.exception("Error callback failed: %s", exc)
                 continue
 
         return recovery_value
 
     def clear_callbacks(self, invocation_type: InvocationType | None = None) -> None:
-        """Clear callbacks for a specific invocation type or all types."""
+        """
+        Clear callbacks for a specific invocation type or all types.
+
+        Args:
+            invocation_type (InvocationType | None): The invocation type to clear, or None for all.
+        """
         if invocation_type:
             self._before_callbacks[invocation_type].clear()
             self._after_callbacks[invocation_type].clear()
@@ -264,7 +316,12 @@ class CallbackManager:
                 self._error_callbacks[inv_type].clear()
 
     def get_callback_counts(self) -> dict[str, dict[str, int]]:
-        """Get count of registered callbacks by type for debugging."""
+        """
+        Get count of registered callbacks by type for debugging.
+
+        Returns:
+            dict[str, dict[str, int]]: Counts of callbacks for each invocation type.
+        """
         return {
             inv_type.value: {
                 "before_invoke": len(self._before_callbacks[inv_type]),
@@ -283,17 +340,35 @@ default_callback_manager = CallbackManager()
 def register_before_invoke(
     invocation_type: InvocationType, callback: BeforeInvokeCallbackType
 ) -> None:
-    """Register a before_invoke callback on the global callback manager."""
+    """
+    Register a before_invoke callback on the global callback manager.
+
+    Args:
+        invocation_type (InvocationType): The type of invocation (AI, TOOL, MCP).
+        callback (BeforeInvokeCallbackType): The callback to register.
+    """
     default_callback_manager.register_before_invoke(invocation_type, callback)
 
 
 def register_after_invoke(
     invocation_type: InvocationType, callback: AfterInvokeCallbackType
 ) -> None:
-    """Register an after_invoke callback on the global callback manager."""
+    """
+    Register an after_invoke callback on the global callback manager.
+
+    Args:
+        invocation_type (InvocationType): The type of invocation (AI, TOOL, MCP).
+        callback (AfterInvokeCallbackType): The callback to register.
+    """
     default_callback_manager.register_after_invoke(invocation_type, callback)
 
 
 def register_on_error(invocation_type: InvocationType, callback: OnErrorCallbackType) -> None:
-    """Register an on_error callback on the global callback manager."""
+    """
+    Register an on_error callback on the global callback manager.
+
+    Args:
+        invocation_type (InvocationType): The type of invocation (AI, TOOL, MCP).
+        callback (OnErrorCallbackType): The callback to register.
+    """
     default_callback_manager.register_on_error(invocation_type, callback)

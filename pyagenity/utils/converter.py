@@ -1,17 +1,31 @@
+"""
+Message conversion utilities for PyAgenity agent graphs.
+
+This module provides helpers to convert Message objects and agent state
+into dicts suitable for LLM and tool invocation payloads.
+"""
+
 import logging
 from typing import TYPE_CHECKING, Any, Union
 
 from .message import Message, ToolResultBlock
 
-
 if TYPE_CHECKING:
     from pyagenity.state import AgentState
-
 
 logger = logging.getLogger(__name__)
 
 
 def _convert_dict(message: Message) -> dict[str, Any]:
+    """
+    Convert a Message object to a dictionary for LLM/tool payloads.
+
+    Args:
+        message (Message): The message to convert.
+
+    Returns:
+        dict[str, Any]: Dictionary representation of the message.
+    """
     if message.role == "tool":
         content = message.content
         call_id = ""
@@ -41,6 +55,20 @@ def convert_messages(
     state: Union["AgentState", None] = None,
     extra_messages: list[Message] | None = None,
 ) -> list[dict[str, Any]]:
+    """
+    Convert system prompts, agent state, and extra messages to a list of dicts for LLM/tool payloads.
+
+    Args:
+        system_prompts (list[dict[str, Any]]): List of system prompt dicts.
+        state (AgentState | None): Optional agent state containing context and summary.
+        extra_messages (list[Message] | None): Optional extra messages to include.
+
+    Returns:
+        list[dict[str, Any]]: List of message dicts for payloads.
+
+    Raises:
+        ValueError: If system_prompts is None.
+    """
     if system_prompts is None:
         logger.error("System prompts are None")
         raise ValueError("System prompts cannot be None")
@@ -59,7 +87,6 @@ def convert_messages(
         for msg in state.context:
             res.append(_convert_dict(msg))
 
-    # now add current messages
     if extra_messages:
         for msg in extra_messages:
             res.append(_convert_dict(msg))
