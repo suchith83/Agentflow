@@ -1,8 +1,10 @@
 # TODO:
 1. Allow more types of streaming response, it only supported by litellm right now. (Partially done)
-2. All stop current execution, From frontend, we can stop the execution of a graph.
+2. All stop current execution, From frontend, we can stop the execution of a graph. (Done)
 3. All Remote Node support, that can be used to run nodes on remote machines.
-4. Allow different types of response like image, audio, video etc.
+4. Remote Tool Support and MCP Support.
+5. A2A Agents
+6. Allow different types of response like image, audio, video etc.
 
 
 # Top Priority Tasks
