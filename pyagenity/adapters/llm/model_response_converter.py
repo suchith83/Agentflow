@@ -21,17 +21,37 @@ class ModelResponseConverter:
         response: Any | Callable[..., Any],
         converter: BaseConverter | str,
     ) -> None:
+        """
+        Initialize ModelResponseConverter.
+
+        Args:
+            response (Any | Callable[..., Any]): The LLM response or a callable returning a response.
+            converter (BaseConverter | str): Converter instance or string identifier (e.g., "litellm").
+
+        Raises:
+            ValueError: If the converter is not supported.
+        """
         self.response = response
 
         if isinstance(converter, str) and converter == "litellm":
-            from .litellm_converter import LiteLLMConverter
+            from .litellm_converter import LiteLLMConverter  # noqa: PLC0415
 
             self.converter = LiteLLMConverter()
+        elif isinstance(converter, BaseConverter):
+            self.converter = converter
         else:
             raise ValueError(f"Unsupported converter: {converter}")
 
     async def invoke(self) -> Message:
-        """Call the underlying function and convert a non-streaming response to Message."""
+        """
+        Call the underlying function and convert a non-streaming response to Message.
+
+        Returns:
+            Message: The normalized message from the LLM response.
+
+        Raises:
+            Exception: If the underlying function or converter fails.
+        """
         if callable(self.response):
             if inspect.iscoroutinefunction(self.response):
                 response = await self.response()
@@ -48,13 +68,21 @@ class ModelResponseConverter:
         node_name: str,
         meta: dict | None = None,
     ) -> AsyncGenerator[Message]:
-        """Call the underlying function and yield normalized streaming events and final Message.
-
-        If the function returns a non-iterable (i.e., not a stream), we fall back to
-        converting it as a non-streaming response and emit a terminal END event followed
-        by the final Message for consistency with streaming consumers.
         """
+        Call the underlying function and yield normalized streaming events and final Message.
 
+        Args:
+            config (dict): Node configuration parameters for streaming.
+            node_name (str): Name of the node processing the response.
+            meta (dict | None): Optional metadata for conversion.
+
+        Yields:
+            Message: Normalized streaming message events from the LLM response.
+
+        Raises:
+            ValueError: If config is not provided.
+            Exception: If the underlying function or converter fails.
+        """
         if not config:
             raise ValueError("Config must be provided for streaming conversion")
 

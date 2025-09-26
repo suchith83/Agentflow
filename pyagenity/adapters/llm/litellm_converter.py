@@ -32,7 +32,26 @@ except ImportError:
 
 
 class LiteLLMConverter(BaseConverter):
+    """
+    Converter for LiteLLM responses to PyAgenity Message format.
+
+    Handles both standard and streaming responses, extracting content, reasoning,
+    tool calls, and token usage details.
+    """
+
     async def convert_response(self, response: ModelResponse) -> Message:
+        """
+        Convert a LiteLLM ModelResponse to a Message.
+
+        Args:
+            response (ModelResponse): The LiteLLM model response object.
+
+        Returns:
+            Message: The converted message object.
+
+        Raises:
+            ImportError: If LiteLLM is not installed.
+        """
         if not HAS_LITELLM:
             raise ImportError("litellm is not installed. Please install it to use this converter.")
 
@@ -53,11 +72,8 @@ class LiteLLMConverter(BaseConverter):
 
         created_date = data.get("created", datetime.now())
 
-        # check tools calls
+        # Extract tool calls from response
         tools_calls = data.get("choices", [{}])[0].get("message", {}).get("tool_calls", []) or []
-        # tool_calls=[ChatCompletionMessageToolCall(index=0, function=
-        # Function(arguments='{"location": "Boston, MA"}', name='get_current_weather'),
-        # id='call_f3a8bbbc9bb2446eb46e7292c349', type='function')]
 
         logger.debug("Creating message from model response with id: %s", response.id)
         content = data.get("choices", [{}])[0].get("message", {}).get("content", "") or ""
@@ -70,7 +86,6 @@ class LiteLLMConverter(BaseConverter):
             blocks.append(TextBlock(text=content))
         if reasoning_content:
             blocks.append(ReasoningBlock(summary=reasoning_content))
-        # Prefer structured blocks but keep text compatibility
         final_tool_calls = []
         for tool_call in tools_calls:
             tool_id = tool_call.get("id", None)
@@ -121,6 +136,20 @@ class LiteLLMConverter(BaseConverter):
         tool_calls: list,
         tool_ids: set,
     ) -> tuple[str, str, list, int, Message | None]:
+        """
+        Process a single chunk from a LiteLLM streaming response.
+
+        Args:
+            chunk (ModelResponseStream | None): The current chunk from the stream.
+            seq (int): Sequence number of the chunk.
+            accumulated_content (str): Accumulated text content so far.
+            accumulated_reasoning_content (str): Accumulated reasoning content so far.
+            tool_calls (list): List of tool calls detected so far.
+            tool_ids (set): Set of tool call IDs to avoid duplicates.
+
+        Returns:
+            tuple: Updated accumulated content, reasoning, tool calls, sequence, and Message (if any).
+        """
         if not chunk:
             return accumulated_content, accumulated_reasoning_content, tool_calls, seq, None
 
@@ -135,14 +164,12 @@ class LiteLLMConverter(BaseConverter):
 
         # update text delta
         text_part = delta.content or ""
-        # also attach structured content blocks deltas
         content_blocks = []
         if text_part:
             content_blocks.append(TextBlock(text=text_part))
         reasoning_part = getattr(delta, "reasoning_content", "") or ""
         if reasoning_part:
             content_blocks.append(ReasoningBlock(summary=reasoning_part))
-        # accumulate
         accumulated_content += text_part
         accumulated_reasoning_content += reasoning_part
         # handle tool calls if present
@@ -180,6 +207,18 @@ class LiteLLMConverter(BaseConverter):
         stream: CustomStreamWrapper,
         meta: dict | None = None,
     ) -> AsyncGenerator[Message]:
+        """
+        Handle a LiteLLM streaming response and yield Message objects for each chunk.
+
+        Args:
+            config (dict): Node configuration parameters.
+            node_name (str): Name of the node processing the response.
+            stream (CustomStreamWrapper): The LiteLLM streaming response object.
+            meta (dict | None): Optional metadata for conversion.
+
+        Yields:
+            Message: Converted message chunk from the stream.
+        """
         accumulated_content = ""
         tool_calls = []
         tool_ids = set()
@@ -188,18 +227,12 @@ class LiteLLMConverter(BaseConverter):
 
         is_awaitable = inspect.isawaitable(stream)
 
-        # Process chunks
+        # Await stream if necessary
         if is_awaitable:
             stream = await stream
 
-        # All these are true, so its not possible to understand why async for is not working
-        # print("__anext__", hasattr(stream, "__anext__"))
-        # print(hasattr(stream, "__aiter__"))
-        # print(hasattr(stream, "__next__"))
-        # print(hasattr(stream, "__iter__"))
-
+        # Try async iteration (acompletion)
         try:
-            # lets use developer is using acompletion
             async for chunk in stream:
                 accumulated_content, accumulated_reasoning_content, tool_calls, seq, message = (
                     self._process_chunk(
@@ -217,8 +250,8 @@ class LiteLLMConverter(BaseConverter):
         except Exception:  # noqa: S110 # nosec B110
             pass
 
+        # Try sync iteration (completion)
         try:
-            # lets use developer is using completion
             for chunk in stream:
                 accumulated_content, accumulated_reasoning_content, tool_calls, seq, message = (
                     self._process_chunk(
@@ -236,7 +269,7 @@ class LiteLLMConverter(BaseConverter):
         except Exception:  # noqa: S110 # nosec B110
             pass
 
-        # Loop done
+        # After streaming, yield final message
         metadata = meta or {}
         metadata["provider"] = "litellm"
         metadata["node_name"] = node_name
@@ -257,7 +290,6 @@ class LiteLLMConverter(BaseConverter):
                     )
                 )
 
-        # Only yield final message if there is content or reasoning, or no tool calls
         logger.debug(
             "Loop done Content: %s  Reasoning: %s Tool Calls: %s",
             accumulated_content,
@@ -282,6 +314,22 @@ class LiteLLMConverter(BaseConverter):
         response: Any,
         meta: dict | None = None,
     ) -> AsyncGenerator[Message]:
+        """
+        Convert a LiteLLM streaming or standard response to Message(s).
+
+        Args:
+            config (dict): Node configuration parameters.
+            node_name (str): Name of the node processing the response.
+            response (Any): The LiteLLM response object (stream or standard).
+            meta (dict | None): Optional metadata for conversion.
+
+        Yields:
+            Message: Converted message(s) from the response.
+
+        Raises:
+            ImportError: If LiteLLM is not installed.
+            Exception: If response type is unsupported.
+        """
         if not HAS_LITELLM:
             raise ImportError("litellm is not installed. Please install it to use this converter.")
 
@@ -294,7 +342,6 @@ class LiteLLMConverter(BaseConverter):
                 meta,
             ):
                 yield event
-        # what if its not a stream, let's handle fallback
         elif isinstance(response, ModelResponse):  # type: ignore[possibly-unbound]
             message = await self.convert_response(cast(ModelResponse, response))
             yield message

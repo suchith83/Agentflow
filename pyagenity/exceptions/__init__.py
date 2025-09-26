@@ -1,10 +1,7 @@
 """
-pyagenity.exceptions
-====================
+Custom exception classes for graph operations in PyAgenity.
 
-This package contains custom exception classes for graph operations in PyAgenity.
-
-Available exceptions:
+This package provides:
         - GraphError: Base exception for graph-related errors.
         - NodeError: Exception for node-specific errors.
         - GraphRecursionError: Exception for recursion limit errors in graphs.

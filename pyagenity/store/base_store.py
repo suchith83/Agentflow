@@ -58,12 +58,12 @@ class MemorySearchResult:
     content: str
     score: float
     memory_type: str = "episodic"
-    metadata: dict[str, Any] = None
-    vector: list[float] = None
-    user_id: str = None
-    agent_id: str = None
-    created_at: datetime = None
-    updated_at: datetime = None
+    metadata: dict[str, Any] | None = None
+    vector: list[float] | None = None
+    user_id: str | None = None
+    agent_id: str | None = None
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
 
     def __post_init__(self):
         if self.metadata is None:
