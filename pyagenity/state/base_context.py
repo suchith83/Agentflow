@@ -1,3 +1,10 @@
+"""
+Abstract base class for context management in PyAgenity agent graphs.
+
+This module provides BaseContextManager, which defines the interface for
+trimming and managing message context in agent state objects.
+"""
+
 import logging
 from abc import ABC, abstractmethod
 from typing import TypeVar

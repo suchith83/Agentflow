@@ -1,6 +1,8 @@
 """
-Execution state management for graph execution with pause/resume
-functionality.
+Execution state management for graph execution in PyAgenity.
+
+This module provides the ExecutionState class and related enums to track
+progress, interruptions, and pause/resume functionality for agent graph execution.
 """
 
 import logging
@@ -60,7 +62,15 @@ class ExecutionState(BaseModel):
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "ExecutionState":
-        """Create from dictionary for deserialization."""
+        """
+        Create an ExecutionState instance from a dictionary.
+
+        Args:
+            data (dict[str, Any]): Dictionary containing execution state fields.
+
+        Returns:
+            ExecutionState: The deserialized execution state object.
+        """
         return cls.model_validate(
             {
                 "current_node": data["current_node"],
@@ -77,7 +87,15 @@ class ExecutionState(BaseModel):
     def set_interrupt(
         self, node: str, reason: str, status: ExecutionStatus, data: dict[str, Any] | None = None
     ) -> None:
-        """Set interrupt state."""
+        """
+        Set the interrupt state for execution.
+
+        Args:
+            node (str): Node where the interrupt occurred.
+            reason (str): Reason for the interrupt.
+            status (ExecutionStatus): Status to set for the interrupt.
+            data (dict[str, Any] | None): Optional additional interrupt data.
+        """
         logger.debug(
             "Setting interrupt: node='%s', reason='%s', status='%s'",
             node,
@@ -90,7 +108,9 @@ class ExecutionState(BaseModel):
         self.interrupt_data = data
 
     def clear_interrupt(self) -> None:
-        """Clear interrupt state and resume execution."""
+        """
+        Clear the interrupt state and resume execution.
+        """
         logger.debug("Clearing interrupt, resuming execution")
         self.interrupted_node = None
         self.interrupt_reason = None
@@ -98,7 +118,12 @@ class ExecutionState(BaseModel):
         self.status = ExecutionStatus.RUNNING
 
     def is_interrupted(self) -> bool:
-        """Check if execution is currently interrupted."""
+        """
+        Check if execution is currently interrupted.
+
+        Returns:
+            bool: True if interrupted, False otherwise.
+        """
         interrupted = self.status in [
             ExecutionStatus.INTERRUPTED_BEFORE,
             ExecutionStatus.INTERRUPTED_AFTER,
@@ -107,36 +132,60 @@ class ExecutionState(BaseModel):
         return interrupted
 
     def advance_step(self) -> None:
-        """Advance to next step."""
+        """
+        Advance to the next execution step.
+        """
         old_step = self.step
         self.step += 1
         logger.debug("Advanced step from %d to %d", old_step, self.step)
 
     def set_current_node(self, node: str) -> None:
-        """Update current node."""
+        """
+        Update the current node in execution state.
+
+        Args:
+            node (str): Node to set as current.
+        """
         old_node = self.current_node
         self.current_node = node
         logger.debug("Changed current node from '%s' to '%s'", old_node, node)
 
     def complete(self) -> None:
-        """Mark execution as completed."""
+        """
+        Mark execution as completed.
+        """
         logger.info("Marking execution as completed")
         self.status = ExecutionStatus.COMPLETED
 
     def error(self, error_msg: str) -> None:
-        """Mark execution as errored."""
+        """
+        Mark execution as errored.
+
+        Args:
+            error_msg (str): Error message to record.
+        """
         logger.error("Marking execution as errored: %s", error_msg)
         self.status = ExecutionStatus.ERROR
         self.internal_data["error"] = error_msg
 
     def is_running(self) -> bool:
-        """Check if execution is currently running."""
+        """
+        Check if execution is currently running.
+
+        Returns:
+            bool: True if running, False otherwise.
+        """
         running = self.status == ExecutionStatus.RUNNING
         logger.debug("Execution is_running: %s (status: %s)", running, self.status.value)
         return running
 
     def is_stopped_requested(self) -> bool:
-        """Check if execution is currently stopped."""
+        """
+        Check if a stop has been requested for execution.
+
+        Returns:
+            bool: True if stop requested, False otherwise.
+        """
         stopped = self.stop_current_execution == StopRequestStatus.STOP_REQUESTED
         logger.debug(
             "Execution is_stopped_requested: %s (stop_current_execution: %s)",

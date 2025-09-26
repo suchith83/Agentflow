@@ -1,3 +1,11 @@
+"""
+Agent state schema for PyAgenity agent graphs.
+
+This module provides the AgentState class, which tracks message context,
+context summaries, and internal execution metadata for agent workflows.
+Supports subclassing for custom application fields.
+"""
+
 import logging
 from typing import Annotated, TypeVar
 
@@ -39,42 +47,90 @@ class AgentState(BaseModel):
 
     # Convenience delegation methods for execution meta so callers can use the same API
     def set_interrupt(self, node: str, reason: str, status, data: dict | None = None) -> None:
+        """
+        Set an interrupt in the execution metadata.
+
+        Args:
+            node (str): Node where the interrupt occurred.
+            reason (str): Reason for the interrupt.
+            status: Execution status to set.
+            data (dict | None): Optional additional interrupt data.
+        """
         logger.debug("Setting interrupt at node '%s' with reason: %s", node, reason)
         self.execution_meta.set_interrupt(node, reason, status, data)
 
     def clear_interrupt(self) -> None:
+        """
+        Clear any interrupt in the execution metadata.
+        """
         logger.debug("Clearing interrupt")
         self.execution_meta.clear_interrupt()
 
     def is_running(self) -> bool:
+        """
+        Check if the agent state is currently running.
+
+        Returns:
+            bool: True if running, False otherwise.
+        """
         running = self.execution_meta.is_running()
         logger.debug("State is_running: %s", running)
         return running
 
     def is_interrupted(self) -> bool:
+        """
+        Check if the agent state is currently interrupted.
+
+        Returns:
+            bool: True if interrupted, False otherwise.
+        """
         interrupted = self.execution_meta.is_interrupted()
         logger.debug("State is_interrupted: %s", interrupted)
         return interrupted
 
     def advance_step(self) -> None:
+        """
+        Advance the execution step in the metadata.
+        """
         old_step = self.execution_meta.step
         self.execution_meta.advance_step()
         logger.debug("Advanced step from %d to %d", old_step, self.execution_meta.step)
 
     def set_current_node(self, node: str) -> None:
+        """
+        Set the current node in the execution metadata.
+
+        Args:
+            node (str): Node to set as current.
+        """
         old_node = self.execution_meta.current_node
         self.execution_meta.set_current_node(node)
         logger.debug("Changed current node from '%s' to '%s'", old_node, node)
 
     def complete(self) -> None:
+        """
+        Mark the agent state as completed.
+        """
         logger.info("Marking state as completed")
         self.execution_meta.complete()
 
     def error(self, error_msg: str) -> None:
+        """
+        Mark the agent state as errored.
+
+        Args:
+            error_msg (str): Error message to record.
+        """
         logger.error("Setting state error: %s", error_msg)
         self.execution_meta.error(error_msg)
 
     def is_stopped_requested(self) -> bool:
+        """
+        Check if a stop has been requested for the agent state.
+
+        Returns:
+            bool: True if stop requested, False otherwise.
+        """
         stopped = self.execution_meta.is_stopped_requested()
         logger.debug("State is_stopped_requested: %s", stopped)
         return stopped
