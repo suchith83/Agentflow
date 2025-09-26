@@ -42,6 +42,8 @@ langchain = ["langchain-core>=0.3.0","langchain-community>=0.3.0"]
 redis = ["redis>=4.2"]
 kafka = ["aiokafka>=0.8.0"]
 rabbitmq = ["aio-pika>=9.0.0"]
+qdrant = ["qdrant-client>=1.7.0"]
+mem0 = ["mem0ai>=0.1.117"]
 
 all_publishers = [
     "redis>=4.2",
@@ -239,6 +241,7 @@ dev = [
     "pymdown-extensions",
     "mkdocs-autorefs",
     "mkdocs-section-index",
-    "mkdocs_gen_files"
+    "mkdocs_gen_files",
+    "mem0ai>=0.1.117"
 ]
 
