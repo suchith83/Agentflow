@@ -8,7 +8,7 @@ execution and awaitables.
 
 import asyncio
 import inspect
-from collections.abc import Callable
+from collections.abc import Callable, Coroutine
 from typing import Any
 
 
@@ -49,3 +49,17 @@ async def call_sync_or_async(func: Callable[..., Any], *args, **kwargs) -> Any:
     if inspect.isawaitable(result):
         return await result
     return result
+
+
+def run_coroutine(func: Coroutine) -> Any:
+    """Run an async coroutine from a sync context safely."""
+    # Always try to get/create an event loop and use thread-safe execution
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        # No loop running, create one
+        return asyncio.run(func)
+
+    # Loop is running, use thread-safe execution
+    fut = asyncio.run_coroutine_threadsafe(func, loop)
+    return fut.result()

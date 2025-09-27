@@ -167,7 +167,7 @@ class Mem0Store(BaseStore):
             for result in results:
                 # Apply post-processing filters
                 result_metadata = result.get("metadata", {})
-                
+
                 # Apply filters
                 if agent_id and result_metadata.get("agent_id") != agent_id:
                     continue
@@ -205,10 +205,10 @@ class Mem0Store(BaseStore):
             # Get all memories and filter by memory_id in metadata
             # (Mem0 doesn't provide direct ID-based retrieval)
             loop = asyncio.get_event_loop()
-            
+
             # Try to get user_id from mapping or use default
             user_id = self._memory_user_map.get(memory_id, self.default_user_id)
-            
+
             all_memories = await loop.run_in_executor(
                 None, lambda: self.memory.get_all(user_id=user_id)
             )
@@ -257,7 +257,7 @@ class Mem0Store(BaseStore):
                         memory_id, content, user_id=user_id, metadata=updated_metadata
                     ),
                 )
-            
+
             logger.debug(f"Updated memory {memory_id}")
 
         except Exception as e:
@@ -272,13 +272,11 @@ class Mem0Store(BaseStore):
 
             # Run delete in thread pool
             loop = asyncio.get_event_loop()
-            await loop.run_in_executor(
-                None, lambda: self.memory.delete(memory_id, user_id=user_id)
-            )
+            await loop.run_in_executor(None, lambda: self.memory.delete(memory_id, user_id=user_id))
 
             # Clean up mapping
             self._memory_user_map.pop(memory_id, None)
-            
+
             logger.debug(f"Deleted memory {memory_id}")
 
         except Exception as e:
@@ -311,9 +309,15 @@ class Mem0Store(BaseStore):
     def _parse_mem0_response(self, response: Any) -> list[dict]:
         """Parse Mem0 response to extract memories list."""
         if isinstance(response, list):
-            return [self._normalize_memory_dict(m) for m in response if self._normalize_memory_dict(m)]
+            return [
+                self._normalize_memory_dict(m) for m in response if self._normalize_memory_dict(m)
+            ]
         if isinstance(response, dict) and "results" in response:
-            return [self._normalize_memory_dict(m) for m in response["results"] if self._normalize_memory_dict(m)]
+            return [
+                self._normalize_memory_dict(m)
+                for m in response["results"]
+                if self._normalize_memory_dict(m)
+            ]
 
         logger.warning(f"Unexpected response format from Mem0.get_all(): {type(response)}")
         return []
@@ -337,10 +341,12 @@ class Mem0Store(BaseStore):
         except (ValueError, TypeError):
             return None
 
-    async def get_stats(self, user_id: str | None = None, agent_id: str | None = None) -> dict[str, Any]:
+    async def get_stats(
+        self, user_id: str | None = None, agent_id: str | None = None
+    ) -> dict[str, Any]:
         """Get statistics about stored memories."""
         effective_user_id = user_id or self.default_user_id
-        
+
         try:
             loop = asyncio.get_event_loop()
             all_memories = await loop.run_in_executor(
@@ -348,14 +354,18 @@ class Mem0Store(BaseStore):
             )
 
             memories = self._parse_mem0_response(all_memories)
-            
+
             # Apply agent filter if specified
             if agent_id:
-                memories = [m for m in memories if m.get("metadata", {}).get("agent_id") == agent_id]
-            
+                memories = [
+                    m for m in memories if m.get("metadata", {}).get("agent_id") == agent_id
+                ]
+
             # Apply app filter
             if self.app_id:
-                memories = [m for m in memories if m.get("metadata", {}).get("app_id") == self.app_id]
+                memories = [
+                    m for m in memories if m.get("metadata", {}).get("app_id") == self.app_id
+                ]
 
             # Calculate stats
             memory_types = {}
@@ -364,7 +374,7 @@ class Mem0Store(BaseStore):
                 metadata = memory.get("metadata", {})
                 mem_type = metadata.get("memory_type", "episodic")
                 category = metadata.get("category", "general")
-                
+
                 memory_types[mem_type] = memory_types.get(mem_type, 0) + 1
                 categories[category] = categories.get(category, 0) + 1
 

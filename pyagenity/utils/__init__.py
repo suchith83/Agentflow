@@ -15,7 +15,7 @@ Main Exports:
 """
 
 # Export from command.py
-from .callable_utils import call_sync_or_async
+from .callable_utils import call_sync_or_async, run_coroutine
 
 # Export from callbacks.py
 from .callbacks import (
@@ -52,6 +52,7 @@ from .message import (
 
 # Export from reducers.py
 from .reducers import add_messages, append_items, replace_messages, replace_value
+from .thread_info import ThreadInfo
 
 
 __all__ = [
@@ -74,6 +75,7 @@ __all__ = [
     "ResponseGranularity",
     "StorageLevel",
     "TextBlock",
+    "ThreadInfo",
     "TokenUsages",
     "ToolCallBlock",
     "ToolResultBlock",
@@ -87,4 +89,5 @@ __all__ = [
     "register_on_error",
     "replace_messages",
     "replace_value",
+    "run_coroutine",
 ]

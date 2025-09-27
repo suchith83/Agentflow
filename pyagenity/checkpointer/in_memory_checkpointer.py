@@ -406,9 +406,9 @@ class InMemoryCheckpointer[StateT: AgentState](BaseCheckpointer[StateT]):
         logger.debug(f"Stored {len(messages)} messages for key: {key}")
         return True
 
-    def get_message(self, config: dict[str, Any]) -> Message:
+    def get_message(self, config: dict[str, Any], message_id: str | int) -> Message:
         """
-        Retrieve the latest message synchronously.
+        Retrieve a specific message synchronously.
 
         Args:
             config (dict): Configuration dictionary.
@@ -422,9 +422,10 @@ class InMemoryCheckpointer[StateT: AgentState](BaseCheckpointer[StateT]):
         """Retrieve the latest message synchronously."""
         key = self._get_config_key(config)
         messages = self._messages.get(key, [])
-        if not messages:
-            raise IndexError(f"No messages found for config key: {key}")
-        return messages[-1]
+        for msg in messages:
+            if msg.message_id == message_id:
+                return msg
+        raise IndexError(f"Message with ID {message_id} not found for config key: {key}")
 
     def list_messages(
         self,

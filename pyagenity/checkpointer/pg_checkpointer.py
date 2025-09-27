@@ -1,5 +1,4 @@
 import asyncio
-import contextlib
 import json
 import logging
 from enum import Enum
@@ -7,7 +6,7 @@ from typing import Any, TypeVar
 
 from injectq import InjectQ
 
-from pyagenity.utils.thread_info import ThreadInfo
+from pyagenity.utils import ThreadInfo
 
 
 try:
@@ -54,8 +53,9 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
     """
     Implements a checkpointer using PostgreSQL and Redis for persistent and cached state management.
 
-    This class provides asynchronous and synchronous methods for storing, retrieving, and managing agent states,
-    messages, and threads. PostgreSQL is used for durable storage, while Redis provides fast caching with TTL.
+    This class provides asynchronous and synchronous methods for storing, retrieving, and managing
+    agent states, messages, and threads. PostgreSQL is used for durable storage, while Redis
+    provides fast caching with TTL.
 
     Features:
         - Async-first design with sync fallbacks
@@ -232,9 +232,6 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
             self._pg_pool = await self._create_pg_pool(
                 config["pg_pool"], config["postgres_dsn"], config["pool_config"]
             )
-        # Capture the current running loop for thread-safe sync wrapper execution
-        with contextlib.suppress(RuntimeError):
-            self._loop = asyncio.get_running_loop()
         return self._pg_pool
 
     def _get_sql_type(self, type_name: str) -> str:
@@ -362,17 +359,6 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
     #### SETUP METHODS ########
     ###########################
 
-    def setup(self) -> Any:
-        """
-        Synchronous setup method. Runs schema initialization.
-
-        Returns:
-            Any: Result of async setup.
-        """
-        """Sync setup method - runs schema initialization."""
-        logger.info("Setting up PgCheckpointer (sync)")
-        return asyncio.run(self.asetup())
-
     async def asetup(self) -> Any:
         """
         Asynchronous setup method. Initializes database schema.
@@ -480,51 +466,6 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
             if isinstance(data, str):
                 return state_class.model_validate(json.loads(data))
             raise
-
-    async def _run_sync(
-        self,
-        func,
-        *args,
-        **kwargs,
-    ):
-        """
-        Run a synchronous function in a thread pool.
-
-        Args:
-            func: Function to run.
-            *args: Arguments.
-            **kwargs: Keyword arguments.
-
-        Returns:
-            Any: Result of function.
-        """
-        return await asyncio.to_thread(func, *args, **kwargs)
-
-    def _run_coro_sync(self, coro):
-        """
-        Run an async coroutine from a sync context safely.
-
-        Args:
-            coro: Coroutine to run.
-
-        Returns:
-            Any: Result of coroutine.
-        """
-        """Run an async coroutine from a sync context safely.
-
-        - If not in an event loop, use asyncio.run.
-        - If already in an event loop, execute the coroutine in a background thread.
-        """
-        with contextlib.suppress(RuntimeError):
-            asyncio.get_running_loop()
-
-        # If we have a captured loop (from async usage), schedule on it from this sync context
-        if self._loop is not None and self._loop.is_running():
-            fut = asyncio.run_coroutine_threadsafe(coro, self._loop)
-            return fut.result()
-
-        # Otherwise, no running loop we can target: use asyncio.run in this thread
-        return asyncio.run(coro)
 
     async def _retry_on_connection_error(
         self,
@@ -851,74 +792,6 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
         except Exception as e:
             logger.error("Failed to ensure thread exists: %s", e)
             raise
-
-    # Sync variants
-    def put_state(self, config: dict[str, Any], state: StateT) -> StateT:
-        """
-        Synchronous version of put_state.
-
-        Args:
-            config (dict): Configuration dictionary.
-            state (StateT): State object.
-
-        Returns:
-            StateT: Stored state object.
-        """
-        """Sync version of put_state."""
-        return self._run_coro_sync(self.aput_state(config, state))  # type: ignore
-
-    def get_state(self, config: dict[str, Any]) -> StateT | None:
-        """
-        Synchronous version of get_state.
-
-        Args:
-            config (dict): Configuration dictionary.
-
-        Returns:
-            StateT | None: Retrieved state or None.
-        """
-        """Sync version of get_state."""
-        return self._run_coro_sync(self.aget_state(config))  # type: ignore
-
-    def clear_state(self, config: dict[str, Any]) -> Any:
-        """
-        Synchronous version of clear_state.
-
-        Args:
-            config (dict): Configuration dictionary.
-
-        Returns:
-            Any: None
-        """
-        """Sync version of clear_state."""
-        return self._run_coro_sync(self.aclear_state(config))
-
-    def put_state_cache(self, config: dict[str, Any], state: StateT) -> Any | None:
-        """
-        Synchronous version of put_state_cache.
-
-        Args:
-            config (dict): Configuration dictionary.
-            state (StateT): State object.
-
-        Returns:
-            Any | None: True if cached, None if failed.
-        """
-        """Sync version of put_state_cache."""
-        return self._run_coro_sync(self.aput_state_cache(config, state))
-
-    def get_state_cache(self, config: dict[str, Any]) -> StateT | None:
-        """
-        Synchronous version of get_state_cache.
-
-        Args:
-            config (dict): Configuration dictionary.
-
-        Returns:
-            StateT | None: State object or None.
-        """
-        """Sync version of get_state_cache."""
-        return self._run_coro_sync(self.aget_state_cache(config))  # type: ignore
 
     ###########################
     #### MESSAGE METHODS ######
@@ -1274,77 +1147,6 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
             usages=usages,
         )
 
-    # Sync variants
-    def put_messages(
-        self,
-        config: dict[str, Any],
-        messages: list[Message],
-        metadata: dict[str, Any] | None = None,
-    ) -> Any:
-        """
-        Synchronous version of put_messages.
-
-        Args:
-            config (dict): Configuration dictionary.
-            messages (list[Message]): List of messages.
-            metadata (dict, optional): Additional metadata.
-
-        Returns:
-            Any: None
-        """
-        return self._run_coro_sync(self.aput_messages(config, messages, metadata))
-
-    def get_message(self, config: dict[str, Any]) -> Message:
-        """
-        Synchronous version of get_message.
-
-        Args:
-            config (dict): Configuration dictionary.
-
-        Returns:
-            Message: Retrieved message object.
-        """
-        """Sync version of get_message."""
-        message_id = config.get("message_id")
-        if not message_id:
-            raise ValueError("message_id must be provided in config")
-        return self._run_coro_sync(self.aget_message(config, message_id))
-
-    def list_messages(
-        self,
-        config: dict[str, Any],
-        search: str | None = None,
-        offset: int | None = None,
-        limit: int | None = None,
-    ) -> list[Message]:
-        """
-        Synchronous version of list_messages.
-
-        Args:
-            config (dict): Configuration dictionary.
-            search (str, optional): Search string.
-            offset (int, optional): Offset for pagination.
-            limit (int, optional): Limit for pagination.
-
-        Returns:
-            list[Message]: List of message objects.
-        """
-        return self._run_coro_sync(self.alist_messages(config, search, offset, limit))
-
-    def delete_message(self, config: dict[str, Any], message_id: str | int) -> Any | None:
-        """
-        Synchronous version of delete_message.
-
-        Args:
-            config (dict): Configuration dictionary.
-            message_id (str|int): Message identifier.
-
-        Returns:
-            Any | None: None
-        """
-        """Sync version of delete_message."""
-        return self._run_coro_sync(self.adelete_message(config, message_id))
-
     ###########################
     #### THREAD METHODS #######
     ###########################
@@ -1603,84 +1405,9 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
             logger.error("Failed to clean thread thread_id=%s: %s", thread_id, e)
             raise
 
-    # Sync variants
-    def put_thread(
-        self,
-        config: dict[str, Any],
-        thread_info: ThreadInfo,
-    ) -> Any | None:
-        """
-        Synchronous version of put_thread.
-
-        Args:
-            config (dict): Configuration dictionary.
-            thread_info (ThreadInfo): Thread information object.
-
-        Returns:
-            Any | None: None
-        """
-        return self._run_coro_sync(self.aput_thread(config, thread_info))
-
-    def get_thread(self, config: dict[str, Any]) -> ThreadInfo | None:
-        """
-        Synchronous version of get_thread.
-
-        Args:
-            config (dict): Configuration dictionary.
-
-        Returns:
-            ThreadInfo | None: Thread information object or None.
-        """
-        """Sync version of get_thread."""
-        return self._run_coro_sync(self.aget_thread(config))
-
-    def list_threads(
-        self,
-        config: dict[str, Any],
-        search: str | None = None,
-        offset: int | None = None,
-        limit: int | None = None,
-    ) -> list[ThreadInfo]:
-        """
-        Synchronous version of list_threads.
-
-        Args:
-            config (dict): Configuration dictionary.
-            search (str, optional): Search string.
-            offset (int, optional): Offset for pagination.
-            limit (int, optional): Limit for pagination.
-
-        Returns:
-            list[ThreadInfo]: List of thread information objects.
-        """
-        return self._run_coro_sync(self.alist_threads(config, search, offset, limit))
-
-    def clean_thread(self, config: dict[str, Any]) -> Any | None:
-        """
-        Synchronous version of clean_thread.
-
-        Args:
-            config (dict): Configuration dictionary.
-
-        Returns:
-            Any | None: None
-        """
-        """Sync version of clean_thread."""
-        return self._run_coro_sync(self.aclean_thread(config))
-
     ###########################
     #### RESOURCE CLEANUP #####
     ###########################
-
-    def release(self) -> Any | None:
-        """
-        Synchronous version of resource cleanup.
-
-        Returns:
-            Any | None: None
-        """
-        """Sync version of resource cleanup."""
-        return self._run_coro_sync(self.arelease())
 
     async def arelease(self) -> Any | None:
         """

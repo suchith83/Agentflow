@@ -94,7 +94,7 @@ class CompiledGraph[StateT: AgentState]:
         state: StateT,
         checkpointer: BaseCheckpointer[StateT] | None,
         publisher: BasePublisher | None,
-        store: BaseStore[StateT] | None,
+        store: BaseStore | None,
         state_graph: StateGraph[StateT],
         interrupt_before: list[str],
         interrupt_after: list[str],
@@ -119,7 +119,7 @@ class CompiledGraph[StateT: AgentState]:
 
         self._checkpointer: BaseCheckpointer[StateT] | None = checkpointer
         self._publisher: BasePublisher | None = publisher
-        self._store: BaseStore[StateT] | None = store
+        self._store: BaseStore | None = store
         self._state_graph: StateGraph[StateT] = state_graph
         self._interrupt_before: list[str] = interrupt_before
         self._interrupt_after: list[str] = interrupt_after

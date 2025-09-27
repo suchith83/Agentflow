@@ -1,16 +1,28 @@
 """
-Simplified Qdrant Vector Store Implementation for PyAgenity Framework
+Qdrant Vector Store Implementation for PyAgenity Framework
 
-This module provides a clean, async-first implementation of BaseStore using Qdrant
-as the backend vector database. Supports both local and cloud Qdrant deployments.
+This module provides a modern, async-first implementation of BaseStore using Qdrant
+as the backend vector database. Supports both local and cloud Qdrant deployments
+with configurable embedding services.
 """
 
+import asyncio
 import logging
 import uuid
 from datetime import datetime
 from typing import Any
 
-from .base_store import BaseStore, DistanceMetric, MemorySearchResult
+from pyagenity.utils import Message
+
+from .base_store import BaseStore
+from .embedding.base_embedding import BaseEmbedding
+from .store_schema import (
+    DistanceMetric,
+    MemoryRecord,
+    MemorySearchResult,
+    MemoryType,
+    RetrievalStrategy,
+)
 
 
 try:
@@ -25,44 +37,51 @@ try:
         VectorParams,
     )
 except ImportError:
-    raise ImportError("Qdrant client not installed. Install with: pip install qdrant-client")
+    msg = "Qdrant client not installed. Install with: pip install 'pyagenity[qdrant]'"
+    raise ImportError(msg)
 
 logger = logging.getLogger(__name__)
 
 
-class QdrantVectorStore(BaseStore):
+class QdrantStore(BaseStore):
     """
-    Simplified async-first Qdrant-based vector store implementation.
+    Modern async-first Qdrant-based vector store implementation.
 
     Features:
     - Async-only operations for better performance
     - Local and cloud Qdrant deployment support
-    - Efficient vector similarity search
+    - Configurable embedding services
+    - Efficient vector similarity search with multiple strategies
     - Collection management with automatic creation
     - Rich metadata filtering capabilities
+    - User and agent-scoped operations
 
     Example:
         ```python
-        # Local Qdrant
-        store = QdrantVectorStore(path="./qdrant_data")
+        # Local Qdrant with OpenAI embeddings
+        store = QdrantStore(path="./qdrant_data", embedding_service=OpenAIEmbeddingService())
 
         # Remote Qdrant
-        store = QdrantVectorStore(host="localhost", port=6333)
+        store = QdrantStore(host="localhost", port=6333, embedding_service=OpenAIEmbeddingService())
 
         # Cloud Qdrant
-        store = QdrantVectorStore(url="https://xyz.qdrant.io", api_key="your-api-key")
+        store = QdrantStore(
+            url="https://xyz.qdrant.io",
+            api_key="your-api-key",
+            embedding_service=OpenAIEmbeddingService(),
+        )
         ```
     """
 
     def __init__(
         self,
+        embedding: BaseEmbedding,
         path: str | None = None,
         host: str | None = None,
         port: int | None = None,
         url: str | None = None,
         api_key: str | None = None,
-        default_collection: str = "pyagenity_vectors",
-        vector_size: int | None = None,
+        default_collection: str = "pyagenity_memories",
         distance_metric: DistanceMetric = DistanceMetric.COSINE,
         **kwargs: Any,
     ):
@@ -70,17 +89,17 @@ class QdrantVectorStore(BaseStore):
         Initialize Qdrant vector store.
 
         Args:
+            embedding: Service for generating embeddings
             path: Path for local Qdrant (file-based storage)
             host: Host for remote Qdrant server
             port: Port for remote Qdrant server
             url: URL for Qdrant cloud
             api_key: API key for Qdrant cloud
             default_collection: Default collection name
-            vector_size: Default vector size for auto-collection creation
             distance_metric: Default distance metric
             **kwargs: Additional client parameters
         """
-        super().__init__(**kwargs)
+        self.embedding = embedding
 
         # Initialize async client
         if path:
@@ -94,14 +113,18 @@ class QdrantVectorStore(BaseStore):
 
         # Cache for collection existence checks
         self._collection_cache = set()
+        self._setup_lock = asyncio.Lock()
 
         self.default_collection = default_collection
-        self._default_vector_size = vector_size
         self._default_distance_metric = distance_metric
 
-        logger.info(
-            f"Initialized QdrantVectorStore with config: path={path}, host={host}, url={url}"
-        )
+        logger.info(f"Initialized QdrantStore with config: path={path}, host={host}, url={url}")
+
+    async def asetup(self) -> Any:
+        """Set up the store and ensure default collection exists."""
+        async with self._setup_lock:
+            await self._ensure_collection_exists(self.default_collection)
+        return True
 
     def _distance_metric_to_qdrant(self, metric: DistanceMetric) -> Distance:
         """Convert framework distance metric to Qdrant distance."""
@@ -113,14 +136,36 @@ class QdrantVectorStore(BaseStore):
         }
         return mapping.get(metric, Distance.COSINE)
 
+    def _extract_config_values(self, config: dict[str, Any]) -> tuple[str | None, str | None, str]:
+        """Extract user_id, thread_id, and collection from config."""
+        user_id = config.get("user_id")
+        thread_id = config.get("thread_id")
+        collection = config.get("collection", self.default_collection)
+        return user_id, thread_id, collection
+
     def _point_to_search_result(self, point) -> MemorySearchResult:
         """Convert Qdrant point to MemorySearchResult."""
         payload = getattr(point, "payload", {}) or {}
-        # Allow content to be stored in common keys or fallback to empty string
-        content = payload.get("content") or payload.get("text") or payload.get("data") or ""
-        memory_type = payload.get("memory_type", "episodic")
-        created_at = payload.get("created_at")
-        updated_at = payload.get("updated_at")
+
+        # Extract content
+        content = payload.get("content", "")
+
+        # Convert memory_type string back to enum
+        memory_type_str = payload.get("memory_type", "episodic")
+        try:
+            memory_type = MemoryType(memory_type_str)
+        except ValueError:
+            memory_type = MemoryType.EPISODIC
+
+        # Parse timestamp
+        timestamp_str = payload.get("timestamp")
+        timestamp = None
+        if timestamp_str:
+            try:
+                timestamp = datetime.fromisoformat(timestamp_str)
+            except (ValueError, TypeError):
+                timestamp = None
+
         return MemorySearchResult(
             id=str(point.id),
             content=content,
@@ -129,357 +174,484 @@ class QdrantVectorStore(BaseStore):
             metadata=payload,
             vector=getattr(point, "vector", None),
             user_id=payload.get("user_id"),
-            agent_id=payload.get("agent_id"),
-            created_at=datetime.fromisoformat(created_at) if isinstance(created_at, str) else None,
-            updated_at=datetime.fromisoformat(updated_at) if isinstance(updated_at, str) else None,
+            thread_id=payload.get("thread_id"),
+            timestamp=timestamp,
         )
 
-    def _build_qdrant_filter(self, filters: dict[str, Any] | None) -> Filter | None:
-        """Build Qdrant filter from dictionary."""
-        if not filters:
-            return None
-
+    def _build_qdrant_filter(
+        self,
+        user_id: str | None = None,
+        thread_id: str | None = None,
+        memory_type: MemoryType | None = None,
+        category: str | None = None,
+        filters: dict[str, Any] | None = None,
+    ) -> Filter | None:
+        """Build Qdrant filter from parameters."""
         conditions = []
-        for key, value in filters.items():
-            # Qdrant filtering supports str/int/bool for exact match (avoid float ambig)
-            if isinstance(value, (str, int, bool)):
-                conditions.append(FieldCondition(key=key, match=MatchValue(value=value)))
+
+        # Add user/agent filters
+        if user_id:
+            conditions.append(
+                FieldCondition(
+                    key="user_id",
+                    match=MatchValue(value=user_id),
+                ),
+            )
+        if thread_id:
+            conditions.append(
+                FieldCondition(
+                    key="thread_id",
+                    match=MatchValue(value=thread_id),
+                ),
+            )
+        if memory_type:
+            conditions.append(
+                FieldCondition(
+                    key="memory_type",
+                    match=MatchValue(value=memory_type.value),
+                )
+            )
+        if category:
+            conditions.append(FieldCondition(key="category", match=MatchValue(value=category)))
+
+        # Add custom filters
+        if filters:
+            for key, value in filters.items():
+                if isinstance(value, (str, int, bool)):
+                    conditions.append(FieldCondition(key=key, match=MatchValue(value=value)))
 
         return Filter(must=conditions) if conditions else None
 
-    # --- BaseStore abstract method implementations ---
+    async def _ensure_collection_exists(self, collection: str) -> None:
+        """Ensure collection exists, create if not."""
+        if collection in self._collection_cache:
+            return
 
-    async def add(
+        try:
+            # Check if collection exists
+            collections = await self.client.get_collections()
+            existing_names = {col.name for col in collections.collections}
+
+            if collection not in existing_names:
+                # Create collection with vector configuration
+                await self.client.create_collection(
+                    collection_name=collection,
+                    vectors_config=VectorParams(
+                        size=self.embedding.dimension,
+                        distance=self._distance_metric_to_qdrant(
+                            self._default_distance_metric,
+                        ),
+                    ),
+                )
+                logger.info(f"Created collection: {collection}")
+
+            self._collection_cache.add(collection)
+        except Exception as e:
+            logger.error(f"Error ensuring collection {collection} exists: {e}")
+            raise
+
+    def _prepare_content(self, content: str | Message) -> str:
+        """Extract text content from string or Message."""
+        if isinstance(content, Message):
+            return content.text()
+        return content
+
+    def _create_memory_record(
         self,
-        content: str,
+        content: str | Message,
         user_id: str | None = None,
-        agent_id: str | None = None,
-        memory_type: str = "episodic",
+        thread_id: str | None = None,
+        memory_type: MemoryType = MemoryType.EPISODIC,
         category: str = "general",
         metadata: dict[str, Any] | None = None,
-        collection_name: str | None = None,
-        **kwargs: Any,
-    ) -> str:
-        """Add a new memory to Qdrant."""
-        if not content:
-            raise ValueError("content cannot be empty")
-        
-        collection = collection_name or self.default_collection
-        
-        # Ensure collection exists
-        if not await self.collection_exists(collection):
-            if self._default_vector_size is None:
-                raise ValueError("Vector size must be specified at init to auto-create collection")
-            await self.create_collection(
-                collection, self._default_vector_size, self._default_distance_metric
+    ) -> MemoryRecord:
+        """Create a memory record from parameters."""
+        text_content = self._prepare_content(content)
+
+        if isinstance(content, Message):
+            return MemoryRecord.from_message(
+                content,
+                user_id=user_id,
+                thread_id=thread_id,
+                additional_metadata=metadata,
             )
 
-        # Generate embedding
-        embedding = await self._agenerate_embedding(content)
-        point_id = str(uuid.uuid4())
-        payload = {
-            "content": content,
-            "user_id": user_id,
-            "agent_id": agent_id,
-            "memory_type": memory_type,
-            "category": category,
-            "created_at": datetime.now().isoformat(),
-            **(metadata or {}),
-        }
-        
-        await self._insert_vector(collection, embedding, payload, point_id)
-        return point_id
+        return MemoryRecord(
+            content=text_content,
+            user_id=user_id,
+            thread_id=thread_id,
+            memory_type=memory_type,
+            metadata=metadata or {},
+            category=category,
+        )
 
-    async def search(
+    # --- BaseStore abstract method implementations ---
+
+    async def astore(
         self,
+        config: dict[str, Any],
+        content: str | Message,
+        memory_type: MemoryType = MemoryType.EPISODIC,
+        category: str = "general",
+        metadata: dict[str, Any] | None = None,
+        **kwargs,
+    ) -> str:
+        """Store a new memory."""
+        user_id, thread_id, collection = self._extract_config_values(config)
+
+        # Ensure collection exists
+        await self._ensure_collection_exists(collection)
+
+        # Create memory record
+        record = self._create_memory_record(
+            content=content,
+            user_id=user_id,
+            thread_id=thread_id,
+            memory_type=memory_type,
+            category=category,
+            metadata=metadata,
+        )
+
+        # Generate embedding
+        text_content = self._prepare_content(content)
+        vector = await self.embedding.aembed(text_content)
+        if not vector or len(vector) != self.embedding.dimension:
+            raise ValueError("Embedding service returned invalid vector")
+
+        # Prepare payload
+        payload = {
+            "content": record.content,
+            "user_id": record.user_id,
+            "thread_id": record.thread_id,
+            "memory_type": record.memory_type.value,
+            "category": record.category,
+            "timestamp": record.timestamp.isoformat() if record.timestamp else None,
+            **record.metadata,
+        }
+
+        # Create point
+        point = PointStruct(
+            id=record.id,
+            vector=vector,
+            payload=payload,
+        )
+
+        # Store in Qdrant
+        await self.client.upsert(
+            collection_name=collection,
+            points=[point],
+        )
+
+        logger.debug(f"Stored memory {record.id} in collection {collection}")
+        return record.id
+
+    async def abatch_store(
+        self,
+        config: dict[str, Any],
+        content: list[str | Message],
+        memory_type: MemoryType = MemoryType.EPISODIC,
+        category: str = "general",
+        metadata: dict[str, Any] | None = None,
+        **kwargs,
+    ) -> str:
+        """Store multiple memories in batch."""
+        user_id, thread_id, collection = self._extract_config_values(config)
+
+        # Ensure collection exists
+        await self._ensure_collection_exists(collection)
+
+        # Prepare all records
+        points = []
+
+        for item in content:
+            # Create memory record
+            record = self._create_memory_record(
+                content=item,
+                user_id=user_id,
+                thread_id=thread_id,
+                memory_type=memory_type,
+                category=category,
+                metadata=metadata,
+            )
+
+            # Generate embedding
+            text_content = self._prepare_content(item)
+            vector = await self.embedding.aembed(text_content)
+
+            # Prepare payload
+            payload = {
+                "content": record.content,
+                "user_id": record.user_id,
+                "thread_id": record.thread_id,
+                "memory_type": record.memory_type.value,
+                "category": record.category,
+                "timestamp": record.timestamp.isoformat() if record.timestamp else None,
+                **record.metadata,
+            }
+
+            # Create point
+            point = PointStruct(
+                id=record.id,
+                vector=vector,
+                payload=payload,
+            )
+
+            points.append(point)
+
+        # Batch store in Qdrant
+        await self.client.upsert(
+            collection_name=collection,
+            points=points,
+        )
+
+        logger.debug(f"Batch stored {len(points)} memories in collection {collection}")
+        return f"batch_{uuid.uuid4()}"
+
+    async def asearch(
+        self,
+        config: dict[str, Any],
         query: str,
-        user_id: str | None = None,
-        agent_id: str | None = None,
-        memory_type: str | None = None,
+        memory_type: MemoryType | None = None,
         category: str | None = None,
         limit: int = 10,
         score_threshold: float | None = None,
         filters: dict[str, Any] | None = None,
-        collection_name: str | None = None,
-        **kwargs: Any,
+        retrieval_strategy: RetrievalStrategy = RetrievalStrategy.SIMILARITY,
+        distance_metric: DistanceMetric = DistanceMetric.COSINE,
+        max_tokens: int = 4000,
+        **kwargs,
     ) -> list[MemorySearchResult]:
         """Search memories by content similarity."""
-        collection = collection_name or self.default_collection
-        
-        # Build filters combining user/agent/memory_type/category
-        combined_filters: dict[str, Any] = {}
-        if user_id:
-            combined_filters["user_id"] = user_id
-        if agent_id:
-            combined_filters["agent_id"] = agent_id
-        if memory_type:
-            combined_filters["memory_type"] = memory_type
-        if category:
-            combined_filters["category"] = category
-        if filters:
-            combined_filters.update(filters)
-        
+        user_id, thread_id, collection = self._extract_config_values(config)
+
+        # Ensure collection exists
+        await self._ensure_collection_exists(collection)
+
         # Generate query embedding
-        embedding = await self._agenerate_embedding(query or "")
-        
-        # Perform vector search
-        return await self._vector_search(
-            collection,
-            embedding,
+        query_vector = await self.embedding.aembed(query)
+        if not query_vector or len(query_vector) != self.embedding.dimension:
+            raise ValueError("Embedding service returned invalid vector")
+
+        # Build filter
+        search_filter = self._build_qdrant_filter(
+            user_id=user_id,
+            thread_id=thread_id,
+            memory_type=memory_type,
+            category=category,
+            filters=filters,
+        )
+
+        # Perform search
+        search_result = await self.client.search(
+            collection_name=collection,
+            query_vector=query_vector,
+            query_filter=search_filter,
             limit=limit,
-            filters=combined_filters if combined_filters else None,
             score_threshold=score_threshold,
         )
 
-    async def get(
-        self, memory_id: str, collection_name: str | None = None, **_
+        # Convert to search results
+        results = [self._point_to_search_result(point) for point in search_result]
+
+        logger.debug(f"Found {len(results)} memories for query in collection {collection}")
+        return results
+
+    async def aget(
+        self,
+        config: dict[str, Any],
+        memory_id: str,
+        **kwargs,
     ) -> MemorySearchResult | None:
         """Get a specific memory by ID."""
-        collection = collection_name or self.default_collection
-        return await self._get_vector(collection, memory_id)
+        user_id, thread_id, collection = self._extract_config_values(config)
 
-    async def update(
+        try:
+            # Ensure collection exists
+            await self._ensure_collection_exists(collection)
+
+            # Get point by ID
+            points = await self.client.retrieve(
+                collection_name=collection,
+                ids=[memory_id],
+            )
+
+            if not points:
+                return None
+
+            point = points[0]
+            result = self._point_to_search_result(point)
+
+            # Verify user/agent access if specified
+            if user_id and result.user_id != user_id:
+                return None
+            if thread_id and result.thread_id != thread_id:
+                return None
+
+            return result
+
+        except Exception as e:
+            logger.error(f"Error retrieving memory {memory_id}: {e}")
+            return None
+
+    async def aupdate(
         self,
+        config: dict[str, Any],
         memory_id: str,
-        content: str | None = None,
+        content: str | Message,
         metadata: dict[str, Any] | None = None,
-        collection_name: str | None = None,
-        **kwargs: Any,
+        **kwargs,
     ) -> None:
         """Update an existing memory."""
-        collection = collection_name or self.default_collection
-        existing = await self._get_vector(collection, memory_id)
+        user_id, thread_id, collection = self._extract_config_values(config)
+
+        # Get existing memory
+        existing = await self.aget(config, memory_id)
         if not existing:
             raise ValueError(f"Memory {memory_id} not found")
-        
-        payload = existing.metadata.copy() if existing.metadata else {}
-        vector = None
-        
-        if content is not None:
-            payload["content"] = content
-            payload["updated_at"] = datetime.now().isoformat()
-            vector = await self._agenerate_embedding(content)
-        
+
+        # Verify user/agent access if specified
+        if user_id and existing.user_id != user_id:
+            raise PermissionError("User does not have permission to update this memory")
+        if thread_id and existing.thread_id != thread_id:
+            raise PermissionError("Thread does not have permission to update this memory")
+
+        # Prepare new content
+        text_content = self._prepare_content(content)
+        new_vector = await self.embedding.aembed(text_content)
+        if not new_vector or len(new_vector) != self.embedding.dimension:
+            raise ValueError("Embedding service returned invalid vector")
+
+        # Update payload
+        updated_metadata = {**existing.metadata}
         if metadata:
-            payload.update(metadata)
-        
-        await self._update_vector(collection, memory_id, vector=vector, payload=payload)
+            updated_metadata.update(metadata)
 
-    async def delete(self, memory_id: str, collection_name: str | None = None, **_) -> None:
+        updated_payload = {
+            "content": text_content,
+            "user_id": existing.user_id,
+            "thread_id": existing.thread_id,
+            "memory_type": existing.memory_type.value,
+            "category": updated_metadata.get("category", "general"),
+            "timestamp": datetime.now().isoformat(),
+            **updated_metadata,
+        }
+
+        # Create updated point
+        point = PointStruct(
+            id=memory_id,
+            vector=new_vector,
+            payload=updated_payload,
+        )
+
+        # Update in Qdrant
+        await self.client.upsert(
+            collection_name=collection,
+            points=[point],
+        )
+
+        logger.debug(f"Updated memory {memory_id} in collection {collection}")
+
+    async def adelete(
+        self,
+        config: dict[str, Any],
+        memory_id: str,
+        **kwargs,
+    ) -> None:
         """Delete a memory by ID."""
-        collection = collection_name or self.default_collection
-        await self._delete_vector(collection, memory_id)
+        user_id, thread_id, collection = self._extract_config_values(config)
 
-    # --- Raw vector operations (simplified, async-only) ---
+        # Verify memory exists and user has access
+        existing = await self.aget(config, memory_id)
+        if not existing:
+            raise ValueError(f"Memory {memory_id} not found")
 
-    async def create_collection(
+        # verify user/agent access if specified
+        if user_id and existing.user_id != user_id:
+            raise PermissionError("User does not have permission to delete this memory")
+        if thread_id and existing.thread_id != thread_id:
+            raise PermissionError("Thread does not have permission to delete this memory")
+
+        # Delete from Qdrant
+        await self.client.delete(
+            collection_name=collection,
+            points_selector=models.PointIdsList(points=[memory_id]),
+        )
+
+        logger.debug(f"Deleted memory {memory_id} from collection {collection}")
+
+    async def aforget_memory(
         self,
-        name: str,
-        vector_size: int,
-        distance_metric: DistanceMetric = DistanceMetric.COSINE,
-        **kwargs: Any,
+        config: dict[str, Any],
+        **kwargs,
     ) -> None:
-        """Create a new vector collection."""
-        try:
-            await self.client.create_collection(
-                collection_name=name,
-                vectors_config=VectorParams(
-                    size=vector_size, distance=self._distance_metric_to_qdrant(distance_metric)
-                ),
-            )
-            self._collection_cache.add(name)
-            logger.info(f"Created collection '{name}' with {vector_size}D vectors")
-        except Exception as e:
-            if "already exists" in str(e).lower():
-                logger.warning(f"Collection '{name}' already exists")
-                self._collection_cache.add(name)
-            else:
-                logger.error(f"Failed to create collection '{name}': {e}")
-                raise
+        """Delete all memories for a user or agent."""
+        user_id, agent_id, collection = self._extract_config_values(config)
 
-    async def collection_exists(self, name: str) -> bool:
-        """Check if collection exists."""
-        if name in self._collection_cache:
-            return True
+        # Build filter for memories to delete
+        delete_filter = self._build_qdrant_filter(user_id=user_id, thread_id=agent_id)
 
-        try:
-            collections = await self.client.get_collections()
-            exists = name in [col.name for col in collections.collections]
-            if exists:
-                self._collection_cache.add(name)
-            return exists
-        except Exception as e:
-            logger.error(f"Failed to check collection existence '{name}': {e}")
-            return False
-
-    async def list_collections(self) -> list[str]:
-        """List all collections."""
-        try:
-            collections = await self.client.get_collections()
-            names = [col.name for col in collections.collections]
-            self._collection_cache.update(names)
-            return names
-        except Exception as e:
-            logger.error(f"Failed to list collections: {e}")
-            raise
-
-    async def delete_collection(self, name: str) -> None:
-        """Delete a collection."""
-        try:
-            await self.client.delete_collection(collection_name=name)
-            self._collection_cache.discard(name)
-            logger.info(f"Deleted collection '{name}'")
-        except Exception as e:
-            logger.error(f"Failed to delete collection '{name}': {e}")
-            raise
-
-    async def _insert_vector(
-        self,
-        collection_name: str,
-        vector: list[float],
-        payload: dict[str, Any] | None = None,
-        point_id: str | None = None,
-    ) -> str:
-        """Insert a single vector into collection."""
-        point_id = point_id or str(uuid.uuid4())
-        point = PointStruct(id=point_id, vector=vector, payload=payload or {})
-
-        try:
-            await self.client.upsert(collection_name=collection_name, points=[point])
-            logger.debug(f"Inserted vector {point_id} into '{collection_name}'")
-            return point_id
-        except Exception as e:
-            logger.error(f"Failed to insert vector into '{collection_name}': {e}")
-            raise
-
-    async def _vector_search(
-        self,
-        collection_name: str,
-        query_vector: list[float],
-        limit: int = 5,
-        filters: dict[str, Any] | None = None,
-        score_threshold: float | None = None,
-    ) -> list[MemorySearchResult]:
-        """Search for similar vectors."""
-        try:
-            qdrant_filter = self._build_qdrant_filter(filters)
-
-            results = await self.client.search(
-                collection_name=collection_name,
-                query_vector=query_vector,
-                limit=limit,
-                query_filter=qdrant_filter,
-                score_threshold=score_threshold,
-                with_payload=True,
-                with_vectors=False,
-            )
-
-            return [self._point_to_search_result(point) for point in results]
-        except Exception as e:
-            logger.error(f"Search failed in '{collection_name}': {e}")
-            raise
-
-    async def _get_vector(self, collection_name: str, vector_id: str) -> MemorySearchResult | None:
-        """Get vector by ID."""
-        try:
-            result = await self.client.retrieve(
-                collection_name=collection_name,
-                ids=[vector_id],
-                with_payload=True,
-                with_vectors=True,
-            )
-
-            if result:
-                return self._point_to_search_result(result[0])
-            return None
-        except Exception as e:
-            logger.error(f"Failed to get vector '{vector_id}' from '{collection_name}': {e}")
-            return None
-
-    async def _update_vector(
-        self,
-        collection_name: str,
-        vector_id: str,
-        vector: list[float] | None = None,
-        payload: dict[str, Any] | None = None,
-    ) -> None:
-        """Update vector and/or payload."""
-        try:
-            if vector is not None:
-                # Update vector and payload
-                await self.client.upsert(
-                    collection_name=collection_name,
-                    points=[PointStruct(id=vector_id, vector=vector, payload=payload or {})],
-                )
-            elif payload is not None:
-                # Update only payload
-                await self.client.set_payload(
-                    collection_name=collection_name, payload=payload, points=[vector_id]
-                )
-
-            logger.debug(f"Updated vector '{vector_id}' in '{collection_name}'")
-        except Exception as e:
-            logger.error(f"Failed to update vector '{vector_id}' in '{collection_name}': {e}")
-            raise
-
-    async def _delete_vector(self, collection_name: str, vector_id: str) -> None:
-        """Delete vector by ID."""
-        try:
+        if delete_filter:
+            # Delete matching memories
             await self.client.delete(
-                collection_name=collection_name,
-                points_selector=models.PointIdsList(points=[vector_id]),
+                collection_name=collection,
+                points_selector=models.FilterSelector(filter=delete_filter),
             )
-            logger.debug(f"Deleted vector '{vector_id}' from '{collection_name}'")
-        except Exception as e:
-            logger.error(f"Failed to delete vector '{vector_id}' from '{collection_name}': {e}")
-            raise
 
-    # --- Statistics and Management ---
+            logger.info(
+                f"Deleted all memories for user_id={user_id}, agent_id={agent_id} "
+                f"in collection {collection}"
+            )
+        else:
+            logger.warning("No user_id or agent_id specified for memory deletion")
 
-    async def get_collection_stats(self, collection_name: str) -> dict[str, Any]:
-        """Get collection statistics."""
-        try:
-            info = await self.client.get_collection(collection_name)
-            return {
-                "name": collection_name,
-                "exists": True,
-                "vectors_count": info.vectors_count or 0,
-                "points_count": info.points_count or 0,
-                "indexed_vectors_count": info.indexed_vectors_count or 0,
-                "status": info.status,
-                "optimizer_status": info.optimizer_status,
-            }
-        except Exception as e:
-            logger.error(f"Failed to get stats for '{collection_name}': {e}")
-            return {"name": collection_name, "exists": False, "error": str(e)}
-
-    async def cleanup(self) -> None:
+    async def arelease(self) -> None:
         """Clean up resources."""
-        try:
-            if hasattr(self.client, "close"):
-                await self.client.close()
-            logger.info("Qdrant vector store cleanup completed")
-        except Exception as e:
-            logger.error(f"Error during cleanup: {e}")
+        if hasattr(self.client, "close"):
+            await self.client.close()
+        logger.info("QdrantStore resources released")
 
 
-# Factory functions for convenience
+# Convenience factory functions
 
 
-def create_local_qdrant_vector_store(
-    path: str = "./qdrant_data", **kwargs
-) -> QdrantVectorStore:
-    """Create a local file-based Qdrant vector store."""
-    return QdrantVectorStore(path=path, **kwargs)
+def create_local_qdrant_store(
+    path: str,
+    embedding: BaseEmbedding,
+    **kwargs,
+) -> QdrantStore:
+    """Create a local Qdrant store."""
+    return QdrantStore(
+        embedding=embedding,
+        path=path,
+        **kwargs,
+    )
 
 
-def create_remote_qdrant_vector_store(
-    host: str = "localhost", port: int = 6333, api_key: str | None = None, **kwargs
-) -> QdrantVectorStore:
-    """Create a remote Qdrant vector store."""
-    return QdrantVectorStore(host=host, port=port, api_key=api_key, **kwargs)
+def create_remote_qdrant_store(
+    host: str,
+    port: int,
+    embedding: BaseEmbedding,
+    **kwargs,
+) -> QdrantStore:
+    """Create a remote Qdrant store."""
+    return QdrantStore(
+        embedding=embedding,
+        host=host,
+        port=port,
+        **kwargs,
+    )
 
 
-def create_cloud_qdrant_vector_store(url: str, api_key: str, **kwargs) -> QdrantVectorStore:
-    """Create a cloud Qdrant vector store."""
-    return QdrantVectorStore(url=url, api_key=api_key, **kwargs)
+def create_cloud_qdrant_store(
+    url: str,
+    api_key: str,
+    embedding: BaseEmbedding,
+    **kwargs,
+) -> QdrantStore:
+    """Create a cloud Qdrant store."""
+    return QdrantStore(
+        embedding=embedding,
+        url=url,
+        api_key=api_key,
+        **kwargs,
+    )

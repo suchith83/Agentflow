@@ -1,12 +1,15 @@
-from .base_store import BaseStore, DistanceMetric, MemoryRecord, MemorySearchResult
+from .base_store import BaseStore
+from .store_schema import DistanceMetric, MemoryRecord, MemorySearchResult, MemoryType
 
 
 try:
     from .qdrant_store import (
-        QdrantVectorStore,
-        create_cloud_qdrant_vector_store,
-        create_local_qdrant_vector_store,
-        create_remote_qdrant_vector_store,
+        EmbeddingService,
+        OpenAIEmbeddingService,
+        QdrantStore,
+        create_cloud_qdrant_store,
+        create_local_qdrant_store,
+        create_remote_qdrant_store,
     )
 
     __all__ = [
@@ -14,10 +17,13 @@ try:
         "DistanceMetric",
         "MemorySearchResult",
         "MemoryRecord",
-        "QdrantVectorStore",
-        "create_local_qdrant_vector_store",
-        "create_remote_qdrant_vector_store",
-        "create_cloud_qdrant_vector_store",
+        "MemoryType",
+        "EmbeddingService",
+        "OpenAIEmbeddingService",
+        "QdrantStore",
+        "create_local_qdrant_store",
+        "create_remote_qdrant_store",
+        "create_cloud_qdrant_store",
     ]
 except ImportError:
     # qdrant-client not installed
@@ -26,6 +32,7 @@ except ImportError:
         "DistanceMetric",
         "MemorySearchResult",
         "MemoryRecord",
+        "MemoryType",
     ]
 
 # Try to import Mem0Store (optional dependency)

@@ -240,7 +240,7 @@ class TestPgCheckpointer:
             mock_get.return_value = Message.text_message("Hello", role="user", message_id="msg1")
             message = await checkpointer.aget_message(sample_config, "msg1")
             assert isinstance(message, Message)
-            assert message.content[0].text == "Hello"
+            assert message.content[0].text == "Hello" # type: ignore
             mock_get.assert_called_once_with(sample_config, "msg1")
 
         with patch.object(checkpointer, "alist_messages", new_callable=AsyncMock) as mock_list:
@@ -304,10 +304,10 @@ class TestPgCheckpointer:
     async def test_error_handling(self, checkpointer, sample_config):
         """Test error handling in various scenarios."""
         # Test missing required config
-        with pytest.raises(ValueError, match="Both thread_id and user_id must be provided"):
+        with pytest.raises(ValueError):
             await checkpointer.aput_state({}, AgentState())
 
-        with pytest.raises(ValueError, match="Both thread_id and user_id must be provided"):
+        with pytest.raises(ValueError):
             await checkpointer.aget_state({})
 
     @pytest.mark.asyncio

@@ -3,7 +3,7 @@ from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Any, TypeVar
 
 from pyagenity.state import AgentState
-from pyagenity.utils import Message
+from pyagenity.utils import Message, run_coroutine
 from pyagenity.utils.thread_info import ThreadInfo
 
 
@@ -21,12 +21,15 @@ class BaseCheckpointer[StateT: AgentState](ABC):
     """
     Abstract base class for checkpointing agent state, messages, and threads.
 
-    This class defines the contract for all checkpointer implementations, supporting both async and sync methods.
-    Subclasses should implement async methods for optimal performance. Sync methods are provided for compatibility.
+    This class defines the contract for all checkpointer implementations, supporting both
+    async and sync methods.
+    Subclasses should implement async methods for optimal performance.
+    Sync methods are provided for compatibility.
 
     Usage:
         - Async-first design: subclasses should implement `async def` methods.
-        - If a subclass provides only a sync `def`, it will be executed in a worker thread automatically using `asyncio.to_thread`.
+        - If a subclass provides only a sync `def`, it will be executed in a worker thread
+            automatically using `asyncio.run`.
         - Callers always use the async APIs (`await cp.put_state(...)`, etc.).
 
     Type Args:
@@ -43,8 +46,9 @@ class BaseCheckpointer[StateT: AgentState](ABC):
         Returns:
             Any: Implementation-defined setup result.
         """
-        raise NotImplementedError
+        return run_coroutine(self.asetup())
 
+    @abstractmethod
     async def asetup(self) -> Any:
         """
         Asynchronous setup method for checkpointer.
@@ -127,7 +131,6 @@ class BaseCheckpointer[StateT: AgentState](ABC):
     # -------------------------
     # State methods Sync
     # -------------------------
-    @abstractmethod
     def put_state(self, config: dict[str, Any], state: StateT) -> StateT:
         """
         Store agent state synchronously.
@@ -139,9 +142,8 @@ class BaseCheckpointer[StateT: AgentState](ABC):
         Returns:
             StateT: The stored state object.
         """
-        raise NotImplementedError
+        return run_coroutine(self.aput_state(config, state))
 
-    @abstractmethod
     def get_state(self, config: dict[str, Any]) -> StateT | None:
         """
         Retrieve agent state synchronously.
@@ -152,9 +154,8 @@ class BaseCheckpointer[StateT: AgentState](ABC):
         Returns:
             StateT | None: Retrieved state or None.
         """
-        raise NotImplementedError
+        return run_coroutine(self.aget_state(config))
 
-    @abstractmethod
     def clear_state(self, config: dict[str, Any]) -> Any:
         """
         Clear agent state synchronously.
@@ -165,9 +166,8 @@ class BaseCheckpointer[StateT: AgentState](ABC):
         Returns:
             Any: Implementation-defined result.
         """
-        raise NotImplementedError
+        return run_coroutine(self.aclear_state(config))
 
-    @abstractmethod
     def put_state_cache(self, config: dict[str, Any], state: StateT) -> Any | None:
         """
         Store agent state in cache synchronously.
@@ -179,9 +179,8 @@ class BaseCheckpointer[StateT: AgentState](ABC):
         Returns:
             Any | None: Implementation-defined result.
         """
-        raise NotImplementedError
+        return run_coroutine(self.aput_state_cache(config, state))
 
-    @abstractmethod
     def get_state_cache(self, config: dict[str, Any]) -> StateT | None:
         """
         Retrieve agent state from cache synchronously.
@@ -192,7 +191,7 @@ class BaseCheckpointer[StateT: AgentState](ABC):
         Returns:
             StateT | None: Cached state or None.
         """
-        raise NotImplementedError
+        return run_coroutine(self.aget_state_cache(config))
 
     # -------------------------
     # Message methods async
@@ -270,7 +269,6 @@ class BaseCheckpointer[StateT: AgentState](ABC):
     # -------------------------
     # Message methods sync
     # -------------------------
-    @abstractmethod
     def put_messages(
         self,
         config: dict[str, Any],
@@ -288,10 +286,9 @@ class BaseCheckpointer[StateT: AgentState](ABC):
         Returns:
             Any: Implementation-defined result.
         """
-        raise NotImplementedError
+        return run_coroutine(self.aput_messages(config, messages, metadata))
 
-    @abstractmethod
-    def get_message(self, config: dict[str, Any]) -> Message:
+    def get_message(self, config: dict[str, Any], message_id: str | int) -> Message:
         """
         Retrieve a specific message synchronously.
 
@@ -301,9 +298,8 @@ class BaseCheckpointer[StateT: AgentState](ABC):
         Returns:
             Message: Retrieved message object.
         """
-        raise NotImplementedError
+        return run_coroutine(self.aget_message(config, message_id))
 
-    @abstractmethod
     def list_messages(
         self,
         config: dict[str, Any],
@@ -323,9 +319,8 @@ class BaseCheckpointer[StateT: AgentState](ABC):
         Returns:
             list[Message]: List of message objects.
         """
-        raise NotImplementedError
+        return run_coroutine(self.alist_messages(config, search, offset, limit))
 
-    @abstractmethod
     def delete_message(self, config: dict[str, Any], message_id: str | int) -> Any | None:
         """
         Delete a specific message synchronously.
@@ -337,7 +332,7 @@ class BaseCheckpointer[StateT: AgentState](ABC):
         Returns:
             Any | None: Implementation-defined result.
         """
-        raise NotImplementedError
+        return run_coroutine(self.adelete_message(config, message_id))
 
     # -------------------------
     # Thread methods async
@@ -414,7 +409,6 @@ class BaseCheckpointer[StateT: AgentState](ABC):
     # -------------------------
     # Thread methods sync
     # -------------------------
-    @abstractmethod
     def put_thread(self, config: dict[str, Any], thread_info: ThreadInfo) -> Any | None:
         """
         Store thread info synchronously.
@@ -426,9 +420,8 @@ class BaseCheckpointer[StateT: AgentState](ABC):
         Returns:
             Any | None: Implementation-defined result.
         """
-        raise NotImplementedError
+        return run_coroutine(self.aput_thread(config, thread_info))
 
-    @abstractmethod
     def get_thread(self, config: dict[str, Any]) -> ThreadInfo | None:
         """
         Retrieve thread info synchronously.
@@ -439,9 +432,8 @@ class BaseCheckpointer[StateT: AgentState](ABC):
         Returns:
             ThreadInfo | None: Thread information object or None.
         """
-        raise NotImplementedError
+        return run_coroutine(self.aget_thread(config))
 
-    @abstractmethod
     def list_threads(
         self,
         config: dict[str, Any],
@@ -461,9 +453,8 @@ class BaseCheckpointer[StateT: AgentState](ABC):
         Returns:
             list[ThreadInfo]: List of thread information objects.
         """
-        raise NotImplementedError
+        return run_coroutine(self.alist_threads(config, search, offset, limit))
 
-    @abstractmethod
     def clean_thread(self, config: dict[str, Any]) -> Any | None:
         """
         Clean/delete thread synchronously.
@@ -474,12 +465,11 @@ class BaseCheckpointer[StateT: AgentState](ABC):
         Returns:
             Any | None: Implementation-defined result.
         """
-        raise NotImplementedError
+        return run_coroutine(self.aclean_thread(config))
 
     # -------------------------
     # Clean Resources
     # -------------------------
-    @abstractmethod
     def release(self) -> Any | None:
         """
         Release resources synchronously.
@@ -487,7 +477,7 @@ class BaseCheckpointer[StateT: AgentState](ABC):
         Returns:
             Any | None: Implementation-defined result.
         """
-        raise NotImplementedError
+        return run_coroutine(self.arelease())
 
     @abstractmethod
     async def arelease(self) -> Any | None:

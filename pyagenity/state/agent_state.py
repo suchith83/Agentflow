@@ -7,7 +7,7 @@ Supports subclassing for custom application fields.
 """
 
 import logging
-from typing import Annotated, TypeVar
+from typing import Annotated
 
 from pydantic import BaseModel, Field
 
@@ -16,7 +16,6 @@ from pyagenity.utils import START, Message, add_messages
 
 
 # Generic type variable for state subclassing
-StateT = TypeVar("StateT", bound="AgentState")
 
 logger = logging.getLogger(__name__)
 
