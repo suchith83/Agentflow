@@ -83,33 +83,6 @@ class BaseStore(ABC):
         """
         raise NotImplementedError
 
-    @abstractmethod
-    async def abatch_store(
-        self,
-        config: dict[str, Any],
-        content: list[str | Message],
-        memory_type: MemoryType = MemoryType.EPISODIC,
-        category: str = "general",
-        metadata: dict[str, Any] | None = None,
-        **kwargs,
-    ) -> str:
-        """
-        Add a new memory.
-
-        Args:
-            content: The memory content
-            user_id: User identifier
-            agent_id: Agent identifier
-            memory_type: Type of memory (episodic, semantic, etc.)
-            category: Memory category for organization
-            metadata: Additional metadata
-            **kwargs: Store-specific parameters
-
-        Returns:
-            Memory ID
-        """
-        raise NotImplementedError
-
     # --- Sync wrappers ---
     def store(
         self,
@@ -207,9 +180,28 @@ class BaseStore(ABC):
         """Get a specific memory by ID."""
         raise NotImplementedError
 
+    @abstractmethod
+    async def aget_all(
+        self,
+        config: dict[str, Any],
+        limit: int = 100,
+        **kwargs,
+    ) -> list[MemorySearchResult]:
+        """Get a specific memory by user_id."""
+        raise NotImplementedError
+
     def get(self, config: dict[str, Any], memory_id: str, **kwargs) -> MemorySearchResult | None:
         """Synchronous wrapper for `aget` that runs the async implementation."""
         return run_coroutine(self.aget(config, memory_id, **kwargs))
+
+    def get_all(
+        self,
+        config: dict[str, Any],
+        limit: int = 100,
+        **kwargs,
+    ) -> list[MemorySearchResult]:
+        """Synchronous wrapper for `aget` that runs the async implementation."""
+        return run_coroutine(self.aget_all(config, limit=limit, **kwargs))
 
     @abstractmethod
     async def aupdate(
@@ -219,7 +211,7 @@ class BaseStore(ABC):
         content: str | Message,
         metadata: dict[str, Any] | None = None,
         **kwargs,
-    ) -> None:
+    ) -> Any:
         """
         Update an existing memory.
 
@@ -238,7 +230,7 @@ class BaseStore(ABC):
         content: str | Message,
         metadata: dict[str, Any] | None = None,
         **kwargs,
-    ) -> None:
+    ) -> Any:
         """Synchronous wrapper for `aupdate` that runs the async implementation."""
         return run_coroutine(self.aupdate(config, memory_id, content, metadata=metadata, **kwargs))
 
@@ -248,7 +240,7 @@ class BaseStore(ABC):
         config: dict[str, Any],
         memory_id: str,
         **kwargs,
-    ) -> None:
+    ) -> Any:
         """Delete a memory by ID."""
         raise NotImplementedError
 
@@ -261,7 +253,7 @@ class BaseStore(ABC):
         self,
         config: dict[str, Any],
         **kwargs,
-    ) -> None:
+    ) -> Any:
         """Delete a memory by for a user or agent."""
         raise NotImplementedError
 
@@ -269,7 +261,7 @@ class BaseStore(ABC):
         self,
         config: dict[str, Any],
         **kwargs,
-    ) -> None:
+    ) -> Any:
         """Delete a memory by for a user or agent."""
         return run_coroutine(self.aforget_memory(config, **kwargs))
 

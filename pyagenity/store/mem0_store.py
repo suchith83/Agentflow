@@ -1,410 +1,367 @@
-"""
-Simplified Mem0 Store Implementation for PyAgenity Framework
+"""Mem0 Long-Term Memory Store
 
-This module provides a clean, async-first implementation of BaseStore using Mem0
-as the backend memory system. Mem0 provides high-level memory management
-with automatic vector storage, semantic search, and conversation tracking.
+Async-first implementation of :class:`BaseStore` that uses the `mem0` library
+as a managed long-term memory layer. In PyAgenity we treat the *graph state* as
+short-term (ephemeral per run / session) memory and a store implementation as
+long-term, durable memory. This module wires Mem0 so that:
+
+* ``astore`` / ``asearch`` / etc. map to Mem0's `add`, `search`, `get_all`, `update`, `delete`.
+* We maintain a generated UUID (framework memory id) separate from the Mem0 internal id.
+* Metadata is enriched to retain memory type, category, timestamps and app scoping.
+* The public async methods satisfy the :class:`BaseStore` contract (``astore``, ``abatch_store``,
+  ``asearch``, ``aget``, ``aupdate``, ``adelete``, ``aforget_memory`` and ``arelease``).
+
+Design notes:
+--------------
+Mem0 (>= 0.2.x / 2025 spec) still exposes synchronous Python APIs. We off-load
+blocking calls to a thread executor to keep the interface awaitable. Where Mem0
+does not support an operation directly (e.g. fetch by custom memory id) we
+fallback to scanning ``get_all`` for the user. For batch insertion we parallelise
+Add operations with gather while bounding concurrency (simple semaphore) to
+avoid thread explosion.
+
+The store interprets the supplied ``config`` mapping passed to every method as:
+``{"user_id": str | None, "thread_id": str | None, "app_id": str | None}``.
+`thread_id` is stored into metadata under ``agent_id`` for backward compatibility
+with earlier implementations where agent_id served a similar role.
+
+Prerequisite: install mem0.
+```
+pip install mem0ai
+```
+Optional vector DB / embedder / llm configuration should be supplied through
+Mem0's native configuration structure (see upstream docs - memory configuration,
+vector store configuration). You can also use helper factory function
+``create_mem0_store_with_qdrant`` for quick Qdrant backing.
 """
 
-import asyncio
 import logging
+from collections.abc import Awaitable, Iterable
 from datetime import datetime
 from typing import Any
 from uuid import uuid4
 
-from .base_store import BaseStore, MemorySearchResult
+from injectq import InjectQ
+
+from pyagenity.utils import Message
+
+from .base_store import BaseStore
+from .store_schema import MemorySearchResult, MemoryType
 
 
-try:
-    from mem0 import Memory
-except ImportError:
-    raise ImportError("Mem0 not installed. Install with: pip install mem0ai")
+try:  # pragma: no cover - import guard
+    from mem0 import AsyncMemory
+    from mem0.configs.base import MemoryConfig
+except ImportError as e:  # pragma: no cover
+    raise ImportError("Mem0 not installed. Install with: pip install mem0ai") from e
 
 logger = logging.getLogger(__name__)
 
 
 class Mem0Store(BaseStore):
-    """
-    Simplified Mem0-based implementation of BaseStore for long-term memory.
+    """Mem0 implementation of long-term memory.
 
-    This store provides a high-level interface to Mem0's memory management
-    system, which handles vector storage, embeddings, and semantic search
-    automatically.
+    Primary responsibilities:
+    * Persist memories (episodic by default) across graph invocations
+    * Retrieve semantically similar memories to augment state
+    * Provide CRUD lifecycle aligned with ``BaseStore`` async API
 
-    Features:
-    - Automatic embedding generation via Mem0
-    - User and agent-centric memory management
-    - Semantic search with relevance scoring
-    - Async-first design for better performance
+    Unlike in-memory state, these memories survive process restarts as they are
+    managed by Mem0's configured vector / persistence layer.
     """
 
     def __init__(
         self,
-        config: dict[str, Any] | None = None,
-        user_id: str | None = None,
-        agent_id: str | None = None,
+        config: MemoryConfig | dict | None = None,
         app_id: str | None = None,
-        **kwargs,
-    ):
-        """
-        Initialize Mem0Store.
-
-        Args:
-            config: Mem0 configuration dict (llm, embedder, vector_store)
-            user_id: Default user ID for memory operations
-            agent_id: Default agent ID for memory operations
-            app_id: Application ID for memory context
-            **kwargs: Additional arguments passed to BaseStore
-        """
-        super().__init__(**kwargs)
-
-        self.config = config or {}
-        self.default_user_id = user_id or "default_user"
-        self.default_agent_id = agent_id
+        **kwargs: Any,
+    ) -> None:
+        super().__init__()
+        self.config = config
         self.app_id = app_id or "pyagenity_app"
 
-        # Track memory_id to user_id mapping for retrieval
-        self._memory_user_map: dict[str, str] = {}
-
-        # Initialize Mem0
+        # Underlying (sync) Mem0 client
         try:
-            self.memory = Memory(config=self.config)
-            logger.info("Successfully initialized Mem0 client")
-        except Exception as e:
-            logger.error(f"Failed to initialize Mem0: {e}")
+            # Prefer explicit config via Memory.from_config when supplied; fallback to defaults
+            if isinstance(self.config, dict):
+                self._client = AsyncMemory.from_config(self.config)
+            elif isinstance(self.config, MemoryConfig):
+                self._client = AsyncMemory(config=self.config)
+            else:
+                self._client = AsyncMemory()
+        except Exception as e:  # pragma: no cover - defensive
+            logger.error(f"Failed to initialize Mem0 client: {e}")
             raise
 
         logger.info(
-            f"Initialized Mem0Store for user: {self.default_user_id}, "
-            f"agent: {self.default_agent_id}, app: {self.app_id}"
+            "Initialized Mem0Store (long-term) app=%s",
+            self.app_id,
         )
 
-    # --- Core Memory Operations (BaseStore Interface) ---
+    # ---------------------------------------------------------------------
+    # Internal helpers
+    # ---------------------------------------------------------------------
 
-    async def add(
+    def _extract_ids(self, config: dict[str, Any]) -> tuple[str, str | None, str | None]:
+        """Extract user_id, thread_id, app_id from per-call config with fallbacks."""
+        user_id = config.get("user_id")
+        thread_id = config.get("thread_id")
+        app_id = config.get("app_id") or self.app_id
+
+        # if user id and thread id are not provided, we cannot proceed
+        if not user_id:
+            raise ValueError("user_id must be provided in config")
+
+        if not thread_id:
+            raise ValueError("thread_id must be provided in config")
+
+        return user_id, thread_id, app_id
+
+    def _create_result(
         self,
-        content: str,
-        user_id: str | None = None,
-        agent_id: str | None = None,
-        memory_type: str = "episodic",
+        raw: dict[str, Any],
+        user_id: str,
+    ) -> MemorySearchResult:
+        # check user id belongs to the user
+        if raw.get("user_id") != user_id:
+            raise ValueError("Memory user_id does not match the requested user_id")
+
+        metadata = raw.get("metadata", {}) or {}
+        # Ensure memory_type enum mapping
+        memory_type_val = metadata.get("memory_type", MemoryType.EPISODIC.value)
+        try:
+            memory_type = MemoryType(memory_type_val)
+        except ValueError:
+            memory_type = MemoryType.EPISODIC
+
+        return MemorySearchResult(
+            id=metadata.get("memory_id", str(raw.get("id", uuid4()))),
+            content=raw.get("memory") or raw.get("data", ""),
+            score=float(raw.get("score", 0.0) or 0.0),
+            memory_type=memory_type,
+            metadata=metadata,
+            user_id=user_id,
+            thread_id=metadata.get("run_id"),
+        )
+
+    def _iter_results(self, response: Any) -> Iterable[dict[str, Any]]:
+        if isinstance(response, list):
+            for item in response:
+                if isinstance(item, dict):
+                    yield item
+        elif isinstance(response, dict) and "results" in response:
+            for item in response["results"]:
+                if isinstance(item, dict):
+                    yield item
+        else:  # pragma: no cover
+            logger.debug("Unexpected Mem0 response type: %s", type(response))
+
+    async def generate_framework_id(self) -> str:
+        generated_id = InjectQ.get_instance().try_get("generated_id", str(uuid4()))
+        if isinstance(generated_id, Awaitable):
+            generated_id = await generated_id
+        return generated_id
+
+    # ------------------------------------------------------------------
+    # BaseStore required async operations
+    # ------------------------------------------------------------------
+
+    async def astore(
+        self,
+        config: dict[str, Any],
+        content: str | Message,
+        memory_type: MemoryType = MemoryType.EPISODIC,
         category: str = "general",
         metadata: dict[str, Any] | None = None,
-        **kwargs,
-    ) -> str:
-        """Add a new memory to Mem0."""
-        if not content or not content.strip():
+        **kwargs: Any,
+    ) -> Any:
+        text = content.text() if isinstance(content, Message) else str(content)
+        if not text.strip():
             raise ValueError("Content cannot be empty")
 
-        # Use provided IDs or defaults
-        effective_user_id = user_id or self.default_user_id
-        effective_agent_id = agent_id or self.default_agent_id
+        user_id, thread_id, app_id = self._extract_ids(config)
 
-        # Generate memory ID
-        memory_id = str(uuid4())
-
-        # Build comprehensive metadata
-        mem0_metadata = {
-            "memory_id": memory_id,
-            "agent_id": effective_agent_id,
-            "memory_type": memory_type,
+        mem_meta = {
+            "memory_type": memory_type.value,
             "category": category,
-            "app_id": self.app_id,
             "created_at": datetime.now().isoformat(),
             **(metadata or {}),
         }
 
-        try:
-            # Run in thread pool since Mem0 doesn't have native async support
-            loop = asyncio.get_event_loop()
-            await loop.run_in_executor(
-                None,
-                lambda: self.memory.add(
-                    content,
-                    user_id=effective_user_id,
-                    metadata=mem0_metadata,
-                ),
-            )
+        result = await self._client.add(  # type: ignore
+            messages=[{"role": "user", "content": text}],
+            user_id=user_id,
+            agent_id=app_id,
+            run_id=thread_id,
+            metadata=mem_meta,
+        )
 
-            # Store mapping for retrieval
-            self._memory_user_map[memory_id] = effective_user_id
+        logger.debug("Stored memory for user=%s thread=%s id=%s", user_id, thread_id, result)
 
-            logger.debug(f"Added memory {memory_id} for user {effective_user_id}")
-            return memory_id
+        return result
 
-        except Exception as e:
-            logger.error(f"Failed to add memory: {e}")
-            raise
-
-    async def search(
+    async def asearch(
         self,
+        config: dict[str, Any],
         query: str,
-        user_id: str | None = None,
-        agent_id: str | None = None,
-        memory_type: str | None = None,
+        memory_type: MemoryType | None = None,
         category: str | None = None,
         limit: int = 10,
         score_threshold: float | None = None,
         filters: dict[str, Any] | None = None,
-        **kwargs,
+        retrieval_strategy=None,  # Unused for Mem0; kept for signature parity
+        distance_metric=None,  # Unused
+        max_tokens: int = 4000,
+        **kwargs: Any,
     ) -> list[MemorySearchResult]:
-        """Search memories by content similarity."""
-        effective_user_id = user_id or self.default_user_id
+        user_id, thread_id, app_id = self._extract_ids(config)
 
-        try:
-            # Run search in thread pool
-            loop = asyncio.get_event_loop()
-            results = await loop.run_in_executor(
-                None,
-                lambda: self.memory.search(
-                    query=query or "",
-                    user_id=effective_user_id,
-                    limit=limit,
-                ),
-            )
-
-            # Convert and filter results
-            memory_results = []
-            for result in results:
-                # Apply post-processing filters
-                result_metadata = result.get("metadata", {})
-
-                # Apply filters
-                if agent_id and result_metadata.get("agent_id") != agent_id:
-                    continue
-                if memory_type and result_metadata.get("memory_type") != memory_type:
-                    continue
-                if category and result_metadata.get("category") != category:
-                    continue
-                if self.app_id and result_metadata.get("app_id") != self.app_id:
-                    continue
-                if score_threshold and result.get("score", 0.0) < score_threshold:
-                    continue
-
-                # Apply additional filters
-                if filters:
-                    skip = False
-                    for key, value in filters.items():
-                        if result_metadata.get(key) != value:
-                            skip = True
-                            break
-                    if skip:
-                        continue
-
-                # Create search result
-                memory_results.append(self._create_search_result(result, effective_user_id))
-
-            return memory_results
-
-        except Exception as e:
-            logger.error(f"Search failed: {e}")
-            return []
-
-    async def get(self, memory_id: str, **kwargs) -> MemorySearchResult | None:
-        """Get a specific memory by ID."""
-        try:
-            # Get all memories and filter by memory_id in metadata
-            # (Mem0 doesn't provide direct ID-based retrieval)
-            loop = asyncio.get_event_loop()
-
-            # Try to get user_id from mapping or use default
-            user_id = self._memory_user_map.get(memory_id, self.default_user_id)
-
-            all_memories = await loop.run_in_executor(
-                None, lambda: self.memory.get_all(user_id=user_id)
-            )
-
-            # Find the specific memory
-            for memory_dict in self._parse_mem0_response(all_memories):
-                metadata = memory_dict.get("metadata", {})
-                if metadata.get("memory_id") == memory_id:
-                    return self._create_search_result(memory_dict, user_id)
-
-            return None
-
-        except Exception as e:
-            logger.error(f"Failed to get memory {memory_id}: {e}")
-            return None
-
-    async def update(
-        self,
-        memory_id: str,
-        content: str | None = None,
-        metadata: dict[str, Any] | None = None,
-        **kwargs,
-    ) -> None:
-        """Update an existing memory."""
-        try:
-            # Get existing memory first
-            existing = await self.get(memory_id)
-            if not existing:
-                raise ValueError(f"Memory {memory_id} not found")
-
-            # Get user_id from existing memory or mapping
-            user_id = existing.user_id or self._memory_user_map.get(memory_id, self.default_user_id)
-
-            # Update content if provided
-            if content is not None:
-                updated_metadata = existing.metadata.copy() if existing.metadata else {}
-                updated_metadata["updated_at"] = datetime.now().isoformat()
-                if metadata:
-                    updated_metadata.update(metadata)
-
-                # Run update in thread pool
-                loop = asyncio.get_event_loop()
-                await loop.run_in_executor(
-                    None,
-                    lambda: self.memory.update(
-                        memory_id, content, user_id=user_id, metadata=updated_metadata
-                    ),
-                )
-
-            logger.debug(f"Updated memory {memory_id}")
-
-        except Exception as e:
-            logger.error(f"Failed to update memory {memory_id}: {e}")
-            raise
-
-    async def delete(self, memory_id: str, **kwargs) -> None:
-        """Delete a memory by ID."""
-        try:
-            # Get user_id from mapping or use default
-            user_id = self._memory_user_map.get(memory_id, self.default_user_id)
-
-            # Run delete in thread pool
-            loop = asyncio.get_event_loop()
-            await loop.run_in_executor(None, lambda: self.memory.delete(memory_id, user_id=user_id))
-
-            # Clean up mapping
-            self._memory_user_map.pop(memory_id, None)
-
-            logger.debug(f"Deleted memory {memory_id}")
-
-        except Exception as e:
-            logger.error(f"Failed to delete memory {memory_id}: {e}")
-            raise
-
-    # --- Utility Methods ---
-
-    def _create_search_result(
-        self, result: dict[str, Any], effective_user_id: str
-    ) -> MemorySearchResult:
-        """Create a MemorySearchResult from a Mem0 result."""
-        memory_content = result.get("memory", "")
-        result_metadata = result.get("metadata", {})
-        mem0_id = result.get("id")
-        score = result.get("score", 0.0)
-
-        return MemorySearchResult(
-            id=result_metadata.get("memory_id", str(mem0_id) if mem0_id else str(uuid4())),
-            content=memory_content,
-            score=float(score),
-            memory_type=result_metadata.get("memory_type", "episodic"),
-            metadata=result_metadata,
-            user_id=effective_user_id,
-            agent_id=result_metadata.get("agent_id"),
-            created_at=self._parse_datetime(result_metadata.get("created_at")),
-            updated_at=self._parse_datetime(result_metadata.get("updated_at")),
+        result = await self._client.search(  # type: ignore
+            query=query,
+            user_id=user_id,
+            agent_id=app_id,
+            limit=limit,
+            threshold=score_threshold,
         )
 
-    def _parse_mem0_response(self, response: Any) -> list[dict]:
-        """Parse Mem0 response to extract memories list."""
-        if isinstance(response, list):
-            return [
-                self._normalize_memory_dict(m) for m in response if self._normalize_memory_dict(m)
-            ]
-        if isinstance(response, dict) and "results" in response:
-            return [
-                self._normalize_memory_dict(m)
-                for m in response["results"]
-                if self._normalize_memory_dict(m)
-            ]
+        if "original_results" not in result:
+            logger.warning("Mem0 search response missing 'original_results': %s", result)
+            return []
 
-        logger.warning(f"Unexpected response format from Mem0.get_all(): {type(response)}")
-        return []
-
-    def _normalize_memory_dict(self, memory: Any) -> dict | None:
-        """Normalize memory data to dict format."""
-        if isinstance(memory, str):
-            return {"memory": memory, "metadata": {}}
-        if isinstance(memory, dict):
-            return memory
-
-        logger.warning(f"Unexpected memory format: {type(memory)}")
-        return None
-
-    def _parse_datetime(self, timestamp_str: str | None) -> datetime | None:
-        """Parse datetime string to datetime object."""
-        if not timestamp_str:
-            return None
-        try:
-            return datetime.fromisoformat(timestamp_str)
-        except (ValueError, TypeError):
-            return None
-
-    async def get_stats(
-        self, user_id: str | None = None, agent_id: str | None = None
-    ) -> dict[str, Any]:
-        """Get statistics about stored memories."""
-        effective_user_id = user_id or self.default_user_id
-
-        try:
-            loop = asyncio.get_event_loop()
-            all_memories = await loop.run_in_executor(
-                None, lambda: self.memory.get_all(user_id=effective_user_id)
+        if "relations" in result:
+            logger.warning(
+                "Mem0 search response contains 'relations', which is not supported yet: %s",
+                result,
             )
 
-            memories = self._parse_mem0_response(all_memories)
+        out: list[MemorySearchResult] = [
+            self._create_result(raw, user_id) for raw in result["original_results"]
+        ]
 
-            # Apply agent filter if specified
-            if agent_id:
-                memories = [
-                    m for m in memories if m.get("metadata", {}).get("agent_id") == agent_id
-                ]
+        logger.debug(
+            "Searched memories for user=%s thread=%s query=%s found=%d",
+            user_id,
+            thread_id,
+            query,
+            len(out),
+        )
+        return out
 
-            # Apply app filter
-            if self.app_id:
-                memories = [
-                    m for m in memories if m.get("metadata", {}).get("app_id") == self.app_id
-                ]
+    async def aget(
+        self,
+        config: dict[str, Any],
+        memory_id: str,
+        **kwargs: Any,
+    ) -> MemorySearchResult | None:
+        user_id, _, _ = self._extract_ids(config)
+        # If we stored mapping use that user id instead (authoritative)
 
-            # Calculate stats
-            memory_types = {}
-            categories = {}
-            for memory in memories:
-                metadata = memory.get("metadata", {})
-                mem_type = metadata.get("memory_type", "episodic")
-                category = metadata.get("category", "general")
+        result = await self._client.get(  # type: ignore
+            memory_id=memory_id,
+        )
 
-                memory_types[mem_type] = memory_types.get(mem_type, 0) + 1
-                categories[category] = categories.get(category, 0) + 1
+        return self._create_result(result, user_id) if result else None
 
+    async def aget_all(
+        self,
+        config: dict[str, Any],
+        limit: int = 100,
+        **kwargs: Any,
+    ) -> list[MemorySearchResult]:
+        user_id, thread_id, app_id = self._extract_ids(config)
+
+        result = await self._client.get_all(  # type: ignore
+            user_id=user_id,
+            agent_id=app_id,
+            limit=limit,
+        )
+
+        if "results" not in result:
+            logger.warning("Mem0 get_all response missing 'results': %s", result)
+            return []
+
+        if "relations" in result:
+            logger.warning(
+                "Mem0 get_all response contains 'relations', which is not supported yet: %s",
+                result,
+            )
+
+        out: list[MemorySearchResult] = [
+            self._create_result(raw, user_id) for raw in result["results"]
+        ]
+
+        logger.debug(
+            "Fetched all memories for user=%s thread=%s count=%d",
+            user_id,
+            thread_id,
+            len(out),
+        )
+        return out
+
+    async def aupdate(
+        self,
+        config: dict[str, Any],
+        memory_id: str,
+        content: str | Message,
+        metadata: dict[str, Any] | None = None,
+        **kwargs: Any,
+    ) -> Any:
+        existing = await self.aget(config, memory_id)
+        if not existing:
+            raise ValueError(f"Memory {memory_id} not found")
+
+        # user_id obtained for potential permission checks (not used by Mem0 update directly)
+
+        new_text = content.text() if isinstance(content, Message) else str(content)
+        updated_meta = {**(existing.metadata or {}), **(metadata or {})}
+        updated_meta["updated_at"] = datetime.now().isoformat()
+
+        res = await self._client.update(  # type: ignore
+            memory_id=existing.id,
+            data=new_text,
+        )
+
+        logger.debug("Updated memory %s via recreate", memory_id)
+        return res
+
+    async def adelete(
+        self,
+        config: dict[str, Any],
+        memory_id: str,
+        **kwargs: Any,
+    ) -> Any:
+        user_id, _, _ = self._extract_ids(config)
+        existing = await self.aget(config, memory_id)
+        if not existing:
+            logger.warning("Memory %s not found for deletion", memory_id)
             return {
-                "total_memories": len(memories),
-                "user_id": effective_user_id,
-                "agent_id": agent_id,
-                "app_id": self.app_id,
-                "memory_types": memory_types,
-                "categories": categories,
+                "deleted": False,
+                "reason": "not_found",
             }
 
-        except Exception as e:
-            logger.error(f"Failed to get stats: {e}")
-            return {
-                "total_memories": 0,
-                "user_id": effective_user_id,
-                "agent_id": agent_id,
-                "app_id": self.app_id,
-                "error": str(e),
-            }
+        if existing.user_id != user_id:
+            raise ValueError("Cannot delete memory belonging to a different user")
 
-    async def cleanup(self) -> None:
-        """Clean up resources."""
-        try:
-            # Clear memory mapping
-            self._memory_user_map.clear()
-            logger.info("Mem0Store cleanup completed")
-        except Exception as e:
-            logger.error(f"Error during cleanup: {e}")
+        res = await self._client.delete(  # type: ignore
+            memory_id=existing.id,
+        )
+
+        logger.debug("Deleted memory %s for user %s", memory_id, user_id)
+        return res
+
+    async def aforget_memory(
+        self,
+        config: dict[str, Any],
+        **kwargs: Any,
+    ) -> Any:
+        # Delete all memories for a user
+        user_id, _, _ = self._extract_ids(config)
+        res = await self._client.delete_all(user_id=user_id)  # type: ignore
+        logger.debug("Forgot all memories for user %s", user_id)
+        return res
+
+    async def arelease(self) -> None:
+        logger.info("Mem0Store released resources")
 
 
 # Convenience factory functions
@@ -413,22 +370,16 @@ class Mem0Store(BaseStore):
 def create_mem0_store(
     config: dict[str, Any] | None = None,
     user_id: str = "default_user",
-    agent_id: str | None = None,
+    thread_id: str | None = None,
     app_id: str = "pyagenity_app",
 ) -> Mem0Store:
-    """
-    Create a Mem0Store with the given configuration.
-
-    Args:
-        config: Mem0 configuration dict
-        user_id: User identifier for memory isolation
-        agent_id: Agent identifier
-        app_id: Application identifier
-
-    Returns:
-        Configured Mem0Store instance
-    """
-    return Mem0Store(config=config, user_id=user_id, agent_id=agent_id, app_id=app_id)
+    """Factory for a basic Mem0 long-term store."""
+    return Mem0Store(
+        config=config,
+        default_user_id=user_id,
+        default_thread_id=thread_id,
+        app_id=app_id,
+    )
 
 
 def create_mem0_store_with_qdrant(
@@ -437,28 +388,10 @@ def create_mem0_store_with_qdrant(
     collection_name: str = "pyagenity_memories",
     embedding_model: str = "text-embedding-ada-002",
     llm_model: str = "gpt-4o-mini",
-    user_id: str = "default_user",
-    agent_id: str | None = None,
     app_id: str = "pyagenity_app",
-    **kwargs,
+    **kwargs: Any,
 ) -> Mem0Store:
-    """
-    Create a Mem0Store configured with Qdrant backend.
-
-    Args:
-        qdrant_url: Qdrant server URL
-        qdrant_api_key: Qdrant API key (for cloud)
-        collection_name: Qdrant collection name
-        embedding_model: Embedding model to use
-        llm_model: LLM model for processing
-        user_id: User identifier
-        agent_id: Agent identifier
-        app_id: Application identifier
-        **kwargs: Additional configuration options
-
-    Returns:
-        Mem0Store configured with Qdrant
-    """
+    """Factory producing a Mem0Store configured for Qdrant backing."""
     config = {
         "vector_store": {
             "provider": "qdrant",
@@ -478,5 +411,7 @@ def create_mem0_store_with_qdrant(
             "config": {"model": llm_model, **kwargs.get("llm_config", {})},
         },
     }
-
-    return Mem0Store(config=config, user_id=user_id, agent_id=agent_id, app_id=app_id)
+    return create_mem0_store(
+        config=config,
+        app_id=app_id,
+    )

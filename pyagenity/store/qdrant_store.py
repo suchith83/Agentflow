@@ -346,68 +346,6 @@ class QdrantStore(BaseStore):
         logger.debug(f"Stored memory {record.id} in collection {collection}")
         return record.id
 
-    async def abatch_store(
-        self,
-        config: dict[str, Any],
-        content: list[str | Message],
-        memory_type: MemoryType = MemoryType.EPISODIC,
-        category: str = "general",
-        metadata: dict[str, Any] | None = None,
-        **kwargs,
-    ) -> str:
-        """Store multiple memories in batch."""
-        user_id, thread_id, collection = self._extract_config_values(config)
-
-        # Ensure collection exists
-        await self._ensure_collection_exists(collection)
-
-        # Prepare all records
-        points = []
-
-        for item in content:
-            # Create memory record
-            record = self._create_memory_record(
-                content=item,
-                user_id=user_id,
-                thread_id=thread_id,
-                memory_type=memory_type,
-                category=category,
-                metadata=metadata,
-            )
-
-            # Generate embedding
-            text_content = self._prepare_content(item)
-            vector = await self.embedding.aembed(text_content)
-
-            # Prepare payload
-            payload = {
-                "content": record.content,
-                "user_id": record.user_id,
-                "thread_id": record.thread_id,
-                "memory_type": record.memory_type.value,
-                "category": record.category,
-                "timestamp": record.timestamp.isoformat() if record.timestamp else None,
-                **record.metadata,
-            }
-
-            # Create point
-            point = PointStruct(
-                id=record.id,
-                vector=vector,
-                payload=payload,
-            )
-
-            points.append(point)
-
-        # Batch store in Qdrant
-        await self.client.upsert(
-            collection_name=collection,
-            points=points,
-        )
-
-        logger.debug(f"Batch stored {len(points)} memories in collection {collection}")
-        return f"batch_{uuid.uuid4()}"
-
     async def asearch(
         self,
         config: dict[str, Any],
@@ -493,6 +431,37 @@ class QdrantStore(BaseStore):
         except Exception as e:
             logger.error(f"Error retrieving memory {memory_id}: {e}")
             return None
+
+    async def aget_all(
+        self,
+        config: dict[str, Any],
+        limit: int = 100,
+        **kwargs,
+    ) -> list[MemorySearchResult]:
+        """Get all memories for a user."""
+        user_id, _, collection = self._extract_config_values(config)
+
+        # Ensure collection exists
+        await self._ensure_collection_exists(collection)
+
+        # Build filter
+        search_filter = self._build_qdrant_filter(
+            user_id=user_id,
+        )
+
+        # Perform search
+        search_result = await self.client.search(
+            collection_name=collection,
+            query_vector=[],
+            query_filter=search_filter,
+            limit=limit,
+        )
+
+        # Convert to search results
+        results = [self._point_to_search_result(point) for point in search_result]
+
+        logger.debug(f"Found {len(results)} memories for query in collection {collection}")
+        return results
 
     async def aupdate(
         self,

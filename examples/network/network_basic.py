@@ -5,11 +5,11 @@ from pyagenity.utils import Message
 
 
 def n1(state, config):
-    return Message.create(role="assistant", content="n1")
+    return Message.text_message(role="assistant", content="n1")
 
 
 def n2(state, config):
-    return Message.create(role="assistant", content="n2")
+    return Message.text_message(role="assistant", content="n2")
 
 
 def run():
@@ -21,7 +21,7 @@ def run():
     )
 
     res = app.invoke(
-        {"messages": [Message.from_text("start net")]},
+        {"messages": [Message.text_message("start net")]},
         config={"thread_id": "ex-net"},
     )
     for m in res.get("messages", []):

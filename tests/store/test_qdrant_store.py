@@ -182,22 +182,6 @@ class TestQdrantStore:
         assert isinstance(memory_id, str)
         mock_qdrant_client.upsert.assert_called_once()
 
-    @pytest.mark.asyncio
-    async def test_abatch_store(self, qdrant_store, mock_qdrant_client, sample_config):
-        """Test batch storing."""
-        content_list = ["Memory 1", "Memory 2", "Memory 3"]
-        
-        batch_id = await qdrant_store.abatch_store(
-            config=sample_config,
-            content=content_list,
-            memory_type=MemoryType.EPISODIC
-        )
-        
-        assert batch_id.startswith("batch_")
-        mock_qdrant_client.upsert.assert_called_once()
-        # Check that 3 points were created
-        _, kwargs = mock_qdrant_client.upsert.call_args
-        assert len(kwargs['points']) == 3  # points argument
 
     @pytest.mark.asyncio
     async def test_asearch(self, qdrant_store, mock_qdrant_client, sample_config):
