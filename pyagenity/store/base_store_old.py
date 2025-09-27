@@ -55,7 +55,7 @@ class MemorySearchResult(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid4()))
     content: str = Field(default="", description="Primary textual content of the memory")
     score: float = Field(default=0.0, ge=0.0, description="Similarity / relevance score")
-    memory_type: MemoryType = Field(default=MemoryType.EPISODIC)
+    memory_type: str = Field(default="episodic")
     metadata: dict[str, Any] = Field(default_factory=dict)
     vector: list[float] | None = Field(default=None)
     user_id: str | None = None
@@ -65,6 +65,11 @@ class MemorySearchResult(BaseModel):
 
     # Backward-compatible alias for payload if vector-store returns payload field
     PAYLOAD_KEYS: ClassVar[set[str]] = {"payload", "metadata"}
+
+    @field_validator("memory_type")
+    @classmethod
+    def normalize_memory_type(cls, v: str) -> str:
+        return v or "episodic"
 
     @field_validator("vector")
     @classmethod
@@ -105,7 +110,7 @@ class MemoryRecord(BaseModel):
     content: str
     user_id: str | None = None
     agent_id: str | None = None
-    memory_type: MemoryType = Field(default=MemoryType.EPISODIC)
+    memory_type: str = Field(default="episodic")
     metadata: dict[str, Any] = Field(default_factory=dict)
     category: str = Field(default="general")
     vector: list[float] | None = None
