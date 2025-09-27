@@ -135,20 +135,13 @@ Show that you remember previous topics and user preferences."""
 
         assistant_content = response.choices[0].message.content
 
-        # Convert response to PyAgenity Message
-        ai_response = ModelResponseConverter(response, converter="litellm")
-
-        # except Exception as e:
-        #     print(f"❌ LLM generation error: {e}")
-        #     assistant_content = "I apologize, but I'm having trouble generating a response right now."
-        #     ai_response = MemoryAgentState(
-        #         messages=state.messages + [Message.text_message(assistant_content, role="assistant")]
-        #     )
+        # Convert response to PyAgenity Message and create return state
+        assistant_message = Message.text_message(assistant_content, role="assistant")
 
         # Store the conversation in memory using store's message storage
         try:
             config = {"user_id": user_id, "thread_id": f"chat_{user_id}"}
-            
+
             # Store user message
             user_msg = Message.text_message(user_message, role="user")
             await self.store.astore(
@@ -178,22 +171,23 @@ Show that you remember previous topics and user preferences."""
             print(f"❌ Memory storage error: {e}")
             # Continue even if storage fails
 
-        return ai_response
+        # Return updated state with new message
+        return MemoryAgentState(context=[*state.context, assistant_message], user_id=state.user_id)
 
     async def chat(self, message: str, user_id: str) -> str:
         """Simple chat interface using PyAgenity store."""
         try:
-            # Create initial state
-            initial_state = {
-                "messages": [Message.text_message(message, role="user")],
-                "state": {"user_id": user_id},
-            }
+            # Create initial state with proper structure
+            initial_state = MemoryAgentState(
+                context=[Message.text_message(message, role="user")], user_id=user_id
+            )
 
             config = {"thread_id": f"chat_{user_id}", "recursion_limit": 10}
 
-            # Invoke the graph
-            result = await self.app.ainvoke(initial_state, config=config)
-            return result["messages"][-1].content
+            # Invoke the graph - pass as dictionary
+            result = await self.app.ainvoke(initial_state.model_dump(), config=config)
+            # Result should be a dictionary with context
+            return result["context"][-1].content
 
         except Exception as e:
             print(f"❌ Chat error: {e}")
@@ -204,23 +198,25 @@ Show that you remember previous topics and user preferences."""
         try:
             config = {"user_id": user_id, "thread_id": f"stats_{user_id}"}
             all_memories = await self.store.aget_all(config)
-            
+
             stats = {
                 "user_id": user_id,
                 "total_memories": len(all_memories),
                 "memory_types": {},
-                "categories": {}
+                "categories": {},
             }
-            
+
             for memory in all_memories:
                 # Count memory types
                 memory_type = memory.memory_type.value if memory.memory_type else "unknown"
                 stats["memory_types"][memory_type] = stats["memory_types"].get(memory_type, 0) + 1
-                
+
                 # Count categories
-                category = memory.metadata.get("category", "general") if memory.metadata else "general"
+                category = (
+                    memory.metadata.get("category", "general") if memory.metadata else "general"
+                )
                 stats["categories"][category] = stats["categories"].get(category, 0) + 1
-            
+
             return stats
         except Exception as e:
             print(f"❌ Stats error: {e}")
@@ -253,7 +249,7 @@ Show that you remember previous topics and user preferences."""
                 {
                     "content": result.content,
                     "score": result.score,
-                    "created_at": result.created_at.isoformat() if result.created_at else None,
+                    "created_at": result.timestamp.isoformat() if result.timestamp else None,
                     "metadata": result.metadata,
                 }
                 for result in results
