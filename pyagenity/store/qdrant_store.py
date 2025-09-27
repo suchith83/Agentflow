@@ -174,7 +174,8 @@ class QdrantStore(BaseStore):
             metadata=payload,
             vector=getattr(point, "vector", None),
             user_id=payload.get("user_id"),
-            thread_id=payload.get("thread_id"),
+            thread_id=payload.get("thread_id")
+            or payload.get("agent_id"),  # Support both thread_id and agent_id
             timestamp=timestamp,
         )
 

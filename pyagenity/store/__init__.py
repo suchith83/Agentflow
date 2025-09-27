@@ -1,11 +1,10 @@
 from .base_store import BaseStore
+from .embedding import BaseEmbedding, OpenAIEmbedding
 from .store_schema import DistanceMetric, MemoryRecord, MemorySearchResult, MemoryType
 
 
 try:
     from .qdrant_store import (
-        EmbeddingService,
-        OpenAIEmbeddingService,
         QdrantStore,
         create_cloud_qdrant_store,
         create_local_qdrant_store,
@@ -15,25 +14,31 @@ try:
     __all__ = [
         "BaseStore",
         "DistanceMetric",
-        "MemorySearchResult",
         "MemoryRecord",
+        "MemorySearchResult",
         "MemoryType",
-        "EmbeddingService",
-        "OpenAIEmbeddingService",
         "QdrantStore",
+        "create_cloud_qdrant_store",
         "create_local_qdrant_store",
         "create_remote_qdrant_store",
-        "create_cloud_qdrant_store",
     ]
 except ImportError:
     # qdrant-client not installed
     __all__ = [
         "BaseStore",
         "DistanceMetric",
-        "MemorySearchResult",
         "MemoryRecord",
+        "MemorySearchResult",
         "MemoryType",
     ]
+
+# Add Embedding classes
+__all__.extend(
+    [
+        "BaseEmbedding",
+        "OpenAIEmbedding",
+    ]
+)
 
 # Try to import Mem0Store (optional dependency)
 try:
