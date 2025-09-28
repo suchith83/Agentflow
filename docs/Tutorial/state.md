@@ -1,3 +1,157 @@
+# State & Messages: Managing Conversation Context
+
+PyAgenity agents share a single contract for state and messaging so every node knows where to read/write context. This
+tutorial explains the `AgentState` model, the `Message` primitives it stores, and how to extend both for your
+application.
+
+---
+
+## 🧱 Why State Matters
+
+- **Progress tracking** – `AgentState.execution_meta` keeps the current node, step count, interrupt flags, and error
+	details so runs can pause and resume reliably.
+- **Conversation context** – `AgentState.context` stores every `Message` exchanged between users, the assistant, and
+	tools.
+- **Persistence** – Because it is a Pydantic model, the state serialises cleanly for in-memory and database-backed
+	checkpointers.
+
+You rarely need a different interface: pass `state: AgentState` (or a subclass) to your nodes and tools and you can
+query or mutate all of the execution data from one object.
+
+---
+
+## 🔍 Anatomy of `AgentState`
+
+Defined in [`pyagenity/state/agent_state.py`](../../pyagenity/state/agent_state.py), the default state provides:
+
+| Field | Type | Purpose |
+|-------|------|---------|
+| `context` | `list[Message]` | Ordered conversation history; new messages append here |
+| `context_summary` | `str | None` | Optional condensed summary passed to models or memory stores |
+| `execution_meta` | `ExecutionState` | Internal runtime metadata (current node, step, status flags) |
+
+Convenience methods delegate to `execution_meta` so your nodes can call `state.advance_step()`,
+`state.set_current_node(...)`, `state.set_interrupt(...)`, etc., without touching the underlying metadata object.
+
+### Common helper methods
+
+- `is_running()`, `is_interrupted()`, `is_stopped_requested()` – query execution status
+- `complete()`, `error(msg)` – mark the run as finished or failed
+- `clear_interrupt()` – resume after a pause
+
+These helpers also emit logging so publishers (e.g. `ConsolePublisher`) can report transitions.
+
+---
+
+## 💬 Understanding `Message`
+
+Messages are declared in [`pyagenity/utils/message.py`](../../pyagenity/utils/message.py). They support structured
+content and tool calls, not just plain strings.
+
+Key attributes:
+
+- `role`: `"user" | "assistant" | "system" | "tool"`
+- `content`: list of content blocks (text, tool results, media, etc.)
+- `delta`: flag for streaming partials
+- `tools_calls`: metadata generated when the assistant wants to invoke a tool
+- `usages`: token accounting for providers that report it
+
+Helpful constructors:
+
+- `Message.text_message("hello")`
+- `Message.tool_message([...])`
+- `Message.from_response(...)` (used by `ModelResponseConverter`)
+
+Utility method `message.text()` extracts best-effort human-readable text from mixed content blocks.
+
+---
+
+## 🛠️ Step-by-Step: Customising State
+
+Let’s extend `AgentState` with application-specific fields and inspect how messages flow through the graph.
+
+```python
+# file: my_state.py
+from pydantic import Field
+from pyagenity.state.agent_state import AgentState
+from pyagenity.utils import Message
+
+
+class SupportState(AgentState):
+		user_profile: dict = Field(default_factory=dict)
+		pending_tasks: list[str] = Field(default_factory=list)
+
+
+def create_initial_state() -> SupportState:
+		state = SupportState()
+		state.context.append(Message.text_message("Hello, I need help with my order."))
+		state.user_profile = {"id": "cust-42", "tier": "gold"}
+		return state
+```
+
+### Wire it into a graph
+
+```python
+from pyagenity.checkpointer import InMemoryCheckpointer
+from pyagenity.graph import StateGraph
+from pyagenity.utils import Message, ResponseGranularity
+
+
+state = create_initial_state()
+graph = StateGraph(state=state)
+
+
+def echo(state: SupportState):
+		reply = f"Hi {state.user_profile['id']}! How can I assist?"
+		return [Message.text_message(reply, role="assistant")]
+
+
+graph.add_node("MAIN", echo)
+graph.add_edge("MAIN", "__end__")  # or use constants.START/END for clarity
+graph.set_entry_point("MAIN")
+
+app = graph.compile(checkpointer=InMemoryCheckpointer())
+
+out = app.invoke({"messages": []}, config={"thread_id": "demo"}, response_granularity=ResponseGranularity.FULL)
+print(out["state"]["user_profile"])  # {'id': 'cust-42', 'tier': 'gold'}
+```
+
+**Notice** how we returned a list of messages from the node. The invoke handler automatically appends them to
+`state.context`, making them available to the next node.
+
+---
+
+## 🧪 Debugging Tips
+
+- **Inspect full state** – pass `response_granularity=ResponseGranularity.FULL` when calling `invoke()` or `astream()`.
+- **Log message flow** – use `for msg in state.context` inside nodes to print roles/content; combine with
+	`ConsolePublisher` for richer traces.
+- **Check interrupts** – before performing expensive work, call `state.is_stopped_requested()` to honour external stop
+	requests.
+- **Serialise your subclass** – run `state.model_dump()` (or `state.json()`) to ensure custom fields remain
+	checkpointer-friendly.
+
+---
+
+## ✅ Checkpoints
+
+| Goal | Verification |
+|------|--------------|
+| Custom fields persist | Run the graph twice with a database checkpointer and confirm the extra fields survive reload |
+| Tool outputs captured | Ensure tool nodes return `Message.tool_message` so the result lands in `state.context` |
+| Summaries stay small | Populate `context_summary` instead of keeping every message if you call LLMs frequently |
+| No runtime refs | Audit state fields for non-serialisable handles (DB sessions, file descriptors, coroutines) |
+
+---
+
+## 📚 Where to Go Next
+
+- Revisit the [Graph Fundamentals](graph.md) tutorial to see how state flows through a full agent
+- Learn how to [wire tools and dependency injection](adapter.md) so messages can trigger real functions
+- Explore [checkpointers and stores](checkpointer.md) to persist your customised state between runs
+
+Once you’re comfortable with `AgentState` and `Message`, you can add richer tracking (user segments, retrieved documents,
+metrics) without breaking the runtime contract.
 # State Management in PyAgenity
 
 State management is a crucial part of building agent graphs. The `AgentState` class in PyAgenity provides a small, consistent schema for storing conversational context, derived summaries, and internal execution metadata the runtime needs to track progress and interrupts.
