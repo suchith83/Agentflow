@@ -404,7 +404,7 @@ class Message(BaseModel):
     content: list[ContentBlock]
     delta: bool = False  # Indicates if this is a delta/partial message
     tools_calls: list[dict[str, Any]] | None = None
-    reasoning: str | None = None
+    reasoning: str | None = None  # Remove it
     timestamp: datetime | None = Field(default_factory=datetime.now)
     metadata: dict[str, Any] = Field(default_factory=dict)
     usages: TokenUsages | None = None
