@@ -56,7 +56,7 @@ class SimplePersonalizedAgentWithStore:
         self.store = create_mem0_store_with_qdrant(
             qdrant_url=os.getenv("QDRANT_URL"),
             qdrant_api_key=os.getenv("QDRANT_API_KEY"),
-            collection_name="simple_agent_memory_store",
+            collection_name="mem0_agent_check",
             embedding_model="models/text-embedding-004",  # Gemini embeddings
             llm_model="gemini-2.0-flash-exp",  # Gemini LLM
             app_id="simple-agent-store",
@@ -182,12 +182,15 @@ Show that you remember previous topics and user preferences."""
                 context=[Message.text_message(message, role="user")], user_id=user_id
             )
 
+            inp = {"messages": [Message.text_message(message, role="user")], "state": {"user_id": user_id}}
+
             config = {"thread_id": f"chat_{user_id}", "recursion_limit": 10}
 
             # Invoke the graph - pass as dictionary
-            result = await self.app.ainvoke(initial_state.model_dump(), config=config)
+            # result = await self.app.ainvoke(initial_state.model_dump(), config=config)
+            result = await self.app.ainvoke(inp, config=config)
             # Result should be a dictionary with context
-            return result["context"][-1].content
+            return result["messages"][-1].content
 
         except Exception as e:
             print(f"❌ Chat error: {e}")
