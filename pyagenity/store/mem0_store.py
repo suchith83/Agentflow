@@ -79,24 +79,28 @@ class Mem0Store(BaseStore):
         super().__init__()
         self.config = config
         self.app_id = app_id or "pyagenity_app"
-
-        # Underlying (sync) Mem0 client
-        try:
-            # Prefer explicit config via Memory.from_config when supplied; fallback to defaults
-            if isinstance(self.config, dict):
-                self._client = AsyncMemory.from_config(self.config)
-            elif isinstance(self.config, MemoryConfig):
-                self._client = AsyncMemory(config=self.config)
-            else:
-                self._client = AsyncMemory()
-        except Exception as e:  # pragma: no cover - defensive
-            logger.error(f"Failed to initialize Mem0 client: {e}")
-            raise
+        self._client = None  # Lazy initialization
 
         logger.info(
             "Initialized Mem0Store (long-term) app=%s",
             self.app_id,
         )
+
+    async def _get_client(self) -> AsyncMemory:
+        """Lazy initialization of AsyncMemory client."""
+        if self._client is None:
+            try:
+                # Prefer explicit config via Memory.from_config when supplied; fallback to defaults
+                if isinstance(self.config, dict):
+                    self._client = await AsyncMemory.from_config(self.config)
+                elif isinstance(self.config, MemoryConfig):
+                    self._client = AsyncMemory(config=self.config)
+                else:
+                    self._client = AsyncMemory()
+            except Exception as e:  # pragma: no cover - defensive
+                logger.error(f"Failed to initialize Mem0 client: {e}")
+                raise
+        return self._client
 
     # ---------------------------------------------------------------------
     # Internal helpers
@@ -188,7 +192,8 @@ class Mem0Store(BaseStore):
             **(metadata or {}),
         }
 
-        result = await self._client.add(  # type: ignore
+        client = await self._get_client()
+        result = await client.add(  # type: ignore
             messages=[{"role": "user", "content": text}],
             user_id=user_id,
             agent_id=app_id,
@@ -216,7 +221,8 @@ class Mem0Store(BaseStore):
     ) -> list[MemorySearchResult]:
         user_id, thread_id, app_id = self._extract_ids(config)
 
-        result = await self._client.search(  # type: ignore
+        client = await self._get_client()
+        result = await client.search(  # type: ignore
             query=query,
             user_id=user_id,
             agent_id=app_id,
@@ -257,7 +263,8 @@ class Mem0Store(BaseStore):
         user_id, _, _ = self._extract_ids(config)
         # If we stored mapping use that user id instead (authoritative)
 
-        result = await self._client.get(  # type: ignore
+        client = await self._get_client()
+        result = await client.get(  # type: ignore
             memory_id=memory_id,
         )
 
@@ -271,7 +278,8 @@ class Mem0Store(BaseStore):
     ) -> list[MemorySearchResult]:
         user_id, thread_id, app_id = self._extract_ids(config)
 
-        result = await self._client.get_all(  # type: ignore
+        client = await self._get_client()
+        result = await client.get_all(  # type: ignore
             user_id=user_id,
             agent_id=app_id,
             limit=limit,
@@ -317,7 +325,8 @@ class Mem0Store(BaseStore):
         updated_meta = {**(existing.metadata or {}), **(metadata or {})}
         updated_meta["updated_at"] = datetime.now().isoformat()
 
-        res = await self._client.update(  # type: ignore
+        client = await self._get_client()
+        res = await client.update(  # type: ignore
             memory_id=existing.id,
             data=new_text,
         )
@@ -343,7 +352,8 @@ class Mem0Store(BaseStore):
         if existing.user_id != user_id:
             raise ValueError("Cannot delete memory belonging to a different user")
 
-        res = await self._client.delete(  # type: ignore
+        client = await self._get_client()
+        res = await client.delete(  # type: ignore
             memory_id=existing.id,
         )
 
@@ -357,7 +367,8 @@ class Mem0Store(BaseStore):
     ) -> Any:
         # Delete all memories for a user
         user_id, _, _ = self._extract_ids(config)
-        res = await self._client.delete_all(user_id=user_id)  # type: ignore
+        client = await self._get_client()
+        res = await client.delete_all(user_id=user_id)  # type: ignore
         logger.debug("Forgot all memories for user %s", user_id)
         return res
 
