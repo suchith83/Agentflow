@@ -19,4 +19,13 @@ Store is a long-term memory solution for your agents. It allows you to save and 
 
 When the graph is deployed with `pyagenity-cli` plugin, all the store methods can be called via Rest API.
 
-Internally graph is not called in the process, b
+Internally store is not called in the process, but it can be accessed through the `Inject` container, allowing you to use it in your agent's code.
+
+```python
+async def main_agent(
+    state: AgentState,
+    config: dict,
+    store: QdrantStore = Inject[QdrantStore],
+):
+    pass
+```
