@@ -72,7 +72,7 @@ class Mem0Store(BaseStore):
 
     def __init__(
         self,
-        config: MemoryConfig | dict | None = None,
+        config: MemoryConfig | dict,
         app_id: str | None = None,
         **kwargs: Any,
     ) -> None:
@@ -221,6 +221,7 @@ class Mem0Store(BaseStore):
             user_id=user_id,
             agent_id=app_id,
             limit=limit,
+            filters=filters,
             threshold=score_threshold,
         )
 
@@ -368,7 +369,7 @@ class Mem0Store(BaseStore):
 
 
 def create_mem0_store(
-    config: dict[str, Any] | None = None,
+    config: dict[str, Any],
     user_id: str = "default_user",
     thread_id: str | None = None,
     app_id: str = "pyagenity_app",

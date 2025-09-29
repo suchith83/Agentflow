@@ -93,6 +93,8 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
         redis: Any | None = None,
         redis_pool: Any | None = None,
         redis_pool_config: dict | None = None,
+        # database schema
+        schema: str = "public",
         # other configurations - combine to reduce args
         **kwargs,
     ):
@@ -107,6 +109,7 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
             redis (Any, optional): Existing Redis instance.
             redis_pool (Any, optional): Existing Redis ConnectionPool.
             redis_pool_config (dict, optional): Configuration for new redis pool creation.
+            schema (str, optional): PostgreSQL schema name. Defaults to "public".
             **kwargs: Additional configuration options.
 
         Raises:
@@ -133,6 +136,7 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
         )
         self.cache_ttl = kwargs.get("cache_ttl", DEFAULT_CACHE_TTL)
         self.release_resources = kwargs.get("release_resources", False)
+        self.schema = schema
         self._schema_initialized = False
         self._loop: asyncio.AbstractEventLoop | None = None
 
@@ -199,6 +203,18 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
                 **redis_pool_config,
             )
         )
+
+    def _get_table_name(self, table: str) -> str:
+        """
+        Get the schema-qualified table name.
+
+        Args:
+            table (str): The base table name (e.g., 'threads', 'states', 'messages')
+
+        Returns:
+            str: The schema-qualified table name (e.g., 'public.threads')
+        """
+        return f"{self.schema}.{table}"
 
     def _create_pg_pool(self, pg_pool: Any, postgres_dsn: str | None, pool_config: dict) -> Any:
         """
@@ -283,7 +299,7 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
             ),
             # Create threads table
             f"""
-            CREATE TABLE IF NOT EXISTS threads (
+            CREATE TABLE IF NOT EXISTS {self._get_table_name("threads")} (
                 {thread_pk},
                 thread_name VARCHAR(255),
                 user_id {user_id_type} NOT NULL,
@@ -294,9 +310,11 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
             """,
             # Create states table
             f"""
-            CREATE TABLE IF NOT EXISTS states (
+            CREATE TABLE IF NOT EXISTS {self._get_table_name("states")} (
                 state_id SERIAL PRIMARY KEY,
-                thread_id {thread_id_type} NOT NULL REFERENCES threads(thread_id) ON DELETE CASCADE,
+                thread_id {thread_id_type} NOT NULL
+                    REFERENCES {self._get_table_name("threads")}(thread_id)
+                    ON DELETE CASCADE,
                 state_data JSONB NOT NULL,
                 created_at TIMESTAMPTZ DEFAULT NOW(),
                 updated_at TIMESTAMPTZ DEFAULT NOW(),
@@ -305,9 +323,11 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
             """,
             # Create messages table
             f"""
-            CREATE TABLE IF NOT EXISTS messages (
+            CREATE TABLE IF NOT EXISTS {self._get_table_name("messages")} (
                 {message_pk},
-                thread_id {thread_id_type} NOT NULL REFERENCES threads(thread_id) ON DELETE CASCADE,
+                thread_id {thread_id_type} NOT NULL
+                    REFERENCES {self._get_table_name("threads")}(thread_id)
+                    ON DELETE CASCADE,
                 role message_role NOT NULL,
                 content TEXT NOT NULL,
                 tool_calls JSONB,
@@ -321,9 +341,12 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
             )
             """,
             # Create indexes
-            "CREATE INDEX IF NOT EXISTS idx_threads_user_id ON threads(user_id)",
-            "CREATE INDEX IF NOT EXISTS idx_states_thread_id ON states(thread_id)",
-            "CREATE INDEX IF NOT EXISTS idx_messages_thread_id ON messages(thread_id)",
+            f"CREATE INDEX IF NOT EXISTS idx_threads_user_id ON "
+            f"{self._get_table_name('threads')}(user_id)",
+            f"CREATE INDEX IF NOT EXISTS idx_states_thread_id ON "
+            f"{self._get_table_name('states')}(thread_id)",
+            f"CREATE INDEX IF NOT EXISTS idx_messages_thread_id ON "
+            f"{self._get_table_name('messages')}(thread_id)",
         ]
 
     async def _initialize_schema(self) -> None:
@@ -564,8 +587,8 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
             async def _store_state():
                 async with (await self._get_pg_pool()).acquire() as conn:
                     await conn.execute(
-                        """
-                        INSERT INTO states (thread_id, state_data, meta)
+                        f"""
+                        INSERT INTO {self._get_table_name("states")} (thread_id, state_data, meta)
                         VALUES ($1, $2, $3)
                         ON CONFLICT DO NOTHING
                         """,
@@ -608,8 +631,8 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
             async def _get_state():
                 async with (await self._get_pg_pool()).acquire() as conn:
                     return await conn.fetchrow(
-                        """
-                        SELECT state_data FROM states
+                        f"""
+                        SELECT state_data FROM {self._get_table_name("states")}
                         WHERE thread_id = $1
                         ORDER BY created_at DESC
                         LIMIT 1
@@ -654,7 +677,10 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
             # Clear from PostgreSQL with retry logic
             async def _clear_state():
                 async with (await self._get_pg_pool()).acquire() as conn:
-                    await conn.execute("DELETE FROM states WHERE thread_id = $1", thread_id)
+                    await conn.execute(
+                        f"DELETE FROM {self._get_table_name('states')} WHERE thread_id = $1",
+                        thread_id,
+                    )
 
             await self._retry_on_connection_error(_clear_state, max_retries=3)
 
@@ -766,7 +792,8 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
             async def _check_and_create_thread():
                 async with (await self._get_pg_pool()).acquire() as conn:
                     exists = await conn.fetchval(
-                        "SELECT 1 FROM threads WHERE thread_id = $1 AND user_id = $2",
+                        f"SELECT 1 FROM {self._get_table_name('threads')} "
+                        f"WHERE thread_id = $1 AND user_id = $2",
                         thread_id,
                         user_id,
                     )
@@ -775,8 +802,9 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
                         thread_name = config.get("thread_name", f"Thread {thread_id}")
                         meta = json.dumps(config.get("thread_meta", {}))
                         await conn.execute(
-                            """
-                            INSERT INTO threads (thread_id, thread_name, user_id, meta)
+                            f"""
+                            INSERT INTO {self._get_table_name("threads")}
+                                (thread_id, thread_name, user_id, meta)
                             VALUES ($1, $2, $3, $4)
                             ON CONFLICT DO NOTHING
                             """,
@@ -842,8 +870,8 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
                         #     except Exception:
                         #         content_value = str(content_value)
                         await conn.execute(
-                            """
-                                INSERT INTO messages (
+                            f"""
+                                INSERT INTO {self._get_table_name("messages")} (
                                     message_id, thread_id, role, content, tool_calls,
                                     tool_call_id, reasoning, total_tokens, usages, meta
                                 )
@@ -900,11 +928,11 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
 
             async def _get_message():
                 async with (await self._get_pg_pool()).acquire() as conn:
-                    query = """
+                    query = f"""
                         SELECT message_id, thread_id, role, content, tool_calls,
                                tool_call_id, reasoning, created_at, total_tokens,
                                usages, meta
-                        FROM messages
+                        FROM {self._get_table_name("messages")}
                         WHERE message_id = $1
                     """
                     if thread_id:
@@ -959,11 +987,11 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
             async def _list_messages():
                 async with (await self._get_pg_pool()).acquire() as conn:
                     # Build query with optional search
-                    query = """
+                    query = f"""
                         SELECT message_id, thread_id, role, content, tool_calls,
                                tool_call_id, reasoning, created_at, total_tokens,
                                usages, meta
-                        FROM messages
+                        FROM {self._get_table_name("messages")}
                         WHERE thread_id = $1
                     """
                     params = [thread_id]
@@ -1030,12 +1058,16 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
                 async with (await self._get_pg_pool()).acquire() as conn:
                     if thread_id:
                         await conn.execute(
-                            "DELETE FROM messages WHERE message_id = $1 AND thread_id = $2",
+                            f"DELETE FROM {self._get_table_name('messages')} "
+                            f"WHERE message_id = $1 AND thread_id = $2",
                             message_id,
                             thread_id,
                         )
                     else:
-                        await conn.execute("DELETE FROM messages WHERE message_id = $1", message_id)
+                        await conn.execute(
+                            f"DELETE FROM {self._get_table_name('messages')} WHERE message_id = $1",
+                            message_id,
+                        )
 
             await self._retry_on_connection_error(_delete_message, max_retries=3)
             logger.info("Deleted message_id=%s", message_id)
@@ -1181,7 +1213,6 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
             user_id = thread_info.user_id or user_id
             meta.update(
                 {
-                    "stop_requested": thread_info.stop_requested,
                     "run_id": thread_info.run_id,
                 }
             )
@@ -1189,8 +1220,9 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
             async def _put_thread():
                 async with (await self._get_pg_pool()).acquire() as conn:
                     await conn.execute(
-                        """
-                        INSERT INTO threads (thread_id, thread_name, user_id, meta)
+                        f"""
+                        INSERT INTO {self._get_table_name("threads")}
+                            (thread_id, thread_name, user_id, meta)
                         VALUES ($1, $2, $3, $4)
                         ON CONFLICT (thread_id) DO UPDATE SET
                             thread_name = EXCLUDED.thread_name,
@@ -1237,9 +1269,9 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
             async def _get_thread():
                 async with (await self._get_pg_pool()).acquire() as conn:
                     return await conn.fetchrow(
-                        """
+                        f"""
                         SELECT thread_id, thread_name, user_id, created_at, updated_at, meta
-                        FROM threads
+                        FROM {self._get_table_name("threads")}
                         WHERE thread_id = $1 AND user_id = $2
                         """,
                         thread_id,
@@ -1259,7 +1291,6 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
                     thread_name=row["thread_name"] if row else None,
                     user_id=user_id,
                     metadata=meta_dict,
-                    stop_requested=meta_dict.get("stop_requested", False),
                     run_id=meta_dict.get("run_id"),
                 )
 
@@ -1307,9 +1338,9 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
             async def _list_threads():
                 async with (await self._get_pg_pool()).acquire() as conn:
                     # Build query with optional search
-                    query = """
+                    query = f"""
                         SELECT thread_id, thread_name, user_id, created_at, updated_at, meta
-                        FROM threads
+                        FROM {self._get_table_name("threads")}
                         WHERE user_id = $1
                     """
                     params = [user_id]
@@ -1351,7 +1382,6 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
                         thread_name=row["thread_name"],
                         user_id=row["user_id"],
                         metadata=meta_dict,
-                        stop_requested=meta_dict.get("stop_requested", False),
                         run_id=meta_dict.get("run_id"),
                         updated_at=row["updated_at"],
                     )
@@ -1388,7 +1418,8 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
             async def _clean_thread():
                 async with (await self._get_pg_pool()).acquire() as conn:
                     await conn.execute(
-                        "DELETE FROM threads WHERE thread_id = $1 AND user_id = $2",
+                        f"DELETE FROM {self._get_table_name('threads')} "
+                        f"WHERE thread_id = $1 AND user_id = $2",
                         thread_id,
                         user_id,
                     )

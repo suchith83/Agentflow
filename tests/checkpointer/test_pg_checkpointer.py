@@ -137,9 +137,9 @@ class TestPgCheckpointer:
         # Check that key statements are present
         sql_text = " ".join(sql_statements)
         assert "CREATE TYPE message_role" in sql_text
-        assert "CREATE TABLE IF NOT EXISTS threads" in sql_text
-        assert "CREATE TABLE IF NOT EXISTS states" in sql_text
-        assert "CREATE TABLE IF NOT EXISTS messages" in sql_text
+        assert "CREATE TABLE IF NOT EXISTS public.threads" in sql_text
+        assert "CREATE TABLE IF NOT EXISTS public.states" in sql_text
+        assert "CREATE TABLE IF NOT EXISTS public.messages" in sql_text
         assert "CREATE INDEX" in sql_text
 
     @pytest.mark.asyncio
