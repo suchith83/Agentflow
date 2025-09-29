@@ -8,6 +8,7 @@ from pyagenity.store.base_store import BaseStore
 from pyagenity.utils import Message
 from pyagenity.utils.callbacks import CallbackManager
 from pyagenity.utils.constants import END
+from pyagenity.utils.message import TextBlock, ToolCallBlock
 
 
 load_dotenv()
@@ -72,7 +73,14 @@ async def main_agent(
     if len(state.context) == 1:
         return Message(
             message_id="final-response-579898",
-            content="This is example final response from main agent.",
+            content=[
+                TextBlock(text="This is example final response from main agent."),
+                ToolCallBlock(
+                    id="weather-tool-123",
+                    tool_name="get_weather",  # type: ignore
+                    args={"location": "San Francisco"},
+                ),
+            ],
             role="assistant",
             tools_calls=[
                 {
@@ -85,7 +93,9 @@ async def main_agent(
     else:
         return Message(
             message_id="main-response-12345",
-            content="Thanks you for your message",
+            content=[
+                TextBlock(text="This is the final response from main agent."),
+            ],
             role="assistant",
         )
 
@@ -107,7 +117,7 @@ def should_use_tools(state: AgentState) -> str:
         return "TOOL"
 
     # If last message is a tool result, we should be done (AI will make final response)
-    if last_message.role == "tool" and last_message.tool_call_id is not None:
+    if last_message.role == "tool":
         return END
 
     # Default to END for other cases
@@ -139,7 +149,7 @@ app = graph.compile(
 
 # now run it
 
-inp = {"messages": [Message.from_text("Please call the get_weather function for New York City")]}
+inp = {"messages": [Message.text_message("Please call the get_weather function for New York City")]}
 config = {"thread_id": "12345", "recursion_limit": 10}
 
 print("***** GRAPH", container.get_dependency_graph())
