@@ -21,6 +21,27 @@ PyAgenity integrates seamlessly with [InjectQ](https://iamsdt.github.io/injectq/
 - **Prebuilt agents** and their components
 - **Custom services** and utilities
 
+## Available Injectable Objects, that packed with PyAgenity
+
+When you compile a PyAgenity graph, several core services are automatically registered in the dependency injection container:
+
+| Name | Details | Usages |
+|------|---------|--------|
+| `BaseCheckpointer` | A checkpointer that stores state in memory (default in-memory implementation). | Provide or replace for persistence during graph execution; injected into nodes/tools that need to read/write full state. |
+| `CallbackManager` | Manages lifecycle callbacks for agent events (before/after invoke, on error, etc.). | Use to register metrics, logging, or custom hooks that run at specific agent lifecycle points. |
+| `BaseStore` | Abstract interface for storing and retrieving arbitrary data (embeddings, documents, blobs). | Bind a concrete store (e.g., Qdrant, Faiss) to persist vectors or documents used by RAG and memory stores. |
+| `BaseContextManager` | Manages conversational context windows and summarisation strategies. | Swap implementations to control how context is trimmed or summarised before model calls. |
+| `BasePublisher` | Publishes runtime events to sinks (console, Redis, Kafka, etc.). | Inject custom publisher to stream events to monitoring/observability pipelines. |
+| `BaseIDGenerator` | Generates unique IDs used across invocations and resources. | Inject for deterministic IDs, integration with existing ID schemes, or testing. |
+| `generated_id` | The unique ID string generated for the current agent invocation. | Read-only value injected into nodes/tools for tracing and correlation. |
+| `generated_id_type` | The type of the generated ID (e.g., `"uuid"`, `"shortid"`). | Useful for downstream systems that need to parse or route based on ID shape. |
+| `generated_thread_name` | The name of the current execution thread (useful for multi-threaded or concurrent runs). | Injected for logging, partitioning work, or naming resources created during the run. |
+| `BackgroundTaskManager` | Manages background tasks for agents, allowing long-running work to be offloaded. | Use to schedule async work, retries, or background side-effects without blocking the main run. |
+| `StateGraph` | The current `StateGraph` instance representing the compiled graph. | Access the graph structure, read node metadata, or perform runtime introspection and dynamic wiring. |
+
+Note: For `BaseStore`, `BaseContextManager`, and `BasePublisher`, PyAgenity provides default implementations, but you can bind your own implementations to the container if needed.
+
+
 ## The Container Pattern
 
 At the heart of PyAgenity's dependency injection is the **container** - a centralized registry that manages how dependencies are created and provided. Think of it as a smart factory that knows how to build and deliver the right objects when needed.

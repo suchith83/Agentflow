@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING, Any, Union
 
 from .message import Message, ToolResultBlock
 
+
 if TYPE_CHECKING:
     from pyagenity.state import AgentState
 
