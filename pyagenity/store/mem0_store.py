@@ -379,12 +379,16 @@ class Mem0Store(BaseStore):
 
 
 def create_mem0_store(
-    config: dict[str, Any] | None = None,
+    config: dict[str, Any],
+    user_id: str = "default_user",
+    thread_id: str | None = None,
     app_id: str = "pyagenity_app",
 ) -> Mem0Store:
     """Factory for a basic Mem0 long-term store."""
     return Mem0Store(
         config=config,
+        default_user_id=user_id,
+        default_thread_id=thread_id,
         app_id=app_id,
     )
 
