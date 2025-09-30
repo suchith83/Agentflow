@@ -142,12 +142,18 @@ async def load_or_create_state[StateT: AgentState](  # noqa: PLR0912, PLR0915
             )
             # Normalize legacy node names (backward compatibility)
             # Some older runs may have persisted 'start'/'end' instead of '__start__'/'__end__'
-            if existing_state.execution_meta.current_node == "__start__":
+            if existing_state.execution_meta.current_node == "start":
                 existing_state.execution_meta.current_node = START
                 logger.debug("Normalized legacy current_node 'start' to '%s'", START)
-            elif existing_state.execution_meta.current_node == "__end__":
+            elif existing_state.execution_meta.current_node == "end":
                 existing_state.execution_meta.current_node = END
                 logger.debug("Normalized legacy current_node 'end' to '%s'", END)
+            elif existing_state.execution_meta.current_node == "__start__":
+                existing_state.execution_meta.current_node = START
+                logger.debug("Normalized legacy current_node '__start__' to '%s'", START)
+            elif existing_state.execution_meta.current_node == "__end__":
+                existing_state.execution_meta.current_node = END
+                logger.debug("Normalized legacy current_node '__end__' to '%s'", END)
             # Merge new messages with existing context
             new_messages = input_data.get("messages", [])
             if new_messages:
@@ -247,12 +253,18 @@ async def reload_state[StateT: AgentState](
     )
     # Normalize legacy node names (backward compatibility)
     # Some older runs may have persisted 'start'/'end' instead of '__start__'/'__end__'
-    if existing_state.execution_meta.current_node == "__start__":
+    if existing_state.execution_meta.current_node == "start":
         existing_state.execution_meta.current_node = START
         logger.debug("Normalized legacy current_node 'start' to '%s'", START)
-    elif existing_state.execution_meta.current_node == "__end__":
+    elif existing_state.execution_meta.current_node == "end":
         existing_state.execution_meta.current_node = END
         logger.debug("Normalized legacy current_node 'end' to '%s'", END)
+    elif existing_state.execution_meta.current_node == "__start__":
+        existing_state.execution_meta.current_node = START
+        logger.debug("Normalized legacy current_node '__start__' to '%s'", START)
+    elif existing_state.execution_meta.current_node == "__end__":
+        existing_state.execution_meta.current_node = END
+        logger.debug("Normalized legacy current_node '__end__' to '%s'", END)
     return existing_state
 
 

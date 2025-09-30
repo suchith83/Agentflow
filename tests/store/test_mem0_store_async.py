@@ -90,8 +90,14 @@ class MockAsyncMem0:
 
 @pytest.fixture()
 def store():
-    with patch("pyagenity.store.mem0_store.AsyncMemory", return_value=MockAsyncMem0()):
-        yield Mem0Store(app_id="test_app")
+    mock_instance = MockAsyncMem0()
+    with patch("pyagenity.store.mem0_store.AsyncMemory") as mock_class:
+        # Mock the from_config class method to return our mock instance
+        async def mock_from_config(config):
+            return mock_instance
+        mock_class.from_config = mock_from_config
+        mock_class.return_value = mock_instance
+        yield Mem0Store(config={}, app_id="test_app")
 
 
 @pytest.mark.asyncio

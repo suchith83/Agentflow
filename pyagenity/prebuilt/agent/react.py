@@ -83,13 +83,16 @@ class ReactAgent[StateT: AgentState]:
         # Determine tool node function and name
         if isinstance(tool_node, tuple):
             tool_func, tool_name = tool_node
-            if not callable(tool_func):
-                raise ValueError("tool_node[0] must be a callable function")
+            # Accept both callable functions and ToolNode instances
+            if not callable(tool_func) and not hasattr(tool_func, "invoke"):
+                raise ValueError("tool_node[0] must be a callable function or ToolNode")
         else:
             tool_func = tool_node
             tool_name = "TOOL"
-            if not callable(tool_func):
-                raise ValueError("tool_node must be a callable function")
+            # Accept both callable functions and ToolNode instances
+            # ToolNode instances have an 'invoke' method but are not callable
+            if not callable(tool_func) and not hasattr(tool_func, "invoke"):
+                raise ValueError("tool_node must be a callable function or ToolNode instance")
 
         self._graph.add_node(main_name, main_func)
         self._graph.add_node(tool_name, tool_func)
