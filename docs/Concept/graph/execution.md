@@ -66,14 +66,77 @@ Ensure background tasks are idempotent or reference stable state snapshots to av
 
 ---
 
-## Stop & Interrupt
+## Stop & Interrupt Control
 
-| Mechanism | Purpose |
-|-----------|---------|
-| `stop(config)` / `astop(config)` | Politely request current thread halt (sets stop flag) |
-| `interrupt_before=[..]` / `interrupt_after=[..]` (compile) | Force pause at specific node boundaries |
+PyAgenity provides flexible execution control for human-in-the-loop workflows:
 
-An interrupted run can resume with the same `thread_id`; the checkpointer restores state and execution metadata.
+| Mechanism | When Applied | Purpose | Response Time |
+|-----------|--------------|---------|---------------|
+| `stop(config)` / `astop(config)` | Runtime | Politely request current thread halt | Next node boundary |
+| `interrupt_before=[..]` | Compile time | Force pause before specific nodes | Immediate (before node execution) |
+| `interrupt_after=[..]` | Compile time | Force pause after specific nodes | Immediate (after node completion) |
+
+### Execution State During Interrupts
+
+The `AgentState.execution_meta` tracks pause/resume state:
+
+```python
+from pyagenity.state import ExecutionStatus
+
+# Check interrupt status
+if state.execution_meta.is_interrupted():
+    print(f"Status: {state.execution_meta.status}")  # INTERRUPTED_BEFORE or INTERRUPTED_AFTER
+    print(f"Node: {state.execution_meta.interrupted_node}")
+    print(f"Reason: {state.execution_meta.interrupt_reason}")
+
+# Resume execution
+state.clear_interrupt()  # Usually handled automatically during invoke/ainvoke
+```
+
+### Resume Behavior
+
+An interrupted run resumes with the same `thread_id`:
+
+1. **Checkpointer** restores saved state and execution metadata
+2. **Input data** merged with existing context (additive, not replacement)
+3. **Execution continues** from the interruption point
+4. **Interrupt flags** automatically cleared
+
+### Integration with Streaming
+
+Interrupts work seamlessly with streaming execution:
+
+```python
+# Streaming with interrupt handling
+config = {"thread_id": "interactive-session"}
+
+async for chunk in app.astream(input_data, config=config):
+    if chunk.event_type == "interrupted":
+        print(f"⏸️ Paused: {chunk.metadata.get('status')}")
+        
+        # Handle interrupt (e.g., get user approval)
+        approval = await get_user_approval()
+        
+        if approval:
+            # Resume streaming
+            async for resume_chunk in app.astream({
+                "messages": [Message.text_message("User approved")]
+            }, config=config):
+                print(f"▶️ {resume_chunk.content}")
+        else:
+            await app.astop(config)  # Cancel execution
+            break
+    else:
+        print(f"📤 {chunk.content}")
+```
+
+**Key Implementation Notes:**
+- Interrupts require a **checkpointer** for state persistence
+- **Thread IDs** must be consistent between pause and resume
+- **Stop requests** are checked at node boundaries (not mid-node)
+- **Event publishers** emit `INTERRUPTED` event types for monitoring
+
+For comprehensive interrupt strategies, approval workflows, and debugging patterns, see **[Human-in-the-Loop & Interrupts](human-in-the-loop.md)**.
 
 ---
 

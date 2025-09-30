@@ -15,6 +15,7 @@ minimal, composable, and DI-friendly. This section is your conceptual map.
 | `Edge` | `pyagenity/graph/edge.py` | Directional link; supports conditional routing |
 | `CompiledGraph` | `pyagenity/graph/compiled_graph.py` | Runtime engine: invoke, stream, checkpoint, publish |
 | `Command` | `pyagenity/utils/command.py` | Inline control object for dynamic goto / updates |
+| **Interrupts & HITL** | Compile options + runtime API | Pause/resume execution for human approval, debugging, external control |
 
 Supporting utilities: converters (LLM output → `Message` blocks), id + thread generators, background task manager,
 callback + publisher subsystems.
@@ -87,6 +88,7 @@ Dive deeper:
 
 - Nodes & Return Types (`nodes.md`)
 - Control Flow & Edges (`control_flow.md`)
+- Human-in-the-Loop & Interrupts (`human-in-the-loop.md`) **← NEW: Approval workflows, debugging, pause/resume patterns**
 - Tools: Local, MCP, Composio, LangChain (`tools.md`)
 - Execution & Streaming Runtime (`execution.md`)
 - Advanced Patterns & Performance (`advanced.md`)

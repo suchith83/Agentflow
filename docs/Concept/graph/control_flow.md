@@ -99,20 +99,65 @@ Best practices:
 
 ## Interrupts & Stop Requests
 
-Two mechanisms pause/stop execution:
+PyAgenity supports robust human-in-the-loop (HITL) patterns through interrupt and stop mechanisms:
 
-| Mechanism | Trigger | Effect |
-|-----------|---------|--------|
-| `interrupt_before` / `interrupt_after` lists (compile) | Node name match | Execution halts and state persisted before/after node |
-| `stop()` / `astop()` | External API call with `thread_id` | Sets stop flag; checked before executing next node |
+| Mechanism | Trigger | Effect | Use Case |
+|-----------|---------|--------|----------|
+| `interrupt_before` / `interrupt_after` lists (compile) | Node name match | Execution halts and state persisted before/after node | Approval workflows, debug points |
+| `stop()` / `astop()` | External API call with `thread_id` | Sets stop flag; checked before executing next node | Dynamic cancellation from UI/frontend |
 
-Example compile with interrupt:
+### Basic Interrupt Example
 
 ```python
-app = graph.compile(interrupt_after=["TOOLS"])  # pause after tools executed
+from pyagenity.checkpointer import InMemoryCheckpointer
+
+# Compile with interrupt points
+app = graph.compile(
+    checkpointer=InMemoryCheckpointer(),  # Required for resuming
+    interrupt_before=["EXECUTE_TOOL"],    # Pause before tool execution for approval
+    interrupt_after=["ANALYZE"]           # Pause after analysis for inspection
+)
+
+# Initial execution (will pause at interrupt point)
+result = app.invoke(input_data, config={"thread_id": "session-123"})
+
+if result.get("interrupted"):
+    print(f"Paused: {result['interrupt_reason']}")
+    # Human review/approval logic here...
+    
+    # Resume with same thread_id
+    final_result = app.invoke(
+        {"messages": [Message.text_message("Approved")]}, 
+        config={"thread_id": "session-123"}
+    )
 ```
 
-Resuming is just another `invoke()` / `ainvoke()` with same `thread_id` and persisted state loaded via checkpointer.
+### Dynamic Stop Control
+
+```python
+import threading
+import time
+
+# Start agent in background
+def run_agent():
+    for chunk in app.stream(input_data, config={"thread_id": "my-session"}):
+        print(chunk.content)
+
+agent_thread = threading.Thread(target=run_agent)
+agent_thread.start()
+
+# Stop from external code (e.g., frontend button click)
+time.sleep(2.0)
+status = app.stop({"thread_id": "my-session"})
+print(f"Stop requested: {status}")
+```
+
+**Key Requirements:**
+- **Checkpointer**: Required for interrupt resume functionality
+- **Thread ID**: Must be consistent between initial execution and resume
+- **State Persistence**: Interrupted state is automatically saved and restored
+
+For comprehensive HITL patterns, approval workflows, debug strategies, and advanced interrupt handling, see **[Human-in-the-Loop & Interrupts](human-in-the-loop.md)**.
 
 ---
 
