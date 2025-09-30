@@ -20,6 +20,7 @@ from pyagenity.utils import (
     replace_messages,
     replace_value,
 )
+from pyagenity.utils.reducers import append_items
 from pyagenity.utils.background_task_manager import BackgroundTaskManager
 from pyagenity.utils.id_generator import (
     AsyncIDGenerator,
@@ -295,11 +296,11 @@ class TestInvocationType:
         assert InvocationType.MCP  # noqa: S101
 
 
-class TestAddMessages:
-    """Test the add_messages function."""
+class TestReducers:
+    """Comprehensive tests for reducer functions."""
 
-    def test_add_messages_function(self):
-        """Test add_messages reducer function."""
+    def test_add_messages_basic(self):
+        """Test add_messages with basic functionality."""
         messages1 = [Message.text_message("Hello")]
         messages2 = [Message.text_message("World")]
 
@@ -307,21 +308,148 @@ class TestAddMessages:
         assert isinstance(result, list)  # noqa: S101
         assert len(result) == 2  # noqa: S101
 
-    def test_replace_messages_function(self):
-        """Test replace_messages reducer function."""
+    def test_add_messages_empty_lists(self):
+        """Test add_messages with empty lists."""
+        # Empty left
+        result = add_messages([], [Message.text_message("Hello")])
+        assert len(result) == 1  # noqa: S101
+
+        # Empty right
+        messages = [Message.text_message("Hello")]
+        result = add_messages(messages, [])
+        assert len(result) == 1  # noqa: S101
+        assert result == messages  # noqa: S101
+
+        # Both empty
+        result = add_messages([], [])
+        assert len(result) == 0  # noqa: S101
+
+    def test_add_messages_avoid_duplicates(self):
+        """Test add_messages avoids duplicates by message_id."""
+        msg1 = Message.text_message("Hello")
+        msg2 = Message.text_message("World")
+        
+        # Same message in both lists should not be duplicated
+        result = add_messages([msg1, msg2], [msg2, Message.text_message("New")])
+        assert len(result) == 3  # noqa: S101
+        
+        # Verify no duplicate message_ids
+        message_ids = [msg.message_id for msg in result]
+        assert len(message_ids) == len(set(message_ids))  # noqa: S101
+
+    def test_add_messages_preserves_order(self):
+        """Test add_messages preserves order from left list first."""
+        msg1 = Message.text_message("First")
+        msg2 = Message.text_message("Second") 
+        msg3 = Message.text_message("Third")
+
+        result = add_messages([msg1], [msg2, msg3])
+        assert result[0].message_id == msg1.message_id  # noqa: S101
+        assert result[1].message_id == msg2.message_id  # noqa: S101
+        assert result[2].message_id == msg3.message_id  # noqa: S101
+
+    def test_replace_messages_basic(self):
+        """Test replace_messages basic functionality."""
         messages1 = [Message.text_message("Hello")]
         messages2 = [Message.text_message("World")]
 
         result = replace_messages(messages1, messages2)
         assert result == messages2  # noqa: S101
+        assert result is not messages1  # noqa: S101
 
-    def test_replace_value_function(self):
-        """Test replace_value reducer function."""
-        left = "old"
-        right = "new"
+    def test_replace_messages_empty_lists(self):
+        """Test replace_messages with empty lists."""
+        messages = [Message.text_message("Hello")]
+        
+        # Replace with empty list
+        result = replace_messages(messages, [])
+        assert len(result) == 0  # noqa: S101
 
-        result = replace_value(left, right)
-        assert result == "new"  # noqa: S101
+        # Replace empty list with messages
+        result = replace_messages([], messages)
+        assert result == messages  # noqa: S101
+
+    def test_replace_messages_ignores_left(self):
+        """Test that replace_messages completely ignores left argument."""
+        left = [Message.text_message("Ignored")]
+        right = [Message.text_message("Used")]
+        
+        result = replace_messages(left, right)
+        assert result == right  # noqa: S101
+        assert len(result) == 1  # noqa: S101
+
+    def test_append_items_basic(self):
+        """Test append_items with basic functionality."""
+        class TestItem:
+            def __init__(self, id_val, data):
+                self.id = id_val
+                self.data = data
+            
+            def __eq__(self, other):
+                return self.id == other.id and self.data == other.data
+
+        item1 = TestItem("1", "data1")
+        item2 = TestItem("2", "data2")
+        
+        result = append_items([item1], [item2])
+        assert len(result) == 2  # noqa: S101
+        assert result[0] == item1  # noqa: S101
+        assert result[1] == item2  # noqa: S101
+
+    def test_append_items_avoid_duplicates(self):
+        """Test append_items avoids duplicates by id."""
+        class TestItem:
+            def __init__(self, id_val, data):
+                self.id = id_val
+                self.data = data
+
+        item1 = TestItem("1", "original")
+        item1_duplicate = TestItem("1", "duplicate")
+        item2 = TestItem("2", "unique")
+        
+        result = append_items([item1], [item1_duplicate, item2])
+        assert len(result) == 2  # noqa: S101
+        # Should keep the original, not the duplicate
+        assert result[0].data == "original"  # noqa: S101
+        assert result[1].data == "unique"  # noqa: S101
+
+    def test_append_items_empty_lists(self):
+        """Test append_items with empty lists."""
+        class TestItem:
+            def __init__(self, id_val):
+                self.id = id_val
+
+        item = TestItem("1")
+        
+        # Empty left
+        result = append_items([], [item])
+        assert len(result) == 1  # noqa: S101
+
+        # Empty right
+        result = append_items([item], [])
+        assert len(result) == 1  # noqa: S101
+
+        # Both empty
+        result = append_items([], [])
+        assert len(result) == 0  # noqa: S101
+
+    def test_replace_value_basic(self):
+        """Test replace_value with basic types."""
+        assert replace_value("old", "new") == "new"  # noqa: S101
+        assert replace_value(1, 2) == 2  # noqa: S101
+        assert replace_value([], ["new"]) == ["new"]  # noqa: S101
+
+    def test_replace_value_ignores_left(self):
+        """Test that replace_value completely ignores left argument."""
+        assert replace_value("ignored", "used") == "used"  # noqa: S101
+        assert replace_value(100, "string") == "string"  # noqa: S101
+        assert replace_value(None, False) is False  # noqa: S101
+
+    def test_replace_value_none_values(self):
+        """Test replace_value with None values."""
+        assert replace_value("something", None) is None  # noqa: S101
+        assert replace_value(None, "something") == "something"  # noqa: S101
+        assert replace_value(None, None) is None  # noqa: S101
 
 
 class TestConverter:
