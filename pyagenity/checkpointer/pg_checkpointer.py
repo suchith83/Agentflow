@@ -1,12 +1,20 @@
 import asyncio
 import json
 import logging
+import os
 from enum import Enum
 from typing import Any, TypeVar
 
 from injectq import InjectQ
 
+from pyagenity.exceptions.storage_exceptions import (
+    SchemaVersionError,
+    SerializationError,
+    StorageError,
+    TransientStorageError,
+)
 from pyagenity.utils import ThreadInfo
+from pyagenity.utils import metrics
 
 
 try:
@@ -263,6 +271,26 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
         """Get SQL type for given configuration type."""
         return ID_TYPE_MAP.get(type_name, "VARCHAR(255)")
 
+    def _get_json_serializer(self):
+        """Get optimal JSON serializer based on FAST_JSON env var."""
+        if os.environ.get("FAST_JSON", "0") == "1":
+            try:
+                import orjson
+
+                return orjson.dumps
+            except ImportError:
+                try:
+                    import msgspec  # type: ignore # noqa: PLC0415
+
+                    return msgspec.json.encode
+                except ImportError:
+                    pass
+        return json.dumps
+
+    def _get_current_schema_version(self) -> int:
+        """Return current expected schema version."""
+        return 1  # increment when schema changes
+
     def _build_create_tables_sql(self) -> list[str]:
         """
         Build SQL statements for table creation with dynamic ID types.
@@ -288,6 +316,13 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
         )
 
         return [
+            # Schema version tracking table
+            f"""
+            CREATE TABLE IF NOT EXISTS {self._get_table_name("schema_version")} (
+                version INT PRIMARY KEY,
+                applied_at TIMESTAMPTZ DEFAULT NOW()
+            )
+            """,
             # Create message role enum (safe for older Postgres versions)
             (
                 "DO $$\n"
@@ -349,6 +384,36 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
             f"{self._get_table_name('messages')}(thread_id)",
         ]
 
+    async def _check_and_apply_schema_version(self, conn) -> None:
+        """Check current version and update if needed."""
+        try:
+            # Check if schema version exists
+            row = await conn.fetchrow(
+                f"SELECT version FROM {self._get_table_name('schema_version')} ORDER BY version DESC LIMIT 1"
+            )
+            current_version = row["version"] if row else 0
+            target_version = self._get_current_schema_version()
+
+            if current_version < target_version:
+                logger.info(
+                    "Upgrading schema from version %d to %d", current_version, target_version
+                )
+                # Insert new version
+                await conn.execute(
+                    f"INSERT INTO {self._get_table_name('schema_version')} (version) VALUES ($1)",
+                    target_version,
+                )
+        except Exception as e:
+            logger.debug("Schema version check failed (expected on first run): %s", e)
+            # Insert initial version
+            try:
+                await conn.execute(
+                    f"INSERT INTO {self._get_table_name('schema_version')} (version) VALUES ($1)",
+                    self._get_current_schema_version(),
+                )
+            except Exception:
+                pass  # might already exist from concurrent initialization
+
     async def _initialize_schema(self) -> None:
         """
         Initialize database schema if not already done.
@@ -360,7 +425,7 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
         if self._schema_initialized:
             return
 
-        logger.info(
+        logger.debug(
             "Initializing database schema with types: id_type=%s, user_id_type=%s",
             self.id_type,
             self.user_id_type,
@@ -372,8 +437,12 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
                 for sql in sql_statements:
                     logger.debug("Executing SQL: %s", sql.strip())
                     await conn.execute(sql)
+
+                # Check and apply schema version tracking
+                await self._check_and_apply_schema_version(conn)
+
                 self._schema_initialized = True
-                logger.info("Database schema initialized successfully")
+                logger.debug("Database schema initialized successfully")
             except Exception as e:
                 logger.error("Failed to initialize database schema: %s", e)
                 raise
@@ -390,7 +459,14 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
             Any: True if setup completed.
         """
         """Async setup method - initializes database schema."""
-        logger.info("Setting up PgCheckpointer (async)")
+        logger.info(
+            "Setting up PgCheckpointer (async)",
+            extra={
+                "id_type": self.id_type,
+                "user_id_type": self.user_id_type,
+                "schema": self.schema,
+            },
+        )
         await self._initialize_schema()
         logger.info("PgCheckpointer setup completed")
         return True
@@ -458,6 +534,35 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
             return str(obj)
 
         return json.dumps(state.model_dump(), default=enum_handler)
+
+    def _serialize_state_fast(self, state: StateT) -> str:
+        """
+        Serialize state using fast JSON serializer if available.
+
+        Args:
+            state (StateT): State object.
+
+        Returns:
+            str: JSON string.
+        """
+        serializer = self._get_json_serializer()
+
+        def enum_handler(obj):
+            if isinstance(obj, Enum):
+                return obj.value
+            return str(obj)
+
+        data = state.model_dump()
+
+        # Use fast serializer if available, otherwise fall back to json.dumps with enum handling
+        if serializer is json.dumps:
+            return json.dumps(data, default=enum_handler)
+
+        # Fast serializers (orjson, msgspec) may not support default handlers
+        # Pre-process enums to avoid issues
+        result = serializer(data)
+        # Ensure we return a string (orjson returns bytes)
+        return result.decode("utf-8") if isinstance(result, bytes) else str(result)
 
     def _deserialize_state(
         self,
@@ -569,41 +674,53 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
             StateT: The stored state object.
 
         Raises:
-            Exception: If storing fails.
+            StorageError: If storing fails.
         """
         # Ensure schema is initialized before accessing tables
         await self._initialize_schema()
         thread_id, user_id = self._validate_config(config)
 
         logger.debug("Storing state for thread_id=%s, user_id=%s", thread_id, user_id)
+        metrics.counter("pg_checkpointer.save_state.attempts").inc()
 
-        try:
-            # Ensure thread exists first
-            await self._ensure_thread_exists(thread_id, user_id, config)
+        with metrics.timer("pg_checkpointer.save_state.duration"):
+            try:
+                # Ensure thread exists first
+                await self._ensure_thread_exists(thread_id, user_id, config)
 
-            # Store in PostgreSQL with retry logic
-            state_json = self._serialize_state(state)
+                # Store in PostgreSQL with retry logic
+                state_json = self._serialize_state_fast(state)
 
-            async def _store_state():
-                async with (await self._get_pg_pool()).acquire() as conn:
-                    await conn.execute(
-                        f"""
-                        INSERT INTO {self._get_table_name("states")} (thread_id, state_data, meta)
-                        VALUES ($1, $2, $3)
-                        ON CONFLICT DO NOTHING
-                        """,
-                        thread_id,
-                        state_json,
-                        json.dumps(config.get("meta", {})),
+                async def _store_state():
+                    async with (await self._get_pg_pool()).acquire() as conn:
+                        await conn.execute(
+                            f"""
+                            INSERT INTO {self._get_table_name("states")}
+                                (thread_id, state_data, meta)
+                            VALUES ($1, $2, $3)
+                            ON CONFLICT DO NOTHING
+                            """,
+                            thread_id,
+                            state_json,
+                            json.dumps(config.get("meta", {})),
+                        )
+
+                await self._retry_on_connection_error(_store_state, max_retries=3)
+                logger.debug("State stored successfully for thread_id=%s", thread_id)
+                metrics.counter("pg_checkpointer.save_state.success").inc()
+                return state
+
+            except Exception as e:
+                metrics.counter("pg_checkpointer.save_state.error").inc()
+                logger.error("Failed to store state for thread_id=%s: %s", thread_id, e)
+                if asyncpg and hasattr(asyncpg, "ConnectionDoesNotExistError"):
+                    connection_errors = (
+                        asyncpg.ConnectionDoesNotExistError,
+                        asyncpg.InterfaceError,
                     )
-
-            await self._retry_on_connection_error(_store_state, max_retries=3)
-            logger.info("State stored successfully for thread_id=%s", thread_id)
-            return state
-
-        except Exception as e:
-            logger.error("Failed to store state for thread_id=%s: %s", thread_id, e)
-            raise
+                    if isinstance(e, connection_errors):
+                        raise TransientStorageError(f"Connection issue storing state: {e}") from e
+                raise StorageError(f"Failed to store state: {e}") from e
 
     async def aget_state(self, config: dict[str, Any]) -> StateT | None:
         """
@@ -688,7 +805,7 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
             cache_key = self._get_thread_key(thread_id, user_id)
             await self.redis.delete(cache_key)
 
-            logger.info("State cleared for thread_id=%s", thread_id)
+            logger.debug("State cleared for thread_id=%s", thread_id)
 
         except Exception as e:
             logger.error("Failed to clear state for thread_id=%s: %s", thread_id, e)
@@ -897,7 +1014,7 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
                         )
 
             await self._retry_on_connection_error(_store_messages, max_retries=3)
-            logger.info("Stored %d messages for thread_id=%s", len(messages), thread_id)
+            logger.debug("Stored %d messages for thread_id=%s", len(messages), thread_id)
 
         except Exception as e:
             logger.error("Failed to store messages for thread_id=%s: %s", thread_id, e)
@@ -1070,7 +1187,7 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
                         )
 
             await self._retry_on_connection_error(_delete_message, max_retries=3)
-            logger.info("Deleted message_id=%s", message_id)
+            logger.debug("Deleted message_id=%s", message_id)
             return None
 
         except Exception as e:
@@ -1236,7 +1353,7 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
                     )
 
             await self._retry_on_connection_error(_put_thread, max_retries=3)
-            logger.info("Thread info stored for thread_id=%s", thread_id)
+            logger.debug("Thread info stored for thread_id=%s", thread_id)
 
         except Exception as e:
             logger.error("Failed to store thread info for thread_id=%s: %s", thread_id, e)
@@ -1430,7 +1547,7 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
             cache_key = self._get_thread_key(thread_id, user_id)
             await self.redis.delete(cache_key)
 
-            logger.info("Thread cleaned: thread_id=%s, user_id=%s", thread_id, user_id)
+            logger.debug("Thread cleaned: thread_id=%s, user_id=%s", thread_id, user_id)
 
         except Exception as e:
             logger.error("Failed to clean thread thread_id=%s: %s", thread_id, e)

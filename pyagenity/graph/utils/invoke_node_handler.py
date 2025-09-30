@@ -52,6 +52,14 @@ class InvokeNodeHandler(BaseLoggingMixin):
         func (Callable | ToolNode): The function or ToolNode to execute.
         publisher (BasePublisher, optional): Event publisher for execution events.
     """
+    
+    # Class-level cache for function signatures to avoid repeated inspection
+    _signature_cache: dict[Callable, inspect.Signature] = {}
+
+    @classmethod
+    def clear_signature_cache(cls) -> None:
+        """Clear the function signature cache. Useful for testing or memory management."""
+        cls._signature_cache.clear()
 
     def __init__(
         self,
@@ -147,6 +155,12 @@ class InvokeNodeHandler(BaseLoggingMixin):
 
         return result
 
+    def _get_cached_signature(self, func: Callable) -> inspect.Signature:
+        """Get cached signature for a function, computing it if not cached."""
+        if func not in self._signature_cache:
+            self._signature_cache[func] = inspect.signature(func)
+        return self._signature_cache[func]
+
     def _prepare_input_data(
         self,
         state: "AgentState",
@@ -154,6 +168,7 @@ class InvokeNodeHandler(BaseLoggingMixin):
     ) -> dict:
         """
         Prepare input data for function invocation, handling injectable parameters.
+        Uses cached function signature to avoid repeated inspection overhead.
 
         Args:
             state (AgentState): Current agent state.
@@ -165,7 +180,8 @@ class InvokeNodeHandler(BaseLoggingMixin):
         Raises:
             TypeError: If required parameters are missing.
         """
-        sig = inspect.signature(self.func)  # type: ignore Tool node won't come here
+        # Use cached signature inspection for performance
+        sig = self._get_cached_signature(self.func)  # type: ignore Tool node won't come here
         input_data = {}
         default_data = {
             "state": state,
