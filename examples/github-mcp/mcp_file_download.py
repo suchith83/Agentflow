@@ -6,6 +6,7 @@ from dotenv import load_dotenv
 from fastmcp import Client
 from litellm import acompletion
 
+from pyagenity.adapters.llm.model_response_converter import ModelResponseConverter
 from pyagenity.checkpointer import InMemoryCheckpointer
 from pyagenity.graph import StateGraph, ToolNode
 from pyagenity.state.agent_state import AgentState
@@ -74,7 +75,10 @@ async def main_agent(
         messages=messages,
         tools=tools,
     )
-    return response
+    return ModelResponseConverter(
+        response,
+        converter="litellm",
+    )
 
 
 def should_use_tools(state: AgentState) -> str:

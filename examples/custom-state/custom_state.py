@@ -4,6 +4,7 @@ from typing import Any
 from dotenv import load_dotenv
 from litellm import acompletion
 
+from pyagenity.adapters.llm.model_response_converter import ModelResponseConverter
 from pyagenity.checkpointer import InMemoryCheckpointer
 from pyagenity.graph import StateGraph
 from pyagenity.state.agent_state import AgentState
@@ -60,7 +61,10 @@ async def main_agent(
         messages=messages,
     )
 
-    return response
+    return ModelResponseConverter(
+        response,
+        converter="litellm",
+    )
 
 
 def should_use_tools(state: AgentState) -> str:
@@ -80,7 +84,7 @@ def should_use_tools(state: AgentState) -> str:
         return "TOOL"
 
     # If last message is a tool result, we should be done (AI will make final response)
-    if last_message.role == "tool" and last_message.tool_call_id is not None:
+    if last_message.role == "tool":
         return END
 
     # Default to END for other cases
@@ -184,14 +188,14 @@ def test_partial_state_update():
     print("Returned state keys:", list(updated_state.keys()))
     print("Returned state dict:", updated_state)
     assert "jd" in updated_state, f"Returned state missing 'jd': {updated_state}"
-    assert (
-        updated_state["jd"] == partial_update["jd"]
-    ), f"JD should be updated, got {updated_state.get('jd')}"
+    assert updated_state["jd"] == partial_update["jd"], (
+        f"JD should be updated, got {updated_state.get('jd')}"
+    )
     assert updated_state["candidate_cv"] == old_cv, "CV should remain unchanged"
     assert updated_state["match_score"] == old_score, "Score should remain unchanged"
-    assert (
-        updated_state["analysis_results"] == old_analysis
-    ), "Analysis results should remain unchanged"
+    assert updated_state["analysis_results"] == old_analysis, (
+        "Analysis results should remain unchanged"
+    )
     print("Partial state update test passed!")
     return res
 
