@@ -9,6 +9,8 @@ from pyagenity.utils.message import Message
 
 
 class ConverterType(Enum):
+    """Enumeration of supported converter types for LLM responses."""
+
     OPENAI = "openai"
     LITELLM = "litellm"
     ANTHROPIC = "anthropic"
@@ -17,14 +19,39 @@ class ConverterType(Enum):
 
 
 class BaseConverter(ABC):
-    """Base class for all response converters"""
+    """
+    Abstract base class for all LLM response converters.
+
+    Subclasses should implement methods to convert standard and streaming
+    LLM responses into PyAgenity's internal message/event formats.
+
+    Attributes:
+        state (AgentState | None): Optional agent state for context during conversion.
+    """
 
     def __init__(self, state: AgentState | None = None) -> None:
+        """
+        Initialize the converter.
+
+        Args:
+            state (AgentState | None): Optional agent state for context during conversion.
+        """
         self.state = state
 
     @abstractmethod
     async def convert_response(self, response: Any) -> Message:
-        """Convert the agent response to the target format"""
+        """
+        Convert a standard agent response to a Message.
+
+        Args:
+            response (Any): The raw response from the LLM or agent.
+
+        Returns:
+            Message: The converted message object.
+
+        Raises:
+            NotImplementedError: If not implemented in subclass.
+        """
         raise NotImplementedError("Conversion not implemented for this converter")
 
     @abstractmethod
@@ -35,11 +62,19 @@ class BaseConverter(ABC):
         response: Any,
         meta: dict | None = None,
     ) -> AsyncGenerator[EventModel | Message, None]:
-        """Convert streaming response to the target format.
+        """
+        Convert a streaming agent response to an async generator of EventModel or Message.
 
-        Implementations should return an async generator (defined with
-        `async def ...` and `yield`). Declaring this as a regular abstract
-        method ensures type compatibility across subclasses that implement
-        async generators.
+        Args:
+            config (dict): Node configuration parameters.
+            node_name (str): Name of the node processing the response.
+            response (Any): The raw streaming response from the LLM or agent.
+            meta (dict | None): Optional metadata for conversion.
+
+        Yields:
+            EventModel | Message: Chunks of the converted streaming response.
+
+        Raises:
+            NotImplementedError: If not implemented in subclass.
         """
         raise NotImplementedError("Streaming not implemented for this converter")

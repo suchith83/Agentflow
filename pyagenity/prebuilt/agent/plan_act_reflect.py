@@ -50,18 +50,44 @@ def _should_act(state: AgentState) -> str:
 
 
 class PlanActReflectAgent[StateT: AgentState]:
-    """A plan -> act(tool) -> reflect loop agent.
+    """Plan -> Act -> Reflect looping agent.
 
-    Nodes:
-    - PLAN: produce a plan or next action; may request tools
-    - ACT: ToolNode executes requested tools
-    - REFLECT: analyze tool results and decide to loop back to PLAN or END
+    Pattern:
+        PLAN -> (condition) -> ACT | REFLECT | END
+        ACT -> REFLECT
+        REFLECT -> PLAN
 
-    Edges:
-    PLAN -> conditional(_should_act): {"ACT": ACT, "REFLECT": REFLECT, END: END}
-    ACT -> REFLECT
-    REFLECT -> PLAN
-    Entry: PLAN
+    Default condition (_should_act):
+        - If last assistant message contains tool calls -> ACT
+        - If last message is from a tool -> REFLECT
+        - Else -> END
+
+    Provide a custom condition to override this heuristic and implement:
+        * Budget / depth limiting
+        * Confidence-based early stop
+        * Dynamic branch selection (e.g., different tool nodes)
+
+    Parameters (constructor):
+        state: Optional initial state instance
+        context_manager: Custom context manager
+        publisher: Optional publisher for streaming / events
+        id_generator: ID generation strategy
+        container: InjectQ DI container
+
+    compile(...) arguments:
+        plan_node: Callable (state -> state). Produces next thought / tool requests
+        tool_node: ToolNode executing declared tools
+        reflect_node: Callable (state -> state). Consumes tool results & may adjust plan
+        condition: Optional Callable[[AgentState], str] returning next node name or END
+        checkpointer/store/interrupt_before/interrupt_after/callback_manager:
+            Standard graph compilation options
+
+    Returns:
+        CompiledGraph ready for invoke / ainvoke.
+
+    Notes:
+        - Node names can be customized via (callable, "NAME") tuples.
+        - condition must return one of: tool_node_name, reflect_node_name, END.
     """
 
     def __init__(
@@ -85,13 +111,27 @@ class PlanActReflectAgent[StateT: AgentState]:
         plan_node: Callable | tuple[Callable, str],
         tool_node: ToolNode | tuple[ToolNode, str],
         reflect_node: Callable | tuple[Callable, str],
+        *,
+        condition: Callable[[AgentState], str] | None = None,
         checkpointer: BaseCheckpointer[StateT] | None = None,
         store: BaseStore | None = None,
         interrupt_before: list[str] | None = None,
         interrupt_after: list[str] | None = None,
         callback_manager: CallbackManager = CallbackManager(),
     ) -> CompiledGraph:
-        # Handle plan_node
+        """Compile the Plan-Act-Reflect loop.
+
+        Args:
+            plan_node: Callable or (callable, name)
+            tool_node: ToolNode or (ToolNode, name)
+            reflect_node: Callable or (callable, name)
+            condition: Optional decision function. Defaults to internal heuristic.
+            checkpointer/store/interrupt_* / callback_manager: Standard graph options.
+
+        Returns:
+            CompiledGraph
+        """
+        # PLAN
         if isinstance(plan_node, tuple):
             plan_func, plan_name = plan_node
             if not callable(plan_func):
@@ -102,7 +142,7 @@ class PlanActReflectAgent[StateT: AgentState]:
             if not callable(plan_func):
                 raise ValueError("plan_node must be callable")
 
-        # Handle tool_node
+        # ACT
         if isinstance(tool_node, tuple):
             tool_func, tool_name = tool_node
             if not isinstance(tool_func, ToolNode):
@@ -113,7 +153,7 @@ class PlanActReflectAgent[StateT: AgentState]:
             if not isinstance(tool_func, ToolNode):
                 raise ValueError("tool_node must be a ToolNode")
 
-        # Handle reflect_node
+        # REFLECT
         if isinstance(reflect_node, tuple):
             reflect_func, reflect_name = reflect_node
             if not callable(reflect_func):
@@ -124,18 +164,20 @@ class PlanActReflectAgent[StateT: AgentState]:
             if not callable(reflect_func):
                 raise ValueError("reflect_node must be callable")
 
+        # Register nodes
         self._graph.add_node(plan_name, plan_func)
         self._graph.add_node(tool_name, tool_func)
         self._graph.add_node(reflect_name, reflect_func)
 
-        # PLAN decides next step
+        # Decision
+        decision_fn = condition or _should_act
         self._graph.add_conditional_edges(
             plan_name,
-            _should_act,
+            decision_fn,
             {tool_name: tool_name, reflect_name: reflect_name, END: END},
         )
 
-        # Loop
+        # Loop edges
         self._graph.add_edge(tool_name, reflect_name)
         self._graph.add_edge(reflect_name, plan_name)
 

@@ -1,3 +1,14 @@
+"""Streaming node handler for PyAgenity graph workflows.
+
+This module provides the StreamNodeHandler class, which manages the execution of graph nodes
+that support streaming output. It handles both regular function nodes and ToolNode instances,
+enabling incremental result processing, dependency injection, callback management, and
+event publishing.
+
+StreamNodeHandler is a key component for enabling real-time, chunked, or incremental responses
+in agent workflows, supporting both synchronous and asynchronous execution patterns.
+"""
+
 import inspect
 import json
 import logging
@@ -30,11 +41,35 @@ logger = logging.getLogger(__name__)
 
 
 class StreamNodeHandler(BaseLoggingMixin):
+    """Handles streaming execution for graph nodes in PyAgenity workflows.
+
+    StreamNodeHandler manages the execution of nodes that can produce streaming output,
+    including both regular function nodes and ToolNode instances. It supports dependency
+    injection, callback management, event publishing, and incremental result processing.
+
+    Attributes:
+        name: Unique identifier for the node within the graph.
+        func: The function or ToolNode to execute. Determines streaming behavior.
+
+    Example:
+        ```python
+        handler = StreamNodeHandler("process", process_function)
+        async for chunk in handler.stream(config, state):
+            print(chunk)
+        ```
+    """
+
     def __init__(
         self,
         name: str,
         func: Union[Callable, "ToolNode"],
     ):
+        """Initialize a new StreamNodeHandler instance.
+
+        Args:
+            name: Unique identifier for the node within the graph.
+            func: The function or ToolNode to execute. Determines streaming behavior.
+        """
         self.name = name
         self.func = func
 
@@ -317,7 +352,31 @@ class StreamNodeHandler(BaseLoggingMixin):
         state: AgentState,
         callback_mgr: CallbackManager = Inject[CallbackManager],
     ) -> AsyncGenerator[dict[str, Any] | Message]:
-        """Execute the node function with dependency injection support and callback hooks."""
+        """Execute the node function with streaming output and callback support.
+
+        Handles both ToolNode and regular function nodes, yielding incremental results
+        as they become available. Supports dependency injection, callback management,
+        and event publishing for monitoring and debugging.
+
+        Args:
+            config: Configuration dictionary containing execution context and settings.
+            state: Current AgentState providing workflow context and shared state.
+            callback_mgr: Callback manager for pre/post execution hook handling.
+
+        Yields:
+            Dictionary objects or Message instances representing incremental outputs
+            from the node function. The exact type and frequency of yields depends on
+            the node function's streaming implementation.
+
+        Raises:
+            NodeError: If node execution fails or encounters an error.
+
+        Example:
+            ```python
+            async for chunk in handler.stream(config, state):
+                print(chunk)
+            ```
+        """
         logger.info("Executing node '%s'", self.name)
         logger.debug(
             "Node '%s' execution with state context size=%d, config keys=%s",

@@ -5,6 +5,7 @@ from typing import Any
 from dotenv import load_dotenv
 from litellm import acompletion
 
+from pyagenity.adapters.llm.model_response_converter import ModelResponseConverter
 from pyagenity.checkpointer import InMemoryCheckpointer
 from pyagenity.graph import StateGraph, ToolNode
 from pyagenity.state.agent_state import AgentState
@@ -85,7 +86,10 @@ async def main_agent(
             stream=is_stream,
         )
 
-    return response
+    return ModelResponseConverter(
+        response,
+        converter="litellm",
+    )
 
 
 def main_agent_sync(
@@ -126,7 +130,10 @@ def main_agent_sync(
                 tools=tools,
                 stream=False,
             )
-        return response
+        return ModelResponseConverter(
+            response,
+            converter="litellm",
+        )
 
     # Run the async call synchronously
     return asyncio.run(_async_call())
@@ -261,7 +268,10 @@ async def run_sync_stream_test() -> None:
                     tools=tools,
                     stream=is_stream,
                 )
-            return response
+            return ModelResponseConverter(
+                response,
+                converter="litellm",
+            )
 
         # Run the async call synchronously
         return asyncio.run(_async_call())
@@ -334,7 +344,10 @@ async def run_non_stream_test() -> None:
                 stream=is_stream,
             )
 
-        return response
+        return ModelResponseConverter(
+            response,
+            converter="litellm",
+        )
 
     non_stream_graph.add_node("MAIN", main_agent_non_stream)
     non_stream_graph.add_node("TOOL", tool_node)

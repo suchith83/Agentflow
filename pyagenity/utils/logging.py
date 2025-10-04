@@ -8,6 +8,13 @@ throughout the project. Each module should use:
     logger = logging.getLogger(__name__)
 
 This ensures proper hierarchical logging with module-specific loggers.
+
+Typical usage example:
+    >>> from pyagenity.utils.logging import configure_logging
+    >>> configure_logging(level=logging.DEBUG)
+
+Functions:
+    configure_logging: Configures the root logger for the PyAgenity project.
 """
 
 import logging
@@ -20,12 +27,29 @@ def configure_logging(
     handler: logging.Handler | None = None,
 ) -> None:
     """
-    Configure logging for the PyAgenity project.
+    Configures the root logger for the PyAgenity project.
+
+    This function sets up logging for all modules under the 'pyagenity' namespace.
+    It ensures that logs are formatted consistently and sent to the appropriate handler.
 
     Args:
-        level: Logging level (default: INFO)
-        format_string: Custom format string for log messages
-        handler: Custom handler (default: StreamHandler to stdout)
+        level (int, optional): Logging level (e.g., logging.INFO, logging.DEBUG).
+            Defaults to logging.INFO.
+        format_string (str, optional): Custom format string for log messages.
+            If None, uses a default format: "[%(asctime)s] %(levelname)-8s %(name)s: %(message)s".
+        handler (logging.Handler, optional): Custom logging handler. If None,
+            uses StreamHandler to stdout.
+
+    Returns:
+        None
+
+    Raises:
+        None
+
+    Example:
+        >>> configure_logging(level=logging.DEBUG)
+        >>> logger = logging.getLogger("pyagenity.module")
+        >>> logger.info("This is an info message.")
     """
     if format_string is None:
         format_string = "[%(asctime)s] %(levelname)-8s %(name)s: %(message)s"

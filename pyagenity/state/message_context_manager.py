@@ -1,3 +1,10 @@
+"""
+Message context management for agent state in PyAgenity.
+
+This module provides MessageContextManager, which trims and manages the message
+history (context) for agent interactions, ensuring efficient context window usage.
+"""
+
 import logging
 from typing import TypeVar
 

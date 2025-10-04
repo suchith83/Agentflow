@@ -3,7 +3,7 @@ from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Any, TypeVar
 
 from pyagenity.state import AgentState
-from pyagenity.utils import Message
+from pyagenity.utils import Message, run_coroutine
 from pyagenity.utils.thread_info import ThreadInfo
 
 
@@ -19,21 +19,43 @@ StateT = TypeVar("StateT", bound="AgentState")
 
 class BaseCheckpointer[StateT: AgentState](ABC):
     """
-    Abstract base class for checkpointing agent state.
+    Abstract base class for checkpointing agent state, messages, and threads.
 
-    - Async-first design: subclasses should implement `async def` methods.
-    - If a subclass provides only a sync `def`, it will be executed in a worker
-      thread automatically using `asyncio.to_thread`.
-    - Callers always use the async APIs (`await cp.put_state(...)`, etc.).
+    This class defines the contract for all checkpointer implementations, supporting both
+    async and sync methods.
+    Subclasses should implement async methods for optimal performance.
+    Sync methods are provided for compatibility.
+
+    Usage:
+        - Async-first design: subclasses should implement `async def` methods.
+        - If a subclass provides only a sync `def`, it will be executed in a worker thread
+            automatically using `asyncio.run`.
+        - Callers always use the async APIs (`await cp.put_state(...)`, etc.).
+
+    Type Args:
+        StateT: Type of agent state (must inherit from AgentState).
     """
 
     ###########################
     #### SETUP ################
     ###########################
     def setup(self) -> Any:
-        raise NotImplementedError
+        """
+        Synchronous setup method for checkpointer.
 
+        Returns:
+            Any: Implementation-defined setup result.
+        """
+        return run_coroutine(self.asetup())
+
+    @abstractmethod
     async def asetup(self) -> Any:
+        """
+        Asynchronous setup method for checkpointer.
+
+        Returns:
+            Any: Implementation-defined setup result.
+        """
         raise NotImplementedError
 
     # -------------------------
@@ -41,46 +63,135 @@ class BaseCheckpointer[StateT: AgentState](ABC):
     # -------------------------
     @abstractmethod
     async def aput_state(self, config: dict[str, Any], state: StateT) -> StateT:
+        """
+        Store agent state asynchronously.
+
+        Args:
+            config (dict): Configuration dictionary.
+            state (StateT): State object to store.
+
+        Returns:
+            StateT: The stored state object.
+        """
         raise NotImplementedError
 
     @abstractmethod
     async def aget_state(self, config: dict[str, Any]) -> StateT | None:
+        """
+        Retrieve agent state asynchronously.
+
+        Args:
+            config (dict): Configuration dictionary.
+
+        Returns:
+            StateT | None: Retrieved state or None.
+        """
         raise NotImplementedError
 
     @abstractmethod
     async def aclear_state(self, config: dict[str, Any]) -> Any:
+        """
+        Clear agent state asynchronously.
+
+        Args:
+            config (dict): Configuration dictionary.
+
+        Returns:
+            Any: Implementation-defined result.
+        """
         raise NotImplementedError
 
     @abstractmethod
     async def aput_state_cache(self, config: dict[str, Any], state: StateT) -> Any | None:
+        """
+        Store agent state in cache asynchronously.
+
+        Args:
+            config (dict): Configuration dictionary.
+            state (StateT): State object to cache.
+
+        Returns:
+            Any | None: Implementation-defined result.
+        """
         raise NotImplementedError
 
     @abstractmethod
     async def aget_state_cache(self, config: dict[str, Any]) -> StateT | None:
+        """
+        Retrieve agent state from cache asynchronously.
+
+        Args:
+            config (dict): Configuration dictionary.
+
+        Returns:
+            StateT | None: Cached state or None.
+        """
         raise NotImplementedError
 
     # -------------------------
     # State methods Sync
     # -------------------------
-    @abstractmethod
     def put_state(self, config: dict[str, Any], state: StateT) -> StateT:
-        raise NotImplementedError
+        """
+        Store agent state synchronously.
 
-    @abstractmethod
+        Args:
+            config (dict): Configuration dictionary.
+            state (StateT): State object to store.
+
+        Returns:
+            StateT: The stored state object.
+        """
+        return run_coroutine(self.aput_state(config, state))
+
     def get_state(self, config: dict[str, Any]) -> StateT | None:
-        raise NotImplementedError
+        """
+        Retrieve agent state synchronously.
 
-    @abstractmethod
+        Args:
+            config (dict): Configuration dictionary.
+
+        Returns:
+            StateT | None: Retrieved state or None.
+        """
+        return run_coroutine(self.aget_state(config))
+
     def clear_state(self, config: dict[str, Any]) -> Any:
-        raise NotImplementedError
+        """
+        Clear agent state synchronously.
 
-    @abstractmethod
+        Args:
+            config (dict): Configuration dictionary.
+
+        Returns:
+            Any: Implementation-defined result.
+        """
+        return run_coroutine(self.aclear_state(config))
+
     def put_state_cache(self, config: dict[str, Any], state: StateT) -> Any | None:
-        raise NotImplementedError
+        """
+        Store agent state in cache synchronously.
 
-    @abstractmethod
+        Args:
+            config (dict): Configuration dictionary.
+            state (StateT): State object to cache.
+
+        Returns:
+            Any | None: Implementation-defined result.
+        """
+        return run_coroutine(self.aput_state_cache(config, state))
+
     def get_state_cache(self, config: dict[str, Any]) -> StateT | None:
-        raise NotImplementedError
+        """
+        Retrieve agent state from cache synchronously.
+
+        Args:
+            config (dict): Configuration dictionary.
+
+        Returns:
+            StateT | None: Cached state or None.
+        """
+        return run_coroutine(self.aget_state_cache(config))
 
     # -------------------------
     # Message methods async
@@ -92,10 +203,31 @@ class BaseCheckpointer[StateT: AgentState](ABC):
         messages: list[Message],
         metadata: dict[str, Any] | None = None,
     ) -> Any:
+        """
+        Store messages asynchronously.
+
+        Args:
+            config (dict): Configuration dictionary.
+            messages (list[Message]): List of messages to store.
+            metadata (dict, optional): Additional metadata.
+
+        Returns:
+            Any: Implementation-defined result.
+        """
         raise NotImplementedError
 
     @abstractmethod
     async def aget_message(self, config: dict[str, Any], message_id: str | int) -> Message:
+        """
+        Retrieve a specific message asynchronously.
+
+        Args:
+            config (dict): Configuration dictionary.
+            message_id (str|int): Message identifier.
+
+        Returns:
+            Message: Retrieved message object.
+        """
         raise NotImplementedError
 
     @abstractmethod
@@ -106,29 +238,68 @@ class BaseCheckpointer[StateT: AgentState](ABC):
         offset: int | None = None,
         limit: int | None = None,
     ) -> list[Message]:
+        """
+        List messages asynchronously with optional filtering.
+
+        Args:
+            config (dict): Configuration dictionary.
+            search (str, optional): Search string.
+            offset (int, optional): Offset for pagination.
+            limit (int, optional): Limit for pagination.
+
+        Returns:
+            list[Message]: List of message objects.
+        """
         raise NotImplementedError
 
     @abstractmethod
     async def adelete_message(self, config: dict[str, Any], message_id: str | int) -> Any | None:
+        """
+        Delete a specific message asynchronously.
+
+        Args:
+            config (dict): Configuration dictionary.
+            message_id (str|int): Message identifier.
+
+        Returns:
+            Any | None: Implementation-defined result.
+        """
         raise NotImplementedError
 
     # -------------------------
     # Message methods sync
     # -------------------------
-    @abstractmethod
     def put_messages(
         self,
         config: dict[str, Any],
         messages: list[Message],
         metadata: dict[str, Any] | None = None,
     ) -> Any:
-        raise NotImplementedError
+        """
+        Store messages synchronously.
 
-    @abstractmethod
-    def get_message(self, config: dict[str, Any]) -> Message:
-        raise NotImplementedError
+        Args:
+            config (dict): Configuration dictionary.
+            messages (list[Message]): List of messages to store.
+            metadata (dict, optional): Additional metadata.
 
-    @abstractmethod
+        Returns:
+            Any: Implementation-defined result.
+        """
+        return run_coroutine(self.aput_messages(config, messages, metadata))
+
+    def get_message(self, config: dict[str, Any], message_id: str | int) -> Message:
+        """
+        Retrieve a specific message synchronously.
+
+        Args:
+            config (dict): Configuration dictionary.
+
+        Returns:
+            Message: Retrieved message object.
+        """
+        return run_coroutine(self.aget_message(config, message_id))
+
     def list_messages(
         self,
         config: dict[str, Any],
@@ -136,11 +307,32 @@ class BaseCheckpointer[StateT: AgentState](ABC):
         offset: int | None = None,
         limit: int | None = None,
     ) -> list[Message]:
-        raise NotImplementedError
+        """
+        List messages synchronously with optional filtering.
 
-    @abstractmethod
+        Args:
+            config (dict): Configuration dictionary.
+            search (str, optional): Search string.
+            offset (int, optional): Offset for pagination.
+            limit (int, optional): Limit for pagination.
+
+        Returns:
+            list[Message]: List of message objects.
+        """
+        return run_coroutine(self.alist_messages(config, search, offset, limit))
+
     def delete_message(self, config: dict[str, Any], message_id: str | int) -> Any | None:
-        raise NotImplementedError
+        """
+        Delete a specific message synchronously.
+
+        Args:
+            config (dict): Configuration dictionary.
+            message_id (str|int): Message identifier.
+
+        Returns:
+            Any | None: Implementation-defined result.
+        """
+        return run_coroutine(self.adelete_message(config, message_id))
 
     # -------------------------
     # Thread methods async
@@ -151,6 +343,16 @@ class BaseCheckpointer[StateT: AgentState](ABC):
         config: dict[str, Any],
         thread_info: ThreadInfo,
     ) -> Any | None:
+        """
+        Store thread info asynchronously.
+
+        Args:
+            config (dict): Configuration dictionary.
+            thread_info (ThreadInfo): Thread information object.
+
+        Returns:
+            Any | None: Implementation-defined result.
+        """
         raise NotImplementedError
 
     @abstractmethod
@@ -158,6 +360,15 @@ class BaseCheckpointer[StateT: AgentState](ABC):
         self,
         config: dict[str, Any],
     ) -> ThreadInfo | None:
+        """
+        Retrieve thread info asynchronously.
+
+        Args:
+            config (dict): Configuration dictionary.
+
+        Returns:
+            ThreadInfo | None: Thread information object or None.
+        """
         raise NotImplementedError
 
     @abstractmethod
@@ -168,24 +379,61 @@ class BaseCheckpointer[StateT: AgentState](ABC):
         offset: int | None = None,
         limit: int | None = None,
     ) -> list[ThreadInfo]:
+        """
+        List threads asynchronously with optional filtering.
+
+        Args:
+            config (dict): Configuration dictionary.
+            search (str, optional): Search string.
+            offset (int, optional): Offset for pagination.
+            limit (int, optional): Limit for pagination.
+
+        Returns:
+            list[ThreadInfo]: List of thread information objects.
+        """
         raise NotImplementedError
 
     @abstractmethod
     async def aclean_thread(self, config: dict[str, Any]) -> Any | None:
+        """
+        Clean/delete thread asynchronously.
+
+        Args:
+            config (dict): Configuration dictionary.
+
+        Returns:
+            Any | None: Implementation-defined result.
+        """
         raise NotImplementedError
 
     # -------------------------
     # Thread methods sync
     # -------------------------
-    @abstractmethod
     def put_thread(self, config: dict[str, Any], thread_info: ThreadInfo) -> Any | None:
-        raise NotImplementedError
+        """
+        Store thread info synchronously.
 
-    @abstractmethod
+        Args:
+            config (dict): Configuration dictionary.
+            thread_info (ThreadInfo): Thread information object.
+
+        Returns:
+            Any | None: Implementation-defined result.
+        """
+        return run_coroutine(self.aput_thread(config, thread_info))
+
     def get_thread(self, config: dict[str, Any]) -> ThreadInfo | None:
-        raise NotImplementedError
+        """
+        Retrieve thread info synchronously.
 
-    @abstractmethod
+        Args:
+            config (dict): Configuration dictionary.
+
+        Returns:
+            ThreadInfo | None: Thread information object or None.
+        """
+        return run_coroutine(self.aget_thread(config))
+
     def list_threads(
         self,
         config: dict[str, Any],
@@ -193,19 +441,50 @@ class BaseCheckpointer[StateT: AgentState](ABC):
         offset: int | None = None,
         limit: int | None = None,
     ) -> list[ThreadInfo]:
-        raise NotImplementedError
+        """
+        List threads synchronously with optional filtering.
 
-    @abstractmethod
+        Args:
+            config (dict): Configuration dictionary.
+            search (str, optional): Search string.
+            offset (int, optional): Offset for pagination.
+            limit (int, optional): Limit for pagination.
+
+        Returns:
+            list[ThreadInfo]: List of thread information objects.
+        """
+        return run_coroutine(self.alist_threads(config, search, offset, limit))
+
     def clean_thread(self, config: dict[str, Any]) -> Any | None:
-        raise NotImplementedError
+        """
+        Clean/delete thread synchronously.
+
+        Args:
+            config (dict): Configuration dictionary.
+
+        Returns:
+            Any | None: Implementation-defined result.
+        """
+        return run_coroutine(self.aclean_thread(config))
 
     # -------------------------
     # Clean Resources
     # -------------------------
-    @abstractmethod
     def release(self) -> Any | None:
-        raise NotImplementedError
+        """
+        Release resources synchronously.
+
+        Returns:
+            Any | None: Implementation-defined result.
+        """
+        return run_coroutine(self.arelease())
 
     @abstractmethod
     async def arelease(self) -> Any | None:
+        """
+        Release resources asynchronously.
+
+        Returns:
+            Any | None: Implementation-defined result.
+        """
         raise NotImplementedError

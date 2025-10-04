@@ -44,12 +44,13 @@ except Exception:
 
 
 class LangChainToolWrapper:
-    """Wrap a LangChain tool or a duck-typed tool into a uniform interface.
+    """
+    Wrap a LangChain tool or a duck-typed tool into a uniform interface.
 
     Responsibilities:
-    - Resolve execution entrypoint (invoke/run/_run/callable func)
-    - Provide a function-calling schema {name, description, parameters}
-    - Execute with dict arguments and return a JSON-serializable result
+        - Resolve execution entrypoint (invoke/run/_run/callable func)
+        - Provide a function-calling schema {name, description, parameters}
+        - Execute with dict arguments and return a JSON-serializable result
     """
 
     def __init__(
@@ -59,16 +60,21 @@ class LangChainToolWrapper:
         name: str | None = None,
         description: str | None = None,
     ) -> None:
+        """
+        Initialize LangChainToolWrapper.
+
+        Args:
+            tool (Any): The LangChain tool or duck-typed object to wrap.
+            name (str | None): Optional override for tool name.
+            description (str | None): Optional override for tool description.
+        """
         self._tool = tool
-        # Determine final name/description with override priority
         self.name = name or getattr(tool, "name", None) or self._default_name(tool)
         self.description = (
             description
             or getattr(tool, "description", None)
             or f"LangChain tool wrapper for {type(tool).__name__}"
         )
-
-        # Resolve callable for fallback (StructuredTool.func / coroutine or run/_run)
         self._callable = self._resolve_callable(tool)
 
     @staticmethod
@@ -169,7 +175,12 @@ class LangChainToolWrapper:
             return None
 
     def to_schema(self) -> dict[str, t.Any]:
-        # Prefer tool-provided JSON schema, then args_schema, then signature inference
+        """
+        Return the function-calling schema for the wrapped tool.
+
+        Returns:
+            dict[str, Any]: Function-calling schema with name, description, parameters.
+        """
         schema = self._json_schema_from_args_schema() or self._infer_schema_from_signature()
         return {
             "type": "function",
@@ -181,7 +192,15 @@ class LangChainToolWrapper:
         }
 
     def execute(self, arguments: dict[str, t.Any]) -> dict[str, t.Any]:
-        # Normalize execution: prefer Runnable.invoke, then run/_run, else callable
+        """
+        Execute the wrapped tool with the provided arguments.
+
+        Args:
+            arguments (dict[str, Any]): Arguments to pass to the tool.
+
+        Returns:
+            dict[str, Any]: Normalized response dict with keys: successful, data, error.
+        """
         try:
             tool = self._tool
             if hasattr(tool, "invoke"):
@@ -191,13 +210,11 @@ class LangChainToolWrapper:
             elif hasattr(tool, "_run"):
                 result = tool._run(arguments)  # type: ignore[attr-defined]
             elif callable(self._callable):
-                # Try binding kwargs; some func may expect posargs, we pass as kwargs
                 result = self._callable(**arguments)  # type: ignore[call-arg]
             else:
                 raise AttributeError("Tool does not support invoke/run/_run/callable")
 
             data: t.Any = result
-            # Ensure JSON-serializable data for Message body
             if not isinstance(result, str | int | float | bool | type(None) | dict | list):
                 try:
                     json.dumps(result)
@@ -210,37 +227,55 @@ class LangChainToolWrapper:
 
 
 class LangChainAdapter:
-    """Generic registry-based LangChain adapter.
+    """
+    Generic registry-based LangChain adapter.
 
     Notes:
-    - Avoids importing heavy integrations until needed (lazy default autoload).
-    - Normalizes schemas and execution results into simple dicts.
-    - Allows arbitrary tool registration instead of hardcoding a tiny set.
+        - Avoids importing heavy integrations until needed (lazy default autoload).
+        - Normalizes schemas and execution results into simple dicts.
+        - Allows arbitrary tool registration instead of hardcoding a tiny set.
     """
 
     def __init__(self, *, autoload_default_tools: bool = True) -> None:
+        """
+        Initialize LangChainAdapter.
+
+        Args:
+            autoload_default_tools (bool): Whether to autoload default tools if registry is empty.
+
+        Raises:
+            ImportError: If langchain-core is not installed.
+        """
         if not HAS_LANGCHAIN:
             raise ImportError(
                 "LangChainAdapter requires 'langchain-core' and optional integrations.\n"
                 "Install with: pip install pyagenity[langchain]"
             )
-
-        # registry: name -> wrapper
         self._registry: dict[str, LangChainToolWrapper] = {}
         self._autoload = autoload_default_tools
 
     @staticmethod
     def is_available() -> bool:
+        """
+        Return True if langchain-core is importable.
+
+        Returns:
+            bool: True if langchain-core is available, False otherwise.
+        """
         return HAS_LANGCHAIN
 
     # ------------------------
     # Discovery
     # ------------------------
     def list_tools_for_llm(self) -> list[dict[str, t.Any]]:
-        """Return a list of function-calling formatted tool schemas.
+        """
+        Return a list of function-calling formatted tool schemas.
 
         If registry is empty and autoload is enabled, attempt to autoload a
         couple of common tools for convenience (tavily_search, requests_get).
+
+        Returns:
+            list[dict[str, Any]]: List of tool schemas in function-calling format.
         """
         if not self._registry and self._autoload:
             self._try_autoload_defaults()
@@ -251,9 +286,15 @@ class LangChainAdapter:
     # Execute
     # ------------------------
     def execute(self, *, name: str, arguments: dict[str, t.Any]) -> dict[str, t.Any]:
-        """Execute a supported LangChain tool and normalize the response.
+        """
+        Execute a supported LangChain tool and normalize the response.
 
-        Returns: {"successful": bool, "data": Any, "error": str|None}
+        Args:
+            name (str): Name of the tool to execute.
+            arguments (dict[str, Any]): Arguments for the tool.
+
+        Returns:
+            dict[str, Any]: Normalized response dict with keys: successful, data, error.
         """
         if name not in self._registry and self._autoload:
             # Late autoload attempt in case discovery wasn't called first
@@ -274,22 +315,48 @@ class LangChainAdapter:
         name: str | None = None,
         description: str | None = None,
     ) -> str:
-        """Register a tool instance and return the resolved name used for exposure."""
+        """
+        Register a tool instance and return the resolved name used for exposure.
+
+        Args:
+            tool (Any): Tool instance to register.
+            name (str | None): Optional override for tool name.
+            description (str | None): Optional override for tool description.
+
+        Returns:
+            str: The resolved name used for exposure.
+        """
         wrapper = LangChainToolWrapper(tool, name=name, description=description)
         self._registry[wrapper.name] = wrapper
         return wrapper.name
 
     def register_tools(self, tools: list[t.Any]) -> list[str]:
+        """
+        Register multiple tool instances.
+
+        Args:
+            tools (list[Any]): List of tool instances to register.
+
+        Returns:
+            list[str]: List of resolved names for the registered tools.
+        """
         names: list[str] = []
         for tool in tools:
             names.append(self.register_tool(tool))
         return names
 
     def _create_tavily_search_tool(self) -> t.Any:
-        """Construct Tavily search tool lazily.
+        """
+        Construct Tavily search tool lazily.
 
         Prefer the new dedicated integration `langchain_tavily.TavilySearch`.
         Fall back to the deprecated community tool if needed.
+
+        Returns:
+            Any: Tavily search tool instance.
+
+        Raises:
+            ImportError: If Tavily tool cannot be imported.
         """
         # Preferred: langchain-tavily
         try:
@@ -310,12 +377,19 @@ class LangChainAdapter:
             ) from exc
 
     def _create_requests_get_tool(self) -> t.Any:
-        """Construct RequestsGetTool lazily with a basic requests wrapper.
+        """
+        Construct RequestsGetTool lazily with a basic requests wrapper.
 
         Note: Requests tools require an explicit wrapper instance and, for safety,
         default to disallowing dangerous requests. Here we opt-in to allow GET
         requests by setting allow_dangerous_requests=True to make the tool usable
         in agent contexts. Consider tightening this in your application.
+
+        Returns:
+            Any: RequestsGetTool instance.
+
+        Raises:
+            ImportError: If RequestsGetTool cannot be imported.
         """
         try:
             req_tool_mod = importlib.import_module("langchain_community.tools.requests.tool")
@@ -332,10 +406,14 @@ class LangChainAdapter:
             ) from exc
 
     def _try_autoload_defaults(self) -> None:
-        """Best-effort autoload of a couple of common tools.
+        """
+        Best-effort autoload of a couple of common tools.
 
         This keeps prior behavior available while allowing users to register
         arbitrary tools. Failures are logged but non-fatal.
+
+        Returns:
+            None
         """
         # Tavily search
         try:

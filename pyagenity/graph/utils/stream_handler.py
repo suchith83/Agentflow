@@ -1,3 +1,11 @@
+"""Streaming graph execution handler for PyAgenity workflows.
+
+This module provides the StreamHandler class, which manages the execution of graph workflows
+with support for streaming output, interrupts, state persistence, and event publishing.
+It enables incremental result processing, pause/resume capabilities, and robust error handling
+for agent workflows that require real-time or chunked responses.
+"""
+
 from __future__ import annotations  # isort: skip_file
 
 import logging
@@ -39,6 +47,27 @@ class StreamHandler[StateT: AgentState](
     BaseLoggingMixin,
     InterruptConfigMixin,
 ):
+    """Handles streaming execution for graph workflows in PyAgenity.
+
+    StreamHandler manages the execution of agent workflows as directed graphs,
+    supporting streaming output, pause/resume via interrupts, state persistence,
+    and event publishing for monitoring and debugging. It enables incremental
+    result processing and robust error handling for complex agent workflows.
+
+    Attributes:
+        nodes: Dictionary mapping node names to Node instances.
+        edges: List of Edge instances defining graph connections and routing.
+        interrupt_before: List of node names where execution should pause before execution.
+        interrupt_after: List of node names where execution should pause after execution.
+
+    Example:
+        ```python
+        handler = StreamHandler(nodes, edges)
+        async for chunk in handler.stream(input_data, config, state):
+            print(chunk)
+        ```
+    """
+
     @inject
     def __init__(
         self,
@@ -449,19 +478,36 @@ class StreamHandler[StateT: AgentState](
         default_state: StateT,
         response_granularity: ResponseGranularity = ResponseGranularity.LOW,
     ) -> AsyncGenerator[Message]:
-        """Execute the graph asynchronously.
+        """Execute the graph asynchronously with streaming output.
 
-        Auto-detects whether to start fresh execution or resume from interrupted state
-        based on the AgentState's execution metadata.
+        Runs the graph workflow from start to finish, yielding incremental results
+        as they become available. Automatically detects whether to start a fresh
+        execution or resume from an interrupted state, supporting pause/resume
+        and checkpointing.
 
         Args:
-            input_data: Input dict with 'messages' key (for new execution) or
-                       additional data for resuming
-            config: Configuration dictionary
-            response_granularity: Response parsing granularity
+            input_data: Input dictionary for graph execution. For new executions,
+                should contain 'messages' key with initial messages. For resumed
+                executions, can contain additional data to merge.
+            config: Configuration dictionary containing execution settings and context.
+            default_state: Initial or template AgentState for workflow execution.
+            response_granularity: Level of detail in the response (LOW, PARTIAL, FULL).
 
-        Returns:
-            Response dict based on granularity
+        Yields:
+            Message objects representing incremental results from graph execution.
+            The exact type and frequency of yields depends on node implementations
+            and workflow configuration.
+
+        Raises:
+            GraphRecursionError: If execution exceeds recursion limit.
+            ValueError: If input_data is invalid for new execution.
+            Various exceptions: Depending on node execution failures.
+
+        Example:
+            ```python
+            async for chunk in handler.stream(input_data, config, state):
+                print(chunk)
+            ```
         """
         logger.info(
             "Starting asynchronous graph execution with %d input keys, granularity=%s",

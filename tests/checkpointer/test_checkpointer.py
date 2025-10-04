@@ -84,13 +84,14 @@ class TestInMemoryCheckpointer:
         checkpointer = InMemoryCheckpointer()
 
         thread_config = {"thread_id": "test_thread"}
-        messages = [Message.text_message("Hello", "user")]
+        message_id = "message_id"
+        messages = [Message.text_message("Hello", "user", message_id=message_id)]
 
         # Put messages
         checkpointer.put_messages(thread_config, messages)
 
         # Get messages
-        retrieved_messages = checkpointer.get_message(thread_config)
+        retrieved_messages = checkpointer.get_message(thread_config, message_id)
         assert retrieved_messages is not None  # noqa: S101
 
     @pytest.mark.asyncio

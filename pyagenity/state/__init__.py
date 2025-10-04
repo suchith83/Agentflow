@@ -1,4 +1,10 @@
-"""State management module for the agent framework."""
+"""
+State management for PyAgenity agent graphs.
+
+This package provides schemas and context managers for agent state, execution
+tracking, and message context management. All core state classes are exported
+for use in agent workflows and custom state extensions.
+"""
 
 from .agent_state import AgentState
 from .base_context import BaseContextManager

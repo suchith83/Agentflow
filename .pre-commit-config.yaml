@@ -4,50 +4,37 @@ repos:
     hooks:
       - id: check-yaml
         exclude: ^(tests|docs|examples)/
-        language_version: python3.12
       - id: trailing-whitespace
         exclude: ^(tests|docs|examples)/
-        language_version: python3.12
       - id: check-added-large-files
         args: [--maxkb=100]
         exclude: ^(tests|docs|examples)/
-        language_version: python3.12
       - id: check-ast
         exclude: ^(tests|docs|examples)/
-        language_version: python3.12
       - id: check-builtin-literals
         exclude: ^(tests|docs|examples)/
-        language_version: python3.12
       - id: check-case-conflict
         exclude: ^(tests|docs|examples)/
-        language_version: python3.12
       - id: check-docstring-first
         exclude: ^(tests|docs|examples)/
-        language_version: python3.12
       - id: check-merge-conflict
         exclude: ^(tests|docs|examples)/
-        language_version: python3.12
       - id: debug-statements
         exclude: ^(tests|docs|examples)/
-        language_version: python3.12
       - id: detect-private-key
         exclude: ^(tests|docs|examples)/
-        language_version: python3.12
 
   - repo: https://github.com/asottile/pyupgrade
     rev: v3.17.0
     hooks:
       - id: pyupgrade
-        args: [--py312-plus]
         exclude: ^(tests|docs|examples)/
-        language_version: python3.12
 
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.5.7
     hooks:
       - id: ruff-format
         exclude: ^(tests|docs|examples)/
-        language_version: python3.12
 
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.5.7
@@ -55,7 +42,6 @@ repos:
       - id: ruff
         args: [--fix, --exit-non-zero-on-fix]
         exclude: ^(tests|docs|examples)/
-        language_version: python3.12
 
   - repo: https://github.com/PyCQA/bandit
     rev: 1.7.9
@@ -64,4 +50,3 @@ repos:
         args: [-c, pyproject.toml]
         additional_dependencies: ["bandit[toml]"]
         exclude: ^(tests|docs|examples)/
-        language_version: python3.12

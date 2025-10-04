@@ -1,6 +1,22 @@
-"""Slim ToolNode composed from focused mixins.
+"""Tool execution node for PyAgenity graph workflows.
 
-This preserves the public behavior while making the implementation modular.
+This module provides the ToolNode class, which serves as a unified registry and executor
+for callable functions from various sources including local functions, MCP (Model Context Protocol)
+tools, Composio adapters, and LangChain tools. The ToolNode is designed with a modular
+architecture using mixins to handle different tool providers.
+
+The ToolNode maintains compatibility with PyAgenity's dependency injection system and
+publishes execution events for monitoring and debugging purposes.
+
+Typical usage example:
+    ```python
+    def my_tool(query: str) -> str:
+        return f"Result for: {query}"
+
+
+    tools = ToolNode([my_tool])
+    result = await tools.invoke("my_tool", {"query": "test"}, "call_id", config, state)
+    ```
 """
 
 from __future__ import annotations
@@ -36,7 +52,51 @@ class ToolNode(
     LangChainMixin,
     KwargsResolverMixin,
 ):
-    """Registry for callables that exposes function specs and executes them."""
+    """A unified registry and executor for callable functions from various tool providers.
+
+    ToolNode serves as the central hub for managing and executing tools from multiple sources:
+    - Local Python functions
+    - MCP (Model Context Protocol) tools
+    - Composio adapter tools
+    - LangChain tools
+
+    The class uses a mixin-based architecture to separate concerns and maintain clean
+    integration with different tool providers. It provides both synchronous and asynchronous
+    execution methods with comprehensive event publishing and error handling.
+
+    Attributes:
+        _funcs: Dictionary mapping function names to callable functions.
+        _client: Optional MCP client for remote tool execution.
+        _composio: Optional Composio adapter for external integrations.
+        _langchain: Optional LangChain adapter for LangChain tools.
+        mcp_tools: List of available MCP tool names.
+        composio_tools: List of available Composio tool names.
+        langchain_tools: List of available LangChain tool names.
+
+    Example:
+        ```python
+        # Define local tools
+        def weather_tool(location: str) -> str:
+            return f"Weather in {location}: Sunny, 25°C"
+
+
+        def calculator(a: int, b: int) -> int:
+            return a + b
+
+
+        # Create ToolNode with local functions
+        tools = ToolNode([weather_tool, calculator])
+
+        # Execute a tool
+        result = await tools.invoke(
+            name="weather_tool",
+            args={"location": "New York"},
+            tool_call_id="call_123",
+            config={"user_id": "user1"},
+            state=agent_state,
+        )
+        ```
+    """
 
     def __init__(
         self,
@@ -45,6 +105,26 @@ class ToolNode(
         composio_adapter: ComposioAdapter | None = None,
         langchain_adapter: t.Any | None = None,
     ) -> None:
+        """Initialize ToolNode with functions and optional tool adapters.
+
+        Args:
+            functions: Iterable of callable functions to register as tools. Each function
+                will be registered with its `__name__` as the tool identifier.
+            client: Optional MCP (Model Context Protocol) client for remote tool access.
+                Requires 'fastmcp' and 'mcp' packages to be installed.
+            composio_adapter: Optional Composio adapter for external integrations and
+                third-party API access.
+            langchain_adapter: Optional LangChain adapter for accessing LangChain tools
+                and integrations.
+
+        Raises:
+            ImportError: If MCP client is provided but required packages are not installed.
+            TypeError: If any item in functions is not callable.
+
+        Note:
+            When using MCP client functionality, ensure you have installed the required
+            dependencies with: `pip install pyagenity[mcp]`
+        """
         logger.info("Initializing ToolNode with %d functions", len(list(functions)))
 
         if client is not None:
@@ -82,9 +162,55 @@ class ToolNode(
         return tools
 
     async def all_tools(self) -> list[dict]:
+        """Get all available tools from all configured providers.
+
+        Retrieves and combines tool definitions from local functions, MCP client,
+        Composio adapter, and LangChain adapter. Each tool definition includes
+        the function schema with parameters and descriptions.
+
+        Returns:
+            List of tool definitions in OpenAI function calling format. Each dict
+            contains 'type': 'function' and 'function' with name, description,
+            and parameters schema.
+
+        Example:
+            ```python
+            tools = await tool_node.all_tools()
+            # Returns:
+            # [
+            #   {
+            #     "type": "function",
+            #     "function": {
+            #       "name": "weather_tool",
+            #       "description": "Get weather information for a location",
+            #       "parameters": {
+            #         "type": "object",
+            #         "properties": {
+            #           "location": {"type": "string"}
+            #         },
+            #         "required": ["location"]
+            #       }
+            #     }
+            #   }
+            # ]
+            ```
+        """
         return await self._all_tools_async()
 
     def all_tools_sync(self) -> list[dict]:
+        """Synchronously get all available tools from all configured providers.
+
+        This is a synchronous wrapper around the async all_tools() method.
+        It uses asyncio.run() to handle async operations from MCP, Composio,
+        and LangChain adapters.
+
+        Returns:
+            List of tool definitions in OpenAI function calling format.
+
+        Note:
+            Prefer using the async `all_tools()` method when possible, especially
+            in async contexts, to avoid potential event loop issues.
+        """
         tools: list[dict] = self.get_local_tool()
         if self._client:
             result = asyncio.run(self._get_mcp_tool())
@@ -107,6 +233,50 @@ class ToolNode(
         state: AgentState,
         callback_manager: CallbackManager = Inject[CallbackManager],
     ) -> t.Any:
+        """Execute a specific tool by name with the provided arguments.
+
+        This method handles tool execution across all configured providers (local,
+        MCP, Composio, LangChain) with comprehensive error handling, event publishing,
+        and callback management.
+
+        Args:
+            name: The name of the tool to execute.
+            args: Dictionary of arguments to pass to the tool function.
+            tool_call_id: Unique identifier for this tool execution, used for
+                tracking and result correlation.
+            config: Configuration dictionary containing execution context and
+                user-specific settings.
+            state: Current agent state for context-aware tool execution.
+            callback_manager: Manager for executing pre/post execution callbacks.
+                Injected via dependency injection if not provided.
+
+        Returns:
+            Message object containing tool execution results, either successful
+            output or error information with appropriate status indicators.
+
+        Raises:
+            The method handles all exceptions internally and returns error Messages
+            rather than raising exceptions, ensuring robust execution flow.
+
+        Example:
+            ```python
+            result = await tool_node.invoke(
+                name="weather_tool",
+                args={"location": "Paris", "units": "metric"},
+                tool_call_id="call_abc123",
+                config={"user_id": "user1", "session_id": "session1"},
+                state=current_agent_state,
+            )
+
+            # result is a Message with tool execution results
+            print(result.content)  # Tool output or error information
+            ```
+
+        Note:
+            The method publishes execution events throughout the process for
+            monitoring and debugging purposes. Tool execution is routed based
+            on tool provider precedence: MCP → Composio → LangChain → Local.
+        """
         logger.info("Executing tool '%s' with %d arguments", name, len(args))
         logger.debug("Tool arguments: %s", args)
 
@@ -230,6 +400,43 @@ class ToolNode(
         state: AgentState,
         callback_manager: CallbackManager = Inject[CallbackManager],
     ) -> t.AsyncIterator[Message]:
+        """Execute a tool with streaming support, yielding incremental results.
+
+        Similar to invoke() but designed for tools that can provide streaming responses
+        or when you want to process results as they become available. Currently,
+        most tool providers return complete results, so this method typically yields
+        a single Message with the full result.
+
+        Args:
+            name: The name of the tool to execute.
+            args: Dictionary of arguments to pass to the tool function.
+            tool_call_id: Unique identifier for this tool execution.
+            config: Configuration dictionary containing execution context.
+            state: Current agent state for context-aware tool execution.
+            callback_manager: Manager for executing pre/post execution callbacks.
+
+        Yields:
+            Message objects containing tool execution results or status updates.
+            For most tools, this will yield a single complete result Message.
+
+        Example:
+            ```python
+            async for message in tool_node.stream(
+                name="data_processor",
+                args={"dataset": "large_data.csv"},
+                tool_call_id="call_stream123",
+                config={"user_id": "user1"},
+                state=current_state,
+            ):
+                print(f"Received: {message.content}")
+                # Process each streamed result
+            ```
+
+        Note:
+            The streaming interface is designed for future expansion where tools
+            may provide true streaming responses. Currently, it provides a
+            consistent async iterator interface over tool results.
+        """
         logger.info("Executing tool '%s' with %d arguments", name, len(args))
         logger.debug("Tool arguments: %s", args)
         event = EventModel.default(

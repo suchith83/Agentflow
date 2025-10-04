@@ -22,9 +22,32 @@ logger = logging.getLogger(__name__)
 
 
 class RabbitMQPublisher(BasePublisher):
-    """Publish events to RabbitMQ using aio-pika."""
+    """Publish events to RabbitMQ using aio-pika.
+
+    Attributes:
+        url: RabbitMQ connection URL.
+        exchange: Exchange name.
+        routing_key: Routing key for messages.
+        exchange_type: Type of exchange.
+        declare: Whether to declare the exchange.
+        durable: Whether the exchange is durable.
+        _conn: Connection instance.
+        _channel: Channel instance.
+        _exchange: Exchange instance.
+    """
 
     def __init__(self, config: dict[str, Any] | None = None):
+        """Initialize the RabbitMQPublisher.
+
+        Args:
+            config: Configuration dictionary. Supported keys:
+                - url: RabbitMQ URL (default: "amqp://guest:guest@localhost/").
+                - exchange: Exchange name (default: "pyagenity.events").
+                - routing_key: Routing key (default: "pyagenity.events").
+                - exchange_type: Exchange type (default: "topic").
+                - declare: Whether to declare exchange (default: True).
+                - durable: Whether exchange is durable (default: True).
+        """
         super().__init__(config or {})
         self.url: str = self.config.get("url", "amqp://guest:guest@localhost/")
         self.exchange: str = self.config.get("exchange", "pyagenity.events")
@@ -38,6 +61,7 @@ class RabbitMQPublisher(BasePublisher):
         self._exchange = None  # type: ignore[var-annotated]
 
     async def _ensure(self):
+        """Ensure the connection, channel, and exchange are initialized."""
         if self._exchange is not None:
             return
 
@@ -67,6 +91,14 @@ class RabbitMQPublisher(BasePublisher):
             self._exchange = self._channel.default_exchange
 
     async def publish(self, event: EventModel) -> Any:
+        """Publish an event to RabbitMQ.
+
+        Args:
+            event: The event to publish.
+
+        Returns:
+            True on success.
+        """
         await self._ensure()
         payload = json.dumps(event.model_dump()).encode("utf-8")
 
@@ -78,6 +110,7 @@ class RabbitMQPublisher(BasePublisher):
         return True
 
     async def close(self):
+        """Close the RabbitMQ connection and channel."""
         try:
             if self._channel is not None:
                 await self._channel.close()
@@ -96,6 +129,7 @@ class RabbitMQPublisher(BasePublisher):
             self._exchange = None
 
     def sync_close(self):
+        """Synchronously close the RabbitMQ connection."""
         try:
             asyncio.run(self.close())
         except RuntimeError:

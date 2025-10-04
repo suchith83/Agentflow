@@ -55,24 +55,39 @@ class ComposioAdapter:
         file_download_dir: str | None = None,
         toolkit_versions: t.Any | None = None,
     ) -> None:
+        """
+        Initialize the ComposioAdapter.
+
+        Args:
+            api_key (str | None): Optional API key for Composio.
+            provider (Any | None): Optional provider integration.
+            file_download_dir (str | None): Directory for auto file handling.
+            toolkit_versions (Any | None): Toolkit version overrides.
+
+        Raises:
+            ImportError: If composio SDK is not installed.
+        """
         if not HAS_COMPOSIO:
             raise ImportError(
                 "ComposioAdapter requires 'composio' package. Install with: "
                 "pip install pyagenity[composio]"
             )
 
-        # The provider is optional; when omitted we use a non-agentic default
-        # which still allows listing schemas and direct execute calls.
         self._composio = Composio(  # type: ignore[call-arg]
-            api_key=api_key,  # may be None, relying on env var or unauth paths
-            provider=provider,  # optional provider integration
-            file_download_dir=file_download_dir,  # for auto file handling
+            api_key=api_key,
+            provider=provider,
+            file_download_dir=file_download_dir,
             toolkit_versions=toolkit_versions,
         )
 
     @staticmethod
     def is_available() -> bool:
-        """Return True if composio SDK is importable."""
+        """
+        Return True if composio SDK is importable.
+
+        Returns:
+            bool: True if composio SDK is available, False otherwise.
+        """
         return HAS_COMPOSIO
 
     def list_tools_for_llm(
@@ -85,14 +100,19 @@ class ComposioAdapter:
         scopes: list[str] | None = None,
         limit: int | None = None,
     ) -> list[dict[str, t.Any]]:
-        """Return tools formatted for LLM function-calling.
+        """
+        Return tools formatted for LLM function-calling.
 
-        The return format matches ToolNode.get_local_tool() and MCP tools:
-        [{"type": "function", "function": {"name", "description", "parameters"}}]
+        Args:
+            user_id (str): User ID for tool discovery.
+            tool_slugs (list[str] | None): Optional list of tool slugs.
+            toolkits (list[str] | None): Optional list of toolkits.
+            search (str | None): Optional search string.
+            scopes (list[str] | None): Optional scopes.
+            limit (int | None): Optional limit on number of tools.
 
-        We use composio.tools.get(...), which returns provider/agent-wrapped tools.
-        For non-agentic usage, the objects are dict-like and include schema under
-        the expected shape; if not, we fall back to raw schema transform.
+        Returns:
+            list[dict[str, Any]]: List of tools in function-calling format.
         """
         # Prefer the provider-wrapped format when available
         tools = self._composio.tools.get(
@@ -145,9 +165,18 @@ class ComposioAdapter:
         scopes: list[str] | None = None,
         limit: int | None = None,
     ) -> list[dict[str, t.Any]]:
-        """Return raw Composio tool schemas mapped to function-calling format.
+        """
+        Return raw Composio tool schemas mapped to function-calling format.
 
-        This does not require a user_id and is useful for discovery-only.
+        Args:
+            tool_slugs (list[str] | None): Optional list of tool slugs.
+            toolkits (list[str] | None): Optional list of toolkits.
+            search (str | None): Optional search string.
+            scopes (list[str] | None): Optional scopes.
+            limit (int | None): Optional limit on number of tools.
+
+        Returns:
+            list[dict[str, Any]]: List of raw tool schemas in function-calling format.
         """
         formatted: list[dict[str, t.Any]] = []
         raw_tools = self._composio.tools.get_raw_composio_tools(
@@ -191,9 +220,23 @@ class ComposioAdapter:
         toolkit_versions: t.Any | None = None,
         modifiers: t.Any | None = None,
     ) -> dict[str, t.Any]:
-        """Execute a Composio tool and return a normalized response dict.
+        """
+        Execute a Composio tool and return a normalized response dict.
 
-        Returns a dict with keys: {"successful": bool, "data": Any, "error": str|None}
+        Args:
+            slug (str): Tool slug to execute.
+            arguments (dict[str, Any]): Arguments for the tool.
+            user_id (str | None): Optional user ID.
+            connected_account_id (str | None): Optional connected account ID.
+            custom_auth_params (dict[str, Any] | None): Optional custom auth params.
+            custom_connection_data (dict[str, Any] | None): Optional custom connection data.
+            text (str | None): Optional text input.
+            version (str | None): Optional version.
+            toolkit_versions (Any | None): Optional toolkit versions.
+            modifiers (Any | None): Optional modifiers.
+
+        Returns:
+            dict[str, Any]: Normalized response dict with keys: successful, data, error.
         """
         resp = self._composio.tools.execute(
             slug=slug,

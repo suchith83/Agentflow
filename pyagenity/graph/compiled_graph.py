@@ -35,9 +35,58 @@ logger = logging.getLogger(__name__)
 
 
 class CompiledGraph[StateT: AgentState]:
-    """A compiled graph ready for execution.
+    """A fully compiled and executable graph ready for workflow execution.
 
-    Generic over state types to support custom AgentState subclasses.
+    CompiledGraph represents the final executable form of a StateGraph after compilation.
+    It encapsulates all the execution logic, handlers, and services needed to run
+    agent workflows. The graph supports both synchronous and asynchronous execution
+    with comprehensive state management, checkpointing, event publishing, and
+    streaming capabilities.
+
+    This class is generic over state types to support custom AgentState subclasses,
+    ensuring type safety throughout the execution process.
+
+    Key Features:
+    - Synchronous and asynchronous execution methods
+    - Real-time streaming with incremental results
+    - State persistence and checkpointing
+    - Interrupt and resume capabilities
+    - Event publishing for monitoring and debugging
+    - Background task management
+    - Graceful error handling and recovery
+
+    Attributes:
+        _state: The initial/template state for graph executions.
+        _invoke_handler: Handler for non-streaming graph execution.
+        _stream_handler: Handler for streaming graph execution.
+        _checkpointer: Optional state persistence backend.
+        _publisher: Optional event publishing backend.
+        _store: Optional data storage backend.
+        _state_graph: Reference to the source StateGraph.
+        _interrupt_before: Nodes where execution should pause before execution.
+        _interrupt_after: Nodes where execution should pause after execution.
+        _task_manager: Manager for background async tasks.
+
+    Example:
+        ```python
+        # After building and compiling a StateGraph
+        compiled = graph.compile()
+
+        # Synchronous execution
+        result = compiled.invoke({"messages": [Message.text_message("Hello")]})
+
+        # Asynchronous execution with streaming
+        async for chunk in compiled.astream({"messages": [message]}):
+            print(f"Streamed: {chunk.content}")
+
+        # Graceful cleanup
+        await compiled.aclose()
+        ```
+
+    Note:
+        CompiledGraph instances should be properly closed using aclose() to
+        release resources like database connections, background tasks, and
+        event publishers.
     """
 
     def __init__(
@@ -45,7 +94,7 @@ class CompiledGraph[StateT: AgentState]:
         state: StateT,
         checkpointer: BaseCheckpointer[StateT] | None,
         publisher: BasePublisher | None,
-        store: BaseStore[StateT] | None,
+        store: BaseStore | None,
         state_graph: StateGraph[StateT],
         interrupt_before: list[str],
         interrupt_after: list[str],
@@ -70,7 +119,7 @@ class CompiledGraph[StateT: AgentState]:
 
         self._checkpointer: BaseCheckpointer[StateT] | None = checkpointer
         self._publisher: BasePublisher | None = publisher
-        self._store: BaseStore[StateT] | None = store
+        self._store: BaseStore | None = store
         self._state_graph: StateGraph[StateT] = state_graph
         self._interrupt_before: list[str] = interrupt_before
         self._interrupt_after: list[str] = interrupt_after
@@ -101,16 +150,58 @@ class CompiledGraph[StateT: AgentState]:
         config: dict[str, Any] | None = None,
         response_granularity: ResponseGranularity = ResponseGranularity.LOW,
     ) -> dict[str, Any]:
-        """Execute the graph synchronously.
+        """Execute the graph synchronously and return the final results.
 
-        Auto-detects whether to start fresh execution or resume from interrupted state.
+        Runs the complete graph workflow from start to finish, handling state
+        management, node execution, and result formatting. This method automatically
+        detects whether to start a fresh execution or resume from an interrupted state.
+
+        The execution is synchronous but internally uses async operations, making it
+        suitable for use in non-async contexts while still benefiting from async
+        capabilities for I/O operations.
 
         Args:
-            input_data: Input dict
-            config: Configuration dictionary
+            input_data: Input dictionary for graph execution. For new executions,
+                should contain 'messages' key with list of initial messages.
+                For resumed executions, can contain additional data to merge.
+            config: Optional configuration dictionary containing execution settings:
+                - user_id: Identifier for the user/session
+                - thread_id: Unique identifier for this execution thread
+                - run_id: Unique identifier for this specific run
+                - recursion_limit: Maximum steps before stopping (default: 25)
+            response_granularity: Level of detail in the response:
+                - LOW: Returns only messages (default)
+                - PARTIAL: Returns context, summary, and messages
+                - FULL: Returns complete state and messages
 
         Returns:
-            Final state dict and messages
+            Dictionary containing execution results formatted according to the
+            specified granularity level. Always includes execution messages
+            and may include additional state information.
+
+        Raises:
+            ValueError: If input_data is invalid for new execution.
+            GraphRecursionError: If execution exceeds recursion limit.
+            Various exceptions: Depending on node execution failures.
+
+        Example:
+            ```python
+            # Basic execution
+            result = compiled.invoke({"messages": [Message.text_message("Process this data")]})
+            print(result["messages"])  # Final execution messages
+
+            # With configuration and full details
+            result = compiled.invoke(
+                input_data={"messages": [message]},
+                config={"user_id": "user123", "thread_id": "session456", "recursion_limit": 50},
+                response_granularity=ResponseGranularity.FULL,
+            )
+            print(result["state"])  # Complete final state
+            ```
+
+        Note:
+            This method uses asyncio.run() internally, so it should not be called
+            from within an async context. Use ainvoke() instead for async execution.
         """
         logger.info(
             "Starting synchronous graph execution with %d input keys, granularity=%s",

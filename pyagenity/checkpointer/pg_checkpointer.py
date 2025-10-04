@@ -1,13 +1,19 @@
 import asyncio
-import contextlib
 import json
 import logging
+import os
+import re
+from contextlib import suppress
 from enum import Enum
 from typing import Any, TypeVar
 
 from injectq import InjectQ
 
-from pyagenity.utils.thread_info import ThreadInfo
+from pyagenity.exceptions.storage_exceptions import (
+    StorageError,
+    TransientStorageError,
+)
+from pyagenity.utils import ThreadInfo, metrics
 
 
 try:
@@ -52,20 +58,35 @@ ID_TYPE_MAP = {
 
 class PgCheckpointer(BaseCheckpointer[StateT]):
     """
-    Postgres + Redis checkpointer implementation.
+    Implements a checkpointer using PostgreSQL and Redis for persistent and cached state management.
 
-    Uses PostgreSQL for persistent storage of threads, states, and messages.
-    Uses Redis for fast caching of state data with configurable TTL.
+    This class provides asynchronous and synchronous methods for storing, retrieving, and managing
+    agent states, messages, and threads. PostgreSQL is used for durable storage, while Redis
+    provides fast caching with TTL.
 
     Features:
-    - Async-first design with sync fallbacks
-    - Configurable ID types (string, int, bigint)
-    - Connection pooling for both PostgreSQL and Redis
-    - Proper error handling and resource management
-    - Schema migration support
+        - Async-first design with sync fallbacks
+        - Configurable ID types (string, int, bigint)
+        - Connection pooling for both PostgreSQL and Redis
+        - Proper error handling and resource management
+        - Schema migration support
 
-    Requires:
-        pip install pyagenity[pg_checkpoint]
+    Args:
+        postgres_dsn (str, optional): PostgreSQL connection string.
+        pg_pool (Any, optional): Existing asyncpg Pool instance.
+        pool_config (dict, optional): Configuration for new pg pool creation.
+        redis_url (str, optional): Redis connection URL.
+        redis (Any, optional): Existing Redis instance.
+        redis_pool (Any, optional): Existing Redis ConnectionPool.
+        redis_pool_config (dict, optional): Configuration for new redis pool creation.
+        **kwargs: Additional configuration options:
+            - user_id_type: Type for user_id fields ('string', 'int', 'bigint')
+            - cache_ttl: Redis cache TTL in seconds
+            - release_resources: Whether to release resources on cleanup
+
+    Raises:
+        ImportError: If required dependencies are missing.
+        ValueError: If required connection details are missing.
     """
 
     def __init__(
@@ -79,24 +100,28 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
         redis: Any | None = None,
         redis_pool: Any | None = None,
         redis_pool_config: dict | None = None,
+        # database schema
+        schema: str = "public",
         # other configurations - combine to reduce args
         **kwargs,
     ):
         """
-        Initialize PgCheckpointer with PostgreSQL and Redis connections.
+        Initializes PgCheckpointer with PostgreSQL and Redis connections.
 
         Args:
-            postgres_dsn: PostgreSQL connection string
-            pg_pool: Existing asyncpg Pool instance
-            pool_config: Configuration for new pg pool creation
-            redis_url: Redis connection URL
-            redis: Existing Redis instance
-            redis_pool: Existing Redis ConnectionPool
-            redis_pool_config: Configuration for new redis pool creation
-            **kwargs: Additional configuration options:
-                - user_id_type: Type for user_id fields ('string', 'int', 'bigint')
-                - cache_ttl: Redis cache TTL in seconds
-                - release_resources: Whether to release resources on cleanup
+            postgres_dsn (str, optional): PostgreSQL connection string.
+            pg_pool (Any, optional): Existing asyncpg Pool instance.
+            pool_config (dict, optional): Configuration for new pg pool creation.
+            redis_url (str, optional): Redis connection URL.
+            redis (Any, optional): Existing Redis instance.
+            redis_pool (Any, optional): Existing Redis ConnectionPool.
+            redis_pool_config (dict, optional): Configuration for new redis pool creation.
+            schema (str, optional): PostgreSQL schema name. Defaults to "public".
+            **kwargs: Additional configuration options.
+
+        Raises:
+            ImportError: If required dependencies are missing.
+            ValueError: If required connection details are missing.
         """
         # Check for required dependencies
         if not HAS_ASYNCPG:
@@ -118,6 +143,14 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
         )
         self.cache_ttl = kwargs.get("cache_ttl", DEFAULT_CACHE_TTL)
         self.release_resources = kwargs.get("release_resources", False)
+
+        # Validate schema name to prevent SQL injection
+        if not re.match(r"^[a-zA-Z_][a-zA-Z0-9_]*$", schema):
+            raise ValueError(
+                f"Invalid schema name: {schema}. Schema must match pattern ^[a-zA-Z_][a-zA-Z0-9_]*$"
+            )
+        self.schema = schema
+
         self._schema_initialized = False
         self._loop: asyncio.AbstractEventLoop | None = None
 
@@ -151,7 +184,21 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
         redis_url: str | None,
         redis_pool_config: dict,
     ) -> Any:
-        """Create or use existing Redis connection."""
+        """
+        Create or use an existing Redis connection.
+
+        Args:
+            redis (Any, optional): Existing Redis instance.
+            redis_pool (Any, optional): Existing Redis ConnectionPool.
+            redis_url (str, optional): Redis connection URL.
+            redis_pool_config (dict): Configuration for new redis pool creation.
+
+        Returns:
+            Redis: Redis connection instance.
+
+        Raises:
+            ValueError: If redis_url is not provided when creating a new connection.
+        """
         if redis:
             return redis
 
@@ -164,14 +211,42 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
             raise ValueError("redis_url must be provided when creating new Redis connection")
 
         self.release_resources = True
-        return Redis(  # type: ignore
+        return Redis(
             connection_pool=ConnectionPool.from_url(  # type: ignore
                 redis_url,
                 **redis_pool_config,
             )
         )
 
+    def _get_table_name(self, table: str) -> str:
+        """
+        Get the schema-qualified table name.
+
+        Args:
+            table (str): The base table name (e.g., 'threads', 'states', 'messages')
+
+        Returns:
+            str: The schema-qualified table name (e.g., '"public"."threads"')
+        """
+        # Validate table name to prevent SQL injection
+        if not re.match(r"^[a-zA-Z_][a-zA-Z0-9_]*$", table):
+            raise ValueError(
+                f"Invalid table name: {table}. Table must match pattern ^[a-zA-Z_][a-zA-Z0-9_]*$"
+            )
+        return f'"{self.schema}"."{table}"'
+
     def _create_pg_pool(self, pg_pool: Any, postgres_dsn: str | None, pool_config: dict) -> Any:
+        """
+        Create or use an existing PostgreSQL connection pool.
+
+        Args:
+            pg_pool (Any, optional): Existing asyncpg Pool instance.
+            postgres_dsn (str, optional): PostgreSQL connection string.
+            pool_config (dict): Configuration for new pg pool creation.
+
+        Returns:
+            Pool: PostgreSQL connection pool.
+        """
         if pg_pool:
             return pg_pool
         # as we are creating new pool, postgres_dsn must be provided
@@ -180,22 +255,60 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
         return asyncpg.create_pool(dsn=postgres_dsn, **pool_config)  # type: ignore
 
     async def _get_pg_pool(self) -> Any:
+        """
+        Get PostgreSQL pool, creating it if necessary.
+
+        Returns:
+            Pool: PostgreSQL connection pool.
+        """
         """Get PostgreSQL pool, creating it if necessary."""
         if self._pg_pool is None:
             config = self._pg_pool_config
             self._pg_pool = await self._create_pg_pool(
                 config["pg_pool"], config["postgres_dsn"], config["pool_config"]
             )
-        # Capture the current running loop for thread-safe sync wrapper execution
-        with contextlib.suppress(RuntimeError):
-            self._loop = asyncio.get_running_loop()
         return self._pg_pool
 
     def _get_sql_type(self, type_name: str) -> str:
+        """
+        Get SQL type for given configuration type.
+
+        Args:
+            type_name (str): Type name ('string', 'int', 'bigint').
+
+        Returns:
+            str: Corresponding SQL type.
+        """
         """Get SQL type for given configuration type."""
         return ID_TYPE_MAP.get(type_name, "VARCHAR(255)")
 
+    def _get_json_serializer(self):
+        """Get optimal JSON serializer based on FAST_JSON env var."""
+        if os.environ.get("FAST_JSON", "0") == "1":
+            try:
+                import orjson
+
+                return orjson.dumps
+            except ImportError:
+                try:
+                    import msgspec  # type: ignore
+
+                    return msgspec.json.encode
+                except ImportError:
+                    pass
+        return json.dumps
+
+    def _get_current_schema_version(self) -> int:
+        """Return current expected schema version."""
+        return 1  # increment when schema changes
+
     def _build_create_tables_sql(self) -> list[str]:
+        """
+        Build SQL statements for table creation with dynamic ID types.
+
+        Returns:
+            list[str]: List of SQL statements for table creation.
+        """
         """Build SQL statements for table creation with dynamic ID types."""
         thread_id_type = self._get_sql_type(self.id_type)
         user_id_type = self._get_sql_type(self.user_id_type)
@@ -214,6 +327,13 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
         )
 
         return [
+            # Schema version tracking table
+            f"""
+            CREATE TABLE IF NOT EXISTS {self._get_table_name("schema_version")} (
+                version INT PRIMARY KEY,
+                applied_at TIMESTAMPTZ DEFAULT NOW()
+            )
+            """,
             # Create message role enum (safe for older Postgres versions)
             (
                 "DO $$\n"
@@ -225,7 +345,7 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
             ),
             # Create threads table
             f"""
-            CREATE TABLE IF NOT EXISTS threads (
+            CREATE TABLE IF NOT EXISTS {self._get_table_name("threads")} (
                 {thread_pk},
                 thread_name VARCHAR(255),
                 user_id {user_id_type} NOT NULL,
@@ -236,9 +356,11 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
             """,
             # Create states table
             f"""
-            CREATE TABLE IF NOT EXISTS states (
+            CREATE TABLE IF NOT EXISTS {self._get_table_name("states")} (
                 state_id SERIAL PRIMARY KEY,
-                thread_id {thread_id_type} NOT NULL REFERENCES threads(thread_id) ON DELETE CASCADE,
+                thread_id {thread_id_type} NOT NULL
+                    REFERENCES {self._get_table_name("threads")}(thread_id)
+                    ON DELETE CASCADE,
                 state_data JSONB NOT NULL,
                 created_at TIMESTAMPTZ DEFAULT NOW(),
                 updated_at TIMESTAMPTZ DEFAULT NOW(),
@@ -247,9 +369,11 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
             """,
             # Create messages table
             f"""
-            CREATE TABLE IF NOT EXISTS messages (
+            CREATE TABLE IF NOT EXISTS {self._get_table_name("messages")} (
                 {message_pk},
-                thread_id {thread_id_type} NOT NULL REFERENCES threads(thread_id) ON DELETE CASCADE,
+                thread_id {thread_id_type} NOT NULL
+                    REFERENCES {self._get_table_name("threads")}(thread_id)
+                    ON DELETE CASCADE,
                 role message_role NOT NULL,
                 content TEXT NOT NULL,
                 tool_calls JSONB,
@@ -263,17 +387,55 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
             )
             """,
             # Create indexes
-            "CREATE INDEX IF NOT EXISTS idx_threads_user_id ON threads(user_id)",
-            "CREATE INDEX IF NOT EXISTS idx_states_thread_id ON states(thread_id)",
-            "CREATE INDEX IF NOT EXISTS idx_messages_thread_id ON messages(thread_id)",
+            f"CREATE INDEX IF NOT EXISTS idx_threads_user_id ON "
+            f"{self._get_table_name('threads')}(user_id)",
+            f"CREATE INDEX IF NOT EXISTS idx_states_thread_id ON "
+            f"{self._get_table_name('states')}(thread_id)",
+            f"CREATE INDEX IF NOT EXISTS idx_messages_thread_id ON "
+            f"{self._get_table_name('messages')}(thread_id)",
         ]
 
+    async def _check_and_apply_schema_version(self, conn) -> None:
+        """Check current version and update if needed."""
+        try:
+            # Check if schema version exists
+            row = await conn.fetchrow(
+                f"SELECT version FROM {self._get_table_name('schema_version')} "  # noqa: S608
+                f"ORDER BY version DESC LIMIT 1"
+            )
+            current_version = row["version"] if row else 0
+            target_version = self._get_current_schema_version()
+
+            if current_version < target_version:
+                logger.info(
+                    "Upgrading schema from version %d to %d", current_version, target_version
+                )
+                # Insert new version
+                await conn.execute(
+                    f"INSERT INTO {self._get_table_name('schema_version')} (version) VALUES ($1)",  # noqa: S608
+                    target_version,
+                )
+        except Exception as e:
+            logger.debug("Schema version check failed (expected on first run): %s", e)
+            # Insert initial version
+            with suppress(Exception):
+                await conn.execute(
+                    f"INSERT INTO {self._get_table_name('schema_version')} (version) VALUES ($1)",  # noqa: S608
+                    self._get_current_schema_version(),
+                )
+
     async def _initialize_schema(self) -> None:
+        """
+        Initialize database schema if not already done.
+
+        Returns:
+            None
+        """
         """Initialize database schema if not already done."""
         if self._schema_initialized:
             return
 
-        logger.info(
+        logger.debug(
             "Initializing database schema with types: id_type=%s, user_id_type=%s",
             self.id_type,
             self.user_id_type,
@@ -285,8 +447,12 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
                 for sql in sql_statements:
                     logger.debug("Executing SQL: %s", sql.strip())
                     await conn.execute(sql)
+
+                # Check and apply schema version tracking
+                await self._check_and_apply_schema_version(conn)
+
                 self._schema_initialized = True
-                logger.info("Database schema initialized successfully")
+                logger.debug("Database schema initialized successfully")
             except Exception as e:
                 logger.error("Failed to initialize database schema: %s", e)
                 raise
@@ -295,14 +461,22 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
     #### SETUP METHODS ########
     ###########################
 
-    def setup(self) -> Any:
-        """Sync setup method - runs schema initialization."""
-        logger.info("Setting up PgCheckpointer (sync)")
-        return asyncio.run(self.asetup())
-
     async def asetup(self) -> Any:
+        """
+        Asynchronous setup method. Initializes database schema.
+
+        Returns:
+            Any: True if setup completed.
+        """
         """Async setup method - initializes database schema."""
-        logger.info("Setting up PgCheckpointer (async)")
+        logger.info(
+            "Setting up PgCheckpointer (async)",
+            extra={
+                "id_type": self.id_type,
+                "user_id_type": self.user_id_type,
+                "schema": self.schema,
+            },
+        )
         await self._initialize_schema()
         logger.info("PgCheckpointer setup completed")
         return True
@@ -312,14 +486,26 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
     ###########################
 
     def _validate_config(self, config: dict[str, Any]) -> tuple[str | int, str | int]:
+        """
+        Extract and validate thread_id and user_id from config.
+
+        Args:
+            config (dict): Configuration dictionary.
+
+        Returns:
+            tuple: (thread_id, user_id)
+
+        Raises:
+            ValueError: If required fields are missing.
+        """
         """Extract and validate thread_id and user_id from config."""
         thread_id = config.get("thread_id")
         user_id = config.get("user_id")
         if not user_id:
-            user_id = "test-user"
+            raise ValueError("user_id must be provided in config")
 
-        if not thread_id or not user_id:
-            raise ValueError("Both thread_id and user_id must be provided in config")
+        if not thread_id:
+            raise ValueError("Both thread_id must be provided in config")
 
         return thread_id, user_id
 
@@ -328,10 +514,28 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
         thread_id: str | int,
         user_id: str | int,
     ) -> str:
-        """Get Redis cache key for thread state."""
+        """
+        Get Redis cache key for thread state.
+
+        Args:
+            thread_id (str|int): Thread identifier.
+            user_id (str|int): User identifier.
+
+        Returns:
+            str: Redis cache key.
+        """
         return f"state_cache:{thread_id}:{user_id}"
 
     def _serialize_state(self, state: StateT) -> str:
+        """
+        Serialize state to JSON string for storage.
+
+        Args:
+            state (StateT): State object.
+
+        Returns:
+            str: JSON string.
+        """
         """Serialize state to JSON string for storage."""
 
         def enum_handler(obj):
@@ -341,15 +545,52 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
 
         return json.dumps(state.model_dump(), default=enum_handler)
 
+    def _serialize_state_fast(self, state: StateT) -> str:
+        """
+        Serialize state using fast JSON serializer if available.
+
+        Args:
+            state (StateT): State object.
+
+        Returns:
+            str: JSON string.
+        """
+        serializer = self._get_json_serializer()
+
+        def enum_handler(obj):
+            if isinstance(obj, Enum):
+                return obj.value
+            return str(obj)
+
+        data = state.model_dump()
+
+        # Use fast serializer if available, otherwise fall back to json.dumps with enum handling
+        if serializer is json.dumps:
+            return json.dumps(data, default=enum_handler)
+
+        # Fast serializers (orjson, msgspec) may not support default handlers
+        # Pre-process enums to avoid issues
+        result = serializer(data)
+        # Ensure we return a string (orjson returns bytes)
+        return result.decode("utf-8") if isinstance(result, bytes) else str(result)
+
     def _deserialize_state(
         self,
         data: Any,
         state_class: type[StateT],
     ) -> StateT:
-        """Deserialize JSON/JSONB back to state object.
+        """
+        Deserialize JSON/JSONB back to state object.
 
-        asyncpg returns JSONB columns as Python objects (dict/list) by default.
-        This helper accepts either a JSON string or a pre-parsed Python object.
+        Args:
+            data (Any): JSON string or dict/list.
+            state_class (type): State class type.
+
+        Returns:
+            StateT: Deserialized state object.
+
+        Raises:
+            Exception: If deserialization fails.
         """
         try:
             if isinstance(data, bytes | bytearray):
@@ -364,32 +605,6 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
                 return state_class.model_validate(json.loads(data))
             raise
 
-    async def _run_sync(
-        self,
-        func,
-        *args,
-        **kwargs,
-    ):
-        """Run a synchronous function in a thread pool."""
-        return await asyncio.to_thread(func, *args, **kwargs)
-
-    def _run_coro_sync(self, coro):
-        """Run an async coroutine from a sync context safely.
-
-        - If not in an event loop, use asyncio.run.
-        - If already in an event loop, execute the coroutine in a background thread.
-        """
-        with contextlib.suppress(RuntimeError):
-            asyncio.get_running_loop()
-
-        # If we have a captured loop (from async usage), schedule on it from this sync context
-        if self._loop is not None and self._loop.is_running():
-            fut = asyncio.run_coroutine_threadsafe(coro, self._loop)
-            return fut.result()
-
-        # Otherwise, no running loop we can target: use asyncio.run in this thread
-        return asyncio.run(coro)
-
     async def _retry_on_connection_error(
         self,
         operation,
@@ -397,7 +612,21 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
         max_retries=3,
         **kwargs,
     ):
-        """Retry database operations on connection errors."""
+        """
+        Retry database operations on connection errors.
+
+        Args:
+            operation: Callable operation.
+            *args: Arguments.
+            max_retries (int): Maximum retries.
+            **kwargs: Keyword arguments.
+
+        Returns:
+            Any: Result of operation or None.
+
+        Raises:
+            Exception: If all retries fail.
+        """
         last_exception = None
 
         # Define exception types to catch (only if asyncpg is available)
@@ -444,42 +673,78 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
         config: dict[str, Any],
         state: StateT,
     ) -> StateT:
-        """Store state in PostgreSQL and optionally cache in Redis."""
+        """
+        Store state in PostgreSQL and optionally cache in Redis.
+
+        Args:
+            config (dict): Configuration dictionary.
+            state (StateT): State object to store.
+
+        Returns:
+            StateT: The stored state object.
+
+        Raises:
+            StorageError: If storing fails.
+        """
         # Ensure schema is initialized before accessing tables
         await self._initialize_schema()
         thread_id, user_id = self._validate_config(config)
 
         logger.debug("Storing state for thread_id=%s, user_id=%s", thread_id, user_id)
+        metrics.counter("pg_checkpointer.save_state.attempts").inc()
 
-        try:
-            # Ensure thread exists first
-            await self._ensure_thread_exists(thread_id, user_id, config)
+        with metrics.timer("pg_checkpointer.save_state.duration"):
+            try:
+                # Ensure thread exists first
+                await self._ensure_thread_exists(thread_id, user_id, config)
 
-            # Store in PostgreSQL with retry logic
-            state_json = self._serialize_state(state)
+                # Store in PostgreSQL with retry logic
+                state_json = self._serialize_state_fast(state)
 
-            async def _store_state():
-                async with (await self._get_pg_pool()).acquire() as conn:
-                    await conn.execute(
-                        """
-                        INSERT INTO states (thread_id, state_data, meta)
-                        VALUES ($1, $2, $3)
-                        ON CONFLICT DO NOTHING
-                        """,
-                        thread_id,
-                        state_json,
-                        json.dumps(config.get("meta", {})),
+                async def _store_state():
+                    async with (await self._get_pg_pool()).acquire() as conn:
+                        await conn.execute(
+                            f"""
+                            INSERT INTO {self._get_table_name("states")}
+                                (thread_id, state_data, meta)
+                            VALUES ($1, $2, $3)
+                            ON CONFLICT DO NOTHING
+                            """,  # noqa: S608
+                            thread_id,
+                            state_json,
+                            json.dumps(config.get("meta", {})),
+                        )
+
+                await self._retry_on_connection_error(_store_state, max_retries=3)
+                logger.debug("State stored successfully for thread_id=%s", thread_id)
+                metrics.counter("pg_checkpointer.save_state.success").inc()
+                return state
+
+            except Exception as e:
+                metrics.counter("pg_checkpointer.save_state.error").inc()
+                logger.error("Failed to store state for thread_id=%s: %s", thread_id, e)
+                if asyncpg and hasattr(asyncpg, "ConnectionDoesNotExistError"):
+                    connection_errors = (
+                        asyncpg.ConnectionDoesNotExistError,
+                        asyncpg.InterfaceError,
                     )
-
-            await self._retry_on_connection_error(_store_state, max_retries=3)
-            logger.info("State stored successfully for thread_id=%s", thread_id)
-            return state
-
-        except Exception as e:
-            logger.error("Failed to store state for thread_id=%s: %s", thread_id, e)
-            raise
+                    if isinstance(e, connection_errors):
+                        raise TransientStorageError(f"Connection issue storing state: {e}") from e
+                raise StorageError(f"Failed to store state: {e}") from e
 
     async def aget_state(self, config: dict[str, Any]) -> StateT | None:
+        """
+        Retrieve state from PostgreSQL.
+
+        Args:
+            config (dict): Configuration dictionary.
+
+        Returns:
+            StateT | None: Retrieved state or None.
+
+        Raises:
+            Exception: If retrieval fails.
+        """
         """Retrieve state from PostgreSQL."""
         # Ensure schema is initialized before accessing tables
         await self._initialize_schema()
@@ -493,12 +758,12 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
             async def _get_state():
                 async with (await self._get_pg_pool()).acquire() as conn:
                     return await conn.fetchrow(
-                        """
-                        SELECT state_data FROM states
+                        f"""
+                        SELECT state_data FROM {self._get_table_name("states")}
                         WHERE thread_id = $1
                         ORDER BY created_at DESC
                         LIMIT 1
-                        """,
+                        """,  # noqa: S608
                         thread_id,
                     )
 
@@ -516,6 +781,18 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
             raise
 
     async def aclear_state(self, config: dict[str, Any]) -> Any:
+        """
+        Clear state from PostgreSQL and Redis cache.
+
+        Args:
+            config (dict): Configuration dictionary.
+
+        Returns:
+            Any: None
+
+        Raises:
+            Exception: If clearing fails.
+        """
         """Clear state from PostgreSQL and Redis cache."""
         # Ensure schema is initialized before accessing tables
         await self._initialize_schema()
@@ -527,7 +804,10 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
             # Clear from PostgreSQL with retry logic
             async def _clear_state():
                 async with (await self._get_pg_pool()).acquire() as conn:
-                    await conn.execute("DELETE FROM states WHERE thread_id = $1", thread_id)
+                    await conn.execute(
+                        f"DELETE FROM {self._get_table_name('states')} WHERE thread_id = $1",  # noqa: S608
+                        thread_id,
+                    )
 
             await self._retry_on_connection_error(_clear_state, max_retries=3)
 
@@ -535,13 +815,23 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
             cache_key = self._get_thread_key(thread_id, user_id)
             await self.redis.delete(cache_key)
 
-            logger.info("State cleared for thread_id=%s", thread_id)
+            logger.debug("State cleared for thread_id=%s", thread_id)
 
         except Exception as e:
             logger.error("Failed to clear state for thread_id=%s: %s", thread_id, e)
             raise
 
     async def aput_state_cache(self, config: dict[str, Any], state: StateT) -> Any | None:
+        """
+        Cache state in Redis with TTL.
+
+        Args:
+            config (dict): Configuration dictionary.
+            state (StateT): State object to cache.
+
+        Returns:
+            Any | None: True if cached, None if failed.
+        """
         """Cache state in Redis with TTL."""
         # No DB access, but keep consistent
         thread_id, user_id = self._validate_config(config)
@@ -561,6 +851,15 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
             return None
 
     async def aget_state_cache(self, config: dict[str, Any]) -> StateT | None:
+        """
+        Get state from Redis cache, fallback to PostgreSQL if miss.
+
+        Args:
+            config (dict): Configuration dictionary.
+
+        Returns:
+            StateT | None: State object or None.
+        """
         """Get state from Redis cache, fallback to PostgreSQL if miss."""
         # Schema might be needed if we fall back to DB
         await self._initialize_schema()
@@ -599,7 +898,20 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
         user_id: str | int,
         config: dict[str, Any],
     ) -> None:
-        """Ensure thread exists in database, create if not."""
+        """
+        Ensure thread exists in database, create if not.
+
+        Args:
+            thread_id (str|int): Thread identifier.
+            user_id (str|int): User identifier.
+            config (dict): Configuration dictionary.
+
+        Returns:
+            None
+
+        Raises:
+            Exception: If creation fails.
+        """
         # Ensure schema is initialized before accessing tables
         await self._initialize_schema()
         try:
@@ -607,7 +919,8 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
             async def _check_and_create_thread():
                 async with (await self._get_pg_pool()).acquire() as conn:
                     exists = await conn.fetchval(
-                        "SELECT 1 FROM threads WHERE thread_id = $1 AND user_id = $2",
+                        f"SELECT 1 FROM {self._get_table_name('threads')} "  # noqa: S608
+                        f"WHERE thread_id = $1 AND user_id = $2",
                         thread_id,
                         user_id,
                     )
@@ -616,11 +929,12 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
                         thread_name = config.get("thread_name", f"Thread {thread_id}")
                         meta = json.dumps(config.get("thread_meta", {}))
                         await conn.execute(
-                            """
-                            INSERT INTO threads (thread_id, thread_name, user_id, meta)
+                            f"""
+                            INSERT INTO {self._get_table_name("threads")}
+                                (thread_id, thread_name, user_id, meta)
                             VALUES ($1, $2, $3, $4)
                             ON CONFLICT DO NOTHING
-                            """,
+                            """,  # noqa: S608
                             thread_id,
                             thread_name,
                             user_id,
@@ -634,27 +948,6 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
             logger.error("Failed to ensure thread exists: %s", e)
             raise
 
-    # Sync variants
-    def put_state(self, config: dict[str, Any], state: StateT) -> StateT:
-        """Sync version of put_state."""
-        return self._run_coro_sync(self.aput_state(config, state))
-
-    def get_state(self, config: dict[str, Any]) -> StateT | None:
-        """Sync version of get_state."""
-        return self._run_coro_sync(self.aget_state(config))
-
-    def clear_state(self, config: dict[str, Any]) -> Any:
-        """Sync version of clear_state."""
-        return self._run_coro_sync(self.aclear_state(config))
-
-    def put_state_cache(self, config: dict[str, Any], state: StateT) -> Any | None:
-        """Sync version of put_state_cache."""
-        return self._run_coro_sync(self.aput_state_cache(config, state))
-
-    def get_state_cache(self, config: dict[str, Any]) -> StateT | None:
-        """Sync version of get_state_cache."""
-        return self._run_coro_sync(self.aget_state_cache(config))
-
     ###########################
     #### MESSAGE METHODS ######
     ###########################
@@ -665,7 +958,20 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
         messages: list[Message],
         metadata: dict[str, Any] | None = None,
     ) -> Any:
-        """Store messages in PostgreSQL."""
+        """
+        Store messages in PostgreSQL.
+
+        Args:
+            config (dict): Configuration dictionary.
+            messages (list[Message]): List of messages to store.
+            metadata (dict, optional): Additional metadata.
+
+        Returns:
+            Any: None
+
+        Raises:
+            Exception: If storing fails.
+        """
         # Ensure schema is initialized before accessing tables
         await self._initialize_schema()
         thread_id, user_id = self._validate_config(config)
@@ -691,8 +997,8 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
                         #     except Exception:
                         #         content_value = str(content_value)
                         await conn.execute(
-                            """
-                                INSERT INTO messages (
+                            f"""
+                                INSERT INTO {self._get_table_name("messages")} (
                                     message_id, thread_id, role, content, tool_calls,
                                     tool_call_id, reasoning, total_tokens, usages, meta
                                 )
@@ -702,7 +1008,7 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
                                     reasoning = EXCLUDED.reasoning,
                                     usages = EXCLUDED.usages,
                                     updated_at = NOW()
-                                """,
+                                """,  # noqa: S608
                             message.message_id,
                             thread_id,
                             message.role,
@@ -718,13 +1024,26 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
                         )
 
             await self._retry_on_connection_error(_store_messages, max_retries=3)
-            logger.info("Stored %d messages for thread_id=%s", len(messages), thread_id)
+            logger.debug("Stored %d messages for thread_id=%s", len(messages), thread_id)
 
         except Exception as e:
             logger.error("Failed to store messages for thread_id=%s: %s", thread_id, e)
             raise
 
     async def aget_message(self, config: dict[str, Any], message_id: str | int) -> Message:
+        """
+        Retrieve a single message by ID.
+
+        Args:
+            config (dict): Configuration dictionary.
+            message_id (str|int): Message identifier.
+
+        Returns:
+            Message: Retrieved message object.
+
+        Raises:
+            Exception: If retrieval fails.
+        """
         """Retrieve a single message by ID."""
         # Ensure schema is initialized before accessing tables
         await self._initialize_schema()
@@ -736,13 +1055,13 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
 
             async def _get_message():
                 async with (await self._get_pg_pool()).acquire() as conn:
-                    query = """
+                    query = f"""
                         SELECT message_id, thread_id, role, content, tool_calls,
                                tool_call_id, reasoning, created_at, total_tokens,
                                usages, meta
-                        FROM messages
+                        FROM {self._get_table_name("messages")}
                         WHERE message_id = $1
-                    """
+                    """  # noqa: S608
                     if thread_id:
                         query += " AND thread_id = $2"
                         return await conn.fetchrow(query, message_id, thread_id)
@@ -766,7 +1085,21 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
         offset: int | None = None,
         limit: int | None = None,
     ) -> list[Message]:
-        """List messages for a thread with optional search and pagination."""
+        """
+        List messages for a thread with optional search and pagination.
+
+        Args:
+            config (dict): Configuration dictionary.
+            search (str, optional): Search string.
+            offset (int, optional): Offset for pagination.
+            limit (int, optional): Limit for pagination.
+
+        Returns:
+            list[Message]: List of message objects.
+
+        Raises:
+            Exception: If listing fails.
+        """
         # Ensure schema is initialized before accessing tables
         await self._initialize_schema()
         thread_id = config.get("thread_id")
@@ -781,13 +1114,13 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
             async def _list_messages():
                 async with (await self._get_pg_pool()).acquire() as conn:
                     # Build query with optional search
-                    query = """
+                    query = f"""
                         SELECT message_id, thread_id, role, content, tool_calls,
                                tool_call_id, reasoning, created_at, total_tokens,
                                usages, meta
-                        FROM messages
+                        FROM {self._get_table_name("messages")}
                         WHERE thread_id = $1
-                    """
+                    """  # noqa: S608
                     params = [thread_id]
                     param_count = 1
 
@@ -827,7 +1160,19 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
         config: dict[str, Any],
         message_id: str | int,
     ) -> Any | None:
-        """Delete a message by ID."""
+        """
+        Delete a message by ID.
+
+        Args:
+            config (dict): Configuration dictionary.
+            message_id (str|int): Message identifier.
+
+        Returns:
+            Any | None: None
+
+        Raises:
+            Exception: If deletion fails.
+        """
         # Ensure schema is initialized before accessing tables
         await self._initialize_schema()
         thread_id = config.get("thread_id")
@@ -840,15 +1185,19 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
                 async with (await self._get_pg_pool()).acquire() as conn:
                     if thread_id:
                         await conn.execute(
-                            "DELETE FROM messages WHERE message_id = $1 AND thread_id = $2",
+                            f"DELETE FROM {self._get_table_name('messages')} "  # noqa: S608
+                            f"WHERE message_id = $1 AND thread_id = $2",
                             message_id,
                             thread_id,
                         )
                     else:
-                        await conn.execute("DELETE FROM messages WHERE message_id = $1", message_id)
+                        await conn.execute(
+                            f"DELETE FROM {self._get_table_name('messages')} WHERE message_id = $1",  # noqa: S608
+                            message_id,
+                        )
 
             await self._retry_on_connection_error(_delete_message, max_retries=3)
-            logger.info("Deleted message_id=%s", message_id)
+            logger.debug("Deleted message_id=%s", message_id)
             return None
 
         except Exception as e:
@@ -856,7 +1205,15 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
             raise
 
     def _row_to_message(self, row) -> Message:  # noqa: PLR0912, PLR0915
-        """Convert database row to Message object with robust JSON handling."""
+        """
+        Convert database row to Message object with robust JSON handling.
+
+        Args:
+            row: Database row.
+
+        Returns:
+            Message: Message object.
+        """
         from pyagenity.utils.message import TokenUsages
 
         # Handle usages JSONB
@@ -949,37 +1306,6 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
             usages=usages,
         )
 
-    # Sync variants
-    def put_messages(
-        self,
-        config: dict[str, Any],
-        messages: list[Message],
-        metadata: dict[str, Any] | None = None,
-    ) -> Any:
-        """Sync version of put_messages."""
-        return self._run_coro_sync(self.aput_messages(config, messages, metadata))
-
-    def get_message(self, config: dict[str, Any]) -> Message:
-        """Sync version of get_message."""
-        message_id = config.get("message_id")
-        if not message_id:
-            raise ValueError("message_id must be provided in config")
-        return self._run_coro_sync(self.aget_message(config, message_id))
-
-    def list_messages(
-        self,
-        config: dict[str, Any],
-        search: str | None = None,
-        offset: int | None = None,
-        limit: int | None = None,
-    ) -> list[Message]:
-        """Sync version of list_messages."""
-        return self._run_coro_sync(self.alist_messages(config, search, offset, limit))
-
-    def delete_message(self, config: dict[str, Any], message_id: str | int) -> Any | None:
-        """Sync version of delete_message."""
-        return self._run_coro_sync(self.adelete_message(config, message_id))
-
     ###########################
     #### THREAD METHODS #######
     ###########################
@@ -989,7 +1315,19 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
         config: dict[str, Any],
         thread_info: ThreadInfo,
     ) -> Any | None:
-        """Create or update thread information."""
+        """
+        Create or update thread information.
+
+        Args:
+            config (dict): Configuration dictionary.
+            thread_info (ThreadInfo): Thread information object.
+
+        Returns:
+            Any | None: None
+
+        Raises:
+            Exception: If storing fails.
+        """
         # Ensure schema is initialized before accessing tables
         await self._initialize_schema()
         thread_id, user_id = self._validate_config(config)
@@ -1002,7 +1340,6 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
             user_id = thread_info.user_id or user_id
             meta.update(
                 {
-                    "stop_requested": thread_info.stop_requested,
                     "run_id": thread_info.run_id,
                 }
             )
@@ -1010,14 +1347,15 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
             async def _put_thread():
                 async with (await self._get_pg_pool()).acquire() as conn:
                     await conn.execute(
-                        """
-                        INSERT INTO threads (thread_id, thread_name, user_id, meta)
+                        f"""
+                        INSERT INTO {self._get_table_name("threads")}
+                            (thread_id, thread_name, user_id, meta)
                         VALUES ($1, $2, $3, $4)
                         ON CONFLICT (thread_id) DO UPDATE SET
                             thread_name = EXCLUDED.thread_name,
                             meta = EXCLUDED.meta,
                             updated_at = NOW()
-                        """,
+                        """,  # noqa: S608
                         thread_id,
                         thread_name,
                         user_id,
@@ -1025,7 +1363,7 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
                     )
 
             await self._retry_on_connection_error(_put_thread, max_retries=3)
-            logger.info("Thread info stored for thread_id=%s", thread_id)
+            logger.debug("Thread info stored for thread_id=%s", thread_id)
 
         except Exception as e:
             logger.error("Failed to store thread info for thread_id=%s: %s", thread_id, e)
@@ -1035,7 +1373,18 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
         self,
         config: dict[str, Any],
     ) -> ThreadInfo | None:
-        """Get thread information."""
+        """
+        Get thread information.
+
+        Args:
+            config (dict): Configuration dictionary.
+
+        Returns:
+            ThreadInfo | None: Thread information object or None.
+
+        Raises:
+            Exception: If retrieval fails.
+        """
         # Ensure schema is initialized before accessing tables
         await self._initialize_schema()
         thread_id, user_id = self._validate_config(config)
@@ -1047,11 +1396,11 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
             async def _get_thread():
                 async with (await self._get_pg_pool()).acquire() as conn:
                     return await conn.fetchrow(
-                        """
+                        f"""
                         SELECT thread_id, thread_name, user_id, created_at, updated_at, meta
-                        FROM threads
+                        FROM {self._get_table_name("threads")}
                         WHERE thread_id = $1 AND user_id = $2
-                        """,
+                        """,  # noqa: S608
                         thread_id,
                         user_id,
                     )
@@ -1069,7 +1418,6 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
                     thread_name=row["thread_name"] if row else None,
                     user_id=user_id,
                     metadata=meta_dict,
-                    stop_requested=meta_dict.get("stop_requested", False),
                     run_id=meta_dict.get("run_id"),
                 )
 
@@ -1087,7 +1435,21 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
         offset: int | None = None,
         limit: int | None = None,
     ) -> list[ThreadInfo]:
-        """List threads for a user with optional search and pagination."""
+        """
+        List threads for a user with optional search and pagination.
+
+        Args:
+            config (dict): Configuration dictionary.
+            search (str, optional): Search string.
+            offset (int, optional): Offset for pagination.
+            limit (int, optional): Limit for pagination.
+
+        Returns:
+            list[ThreadInfo]: List of thread information objects.
+
+        Raises:
+            Exception: If listing fails.
+        """
         # Ensure schema is initialized before accessing tables
         await self._initialize_schema()
         user_id = config.get("user_id")
@@ -1103,11 +1465,11 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
             async def _list_threads():
                 async with (await self._get_pg_pool()).acquire() as conn:
                     # Build query with optional search
-                    query = """
+                    query = f"""
                         SELECT thread_id, thread_name, user_id, created_at, updated_at, meta
-                        FROM threads
+                        FROM {self._get_table_name("threads")}
                         WHERE user_id = $1
-                    """
+                    """  # noqa: S608
                     params = [user_id]
                     param_count = 1
 
@@ -1147,7 +1509,6 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
                         thread_name=row["thread_name"],
                         user_id=row["user_id"],
                         metadata=meta_dict,
-                        stop_requested=meta_dict.get("stop_requested", False),
                         run_id=meta_dict.get("run_id"),
                         updated_at=row["updated_at"],
                     )
@@ -1160,6 +1521,18 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
             raise
 
     async def aclean_thread(self, config: dict[str, Any]) -> Any | None:
+        """
+        Clean/delete a thread and all associated data.
+
+        Args:
+            config (dict): Configuration dictionary.
+
+        Returns:
+            Any | None: None
+
+        Raises:
+            Exception: If cleaning fails.
+        """
         """Clean/delete a thread and all associated data."""
         # Ensure schema is initialized before accessing tables
         await self._initialize_schema()
@@ -1172,7 +1545,8 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
             async def _clean_thread():
                 async with (await self._get_pg_pool()).acquire() as conn:
                     await conn.execute(
-                        "DELETE FROM threads WHERE thread_id = $1 AND user_id = $2",
+                        f"DELETE FROM {self._get_table_name('threads')} "  # noqa: S608
+                        f"WHERE thread_id = $1 AND user_id = $2",
                         thread_id,
                         user_id,
                     )
@@ -1183,48 +1557,23 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
             cache_key = self._get_thread_key(thread_id, user_id)
             await self.redis.delete(cache_key)
 
-            logger.info("Thread cleaned: thread_id=%s, user_id=%s", thread_id, user_id)
+            logger.debug("Thread cleaned: thread_id=%s, user_id=%s", thread_id, user_id)
 
         except Exception as e:
             logger.error("Failed to clean thread thread_id=%s: %s", thread_id, e)
             raise
 
-    # Sync variants
-    def put_thread(
-        self,
-        config: dict[str, Any],
-        thread_info: ThreadInfo,
-    ) -> Any | None:
-        """Sync version of put_thread."""
-        return self._run_coro_sync(self.aput_thread(config, thread_info))
-
-    def get_thread(self, config: dict[str, Any]) -> ThreadInfo | None:
-        """Sync version of get_thread."""
-        return self._run_coro_sync(self.aget_thread(config))
-
-    def list_threads(
-        self,
-        config: dict[str, Any],
-        search: str | None = None,
-        offset: int | None = None,
-        limit: int | None = None,
-    ) -> list[ThreadInfo]:
-        """Sync version of list_threads."""
-        return self._run_coro_sync(self.alist_threads(config, search, offset, limit))
-
-    def clean_thread(self, config: dict[str, Any]) -> Any | None:
-        """Sync version of clean_thread."""
-        return self._run_coro_sync(self.aclean_thread(config))
-
     ###########################
     #### RESOURCE CLEANUP #####
     ###########################
 
-    def release(self) -> Any | None:
-        """Sync version of resource cleanup."""
-        return self._run_coro_sync(self.arelease())
-
     async def arelease(self) -> Any | None:
+        """
+        Clean up connections and resources.
+
+        Returns:
+            Any | None: None
+        """
         """Clean up connections and resources."""
         logger.info("Releasing PgCheckpointer resources")
 

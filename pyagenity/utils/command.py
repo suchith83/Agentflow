@@ -1,7 +1,9 @@
 """
-Command API for AgentGraph.
+Command API for AgentGraph in PyAgenity.
 
-Allows combining state updates with control flow similar to LangGraph's Command.
+This module provides the Command class, which allows nodes to combine state updates
+with control flow, similar to LangGraph's Command API. Nodes can update agent state
+and direct graph execution to specific nodes or graphs.
 """
 
 from typing import TYPE_CHECKING, TypeVar, Union
@@ -22,8 +24,8 @@ class Command[StateT: AgentState]:
     """
     Command object that combines state updates with control flow.
 
-    Similar to LangGraph's Command API, allows nodes to both update state
-    and direct graph execution to specific nodes.
+    Allows nodes to update agent state and direct graph execution to specific nodes or graphs.
+    Similar to LangGraph's Command API.
     """
 
     PARENT = "PARENT"
@@ -36,12 +38,13 @@ class Command[StateT: AgentState]:
         state: StateT | None = None,
     ):
         """
-        Initialize a Command.
+        Initialize a Command object.
 
         Args:
-            update: Dictionary of state updates to apply
-            goto: Next node to execute (can be node name or END)
-            graph: Which graph to navigate to (None for current, PARENT for parent)
+            update (StateT | None | Message | str | BaseConverter): State update to apply.
+            goto (str | None): Next node to execute (node name or END).
+            graph (str | None): Which graph to navigate to (None for current, PARENT for parent).
+            state (StateT | None): Optional agent state to attach.
         """
         self.update = update
         self.goto = goto
@@ -49,6 +52,12 @@ class Command[StateT: AgentState]:
         self.state = state
 
     def __repr__(self) -> str:
+        """
+        Return a string representation of the Command object.
+
+        Returns:
+            str: String representation of the Command.
+        """
         return (
             f"Command(update={self.update}, goto={self.goto}, \n"
             f" graph={self.graph}, state={self.state})"

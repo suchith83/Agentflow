@@ -1,10 +1,30 @@
+"""
+Thread name generation utilities for AI agent conversations.
+
+This module provides the AIThreadNameGenerator class and helper function for generating
+meaningful, varied, and human-friendly thread names for AI chat sessions using different
+patterns and themes.
+
+Classes:
+    AIThreadNameGenerator: Generates thread names using adjective-noun, action-based,
+    and compound patterns.
+
+Functions:
+    generate_dummy_thread_name: Convenience function for generating a thread name.
+"""
+
 import secrets
 
 
 class AIThreadNameGenerator:
     """
-    Simple AI thread name generator that creates meaningful, varied names
-    for AI conversations using different patterns and themes.
+    Generates meaningful, varied thread names for AI conversations using different
+    patterns and themes. Patterns include adjective-noun, action-based, and compound
+    descriptive names.
+
+    Example:
+        >>> AIThreadNameGenerator().generate_name()
+        'thoughtful-dialogue'
     """
 
     # Enhanced adjectives grouped by semantic meaning
@@ -161,10 +181,17 @@ class AIThreadNameGenerator:
 
     def generate_simple_name(self, separator: str = "-") -> str:
         """
-        Generate a simple adjective-noun combination.
+        Generate a simple adjective-noun combination for a thread name.
+
+        Args:
+            separator (str): String to separate words (default: "-").
 
         Returns:
-            Names like "thoughtful-dialogue" or "creative-exploration"
+            str: Name like "thoughtful-dialogue" or "creative-exploration".
+
+        Example:
+            >>> AIThreadNameGenerator().generate_simple_name()
+            'creative-exploration'
         """
         adj = secrets.choice(self.ADJECTIVES)
         noun = secrets.choice(self.NOUNS)
@@ -172,10 +199,17 @@ class AIThreadNameGenerator:
 
     def generate_action_name(self, separator: str = "-") -> str:
         """
-        Generate an action-based name for more dynamic feel.
+        Generate an action-based thread name for a more dynamic feel.
+
+        Args:
+            separator (str): String to separate words (default: "-").
 
         Returns:
-            Names like "exploring-ideas" or "building-understanding"
+            str: Name like "exploring-ideas" or "building-understanding".
+
+        Example:
+            >>> AIThreadNameGenerator().generate_action_name()
+            'building-connections'
         """
         action = secrets.choice(list(self.ACTION_PATTERNS.keys()))
         target = secrets.choice(self.ACTION_PATTERNS[action])
@@ -183,10 +217,17 @@ class AIThreadNameGenerator:
 
     def generate_compound_name(self, separator: str = "-") -> str:
         """
-        Generate a compound descriptive name.
+        Generate a compound descriptive thread name.
+
+        Args:
+            separator (str): String to separate words (default: "-").
 
         Returns:
-            Names like "deep-dive" or "bright-spark"
+            str: Name like "deep-dive" or "bright-spark".
+
+        Example:
+            >>> AIThreadNameGenerator().generate_compound_name()
+            'deep-reflection'
         """
         base, options = secrets.choice(self.COMPOUND_PATTERNS)
         complement = secrets.choice(options)
@@ -197,10 +238,14 @@ class AIThreadNameGenerator:
         Generate a meaningful thread name using random pattern selection.
 
         Args:
-            separator: String to separate words (default: "-")
+            separator (str): String to separate words (default: "-").
 
         Returns:
-            A meaningful thread name from various patterns
+            str: A meaningful thread name from various patterns.
+
+        Example:
+            >>> AIThreadNameGenerator().generate_name()
+            'engaging-discussion'
         """
         # Randomly choose between different naming patterns
         pattern = secrets.choice(["simple", "action", "compound"])
@@ -219,10 +264,14 @@ def generate_dummy_thread_name(separator: str = "-") -> str:
     Generate a meaningful English name for an AI chat thread.
 
     Args:
-        separator: String to separate words (default: "-")
+        separator (str): String to separate words (default: "-").
 
     Returns:
-        A meaningful thread name like 'thoughtful-dialogue', 'exploring-ideas', or 'deep-dive'
+        str: A meaningful thread name like 'thoughtful-dialogue', 'exploring-ideas', or 'deep-dive'.
+
+    Example:
+        >>> generate_dummy_thread_name()
+        'creative-exploration'
     """
     generator = AIThreadNameGenerator()
     return generator.generate_name(separator)
