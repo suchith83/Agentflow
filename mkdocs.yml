@@ -1,9 +1,9 @@
 site_name: PyAgenity
 site_description: "A lightweight Python framework for building intelligent agents and multi-agent workflows."
 # Required for Material's instant navigation and previews
-site_url: https://iamsdt.github.io/pyagenity/
-repo_url: https://github.com/Iamsdt/PyAgenity
-repo_name: Iamsdt/PyAgenity
+site_url: https://10xhub.github.io/pyagenity/
+repo_url: https://github.com/10xhub/PyAgenity
+repo_name: 10xhub/PyAgenity
 
 theme:
   name: material
