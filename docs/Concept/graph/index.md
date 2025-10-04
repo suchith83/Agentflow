@@ -24,12 +24,12 @@ callback + publisher subsystems.
 
 ## Lifecycle at a Glance
 
-1. Build: create `StateGraph`, add nodes & edges
-2. Configure: set entry point, optionally conditional edges, tool nodes
-3. Compile: dependency container frozen, checkpointer/publisher bound, internal handlers instantiated
-4. Execute: `invoke()` (batch) or `stream()/astream()` (incremental)
-5. Persist / Publish: events & state snapshots emitted, usage + tool calls recorded
-6. Resume / Stop: interrupted runs can continue; stop flags honored mid-execution
+1. **Build**: create `StateGraph`, add nodes & edges
+2. **Configure**: set entry point, optionally conditional edges, tool nodes
+3. **Compile**: dependency container frozen, checkpointer/publisher bound, internal handlers instantiated, interrupt points defined
+4. **Execute**: `invoke()` (batch) or `stream()/astream()` (incremental)
+5. **Persist / Publish**: events & state snapshots emitted, usage + tool calls recorded
+6. **Human-in-the-Loop**: interrupted runs can pause for approval; stop flags honored mid-execution; resume with same thread_id
 
 ---
 
