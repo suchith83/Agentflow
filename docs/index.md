@@ -1,7 +1,7 @@
 # PyAgenity
 
 ![PyPI](https://img.shields.io/pypi/v/pyagenity?color=blue)
-![License](https://img.shields.io/github/license/Iamsdt/pyagenity)
+![License](https://img.shields.io/github/license/10xhub/pyagenity)
 ![Python](https://img.shields.io/pypi/pyversions/pyagenity)
 [![Coverage](https://img.shields.io/badge/coverage-73%25-yellow.svg)](#)
 
@@ -268,7 +268,7 @@ Install PyAgenity as shown above. The `pyproject.toml` contains all runtime depe
 
 ```bash
 # Clone the repository
-git clone https://github.com/Iamsdt/PyAgenity.git
+git clone https://github.com/10xhub/PyAgenity.git
 cd PyAgenity
 
 # Create virtual environment
@@ -325,15 +325,15 @@ See `pyproject.dev.toml` for complete tool configurations.
 
 ## 📄 License
 
-MIT License - see [LICENSE](https://github.com/Iamsdt/PyAgenity/blob/main/LICENSE) for details.
+MIT License - see [LICENSE](https://github.com/10xhub/PyAgenity/blob/main/LICENSE) for details.
 
 ---
 
 ## 🔗 Links & Resources
 
-- **[GitHub Repository](https://github.com/Iamsdt/PyAgenity)** - Source code and issues
+- **[GitHub Repository](https://github.com/10xhub/PyAgenity)** - Source code and issues
 - **[PyPI Project](https://pypi.org/project/pyagenity/)** - Package releases
-- **[Examples Directory](https://github.com/Iamsdt/PyAgenity/tree/main/examples)** - Runnable code samples
+- **[Examples Directory](https://github.com/10xhub/PyAgenity/tree/main/examples)** - Runnable code samples
 - **[API Reference](reference/)** - Complete documentation
 - **[Tutorials](Tutorial/)** - Step-by-step guides
 
@@ -341,7 +341,7 @@ MIT License - see [LICENSE](https://github.com/Iamsdt/PyAgenity/blob/main/LICENS
 
 ## 🙏 Contributing
 
-Contributions are welcome! Please see our [GitHub repository](https://github.com/Iamsdt/PyAgenity) for:
+Contributions are welcome! Please see our [GitHub repository](https://github.com/10xhub/PyAgenity) for:
 
 - Issue reporting and feature requests
 - Pull request guidelines
@@ -353,9 +353,9 @@ Contributions are welcome! Please see our [GitHub repository](https://github.com
 ## 💬 Support
 
 - **Documentation**: You're reading it! See [Tutorials](Tutorial/) and [Concepts](Concept/)
-- **Examples**: Check the [examples directory](https://github.com/Iamsdt/PyAgenity/tree/main/examples)
-- **Issues**: Report bugs on [GitHub Issues](https://github.com/Iamsdt/PyAgenity/issues)
-- **Discussions**: Ask questions in [GitHub Discussions](https://github.com/Iamsdt/PyAgenity/discussions)
+- **Examples**: Check the [examples directory](https://github.com/10xhub/PyAgenity/tree/main/examples)
+- **Issues**: Report bugs on [GitHub Issues](https://github.com/10xhub/PyAgenity/issues)
+- **Discussions**: Ask questions in [GitHub Discussions](https://github.com/10xhub/PyAgenity/discussions)
 
 ---
 
