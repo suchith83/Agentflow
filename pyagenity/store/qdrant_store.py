@@ -8,7 +8,6 @@ with configurable embedding services.
 
 import asyncio
 import logging
-import uuid
 from datetime import datetime
 from typing import Any
 
@@ -218,7 +217,7 @@ class QdrantStore(BaseStore):
         # Add custom filters
         if filters:
             for key, value in filters.items():
-                if isinstance(value, (str, int, bool)):
+                if isinstance(value, str | int | bool):
                     conditions.append(FieldCondition(key=key, match=MatchValue(value=value)))
 
         return Filter(must=conditions) if conditions else None

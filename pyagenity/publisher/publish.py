@@ -7,11 +7,6 @@ from pyagenity.publisher.events import EventModel
 from pyagenity.utils.background_task_manager import BackgroundTaskManager
 
 
-"""Publish utilities for events.
-
-This module provides utilities for publishing events asynchronously using a background task manager.
-"""
-
 logger = logging.getLogger(__name__)
 
 

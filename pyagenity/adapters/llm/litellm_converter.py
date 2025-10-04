@@ -148,7 +148,8 @@ class LiteLLMConverter(BaseConverter):
             tool_ids (set): Set of tool call IDs to avoid duplicates.
 
         Returns:
-            tuple: Updated accumulated content, reasoning, tool calls, sequence, and Message (if any).
+            tuple: Updated accumulated content, reasoning, tool calls, sequence,
+                and Message (if any).
         """
         if not chunk:
             return accumulated_content, accumulated_reasoning_content, tool_calls, seq, None

@@ -25,8 +25,10 @@ class ModelResponseConverter:
         Initialize ModelResponseConverter.
 
         Args:
-            response (Any | Callable[..., Any]): The LLM response or a callable returning a response.
-            converter (BaseConverter | str): Converter instance or string identifier (e.g., "litellm").
+            response (Any | Callable[..., Any]): The LLM response or a callable returning
+                a response.
+            converter (BaseConverter | str): Converter instance or string identifier
+                (e.g., "litellm").
 
         Raises:
             ValueError: If the converter is not supported.
@@ -34,7 +36,7 @@ class ModelResponseConverter:
         self.response = response
 
         if isinstance(converter, str) and converter == "litellm":
-            from .litellm_converter import LiteLLMConverter  # noqa: PLC0415
+            from .litellm_converter import LiteLLMConverter
 
             self.converter = LiteLLMConverter()
         elif isinstance(converter, BaseConverter):

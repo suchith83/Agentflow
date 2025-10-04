@@ -4,12 +4,6 @@ from typing import Any
 from .events import EventModel
 
 
-"""Base publisher module.
-
-This module defines the abstract base class for all event publishers in PyAgenity.
-"""
-
-
 class BasePublisher(ABC):
     """Abstract base class for event publishers.
 

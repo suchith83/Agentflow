@@ -2,7 +2,8 @@
 
 This module provides the StreamNodeHandler class, which manages the execution of graph nodes
 that support streaming output. It handles both regular function nodes and ToolNode instances,
-enabling incremental result processing, dependency injection, callback management, and event publishing.
+enabling incremental result processing, dependency injection, callback management, and
+event publishing.
 
 StreamNodeHandler is a key component for enabling real-time, chunked, or incremental responses
 in agent workflows, supporting both synchronous and asynchronous execution patterns.

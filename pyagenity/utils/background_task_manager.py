@@ -141,8 +141,8 @@ class BackgroundTaskManager:
             )
             logger.error(
                 error_msg,
+                exc_info=e,
                 extra={"task_context": metadata.context if metadata else {}},
-                exc_info=True,
             )
 
     async def cancel_all(self) -> None:

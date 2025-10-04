@@ -57,7 +57,8 @@ def convert_messages(
     extra_messages: list[Message] | None = None,
 ) -> list[dict[str, Any]]:
     """
-    Convert system prompts, agent state, and extra messages to a list of dicts for LLM/tool payloads.
+    Convert system prompts, agent state, and extra messages to a list of dicts for
+    LLM/tool payloads.
 
     Args:
         system_prompts (list[dict[str, Any]]): List of system prompt dicts.

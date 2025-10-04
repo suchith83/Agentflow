@@ -441,13 +441,13 @@ class StateGraph[StateT: AgentState]:
         # Import here to avoid circular import at module import time
         # Now update Checkpointer
         if checkpointer is None:
-            from pyagenity.checkpointer import InMemoryCheckpointer  # noqa: PLC0415
+            from pyagenity.checkpointer import InMemoryCheckpointer
 
             checkpointer = InMemoryCheckpointer[StateT]()
             logger.debug("No checkpointer provided, using InMemoryCheckpointer")
 
         # Import the CompiledGraph class
-        from .compiled_graph import CompiledGraph  # noqa: PLC0415
+        from .compiled_graph import CompiledGraph
 
         # Setup dependencies
         self._container.bind_instance(

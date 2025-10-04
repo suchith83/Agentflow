@@ -56,7 +56,7 @@ class MemorySearchResult(BaseModel):
     @classmethod
     def validate_vector(cls, v):
         if v is not None and (
-            not isinstance(v, list) or any(not isinstance(x, (int, float)) for x in v)
+            not isinstance(v, list) or any(not isinstance(x, (int | float)) for x in v)
         ):
             raise ValueError("vector must be list[float] or None")
         return v
@@ -79,7 +79,7 @@ class MemoryRecord(BaseModel):
     @classmethod
     def validate_vector(cls, v):
         if v is not None and (
-            not isinstance(v, list) or any(not isinstance(x, (int, float)) for x in v)
+            not isinstance(v, list) or any(not isinstance(x, (int | float)) for x in v)
         ):
             raise ValueError("vector must be list[float] or None")
         return v

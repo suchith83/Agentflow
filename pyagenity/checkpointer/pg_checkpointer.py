@@ -2,19 +2,18 @@ import asyncio
 import json
 import logging
 import os
+import re
+from contextlib import suppress
 from enum import Enum
 from typing import Any, TypeVar
 
 from injectq import InjectQ
 
 from pyagenity.exceptions.storage_exceptions import (
-    SchemaVersionError,
-    SerializationError,
     StorageError,
     TransientStorageError,
 )
-from pyagenity.utils import ThreadInfo
-from pyagenity.utils import metrics
+from pyagenity.utils import ThreadInfo, metrics
 
 
 try:
@@ -144,7 +143,14 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
         )
         self.cache_ttl = kwargs.get("cache_ttl", DEFAULT_CACHE_TTL)
         self.release_resources = kwargs.get("release_resources", False)
+
+        # Validate schema name to prevent SQL injection
+        if not re.match(r"^[a-zA-Z_][a-zA-Z0-9_]*$", schema):
+            raise ValueError(
+                f"Invalid schema name: {schema}. Schema must match pattern ^[a-zA-Z_][a-zA-Z0-9_]*$"
+            )
         self.schema = schema
+
         self._schema_initialized = False
         self._loop: asyncio.AbstractEventLoop | None = None
 
@@ -220,9 +226,14 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
             table (str): The base table name (e.g., 'threads', 'states', 'messages')
 
         Returns:
-            str: The schema-qualified table name (e.g., 'public.threads')
+            str: The schema-qualified table name (e.g., '"public"."threads"')
         """
-        return f"{self.schema}.{table}"
+        # Validate table name to prevent SQL injection
+        if not re.match(r"^[a-zA-Z_][a-zA-Z0-9_]*$", table):
+            raise ValueError(
+                f"Invalid table name: {table}. Table must match pattern ^[a-zA-Z_][a-zA-Z0-9_]*$"
+            )
+        return f'"{self.schema}"."{table}"'
 
     def _create_pg_pool(self, pg_pool: Any, postgres_dsn: str | None, pool_config: dict) -> Any:
         """
@@ -280,7 +291,7 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
                 return orjson.dumps
             except ImportError:
                 try:
-                    import msgspec  # type: ignore # noqa: PLC0415
+                    import msgspec  # type: ignore
 
                     return msgspec.json.encode
                 except ImportError:
@@ -389,7 +400,8 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
         try:
             # Check if schema version exists
             row = await conn.fetchrow(
-                f"SELECT version FROM {self._get_table_name('schema_version')} ORDER BY version DESC LIMIT 1"
+                f"SELECT version FROM {self._get_table_name('schema_version')} "  # noqa: S608
+                f"ORDER BY version DESC LIMIT 1"
             )
             current_version = row["version"] if row else 0
             target_version = self._get_current_schema_version()
@@ -400,19 +412,17 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
                 )
                 # Insert new version
                 await conn.execute(
-                    f"INSERT INTO {self._get_table_name('schema_version')} (version) VALUES ($1)",
+                    f"INSERT INTO {self._get_table_name('schema_version')} (version) VALUES ($1)",  # noqa: S608
                     target_version,
                 )
         except Exception as e:
             logger.debug("Schema version check failed (expected on first run): %s", e)
             # Insert initial version
-            try:
+            with suppress(Exception):
                 await conn.execute(
-                    f"INSERT INTO {self._get_table_name('schema_version')} (version) VALUES ($1)",
+                    f"INSERT INTO {self._get_table_name('schema_version')} (version) VALUES ($1)",  # noqa: S608
                     self._get_current_schema_version(),
                 )
-            except Exception:
-                pass  # might already exist from concurrent initialization
 
     async def _initialize_schema(self) -> None:
         """
@@ -699,7 +709,7 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
                                 (thread_id, state_data, meta)
                             VALUES ($1, $2, $3)
                             ON CONFLICT DO NOTHING
-                            """,
+                            """,  # noqa: S608
                             thread_id,
                             state_json,
                             json.dumps(config.get("meta", {})),
@@ -753,7 +763,7 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
                         WHERE thread_id = $1
                         ORDER BY created_at DESC
                         LIMIT 1
-                        """,
+                        """,  # noqa: S608
                         thread_id,
                     )
 
@@ -795,7 +805,7 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
             async def _clear_state():
                 async with (await self._get_pg_pool()).acquire() as conn:
                     await conn.execute(
-                        f"DELETE FROM {self._get_table_name('states')} WHERE thread_id = $1",
+                        f"DELETE FROM {self._get_table_name('states')} WHERE thread_id = $1",  # noqa: S608
                         thread_id,
                     )
 
@@ -909,7 +919,7 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
             async def _check_and_create_thread():
                 async with (await self._get_pg_pool()).acquire() as conn:
                     exists = await conn.fetchval(
-                        f"SELECT 1 FROM {self._get_table_name('threads')} "
+                        f"SELECT 1 FROM {self._get_table_name('threads')} "  # noqa: S608
                         f"WHERE thread_id = $1 AND user_id = $2",
                         thread_id,
                         user_id,
@@ -924,7 +934,7 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
                                 (thread_id, thread_name, user_id, meta)
                             VALUES ($1, $2, $3, $4)
                             ON CONFLICT DO NOTHING
-                            """,
+                            """,  # noqa: S608
                             thread_id,
                             thread_name,
                             user_id,
@@ -998,7 +1008,7 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
                                     reasoning = EXCLUDED.reasoning,
                                     usages = EXCLUDED.usages,
                                     updated_at = NOW()
-                                """,
+                                """,  # noqa: S608
                             message.message_id,
                             thread_id,
                             message.role,
@@ -1051,7 +1061,7 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
                                usages, meta
                         FROM {self._get_table_name("messages")}
                         WHERE message_id = $1
-                    """
+                    """  # noqa: S608
                     if thread_id:
                         query += " AND thread_id = $2"
                         return await conn.fetchrow(query, message_id, thread_id)
@@ -1110,7 +1120,7 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
                                usages, meta
                         FROM {self._get_table_name("messages")}
                         WHERE thread_id = $1
-                    """
+                    """  # noqa: S608
                     params = [thread_id]
                     param_count = 1
 
@@ -1175,14 +1185,14 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
                 async with (await self._get_pg_pool()).acquire() as conn:
                     if thread_id:
                         await conn.execute(
-                            f"DELETE FROM {self._get_table_name('messages')} "
+                            f"DELETE FROM {self._get_table_name('messages')} "  # noqa: S608
                             f"WHERE message_id = $1 AND thread_id = $2",
                             message_id,
                             thread_id,
                         )
                     else:
                         await conn.execute(
-                            f"DELETE FROM {self._get_table_name('messages')} WHERE message_id = $1",
+                            f"DELETE FROM {self._get_table_name('messages')} WHERE message_id = $1",  # noqa: S608
                             message_id,
                         )
 
@@ -1204,7 +1214,7 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
         Returns:
             Message: Message object.
         """
-        from pyagenity.utils.message import TokenUsages  # noqa: PLC0415
+        from pyagenity.utils.message import TokenUsages
 
         # Handle usages JSONB
         usages = None
@@ -1345,7 +1355,7 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
                             thread_name = EXCLUDED.thread_name,
                             meta = EXCLUDED.meta,
                             updated_at = NOW()
-                        """,
+                        """,  # noqa: S608
                         thread_id,
                         thread_name,
                         user_id,
@@ -1390,7 +1400,7 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
                         SELECT thread_id, thread_name, user_id, created_at, updated_at, meta
                         FROM {self._get_table_name("threads")}
                         WHERE thread_id = $1 AND user_id = $2
-                        """,
+                        """,  # noqa: S608
                         thread_id,
                         user_id,
                     )
@@ -1459,7 +1469,7 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
                         SELECT thread_id, thread_name, user_id, created_at, updated_at, meta
                         FROM {self._get_table_name("threads")}
                         WHERE user_id = $1
-                    """
+                    """  # noqa: S608
                     params = [user_id]
                     param_count = 1
 
@@ -1535,7 +1545,7 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
             async def _clean_thread():
                 async with (await self._get_pg_pool()).acquire() as conn:
                     await conn.execute(
-                        f"DELETE FROM {self._get_table_name('threads')} "
+                        f"DELETE FROM {self._get_table_name('threads')} "  # noqa: S608
                         f"WHERE thread_id = $1 AND user_id = $2",
                         thread_id,
                         user_id,

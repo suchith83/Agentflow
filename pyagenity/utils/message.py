@@ -11,7 +11,8 @@ Classes:
     TextBlock, ImageBlock, AudioBlock, VideoBlock, DocumentBlock, DataBlock,
         ToolCallBlock, ToolResultBlock, ReasoningBlock, AnnotationBlock, ErrorBlock:
         Multimodal content primitives for message composition.
-    Message: Represents a message in a conversation, including content, role, metadata, and token usage.
+    Message: Represents a message in a conversation, including content, role, metadata,
+        and token usage.
 
 Functions:
     generate_id: Generates a message or tool call ID based on DI context and type.

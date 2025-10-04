@@ -18,6 +18,7 @@ import threading
 import time
 from dataclasses import dataclass
 
+
 _LOCK = threading.RLock()
 _COUNTERS: dict[str, Counter] = {}
 _TIMERS: dict[str, TimerMetric] = {}

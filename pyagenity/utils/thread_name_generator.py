@@ -6,7 +6,8 @@ meaningful, varied, and human-friendly thread names for AI chat sessions using d
 patterns and themes.
 
 Classes:
-    AIThreadNameGenerator: Generates thread names using adjective-noun, action-based, and compound patterns.
+    AIThreadNameGenerator: Generates thread names using adjective-noun, action-based,
+    and compound patterns.
 
 Functions:
     generate_dummy_thread_name: Convenience function for generating a thread name.
@@ -17,9 +18,9 @@ import secrets
 
 class AIThreadNameGenerator:
     """
-    Generates meaningful, varied thread names for AI conversations using different patterns and themes.
-
-    Patterns include adjective-noun, action-based, and compound descriptive names.
+    Generates meaningful, varied thread names for AI conversations using different
+    patterns and themes. Patterns include adjective-noun, action-based, and compound
+    descriptive names.
 
     Example:
         >>> AIThreadNameGenerator().generate_name()

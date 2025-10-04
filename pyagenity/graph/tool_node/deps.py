@@ -23,6 +23,19 @@ Typical usage:
         # Graceful fallback or error message
         client = None
     ```
+
+
+FastMCP integration support.
+
+HAS_FASTMCP: Boolean flag indicating whether FastMCP is available.
+    True if 'fastmcp' package is installed and imports successfully.
+
+Client: FastMCP Client class for connecting to MCP servers.
+    None if FastMCP is not available.
+
+CallToolResult: Result type for MCP tool executions.
+    None if FastMCP is not available.
+
 """
 
 from __future__ import annotations
@@ -38,17 +51,6 @@ except Exception:  # pragma: no cover - optional
     Client = None  # type: ignore
     CallToolResult = None  # type: ignore
 
-"""FastMCP integration support.
-
-HAS_FASTMCP: Boolean flag indicating whether FastMCP is available.
-    True if 'fastmcp' package is installed and imports successfully.
-    
-Client: FastMCP Client class for connecting to MCP servers.
-    None if FastMCP is not available.
-    
-CallToolResult: Result type for MCP tool executions.
-    None if FastMCP is not available.
-"""
 
 try:  # Optional MCP protocol
     from mcp import Tool  # type: ignore
@@ -60,16 +62,5 @@ except Exception:  # pragma: no cover - optional
     Tool = None  # type: ignore
     ContentBlock = None  # type: ignore
 
-"""MCP protocol support.
-
-HAS_MCP: Boolean flag indicating whether MCP protocol types are available.
-    True if 'mcp' package is installed and imports successfully.
-    
-Tool: MCP Tool type definition.
-    None if MCP is not available.
-    
-ContentBlock: MCP ContentBlock type for structured content.
-    None if MCP is not available.
-"""
 
 __all__ = ["HAS_FASTMCP", "HAS_MCP", "CallToolResult", "Client", "ContentBlock", "Tool"]

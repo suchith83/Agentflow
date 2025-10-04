@@ -2,8 +2,8 @@
 InvokeNodeHandler utilities for PyAgenity agent graph execution.
 
 This module provides the InvokeNodeHandler class, which manages the invocation of node functions
-and tool nodes within the agent graph. It supports dependency injection, callback hooks, event publishing,
-and error recovery for both regular and tool-based nodes.
+and tool nodes within the agent graph. It supports dependency injection, callback hooks,
+event publishing, and error recovery for both regular and tool-based nodes.
 
 Classes:
     InvokeNodeHandler: Handles execution of node functions and tool nodes with DI and callbacks.
@@ -38,6 +38,7 @@ from pyagenity.utils import (
 
 from .handler_mixins import BaseLoggingMixin
 
+
 logger = logging.getLogger(__name__)
 
 
@@ -52,7 +53,7 @@ class InvokeNodeHandler(BaseLoggingMixin):
         func (Callable | ToolNode): The function or ToolNode to execute.
         publisher (BasePublisher, optional): Event publisher for execution events.
     """
-    
+
     # Class-level cache for function signatures to avoid repeated inspection
     _signature_cache: dict[Callable, inspect.Signature] = {}
 

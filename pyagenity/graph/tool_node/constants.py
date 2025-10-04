@@ -7,19 +7,8 @@ schema generation since they are provided by the execution context.
 
 The constants are separated into their own module to avoid circular imports
 and maintain a clean public API.
-"""
 
-INJECTABLE_PARAMS = {
-    "tool_call_id",
-    "state",
-    "config",
-    "generated_id",
-    "context_manager",
-    "publisher",
-    "checkpointer",
-    "store",
-}
-"""Parameter names that are automatically injected during tool execution.
+Parameter names that are automatically injected during tool execution.
 
 These parameters are provided by the PyAgenity framework and should be excluded
 from tool schema generation. They represent execution context and framework
@@ -40,3 +29,14 @@ Note:
     the corresponding services, but they should not be included in the tool
     schema since they're not user-provided arguments.
 """
+
+INJECTABLE_PARAMS = {
+    "tool_call_id",
+    "state",
+    "config",
+    "generated_id",
+    "context_manager",
+    "publisher",
+    "checkpointer",
+    "store",
+}

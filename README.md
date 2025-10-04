@@ -116,12 +116,12 @@ tool_node = ToolNode([get_weather])
 # Define main agent node
 async def main_agent(state: AgentState):
     prompts = "You are a helpful assistant. Use tools when needed."
-    
+
     messages = convert_messages(
         system_prompts=[{"role": "system", "content": prompts}],
         state=state,
     )
-    
+
     # Check if we need tools
     if (
         state.context
@@ -139,7 +139,7 @@ async def main_agent(state: AgentState):
             messages=messages,
             tools=tools,
         )
-    
+
     return response
 
 # Define routing logic
@@ -147,16 +147,16 @@ def should_use_tools(state: AgentState) -> str:
     """Determine if we should use tools or end."""
     if not state.context or len(state.context) == 0:
         return "TOOL"
-    
+
     last_message = state.context[-1]
-    
+
     if (
         hasattr(last_message, "tools_calls")
         and last_message.tools_calls
         and len(last_message.tools_calls) > 0
     ):
         return "TOOL"
-    
+
     return END
 
 # Build the graph
@@ -275,15 +275,15 @@ tool_node = ToolNode(functions=[], client=client_http)
 
 async def main_agent(state: AgentState):
     prompts = "You are a helpful assistant."
-    
+
     messages = convert_messages(
         system_prompts=[{"role": "system", "content": prompts}],
         state=state,
     )
-    
+
     # Get all available tools (including MCP tools)
     tools = await tool_node.all_tools()
-    
+
     response = await acompletion(
         model="gemini/gemini-2.0-flash",
         messages=messages,
@@ -295,19 +295,19 @@ def should_use_tools(state: AgentState) -> str:
     """Determine if we should use tools or end the conversation."""
     if not state.context or len(state.context) == 0:
         return "TOOL"
-    
+
     last_message = state.context[-1]
-    
+
     if (
         hasattr(last_message, "tools_calls")
         and last_message.tools_calls
         and len(last_message.tools_calls) > 0
     ):
         return "TOOL"
-    
+
     if last_message.role == "tool" and last_message.tool_call_id is not None:
         return END
-    
+
     return END
 
 graph = StateGraph()
@@ -394,14 +394,14 @@ tool_node = ToolNode([get_weather])
 
 async def main_agent(state: AgentState, config: dict):
     prompts = "You are a helpful assistant. Answer conversationally. Use tools when needed."
-    
+
     messages = convert_messages(
         system_prompts=[{"role": "system", "content": prompts}],
         state=state,
     )
-    
+
     is_stream = config.get("is_stream", False)
-    
+
     if (
         state.context
         and len(state.context) > 0
@@ -420,25 +420,25 @@ async def main_agent(state: AgentState, config: dict):
             tools=tools,
             stream=is_stream,
         )
-    
+
     return response
 
 def should_use_tools(state: AgentState) -> str:
     if not state.context or len(state.context) == 0:
         return "TOOL"
-    
+
     last_message = state.context[-1]
-    
+
     if (
         hasattr(last_message, "tools_calls")
         and last_message.tools_calls
         and len(last_message.tools_calls) > 0
     ):
         return "TOOL"
-    
+
     if last_message.role == "tool" and last_message.tool_call_id is not None:
         return END
-    
+
     return END
 
 graph = StateGraph()
@@ -459,7 +459,7 @@ app = graph.compile(checkpointer=checkpointer)
 async def run_stream_test():
     inp = {"messages": [Message.from_text("Call get_weather for Tokyo, then reply.")]}
     config = {"thread_id": "stream-1", "recursion_limit": 10}
-    
+
     logging.info("--- streaming start ---")
     stream_gen = app.astream(
         inp,
