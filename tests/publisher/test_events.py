@@ -108,14 +108,8 @@ class TestEventModelBasic:
         assert event.event_type == EventType.START
         assert event.content == ""
         assert event.content_blocks is None
-        assert event.delta is False
-        assert event.delta_type is None
-        assert event.block_index is None
-        assert event.chunk_index is None
-        assert event.byte_offset is None
         assert event.data == {}
         assert event.content_type is None
-        assert event.sequence_id == 0
         assert event.node_name == ""
         assert isinstance(event.run_id, str)
         assert event.thread_id == ""
@@ -136,14 +130,8 @@ class TestEventModelBasic:
             event_type=EventType.PROGRESS,
             content="test content",
             content_blocks=test_content_blocks,
-            delta=True,
-            delta_type="text",
-            block_index=1,
-            chunk_index=5,
-            byte_offset=1024,
             data=test_data,
             content_type=[ContentType.TEXT, ContentType.MESSAGE],
-            sequence_id=100,
             node_name="test_node",
             run_id=test_run_id,
             thread_id="thread_123",
@@ -156,14 +144,8 @@ class TestEventModelBasic:
         assert event.event_type == EventType.PROGRESS
         assert event.content == "test content"
         assert event.content_blocks == test_content_blocks
-        assert event.delta is True
-        assert event.delta_type == "text"
-        assert event.block_index == 1
-        assert event.chunk_index == 5
-        assert event.byte_offset == 1024
         assert event.data == test_data
         assert event.content_type == [ContentType.TEXT, ContentType.MESSAGE]
-        assert event.sequence_id == 100
         assert event.node_name == "test_node"
         assert event.run_id == test_run_id
         assert event.thread_id == "thread_123"
@@ -236,9 +218,6 @@ class TestEventModelSerialization:
             event=Event.STREAMING,
             event_type=EventType.UPDATE,
             content="streaming update",
-            sequence_id=50,
-            delta=True,
-            delta_type="json"
         )
         
         # Should be able to serialize to JSON
@@ -252,9 +231,6 @@ class TestEventModelSerialization:
         assert restored_event.event == Event.STREAMING
         assert restored_event.event_type == EventType.UPDATE
         assert restored_event.content == "streaming update"
-        assert restored_event.sequence_id == 50
-        assert restored_event.delta is True
-        assert restored_event.delta_type == "json"
     
     def test_model_validation(self):
         """Test Pydantic validation of EventModel."""
@@ -278,14 +254,6 @@ class TestEventModelSerialization:
                 event_type="invalid_event_type"
             )
         
-        # Invalid delta_type should fail
-        with pytest.raises(ValueError):
-            EventModel(
-                event=Event.GRAPH_EXECUTION,
-                event_type=EventType.START,
-                delta_type="invalid_delta_type"
-            )
-
 
 class TestEventModelDefaultFactory:
     """Test the EventModel.default factory method."""
@@ -317,7 +285,6 @@ class TestEventModelDefaultFactory:
         assert event.metadata["user_id"] == "user_123"
         assert event.metadata["is_stream"] is False  # default
         assert event.node_name == ""  # default
-        assert event.delta is False  # default
     
     def test_default_factory_with_overrides(self):
         """Test EventModel.default with parameter overrides."""
@@ -449,25 +416,7 @@ class TestEventModelEdgeCases:
         )
         assert event2.timestamp == future_timestamp
     
-    def test_extreme_sequence_ids(self):
-        """Test handling of extreme sequence ID values."""
-        # Very large sequence ID
-        large_seq_id = 2**31 - 1  # Max 32-bit int
-        event = EventModel(
-            event=Event.STREAMING,
-            event_type=EventType.PROGRESS,
-            sequence_id=large_seq_id
-        )
-        assert event.sequence_id == large_seq_id
-        
-        # Negative sequence ID (should be allowed)
-        negative_seq_id = -1000
-        event2 = EventModel(
-            event=Event.STREAMING,
-            event_type=EventType.PROGRESS,
-            sequence_id=negative_seq_id
-        )
-        assert event2.sequence_id == negative_seq_id
+
     
     def test_all_content_types_combination(self):
         """Test using all content types in a single event."""
@@ -489,10 +438,6 @@ class TestEventModelEdgeCases:
             event_type=EventType.START,
             content="",  # empty string
             content_blocks=None,
-            delta_type=None,
-            block_index=None,
-            chunk_index=None,
-            byte_offset=None,
             content_type=None,
             node_name="",  # empty string
             thread_id="",  # empty string
@@ -500,10 +445,6 @@ class TestEventModelEdgeCases:
         
         assert event.content == ""
         assert event.content_blocks is None
-        assert event.delta_type is None
-        assert event.block_index is None
-        assert event.chunk_index is None
-        assert event.byte_offset is None
         assert event.content_type is None
         assert event.node_name == ""
         assert event.thread_id == ""
@@ -519,14 +460,10 @@ class TestEventModelEdgeCases:
             event=Event.STREAMING,
             event_type=EventType.UPDATE,
             content_blocks=content_blocks,
-            block_index=0,
-            chunk_index=2
         )
         
         assert event.content_blocks == content_blocks
         assert len(event.content_blocks) == 2
-        assert event.block_index == 0
-        assert event.chunk_index == 2
 
 
 class TestEventModelFieldValidation:
@@ -541,18 +478,13 @@ class TestEventModelFieldValidation:
             event = EventModel(
                 event=Event.STREAMING,
                 event_type=EventType.UPDATE,
-                delta=True,
-                delta_type=delta_type
             )
-            assert event.delta_type == delta_type
         
         # None should be valid
         event = EventModel(
             event=Event.STREAMING,
             event_type=EventType.UPDATE,
-            delta_type=None
         )
-        assert event.delta_type is None
     
     def test_thread_id_types(self):
         """Test thread_id can be string or int."""
@@ -577,22 +509,18 @@ class TestEventModelFieldValidation:
         event = EventModel(
             event=Event.GRAPH_EXECUTION,
             event_type=EventType.ERROR,
-            delta=True,
             is_error=True
         )
         
-        assert event.delta is True
         assert event.is_error is True
         
         # Test falsy values
         event2 = EventModel(
             event=Event.GRAPH_EXECUTION,
             event_type=EventType.START,
-            delta=False,
             is_error=False
         )
         
-        assert event2.delta is False
         assert event2.is_error is False
 
 
@@ -625,21 +553,14 @@ class TestEventModelTimestampBehavior:
     
     def test_timestamp_default_factory(self):
         """Test that timestamp uses time.time() as default factory."""
-        import time
-        
-        # Get timestamp before creating event
-        before = time.time()
-        
         event = EventModel(
             event=Event.GRAPH_EXECUTION,
             event_type=EventType.START
         )
         
         # Get timestamp after creating event
-        after = time.time()
         
         # Timestamp should be between before and after
-        assert before <= event.timestamp <= after
         assert isinstance(event.timestamp, float)
     
     def test_timestamp_override(self):

@@ -495,7 +495,7 @@ PyAgenity automatically executes multiple tool calls **in parallel** when an LLM
 ```python
 # LLM requests 3 tools simultaneously:
 # - get_weather("NYC")    # Takes 1.0s
-# - get_news("tech")      # Takes 1.5s  
+# - get_news("tech")      # Takes 1.5s
 # - get_stock("AAPL")     # Takes 0.8s
 
 # Sequential execution: 1.0 + 1.5 + 0.8 = 3.3 seconds

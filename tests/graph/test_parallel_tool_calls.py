@@ -27,54 +27,60 @@ class TestParallelToolCalls:
             await asyncio.sleep(0.1)  # Simulate async work
             execution_log.append(f"end_{value}")
             return Message.tool_message(
-                content={"result": f"processed_{value}"},
-                tool_call_id=tool_call_id,
+                content=[ToolResultBlock(
+                    call_id=tool_call_id or "",
+                    output={"result": f"processed_{value}"},
+                    status="completed",
+                    is_error=False,
+                )],
             )
 
         async def fast_tool(value: str, tool_call_id: str | None = None) -> Message:
             """A tool that executes quickly."""
             execution_log.append(f"fast_{value}")
             return Message.tool_message(
-                content={"result": f"fast_{value}"},
-                tool_call_id=tool_call_id,
+                content=[ToolResultBlock(
+                    call_id=tool_call_id or "",
+                    output={"result": f"fast_{value}"},
+                    status="completed",
+                    is_error=False,
+                )],
             )
 
         # Create tool node with both tools
         tool_node = ToolNode([slow_tool, fast_tool])
 
         # Create message with multiple tool calls
-        message = Message.from_text(
+        message = Message.text_message(
             role="assistant",
             content="Using tools",
-            metadata={
-                "tools_calls": [
-                    {
-                        "id": "call_1",
-                        "type": "function",
-                        "function": {
-                            "name": "slow_tool",
-                            "arguments": '{"value": "first"}',
-                        },
-                    },
-                    {
-                        "id": "call_2",
-                        "type": "function",
-                        "function": {
-                            "name": "fast_tool",
-                            "arguments": '{"value": "second"}',
-                        },
-                    },
-                    {
-                        "id": "call_3",
-                        "type": "function",
-                        "function": {
-                            "name": "slow_tool",
-                            "arguments": '{"value": "third"}',
-                        },
-                    },
-                ]
-            },
         )
+        message.tools_calls = [
+            {
+                "id": "call_1",
+                "type": "function",
+                "function": {
+                    "name": "slow_tool",
+                    "arguments": '{"value": "first"}',
+                },
+            },
+            {
+                "id": "call_2",
+                "type": "function",
+                "function": {
+                    "name": "fast_tool",
+                    "arguments": '{"value": "second"}',
+                },
+            },
+            {
+                "id": "call_3",
+                "type": "function",
+                "function": {
+                    "name": "slow_tool",
+                    "arguments": '{"value": "third"}',
+                },
+            },
+        ]
 
         # Create handler and execute
         handler = StreamNodeHandler("test_node", tool_node)
@@ -93,7 +99,10 @@ class TestParallelToolCalls:
         # Verify parallel execution (fast_tool should complete before slow_tools finish)
         # Due to parallel execution, we should see interleaved start/end patterns
         assert "fast_second" in execution_log
-        assert execution_log.count("start_") + execution_log.count("end_") >= 2
+        # Count items that start with "start_" or "end_"
+        start_count = sum(1 for item in execution_log if item.startswith("start_"))
+        end_count = sum(1 for item in execution_log if item.startswith("end_"))
+        assert start_count + end_count >= 2
 
     @pytest.mark.asyncio
     async def test_parallel_tool_calls_with_state(self):
@@ -105,50 +114,59 @@ class TestParallelToolCalls:
             state: AgentState | None = None,
         ) -> Message:
             """Tool that increments a counter in state."""
-            current = state.metadata.get("counter", 0) if state else 0
+            # Use context_summary to store counter as a workaround
+            current = 0
+            if state and state.context_summary:
+                try:
+                    current = int(state.context_summary)
+                except (ValueError, TypeError):
+                    current = 0
             new_value = current + increment
             return Message.tool_message(
-                content={"counter": new_value, "increment": increment},
-                tool_call_id=tool_call_id,
+                content=[ToolResultBlock(
+                    call_id=tool_call_id or "",
+                    output={"counter": new_value, "increment": increment},
+                    status="completed",
+                    is_error=False,
+                )],
             )
 
         tool_node = ToolNode([counter_tool])
 
-        message = Message.from_text(
+        message = Message.text_message(
             role="assistant",
             content="Count",
-            metadata={
-                "tools_calls": [
-                    {
-                        "id": "call_1",
-                        "type": "function",
-                        "function": {
-                            "name": "counter_tool",
-                            "arguments": '{"increment": 1}',
-                        },
-                    },
-                    {
-                        "id": "call_2",
-                        "type": "function",
-                        "function": {
-                            "name": "counter_tool",
-                            "arguments": '{"increment": 2}',
-                        },
-                    },
-                    {
-                        "id": "call_3",
-                        "type": "function",
-                        "function": {
-                            "name": "counter_tool",
-                            "arguments": '{"increment": 3}',
-                        },
-                    },
-                ]
-            },
         )
+        message.tools_calls = [
+            {
+                "id": "call_1",
+                "type": "function",
+                "function": {
+                    "name": "counter_tool",
+                    "arguments": '{"increment": 1}',
+                },
+            },
+            {
+                "id": "call_2",
+                "type": "function",
+                "function": {
+                    "name": "counter_tool",
+                    "arguments": '{"increment": 2}',
+                },
+            },
+            {
+                "id": "call_3",
+                "type": "function",
+                "function": {
+                    "name": "counter_tool",
+                    "arguments": '{"increment": 3}',
+                },
+            },
+        ]
 
         handler = StreamNodeHandler("test_node", tool_node)
-        state = AgentState(context=[message], metadata={"counter": 0})
+        state = AgentState(context=[message])
+        state.context_summary = "0"  # Store counter in context_summary
         config = {"thread_id": "test_123", "run_id": "run_456"}
 
         results = []
@@ -160,7 +178,7 @@ class TestParallelToolCalls:
         assert len(results) == 3
 
         # Verify each tool got the correct state
-        increments = [r.content[0].result["increment"] for r in results]
+        increments = [r.content[0].output["increment"] for r in results]
         assert sorted(increments) == [1, 2, 3]
 
     @pytest.mark.asyncio
@@ -174,36 +192,38 @@ class TestParallelToolCalls:
         async def success_tool(value: str, tool_call_id: str | None = None) -> Message:
             """Tool that succeeds."""
             return Message.tool_message(
-                content={"result": f"success_{value}"},
-                tool_call_id=tool_call_id,
+                content=[ToolResultBlock(
+                    call_id=tool_call_id or "",
+                    output={"result": f"success_{value}"},
+                    status="completed",
+                    is_error=False,
+                )],
             )
 
         tool_node = ToolNode([failing_tool, success_tool])
 
-        message = Message.from_text(
+        message = Message.text_message(
             role="assistant",
             content="Mixed",
-            metadata={
-                "tools_calls": [
-                    {
-                        "id": "call_fail",
-                        "type": "function",
-                        "function": {
-                            "name": "failing_tool",
-                            "arguments": "{}",
-                        },
-                    },
-                    {
-                        "id": "call_success",
-                        "type": "function",
-                        "function": {
-                            "name": "success_tool",
-                            "arguments": '{"value": "test"}',
-                        },
-                    },
-                ]
-            },
         )
+        message.tools_calls = [
+            {
+                "id": "call_fail",
+                "type": "function",
+                "function": {
+                    "name": "failing_tool",
+                    "arguments": "{}",
+                },
+            },
+            {
+                "id": "call_success",
+                "type": "function",
+                "function": {
+                    "name": "success_tool",
+                    "arguments": '{"value": "test"}',
+                },
+            },
+        ]
 
         handler = StreamNodeHandler("test_node", tool_node)
         state = AgentState(context=[message])
@@ -235,30 +255,32 @@ class TestParallelToolCalls:
             """Tool with configurable delay."""
             await asyncio.sleep(delay)
             return Message.tool_message(
-                content={"delay": delay},
-                tool_call_id=tool_call_id,
+                content=[ToolResultBlock(
+                    call_id=tool_call_id or "",
+                    output={"delay": delay},
+                    status="completed",
+                    is_error=False,
+                )],
             )
 
         tool_node = ToolNode([delayed_tool])
 
         # Create 3 tool calls, each with 0.2s delay
-        message = Message.from_text(
+        message = Message.text_message(
             role="assistant",
             content="Delayed",
-            metadata={
-                "tools_calls": [
-                    {
-                        "id": f"call_{i}",
-                        "type": "function",
-                        "function": {
-                            "name": "delayed_tool",
-                            "arguments": '{"delay": 0.2}',
-                        },
-                    }
-                    for i in range(3)
-                ]
-            },
         )
+        message.tools_calls = [
+            {
+                "id": f"call_{i}",
+                "type": "function",
+                "function": {
+                    "name": "delayed_tool",
+                    "arguments": '{"delay": 0.2}',
+                },
+            }
+            for i in range(3)
+        ]
 
         handler = StreamNodeHandler("test_node", tool_node)
         state = AgentState(context=[message])
@@ -283,28 +305,30 @@ class TestParallelToolCalls:
         async def simple_tool(value: str, tool_call_id: str | None = None) -> Message:
             """Simple test tool."""
             return Message.tool_message(
-                content={"result": value},
-                tool_call_id=tool_call_id,
+                content=[ToolResultBlock(
+                    call_id=tool_call_id or "",
+                    output={"result": value},
+                    status="completed",
+                    is_error=False,
+                )],
             )
 
         tool_node = ToolNode([simple_tool])
 
-        message = Message.from_text(
+        message = Message.text_message(
             role="assistant",
             content="Single",
-            metadata={
-                "tools_calls": [
-                    {
-                        "id": "call_1",
-                        "type": "function",
-                        "function": {
-                            "name": "simple_tool",
-                            "arguments": '{"value": "test"}',
-                        },
-                    }
-                ]
-            },
         )
+        message.tools_calls = [
+            {
+                "id": "call_1",
+                "type": "function",
+                "function": {
+                    "name": "simple_tool",
+                    "arguments": '{"value": "test"}',
+                },
+            }
+        ]
 
         handler = StreamNodeHandler("test_node", tool_node)
         state = AgentState(context=[message])
@@ -316,7 +340,7 @@ class TestParallelToolCalls:
                 results.append(chunk)
 
         assert len(results) == 1
-        assert results[0].content[0].result["result"] == "test"
+        assert results[0].content[0].output["result"] == "test"
 
     @pytest.mark.asyncio
     async def test_empty_tool_calls_raises_error(self):
@@ -325,11 +349,11 @@ class TestParallelToolCalls:
 
         tool_node = ToolNode([])
 
-        message = Message.from_text(
+        message = Message.text_message(
             role="assistant",
             content="No tools",
-            metadata={"tools_calls": []},
         )
+        message.tools_calls = []
 
         handler = StreamNodeHandler("test_node", tool_node)
         state = AgentState(context=[message])

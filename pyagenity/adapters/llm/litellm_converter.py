@@ -68,7 +68,7 @@ class LiteLLMConverter(BaseConverter):
             ),
         )
 
-        created_date = data.get("created", datetime.now())
+        created_date = data.get("created", datetime.now().timestamp())
 
         # Extract tool calls from response
         tools_calls = data.get("choices", [{}])[0].get("message", {}).get("tool_calls", []) or []
@@ -232,7 +232,7 @@ class LiteLLMConverter(BaseConverter):
 
         # Try async iteration (acompletion)
         try:
-            async for chunk in stream:
+            async for chunk in stream:  # type: ignore
                 accumulated_content, accumulated_reasoning_content, tool_calls, seq, message = (
                     self._process_chunk(
                         chunk,
