@@ -12,7 +12,8 @@ import logging
 from abc import ABC, abstractmethod
 from typing import Any
 
-from pyagenity.utils import Message, run_coroutine
+from pyagenity.state import Message
+from pyagenity.utils import run_coroutine
 
 from .store_schema import DistanceMetric, MemorySearchResult, MemoryType, RetrievalStrategy
 

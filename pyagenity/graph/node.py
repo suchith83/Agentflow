@@ -20,10 +20,9 @@ from injectq import Inject
 from pyagenity.graph.utils.invoke_node_handler import InvokeNodeHandler
 from pyagenity.graph.utils.stream_node_handler import StreamNodeHandler
 from pyagenity.publisher import BasePublisher
-from pyagenity.state import AgentState
+from pyagenity.state import AgentState, Message
 from pyagenity.utils import (
     CallbackManager,
-    Message,
 )
 
 from .tool_node import ToolNode

@@ -8,7 +8,7 @@ and direct graph execution to specific nodes or graphs.
 
 from typing import TYPE_CHECKING, TypeVar, Union
 
-from pyagenity.utils.message import Message
+from pyagenity.state.message import Message
 
 
 if TYPE_CHECKING:

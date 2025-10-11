@@ -7,8 +7,8 @@ from pyagenity.checkpointer import InMemoryCheckpointer
 from pyagenity.graph import ToolNode, CompiledGraph
 from pyagenity.prebuilt.agent.router import RouterAgent
 from pyagenity.state.agent_state import AgentState
-from pyagenity.utils import Message, END
-from pyagenity.utils.callbacks import CallbackManager
+from pyagenity.state.message import Message
+from pyagenity.utils import  END
 
 
 class TestRouterAgent:

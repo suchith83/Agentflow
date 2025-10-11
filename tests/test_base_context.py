@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, Mock
 
 from pyagenity.state import AgentState
 from pyagenity.state.base_context import BaseContextManager
-from pyagenity.utils.message import Message
+from pyagenity.state import Message
 
 
 class TestBaseContextManager:

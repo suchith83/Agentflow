@@ -18,7 +18,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
-from pyagenity.utils.message import ContentBlock
+from pyagenity.state.message_block import ContentBlock
 
 
 class Event(str, enum.Enum):

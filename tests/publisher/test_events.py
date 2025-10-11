@@ -18,7 +18,7 @@ from pyagenity.publisher.events import (
     ContentType,
     EventModel,
 )
-from pyagenity.utils.message import ContentBlock, TextBlock
+from pyagenity.state.message import TextBlock
 
 
 class TestEventEnums:

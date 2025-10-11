@@ -24,12 +24,11 @@ from pyagenity.graph.utils.stream_utils import check_non_streaming
 from pyagenity.graph.utils.utils import process_node_result
 from pyagenity.publisher.events import ContentType, Event, EventModel, EventType
 from pyagenity.publisher.publish import publish_event
-from pyagenity.state import AgentState
+from pyagenity.state import AgentState, Message
 from pyagenity.utils import (
     CallbackContext,
     CallbackManager,
     InvocationType,
-    Message,
     call_sync_or_async,
 )
 from pyagenity.utils.command import Command

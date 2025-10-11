@@ -8,7 +8,8 @@ into dicts suitable for LLM and tool invocation payloads.
 import logging
 from typing import TYPE_CHECKING, Any, Union
 
-from .message import Message, ToolResultBlock
+from pyagenity.state.message import Message
+from pyagenity.state.message_block import ToolResultBlock
 
 
 if TYPE_CHECKING:

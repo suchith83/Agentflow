@@ -9,8 +9,8 @@ from pyagenity.graph import (
     StateGraph,
     ToolNode,
 )
-from pyagenity.state import AgentState
-from pyagenity.utils import END, Message
+from pyagenity.state import AgentState, Message
+from pyagenity.utils import END
 
 
 class TestEdge:

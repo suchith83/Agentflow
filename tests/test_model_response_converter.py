@@ -7,7 +7,7 @@ from unittest.mock import Mock, AsyncMock, patch, MagicMock
 
 from pyagenity.adapters.llm.model_response_converter import ModelResponseConverter
 from pyagenity.adapters.llm.base_converter import BaseConverter
-from pyagenity.utils.message import Message
+from pyagenity.state.message import Message
 
 
 class TestModelResponseConverter:

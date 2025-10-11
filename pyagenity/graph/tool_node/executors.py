@@ -10,9 +10,8 @@ import typing as t
 from pyagenity.adapters.tools import ComposioAdapter
 from pyagenity.publisher.events import ContentType, Event, EventModel, EventType
 from pyagenity.publisher.publish import publish_event
-from pyagenity.state import AgentState
+from pyagenity.state import AgentState, ContentBlock, ErrorBlock, Message, ToolResultBlock
 from pyagenity.utils import CallbackContext, CallbackManager, InvocationType, call_sync_or_async
-from pyagenity.utils.message import ContentBlock, ErrorBlock, Message, ToolResultBlock
 
 from .constants import INJECTABLE_PARAMS
 

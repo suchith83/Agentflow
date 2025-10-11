@@ -18,8 +18,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from pyagenity.checkpointer.pg_checkpointer import PgCheckpointer
-from pyagenity.state import AgentState
-from pyagenity.utils import Message
+from pyagenity.state import AgentState, Message
 from pyagenity.utils.thread_info import ThreadInfo
 
 

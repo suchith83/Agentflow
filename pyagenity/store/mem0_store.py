@@ -43,7 +43,7 @@ from uuid import uuid4
 
 from injectq import InjectQ
 
-from pyagenity.utils import Message
+from pyagenity.state import Message
 
 from .base_store import BaseStore
 from .store_schema import MemorySearchResult, MemoryType

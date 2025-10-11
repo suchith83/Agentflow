@@ -11,7 +11,7 @@ import logging
 from datetime import datetime
 from typing import Any
 
-from pyagenity.utils import Message
+from pyagenity.state import Message
 
 from .base_store import BaseStore
 from .embedding.base_embedding import BaseEmbedding

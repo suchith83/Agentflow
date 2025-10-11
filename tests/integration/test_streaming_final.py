@@ -6,8 +6,8 @@ import pytest
 
 from pyagenity.checkpointer import InMemoryCheckpointer
 from pyagenity.graph import StateGraph
-from pyagenity.state import AgentState
-from pyagenity.utils import END, Message
+from pyagenity.state import AgentState, Message
+from pyagenity.utils import END
 
 
 class MockStreamingResponse:

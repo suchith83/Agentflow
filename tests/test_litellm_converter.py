@@ -4,7 +4,8 @@ import pytest
 import asyncio
 from datetime import datetime
 from unittest.mock import Mock, AsyncMock, patch, MagicMock
-from pyagenity.utils.message import Message, TokenUsages, TextBlock, ReasoningBlock, ToolCallBlock
+from pyagenity.state.message import Message, TokenUsages
+from pyagenity.state.message_block import TextBlock, ReasoningBlock, ToolCallBlock
 
 
 class TestLiteLLMConverter:

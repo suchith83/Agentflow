@@ -20,9 +20,8 @@ from pyagenity.graph.edge import Edge
 from pyagenity.graph.node import Node
 from pyagenity.publisher.events import ContentType, Event, EventModel, EventType
 from pyagenity.publisher.publish import publish_event
-from pyagenity.state import AgentState, ExecutionStatus
-from pyagenity.utils import END, Message, ResponseGranularity, add_messages
-from pyagenity.utils.message import ErrorBlock
+from pyagenity.state import AgentState, ExecutionStatus, Message, ErrorBlock
+from pyagenity.utils import END, ResponseGranularity, add_messages
 
 from .handler_mixins import (
     BaseLoggingMixin,
@@ -239,6 +238,10 @@ class StreamHandler[StateT: AgentState](
                     config,
                 )
                 if res:
+                    event.event_type = EventType.INTERRUPTED
+                    event.metadata["status"] = "Graph execution stopped by request"
+                    event.data["state"] = state.model_dump()
+                    publish_event(event)
                     return
 
                 # Update execution metadata
@@ -477,7 +480,7 @@ class StreamHandler[StateT: AgentState](
         config: dict[str, Any],
         default_state: StateT,
         response_granularity: ResponseGranularity = ResponseGranularity.LOW,
-    ) -> AsyncGenerator[Message]:
+    ) -> AsyncGenerator[Message | EventModel]:
         """Execute the graph asynchronously with streaming output.
 
         Runs the graph workflow from start to finish, yielding incremental results

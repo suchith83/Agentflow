@@ -5,8 +5,7 @@ from collections.abc import AsyncGenerator
 from unittest.mock import Mock, AsyncMock
 
 from pyagenity.adapters.llm.base_converter import BaseConverter, ConverterType
-from pyagenity.state import AgentState
-from pyagenity.utils.message import Message
+from pyagenity.state import AgentState, Message
 from pyagenity.publisher.events import EventModel
 
 

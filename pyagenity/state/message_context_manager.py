@@ -8,7 +8,7 @@ history (context) for agent interactions, ensuring efficient context window usag
 import logging
 from typing import TypeVar
 
-from pyagenity.utils import Message
+from pyagenity.state import Message
 
 from .agent_state import AgentState
 from .base_context import BaseContextManager

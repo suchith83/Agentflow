@@ -17,7 +17,7 @@ from pyagenity.store.store_schema import (
     MemoryRecord,
     MemorySearchResult,
 )
-from pyagenity.utils.message import Message, TextBlock
+from pyagenity.state import Message, TextBlock
 
 
 class TestEnums:

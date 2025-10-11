@@ -1,14 +1,13 @@
 """Comprehensive tests for the RAG prebuilt agent."""
 
 import pytest
-from unittest.mock import Mock, patch
 
 from pyagenity.checkpointer import InMemoryCheckpointer
 from pyagenity.graph import ToolNode, CompiledGraph
 from pyagenity.prebuilt.agent.rag import RAGAgent
 from pyagenity.state.agent_state import AgentState
-from pyagenity.utils import Message, END
-from pyagenity.utils.callbacks import CallbackManager
+from pyagenity.state import Message
+from pyagenity.utils import END
 
 
 class TestRAGAgent:

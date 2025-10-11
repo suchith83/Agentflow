@@ -7,14 +7,12 @@ from collections.abc import AsyncGenerator
 from datetime import datetime
 from typing import Any, cast
 
-from pyagenity.utils.message import (
+from pyagenity.state.message import (
     Message,
-    ReasoningBlock,
-    TextBlock,
     TokenUsages,
-    ToolCallBlock,
     generate_id,
 )
+from pyagenity.state.message_block import ReasoningBlock, TextBlock, ToolCallBlock
 
 from .base_converter import BaseConverter
 

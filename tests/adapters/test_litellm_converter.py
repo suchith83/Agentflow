@@ -7,7 +7,8 @@ from unittest.mock import AsyncMock, Mock, patch, MagicMock
 import pytest
 
 from pyagenity.adapters.llm.litellm_converter import LiteLLMConverter
-from pyagenity.utils.message import Message, ReasoningBlock, TextBlock, ToolCallBlock
+from pyagenity.state.message import Message
+from pyagenity.state.message_block import ReasoningBlock, ToolCallBlock, TextBlock
 
 
 class MockModelResponse:
@@ -179,7 +180,7 @@ class TestLiteLLMConverter:
         
         response = MockModelResponse(response_data)
         
-        with patch('pyagenity.utils.message.generate_id', return_value="reasoning_id"):
+        with patch('pyagenity.state.message.generate_id', return_value="reasoning_id"):
             message = await converter.convert_response(response)
         
         assert len(message.content) == 2
@@ -217,7 +218,7 @@ class TestLiteLLMConverter:
         
         response = MockModelResponse(response_data)
         
-        with patch('pyagenity.utils.message.generate_id', return_value="tools_id"):
+        with patch('pyagenity.state.message.generate_id', return_value="tools_id"):
             message = await converter.convert_response(response)
         
         assert len(message.content) == 2
@@ -249,7 +250,7 @@ class TestLiteLLMConverter:
         
         response = MockModelResponse(response_data)
         
-        with patch('pyagenity.utils.message.generate_id', return_value="empty_id"):
+        with patch('pyagenity.state.message.generate_id', return_value="empty_id"):
             message = await converter.convert_response(response)
         
         assert len(message.content) == 0
@@ -300,7 +301,7 @@ class TestLiteLLMConverter:
         choice = MockChoice(delta)
         chunk = MockModelResponseStream("test_123", [choice])
         
-        with patch('pyagenity.utils.message.generate_id', return_value="chunk_id"):
+        with patch('pyagenity.state.message.generate_id', return_value="chunk_id"):
             result = converter._process_chunk(chunk, 1, "Previous ", "", [], set())
         
         accumulated_content, accumulated_reasoning, tool_calls, seq, message = result
@@ -317,7 +318,7 @@ class TestLiteLLMConverter:
         choice = MockChoice(delta)
         chunk = MockModelResponseStream("test_reasoning", [choice])
         
-        with patch('pyagenity.utils.message.generate_id', return_value="reasoning_chunk_id"):
+        with patch('pyagenity.state.message.generate_id', return_value="reasoning_chunk_id"):
             result = converter._process_chunk(chunk, 1, "", "Previous reasoning ", [], set())
         
         accumulated_content, accumulated_reasoning, tool_calls, seq, message = result
@@ -335,7 +336,7 @@ class TestLiteLLMConverter:
         chunk = MockModelResponseStream("test_tools", [choice])
         tool_ids = set()
         
-        with patch('pyagenity.utils.message.generate_id', return_value="tool_chunk_id"):
+        with patch('pyagenity.state.message.generate_id', return_value="tool_chunk_id"):
             result = converter._process_chunk(chunk, 1, "", "", [], tool_ids)
         
         accumulated_content, accumulated_reasoning, tool_calls_result, seq, message = result
@@ -371,7 +372,7 @@ class TestLiteLLMConverter:
         choice = MockChoice(delta)
         chunk = MockModelResponseStream("combined_test", [choice])
         
-        with patch('pyagenity.utils.message.generate_id', return_value="combined_id"):
+        with patch('pyagenity.state.message.generate_id', return_value="combined_id"):
             result = converter._process_chunk(chunk, 1, "", "", [], set())
         
         accumulated_content, accumulated_reasoning, tool_calls_result, seq, message = result
@@ -401,7 +402,7 @@ class TestLiteLLMConverterStreaming:
         config = {"thread_id": "test_thread"}
         
         messages = []
-        with patch('pyagenity.utils.message.generate_id', side_effect=["msg1", "msg2", "final"]):
+        with patch('pyagenity.state.message.generate_id', side_effect=["msg1", "msg2", "final"]):
             async for message in converter._handle_stream(config, "test_node", stream):
                 messages.append(message)
         
@@ -422,7 +423,7 @@ class TestLiteLLMConverterStreaming:
         stream = MockCustomStreamWrapper(chunks)
         
         messages = []
-        with patch('pyagenity.utils.message.generate_id', side_effect=["r1", "r2", "final"]):
+        with patch('pyagenity.state.message.generate_id', side_effect=["r1", "r2", "final"]):
             async for message in converter._handle_stream({}, "reasoning_node", stream):
                 messages.append(message)
         
@@ -440,7 +441,7 @@ class TestLiteLLMConverterStreaming:
         stream = MockCustomStreamWrapper(chunks)
         
         messages = []
-        with patch('pyagenity.utils.message.generate_id', side_effect=["t1", "t2", "final"]):
+        with patch('pyagenity.state.message.generate_id', side_effect=["t1", "t2", "final"]):
             async for message in converter._handle_stream({}, "tool_node", stream):
                 messages.append(message)
         
@@ -473,7 +474,7 @@ class TestLiteLLMConverterStreaming:
         stream = MockCustomStreamWrapper(chunks)
         
         messages = []
-        with patch('pyagenity.utils.message.generate_id', side_effect=["s1", "s2", "final"]):
+        with patch('pyagenity.state.message.generate_id', side_effect=["s1", "s2", "final"]):
             async for message in converter.convert_streaming_response({}, "stream_node", stream):
                 messages.append(message)
         
@@ -493,7 +494,7 @@ class TestLiteLLMConverterStreaming:
         response = MockModelResponse(response_data)
         
         messages = []
-        with patch('pyagenity.utils.message.generate_id', return_value="non_stream_id"):
+        with patch('pyagenity.state.message.generate_id', return_value="non_stream_id"):
             async for message in converter.convert_streaming_response({}, "model_node", response):
                 messages.append(message)
         
@@ -541,7 +542,7 @@ class TestLiteLLMConverterEdgeCases:
         
         response = MockModelResponse(response_data)
         
-        with patch('pyagenity.utils.message.generate_id', return_value="invalid_id"):
+        with patch('pyagenity.state.message.generate_id', return_value="invalid_id"):
             message = await converter.convert_response(response)
         
         # Should skip all invalid tool calls
@@ -573,7 +574,7 @@ class TestLiteLLMConverterEdgeCases:
         stream = SyncOnlyStream(chunks)
         
         messages = []
-        with patch('pyagenity.utils.message.generate_id', side_effect=["sync1", "sync2", "final"]):
+        with patch('pyagenity.state.message.generate_id', side_effect=["sync1", "sync2", "final"]):
             async for message in converter._handle_stream({}, "sync_node", stream):
                 messages.append(message)
         
@@ -591,7 +592,7 @@ class TestLiteLLMConverterEdgeCases:
             return MockCustomStreamWrapper(chunks)
         
         messages = []
-        with patch('pyagenity.utils.message.generate_id', side_effect=["await1", "final"]):
+        with patch('pyagenity.state.message.generate_id', side_effect=["await1", "final"]):
             async for message in converter._handle_stream({}, "await_node", awaitable_stream()):
                 messages.append(message)
         
@@ -617,7 +618,7 @@ class TestLiteLLMConverterEdgeCases:
         stream = FailingStream()
         
         messages = []
-        with patch('pyagenity.utils.message.generate_id', return_value="final"):
+        with patch('pyagenity.state.message.generate_id', return_value="final"):
             async for message in converter._handle_stream({}, "fail_node", stream):
                 messages.append(message)
         

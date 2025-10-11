@@ -32,9 +32,8 @@ from injectq import Inject
 from pyagenity.adapters.tools import ComposioAdapter
 from pyagenity.publisher.events import ContentType, Event, EventModel, EventType
 from pyagenity.publisher.publish import publish_event
-from pyagenity.state import AgentState
+from pyagenity.state import AgentState, ErrorBlock, Message, ToolCallBlock, ToolResultBlock
 from pyagenity.utils import CallbackManager
-from pyagenity.utils.message import ErrorBlock, Message, ToolCallBlock, ToolResultBlock
 
 from . import deps
 from .executors import ComposioMixin, KwargsResolverMixin, LangChainMixin, LocalExecMixin, MCPMixin

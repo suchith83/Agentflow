@@ -5,7 +5,6 @@ This module tests the publisher package's __init__.py file including
 optional dependency handling, dynamic imports, and module structure.
 """
 
-import pytest
 import sys
 from unittest.mock import patch, Mock, MagicMock
 from importlib import import_module
