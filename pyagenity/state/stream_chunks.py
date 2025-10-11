@@ -10,11 +10,20 @@ Classes:
     StreamChunk: Unified wrapper for streaming data with type discrimination.
 """
 
-from typing import Literal
+import enum
+from datetime import datetime
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
+from .agent_state import AgentState
 from .message import Message
+
+
+class StreamEvent(str, enum.Enum):
+    STATE = "state"
+    MESSAGE = "message"
+    ERROR = "error"
+    UPDATES = "updates"
 
 
 class StreamChunk(BaseModel):
@@ -30,5 +39,28 @@ class StreamChunk(BaseModel):
         metadata: Optional additional metadata for the chunk.
     """
 
-    type: Literal["message", "event", "state", "error"]
+    event: StreamEvent = StreamEvent.MESSAGE
+    # data holders for different chunk types
     message: Message | None = None
+    state: AgentState | None = None
+    # Placeholder for other chunk types
+    data: dict | None = None
+
+    # Optional identifiers
+    thread_id: str | None = None
+    run_id: str | None = None
+    # Optional metadata
+    metadata: dict | None = None
+    timestamp: float = Field(
+        default_factory=datetime.now().timestamp,
+        description="UNIX timestamp of when chunk was created",
+    )
+
+    class Config:
+        """Pydantic configuration for EventModel.
+
+        Attributes:
+            use_enum_values: Output enums as strings.
+        """
+
+        use_enum_values = True

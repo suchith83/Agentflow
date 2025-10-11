@@ -33,6 +33,7 @@ from pyagenity.adapters.tools import ComposioAdapter
 from pyagenity.publisher.events import ContentType, Event, EventModel, EventType
 from pyagenity.publisher.publish import publish_event
 from pyagenity.state import AgentState, ErrorBlock, Message, ToolCallBlock, ToolResultBlock
+from pyagenity.state.message_block import RemoteToolCallBlock
 from pyagenity.utils import CallbackManager
 
 from . import deps
@@ -152,13 +153,21 @@ class ToolNode(
         self.mcp_tools: list[str] = []
         self.composio_tools: list[str] = []
         self.langchain_tools: list[str] = []
+        self.frontend_tools: list[dict] = []
+        self.frontend_tool_names: list[str] = []
 
     async def _all_tools_async(self) -> list[dict]:
         tools: list[dict] = self.get_local_tool()
         tools.extend(await self._get_mcp_tool())
         tools.extend(await self._get_composio_tools())
         tools.extend(await self._get_langchain_tools())
+        tools.extend(self.frontend_tools)
         return tools
+
+    def set_local_tool(self, tool_names: list[dict]) -> None:
+        # already validated tool names
+        self.frontend_tools = tool_names
+        self.frontend_tool_names = [tool.get("function", {}).get("name") for tool in tool_names]
 
     async def all_tools(self) -> list[dict]:
         """Get all available tools from all configured providers.
@@ -231,7 +240,7 @@ class ToolNode(
         config: dict[str, t.Any],
         state: AgentState,
         callback_manager: CallbackManager = Inject[CallbackManager],
-    ) -> t.Any:
+    ) -> Message:
         """Execute a specific tool by name with the provided arguments.
 
         This method handles tool execution across all configured providers (local,
@@ -287,9 +296,22 @@ class ToolNode(
         )
         event.node_name = name
         # Attach structured tool call block
-        with contextlib.suppress(Exception):
-            event.content_blocks = [ToolCallBlock(id=tool_call_id, name=name, args=args)]
+        event.content_blocks = [ToolCallBlock(id=tool_call_id, name=name, args=args)]
         publish_event(event)
+        # Check this is available in frontend tools
+        if name in self.frontend_tool_names:
+            event.metadata["is_frontend"] = True
+            publish_event(event)
+            # This tool in frontend tools, so we can not execute it locally
+            # so we will return a message
+            # And the graph will be interrupted here
+            return Message(
+                content=[RemoteToolCallBlock(id=tool_call_id, name=name, args=args)],
+                role="tool",
+                metadata={
+                    "is_frontend": True,
+                },
+            )
 
         if name in self.mcp_tools:
             event.metadata["is_mcp"] = True
@@ -303,10 +325,7 @@ class ToolNode(
             )
             event.data["message"] = res.model_dump()
             # Attach tool result block mirroring the tool output
-            with contextlib.suppress(Exception):
-                event.content_blocks = [
-                    ToolResultBlock(call_id=tool_call_id, output=res.model_dump())
-                ]
+            event.content_blocks = [ToolResultBlock(call_id=tool_call_id, output=res.model_dump())]
             event.event_type = EventType.END
             event.content_type = [ContentType.TOOL_RESULT, ContentType.MESSAGE]
             publish_event(event)
@@ -323,10 +342,7 @@ class ToolNode(
                 callback_manager,
             )
             event.data["message"] = res.model_dump()
-            with contextlib.suppress(Exception):
-                event.content_blocks = [
-                    ToolResultBlock(call_id=tool_call_id, output=res.model_dump())
-                ]
+            event.content_blocks = [ToolResultBlock(call_id=tool_call_id, output=res.model_dump())]
             event.event_type = EventType.END
             event.content_type = [ContentType.TOOL_RESULT, ContentType.MESSAGE]
             publish_event(event)
@@ -343,10 +359,7 @@ class ToolNode(
                 callback_manager,
             )
             event.data["message"] = res.model_dump()
-            with contextlib.suppress(Exception):
-                event.content_blocks = [
-                    ToolResultBlock(call_id=tool_call_id, output=res.model_dump())
-                ]
+            event.content_blocks = [ToolResultBlock(call_id=tool_call_id, output=res.model_dump())]
             event.event_type = EventType.END
             event.content_type = [ContentType.TOOL_RESULT, ContentType.MESSAGE]
             publish_event(event)
@@ -364,10 +377,7 @@ class ToolNode(
                 callback_manager,
             )
             event.data["message"] = res.model_dump()
-            with contextlib.suppress(Exception):
-                event.content_blocks = [
-                    ToolResultBlock(call_id=tool_call_id, output=res.model_dump())
-                ]
+            event.content_blocks = [ToolResultBlock(call_id=tool_call_id, output=res.model_dump())]
             event.event_type = EventType.END
             event.content_type = [ContentType.TOOL_RESULT, ContentType.MESSAGE]
             publish_event(event)
@@ -445,8 +455,22 @@ class ToolNode(
             event=Event.TOOL_EXECUTION,
         )
         event.node_name = "ToolNode"
-        with contextlib.suppress(Exception):
-            event.content_blocks = [ToolCallBlock(id=tool_call_id, name=name, args=args)]
+        event.content_blocks = [ToolCallBlock(id=tool_call_id, name=name, args=args)]
+
+        if name in self.frontend_tool_names:
+            event.metadata["is_frontend"] = True
+            publish_event(event)
+            # This tool in frontend tools, so we can not execute it locally
+            # so we will return a message
+            # And the graph will be interrupted here
+            yield Message(
+                content=[RemoteToolCallBlock(id=tool_call_id, name=name, args=args)],
+                role="tool",
+                metadata={
+                    "is_frontend": True,
+                },
+            )
+            return
 
         if name in self.mcp_tools:
             event.metadata["function_type"] = "mcp"
@@ -459,10 +483,9 @@ class ToolNode(
                 callback_manager,
             )
             event.data["message"] = message.model_dump()
-            with contextlib.suppress(Exception):
-                event.content_blocks = [
-                    ToolResultBlock(call_id=tool_call_id, output=message.model_dump())
-                ]
+            event.content_blocks = [
+                ToolResultBlock(call_id=tool_call_id, output=message.model_dump())
+            ]
             event.event_type = EventType.END
             event.content_type = [ContentType.TOOL_RESULT, ContentType.MESSAGE]
             publish_event(event)
@@ -480,10 +503,9 @@ class ToolNode(
                 callback_manager,
             )
             event.data["message"] = message.model_dump()
-            with contextlib.suppress(Exception):
-                event.content_blocks = [
-                    ToolResultBlock(call_id=tool_call_id, output=message.model_dump())
-                ]
+            event.content_blocks = [
+                ToolResultBlock(call_id=tool_call_id, output=message.model_dump())
+            ]
             event.event_type = EventType.END
             event.content_type = [ContentType.TOOL_RESULT, ContentType.MESSAGE]
             publish_event(event)
@@ -501,10 +523,9 @@ class ToolNode(
                 callback_manager,
             )
             event.data["message"] = message.model_dump()
-            with contextlib.suppress(Exception):
-                event.content_blocks = [
-                    ToolResultBlock(call_id=tool_call_id, output=message.model_dump())
-                ]
+            event.content_blocks = [
+                ToolResultBlock(call_id=tool_call_id, output=message.model_dump())
+            ]
             event.event_type = EventType.END
             event.content_type = [ContentType.TOOL_RESULT, ContentType.MESSAGE]
             publish_event(event)
@@ -524,10 +545,9 @@ class ToolNode(
                 callback_manager,
             )
             event.data["message"] = result.model_dump()
-            with contextlib.suppress(Exception):
-                event.content_blocks = [
-                    ToolResultBlock(call_id=tool_call_id, output=result.model_dump())
-                ]
+            event.content_blocks = [
+                ToolResultBlock(call_id=tool_call_id, output=result.model_dump())
+            ]
             event.event_type = EventType.END
             event.content_type = [ContentType.TOOL_RESULT, ContentType.MESSAGE]
             publish_event(event)

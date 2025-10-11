@@ -21,6 +21,7 @@ from pyagenity.graph.utils.invoke_node_handler import InvokeNodeHandler
 from pyagenity.graph.utils.stream_node_handler import StreamNodeHandler
 from pyagenity.publisher import BasePublisher
 from pyagenity.state import AgentState, Message
+from pyagenity.state.stream_chunks import StreamChunk
 from pyagenity.utils import (
     CallbackManager,
 )
@@ -156,7 +157,7 @@ class Node:
         config: dict[str, Any],
         state: AgentState,
         callback_mgr: CallbackManager = Inject[CallbackManager],
-    ) -> AsyncIterable[dict[str, Any] | Message]:
+    ) -> AsyncIterable[dict[str, Any] | Message | StreamChunk]:
         """Execute the node function with streaming output support.
 
         Similar to execute() but designed for streaming scenarios where the node

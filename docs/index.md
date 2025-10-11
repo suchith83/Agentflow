@@ -15,7 +15,7 @@
 - **🤖 Multi-Agent Workflows** - Build complex agent systems with your choice of orchestration patterns
 - **📊 Structured Responses** - Get `content`, optional `thinking`, and `usage` in a standardized format
 - **🌊 Streaming Support** - Real-time incremental responses with delta updates
-- **🔧 Tool Integration** - Native support for function calling, MCP, Composio, and LangChain tools
+- **🔧 Tool Integration** - Native support for function calling, MCP, Composio, and LangChain tools with **parallel execution**
 - **🔀 LangGraph-Inspired Engine** - Flexible graph orchestration with nodes, conditional edges, and control flow
 - **💾 State Management** - Built-in persistence with in-memory and PostgreSQL+Redis checkpointers
 - **🔄 Human-in-the-Loop** - Pause/resume execution for approval workflows and debugging
@@ -311,6 +311,7 @@ See `pyproject.dev.toml` for complete tool configurations.
 - ✅ Core graph engine with nodes and edges
 - ✅ State management and checkpointing
 - ✅ Tool integration (MCP, Composio, LangChain)
+- ✅ **Parallel tool execution** for improved performance
 - ✅ Streaming and event publishing
 - ✅ Human-in-the-loop support
 - ✅ Prebuilt agent patterns

@@ -12,9 +12,9 @@ Classes:
 """
 
 import enum
-import time
 import uuid
-from typing import Any, Literal
+from datetime import datetime
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -134,18 +134,6 @@ class EventModel(BaseModel):
     content_blocks: list[ContentBlock] | None = Field(
         default=None, description="Structured content blocks carried by this event"
     )
-    # Delta controls
-    delta: bool = Field(default=False, description="True if this is a delta update (incremental)")
-    delta_type: Literal["text", "json", "binary"] | None = Field(
-        default=None, description="Type of delta when delta=True"
-    )
-    block_index: int | None = Field(
-        default=None, description="Index of the content block this chunk applies to"
-    )
-    chunk_index: int | None = Field(default=None, description="Per-block chunk index for ordering")
-    byte_offset: int | None = Field(
-        default=None, description="Byte offset for binary/media streaming"
-    )
 
     # Data payload
     data: dict[str, Any] = Field(default_factory=dict, description="Additional structured data")
@@ -154,14 +142,14 @@ class EventModel(BaseModel):
     content_type: list[ContentType] | None = Field(
         default=None, description="Semantic type of content"
     )
-    sequence_id: int = Field(default=0, description="Monotonic sequence ID for stream ordering")
     node_name: str = Field(default="", description="Name of the node producing this chunk")
     run_id: str = Field(
         default_factory=lambda: str(uuid.uuid4()), description="Unique ID for this stream/run"
     )
     thread_id: str | int = Field(default="", description="Thread ID for this execution")
     timestamp: float = Field(
-        default_factory=time.time, description="UNIX timestamp of when chunk was created"
+        default_factory=datetime.now().timestamp,
+        description="UNIX timestamp of when chunk was created",
     )
     is_error: bool = Field(
         default=False, description="Marks this chunk as representing an error state"
@@ -217,7 +205,6 @@ class EventModel(BaseModel):
         return cls(
             event=event,
             event_type=event_type,
-            delta=False,
             content_type=content_type,
             data=data,
             thread_id=thread_id,
@@ -256,7 +243,6 @@ class EventModel(BaseModel):
         return cls(
             event=Event.STREAMING,
             event_type=EventType.UPDATE,
-            delta=True,
             content_type=[ContentType.TEXT, ContentType.REASONING],
             data={},
             thread_id=thread_id,

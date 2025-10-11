@@ -177,6 +177,25 @@ class ToolCallBlock(BaseModel):
     tool_type: str | None = None  # e.g., web_search, file_search, computer_use
 
 
+class RemoteToolCallBlock(BaseModel):
+    """
+    Remote Tool call content block for messages.
+
+    Attributes:
+        type (Literal["remote_tool_call"]): Block type discriminator.
+        id (str): Tool call ID.
+        name (str): Tool name.
+        args (dict[str, Any]): Arguments for the tool call.
+        tool_type (str | None): Type of tool (e.g., web_search, file_search).
+    """
+
+    type: Literal["remote_tool_call"] = "remote_tool_call"
+    id: str
+    name: str
+    args: dict[str, Any] = Field(default_factory=dict)
+    tool_type: str = "remote"
+
+
 class ToolResultBlock(BaseModel):
     """
     Tool result content block for messages.
@@ -255,6 +274,7 @@ ContentBlock = Annotated[
         DocumentBlock,
         DataBlock,
         ToolCallBlock,
+        RemoteToolCallBlock,
         ToolResultBlock,
         ReasoningBlock,
         AnnotationBlock,

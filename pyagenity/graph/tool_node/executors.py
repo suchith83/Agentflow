@@ -73,7 +73,6 @@ class ComposioMixin:
         )
         event.event_type = EventType.PROGRESS
         event.node_name = "ToolNode"
-        event.sequence_id = 1
         publish_event(event)
 
         input_data = {**args}
@@ -96,7 +95,6 @@ class ComposioMixin:
         try:
             input_data = await callback_mgr.execute_before_invoke(context, input_data)
             event.event_type = EventType.UPDATE
-            event.sequence_id = 2
             event.metadata["status"] = "before_invoke_complete Invoke Composio"
             publish_event(event)
 
@@ -256,7 +254,6 @@ class LangChainMixin:
         )
         event.event_type = EventType.PROGRESS
         event.node_name = "ToolNode"
-        event.sequence_id = 1
         publish_event(event)
 
         input_data = {**args}
@@ -279,7 +276,6 @@ class LangChainMixin:
         try:
             input_data = await callback_mgr.execute_before_invoke(context, input_data)
             event.event_type = EventType.UPDATE
-            event.sequence_id = 2
             event.metadata["status"] = "before_invoke_complete Invoke LangChain"
             publish_event(event)
 
@@ -468,7 +464,6 @@ class LocalExecMixin:
         )
         event.event_type = EventType.PROGRESS
         event.node_name = "ToolNode"
-        event.sequence_id = 1
         publish_event(event)
 
         def safe_serialize(obj: t.Any) -> dict[str, t.Any]:
@@ -490,7 +485,6 @@ class LocalExecMixin:
             input_data = await callback_mgr.execute_before_invoke(context, input_data)
 
             event.event_type = EventType.UPDATE
-            event.sequence_id = 2
             event.metadata["status"] = "before_invoke_complete Invoke internal"
             publish_event(event)
 
@@ -741,7 +735,6 @@ class MCPMixin:
         )
         event.event_type = EventType.PROGRESS
         event.node_name = "ToolNode"
-        event.sequence_id = 1
         publish_event(event)
 
         input_data = {**args}
@@ -749,7 +742,6 @@ class MCPMixin:
         try:
             input_data = await callback_mgr.execute_before_invoke(context, input_data)
             event.event_type = EventType.UPDATE
-            event.sequence_id = 2
             event.metadata["status"] = "before_invoke_complete Invoke MCP"
             publish_event(event)
 

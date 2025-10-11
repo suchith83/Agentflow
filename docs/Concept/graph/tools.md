@@ -14,7 +14,7 @@ Key responsibilities:
 
 - Build JSON schemas for tool functions (signature inspection)
 - Manage special injectable parameters (`tool_call_id`, `state`, etc.)
-- Execute sequentially; aggregate results into messages
+- **Execute tool calls in parallel** for improved performance
 - Interleave with MCP / external tool sources
 
 ---
@@ -107,14 +107,54 @@ supported.
 ```
 Assistant (LLM) → tool_calls[] → Graph edge → ToolNode
 ToolNode:
-  for each tool_call:
+  for each tool_call (in parallel):
      locate matching tool
      prepare args
      inject (tool_call_id, state, deps)
-     execute
+     execute concurrently
      collect result → Message.role=tool
 Return tool messages → appended to state.context → next node
 ```
+
+---
+
+## Parallel Tool Execution
+
+**New in PyAgenity**: When an LLM returns multiple tool calls in a single response, PyAgenity executes them **in parallel** 
+using `asyncio.gather`. This significantly improves performance when:
+
+- Multiple independent API calls are needed
+- Tools perform I/O-bound operations (network requests, file access, database queries)
+- The LLM requests multiple tools that don't depend on each other
+
+### Performance Benefits
+
+Parallel execution means:
+- **Reduced latency**: 3 tools with 1s delay each execute in ~1s total (not 3s sequentially)
+- **Better resource utilization**: While one tool waits for I/O, others can execute
+- **Improved user experience**: Faster responses in multi-tool scenarios
+
+### Example
+
+```python
+# When the LLM returns this:
+tool_calls = [
+    {"function": {"name": "get_weather", "arguments": '{"city": "NYC"}'}},
+    {"function": {"name": "get_news", "arguments": '{"topic": "tech"}'}},
+    {"function": {"name": "get_stock", "arguments": '{"symbol": "AAPL"}'}}
+]
+
+# PyAgenity executes all three tools concurrently
+# Total time ≈ max(weather_time, news_time, stock_time)
+# Instead of: weather_time + news_time + stock_time
+```
+
+### Considerations
+
+- Tools share the same `state` reference - ensure thread-safety if modifying state
+- Errors in one tool don't block others from completing
+- Results are yielded as they complete (order not guaranteed)
+- Single tool calls work identically to before (no breaking changes)
 
 ---
 

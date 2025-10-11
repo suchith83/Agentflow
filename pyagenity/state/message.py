@@ -153,7 +153,7 @@ class Message(BaseModel):
     delta: bool = False  # Indicates if this is a delta/partial message
     tools_calls: list[dict[str, Any]] | None = None
     reasoning: str | None = None  # Remove it
-    timestamp: datetime | None = Field(default_factory=datetime.now)
+    timestamp: float | None = Field(default_factory=datetime.now().timestamp)
     metadata: dict[str, Any] = Field(default_factory=dict)
     usages: TokenUsages | None = None
     raw: dict[str, Any] | None = None
@@ -184,7 +184,6 @@ class Message(BaseModel):
             message_id=generate_id(message_id),
             role=role,
             content=[TextBlock(text=content)],
-            timestamp=datetime.now(),
             metadata={},
         )
 
@@ -215,7 +214,6 @@ class Message(BaseModel):
             message_id=msg_id,
             role="tool",
             content=res,
-            timestamp=datetime.now(),
             metadata=meta or {},
         )
 

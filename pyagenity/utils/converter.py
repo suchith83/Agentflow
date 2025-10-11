@@ -9,7 +9,7 @@ import logging
 from typing import TYPE_CHECKING, Any, Union
 
 from pyagenity.state.message import Message
-from pyagenity.state.message_block import ToolResultBlock
+from pyagenity.state.message_block import RemoteToolCallBlock, ToolResultBlock
 
 
 if TYPE_CHECKING:
@@ -18,7 +18,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-def _convert_dict(message: Message) -> dict[str, Any]:
+def _convert_dict(message: Message) -> dict[str, Any] | None:
     """
     Convert a Message object to a dictionary for LLM/tool payloads.
 
@@ -28,6 +28,11 @@ def _convert_dict(message: Message) -> dict[str, Any]:
     Returns:
         dict[str, Any]: Dictionary representation of the message.
     """
+    # if any remote tool call exists we are skipping the tool result block
+    # as remote tool calls are not supported in the current implementation
+    if RemoteToolCallBlock in message.content:
+        return None
+
     if message.role == "tool":
         content = message.content
         call_id = ""
@@ -88,11 +93,15 @@ def convert_messages(
 
     if state and state.context:
         for msg in state.context:
-            res.append(_convert_dict(msg))
+            formatted = _convert_dict(msg)
+            if formatted:
+                res.append(formatted)
 
     if extra_messages:
         for msg in extra_messages:
-            res.append(_convert_dict(msg))
+            formatted = _convert_dict(msg)
+            if formatted:
+                res.append(formatted)
 
     logger.debug("Number of Converted messages: %s", len(res))
     return res
