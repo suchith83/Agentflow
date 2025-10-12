@@ -11,9 +11,11 @@ from typing import Annotated
 
 from pydantic import BaseModel, Field
 
-from pyagenity.state.execution_state import ExecutionState as ExecMeta
-from pyagenity.state.message import Message
-from pyagenity.utils import START, add_messages
+from pyagenity.utils import START
+
+from .execution_state import ExecutionState as ExecMeta
+from .message import Message
+from .reducers import add_messages
 
 
 # Generic type variable for state subclassing
