@@ -34,14 +34,14 @@ class OpenAIEmbedding(BaseEmbedding):
                 "OpenAI API key must be provided via parameter or OPENAI_API_KEY env var"
             )
 
-        from openai import AsyncOpenAI  # noqa: PLC0415
+        from openai import AsyncOpenAI
 
         self.client = AsyncOpenAI(
             api_key=self.api_key,
         )  # type: ignore
 
     async def aembed_batch(self, texts: list[str]) -> list[list[float]]:
-        from openai import OpenAIError  # noqa: PLC0415
+        from openai import OpenAIError
 
         try:
             response = await self.client.embeddings.create(
@@ -53,7 +53,7 @@ class OpenAIEmbedding(BaseEmbedding):
             raise RuntimeError(f"OpenAI API error: {e}") from e
 
     async def aembed(self, text: str) -> list[float]:
-        from openai import OpenAIError  # noqa: PLC0415
+        from openai import OpenAIError
 
         try:
             response = await self.client.embeddings.create(

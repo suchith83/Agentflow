@@ -100,7 +100,7 @@ class QdrantStore(BaseStore):
         self.embedding = embedding
 
         # Initialize async client
-        from qdrant_client import AsyncQdrantClient  # noqa: PLC0415
+        from qdrant_client import AsyncQdrantClient
 
         if path:
             self.client = AsyncQdrantClient(path=path, **kwargs)
@@ -128,7 +128,7 @@ class QdrantStore(BaseStore):
 
     def _distance_metric_to_qdrant(self, metric: DistanceMetric):
         """Convert framework distance metric to Qdrant distance."""
-        from qdrant_client.http.models import Distance  # noqa: PLC0415
+        from qdrant_client.http.models import Distance
 
         mapping = {
             DistanceMetric.COSINE: Distance.COSINE,
@@ -192,7 +192,7 @@ class QdrantStore(BaseStore):
         """Build Qdrant filter from parameters."""
         conditions = []
 
-        from qdrant_client.http.models import (  # noqa: PLC0415
+        from qdrant_client.http.models import (
             FieldCondition,
             Filter,
             MatchValue,
@@ -236,7 +236,7 @@ class QdrantStore(BaseStore):
         if collection in self._collection_cache:
             return
 
-        from qdrant_client.http.models import VectorParams  # noqa: PLC0415
+        from qdrant_client.http.models import VectorParams
 
         try:
             # Check if collection exists
@@ -310,7 +310,7 @@ class QdrantStore(BaseStore):
         """Store a new memory."""
         user_id, thread_id, collection = self._extract_config_values(config)
 
-        from qdrant_client.http.models import PointStruct  # noqa: PLC0415
+        from qdrant_client.http.models import PointStruct
 
         # Ensure collection exists
         await self._ensure_collection_exists(collection)
@@ -484,7 +484,7 @@ class QdrantStore(BaseStore):
         **kwargs,
     ) -> None:
         """Update an existing memory."""
-        from qdrant_client.http.models import PointStruct  # noqa: PLC0415
+        from qdrant_client.http.models import PointStruct
 
         user_id, thread_id, collection = self._extract_config_values(config)
 
@@ -542,7 +542,7 @@ class QdrantStore(BaseStore):
         **kwargs,
     ) -> None:
         """Delete a memory by ID."""
-        from qdrant_client.http import models  # noqa: PLC0415
+        from qdrant_client.http import models
 
         user_id, thread_id, collection = self._extract_config_values(config)
 
@@ -571,7 +571,7 @@ class QdrantStore(BaseStore):
         **kwargs,
     ) -> None:
         """Delete all memories for a user or agent."""
-        from qdrant_client.http import models  # noqa: PLC0415
+        from qdrant_client.http import models
 
         user_id, agent_id, collection = self._extract_config_values(config)
 

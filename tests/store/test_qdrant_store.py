@@ -58,7 +58,7 @@ def mock_qdrant_client():
 @pytest.fixture
 def qdrant_store(mock_embedding_service, mock_qdrant_client):
     """Create a QdrantStore instance with mocked dependencies."""
-    with patch("pyagenity.store.qdrant_store.AsyncQdrantClient") as mock_client_class:
+    with patch("qdrant_client.AsyncQdrantClient") as mock_client_class:
         mock_client_class.return_value = mock_qdrant_client
         store = QdrantStore(
             embedding=mock_embedding_service,
@@ -116,7 +116,7 @@ class TestQdrantStore:
     @pytest.mark.asyncio
     async def test_store_initialization(self, mock_embedding_service):
         """Test store initialization."""
-        with patch("pyagenity.store.qdrant_store.AsyncQdrantClient") as mock_client:
+        with patch("qdrant_client.AsyncQdrantClient") as mock_client:
             store = QdrantStore(
                 embedding=mock_embedding_service,
                 path="./test_data"
@@ -420,7 +420,7 @@ class TestConvenienceFunctions:
 
     def test_create_local_qdrant_store(self, mock_embedding_service):
         """Test local store creation."""
-        with patch("pyagenity.store.qdrant_store.AsyncQdrantClient"):
+        with patch("qdrant_client.AsyncQdrantClient"):
             from pyagenity.store.qdrant_store import create_local_qdrant_store
             
             store = create_local_qdrant_store(
@@ -432,7 +432,7 @@ class TestConvenienceFunctions:
 
     def test_create_remote_qdrant_store(self, mock_embedding_service):
         """Test remote store creation."""
-        with patch("pyagenity.store.qdrant_store.AsyncQdrantClient"):
+        with patch("qdrant_client.AsyncQdrantClient"):
             from pyagenity.store.qdrant_store import create_remote_qdrant_store
             
             store = create_remote_qdrant_store(
@@ -445,7 +445,7 @@ class TestConvenienceFunctions:
 
     def test_create_cloud_qdrant_store(self, mock_embedding_service):
         """Test cloud store creation."""
-        with patch("pyagenity.store.qdrant_store.AsyncQdrantClient"):
+        with patch("qdrant_client.AsyncQdrantClient"):
             from pyagenity.store.qdrant_store import create_cloud_qdrant_store
             
             store = create_cloud_qdrant_store(
