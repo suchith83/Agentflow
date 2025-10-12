@@ -27,14 +27,13 @@ from injectq import Inject
 
 from pyagenity.adapters.llm.model_response_converter import ModelResponseConverter
 from pyagenity.checkpointer import BaseCheckpointer
-from pyagenity.state import AgentState, ExecutionStatus
+from pyagenity.state import AgentState, ExecutionStatus, Message
 from pyagenity.state.base_context import BaseContextManager
 from pyagenity.state.execution_state import ExecutionState as ExecMeta
 from pyagenity.utils import (
     END,
     START,
     Command,
-    Message,
     ResponseGranularity,
     add_messages,
 )

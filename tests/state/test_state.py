@@ -7,7 +7,8 @@ from pyagenity.state import (
     ExecutionStatus,
     MessageContextManager,
 )
-from pyagenity.utils import START, Message
+from pyagenity.utils import START
+from pyagenity.state.message import Message
 
 
 class TestAgentState:

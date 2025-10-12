@@ -9,8 +9,8 @@ from pydantic import Field
 from pyagenity.exceptions import NodeError
 from pyagenity.graph import CompiledGraph, StateGraph
 from pyagenity.publisher import ConsolePublisher
-from pyagenity.state import AgentState
-from pyagenity.utils import END, Message
+from pyagenity.state import AgentState, Message
+from pyagenity.utils import END
 
 
 class TestMultiAgentSuite:

@@ -14,13 +14,12 @@ from pyagenity.utils import (
     CallbackManager,
     Command,
     InvocationType,
-    Message,
     add_messages,
     convert_messages,
     replace_messages,
     replace_value,
 )
-from pyagenity.utils.reducers import append_items
+from pyagenity.state.reducers import append_items
 from pyagenity.utils.background_task_manager import BackgroundTaskManager
 from pyagenity.utils.id_generator import (
     AsyncIDGenerator,
@@ -34,7 +33,8 @@ from pyagenity.utils.id_generator import (
     UUIDGenerator,
 )
 from pyagenity.utils.logging import configure_logging
-from pyagenity.utils.message import TextBlock, TokenUsages, ToolResultBlock, generate_id
+from pyagenity.state.message import Message, TokenUsages, generate_id
+from pyagenity.state.message_block import TextBlock, ToolResultBlock
 
 
 class TestMessage:

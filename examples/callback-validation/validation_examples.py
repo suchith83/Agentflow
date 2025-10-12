@@ -9,14 +9,13 @@ from datetime import datetime
 from typing import Any
 
 from pyagenity.graph import StateGraph
-from pyagenity.state import AgentState
+from pyagenity.state import AgentState, Message
 from pyagenity.utils import (
     AfterInvokeCallback,
     BeforeInvokeCallback,
     CallbackContext,
     CallbackManager,
     InvocationType,
-    Message,
     OnErrorCallback,
 )
 
@@ -152,7 +151,7 @@ class ContentFilterCallback(BeforeInvokeCallback[CallbackContext, bool]):
 async def example_ai_function(state: AgentState) -> AgentState:
     """Example AI function that will trigger callbacks."""
     # Simulate AI processing
-    response = Message.ai_message("This is an AI response based on the input.")
+    response = Message.text_message("This is an AI response based on the input.", role="assistant")
     state.context.append(response)
     return state
 
@@ -209,7 +208,7 @@ async def run_example():
     compiled = graph.compile(callback_manager=callback_manager)
 
     # Create initial state
-    initial_state = AgentState(context=[Message.human_message("Hello, how can you help me today?")])
+    initial_state = AgentState(context=[Message.text_message("Hello, how can you help me today?")])
 
     logger.info("📊 Running graph with callback validation...")
 

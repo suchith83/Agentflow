@@ -18,9 +18,10 @@ from pyagenity.graph.utils.utils import (
 )
 from pyagenity.publisher.events import ContentType, Event, EventModel, EventType
 from pyagenity.publisher.publish import publish_event
-from pyagenity.state import AgentState, ExecutionStatus
-from pyagenity.utils import END, Message, ResponseGranularity
-from pyagenity.utils.reducers import add_messages
+from pyagenity.state import AgentState, ExecutionStatus, Message
+from pyagenity.state.message_block import RemoteToolCallBlock
+from pyagenity.utils import END, ResponseGranularity
+from pyagenity.state.reducers import add_messages
 
 from .handler_mixins import (
     BaseLoggingMixin,
@@ -118,6 +119,29 @@ class InvokeHandler[StateT: AgentState](
             current_node,
         )
         return False
+
+    async def _interrupt_graph(
+        self,
+        current_node: str,
+        state: StateT,
+        config: dict[str, Any],
+    ) -> bool:
+        """Check for interrupts and save state if needed. Returns True if interrupted."""
+        status = ExecutionStatus.INTERRUPTED_AFTER
+        state.set_interrupt(
+            current_node,
+            f"interrupt_after: {current_node}",
+            status,
+        )
+        # Save state and interrupt
+        await sync_data(
+            state=state,
+            config=config,
+            messages=[],
+            trim=False,
+        )
+        logger.debug("Node '%s' interrupted", current_node)
+        return True
 
     async def _check_stop_requested(
         self,
@@ -256,6 +280,17 @@ class InvokeHandler[StateT: AgentState](
                 logger.debug("Node '%s' execution completed", current_node)
 
                 next_node = None
+
+                # check frontend nodes
+                if isinstance(result, Message) and RemoteToolCallBlock in result.content:
+                    # now interrupt the graph
+                    await self._interrupt_graph(
+                        current_node,
+                        state,
+                        config,
+                    )
+                    messages.append(result)
+                    return state, messages
 
                 # Process result and get next node
                 if isinstance(result, list):

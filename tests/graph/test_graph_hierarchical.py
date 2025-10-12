@@ -14,10 +14,9 @@ from typing import Any
 import pytest
 from pydantic import Field
 
-from pyagenity.exceptions import GraphRecursionError
 from pyagenity.graph import CompiledGraph, StateGraph
-from pyagenity.state import AgentState
-from pyagenity.utils import Command, END, Message, ResponseGranularity, add_messages
+from pyagenity.state import AgentState, Message
+from pyagenity.utils import Command, END, ResponseGranularity, add_messages
 
 
 class HierarchyState(AgentState):

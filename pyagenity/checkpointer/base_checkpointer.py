@@ -2,16 +2,15 @@ import logging
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Any, TypeVar
 
-from pyagenity.state import AgentState
-from pyagenity.utils import Message, run_coroutine
+from pyagenity.state import AgentState, Message
+from pyagenity.utils import run_coroutine
 from pyagenity.utils.thread_info import ThreadInfo
 
 
 logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
-    from pyagenity.state import AgentState
-    from pyagenity.utils import Message
+    from pyagenity.state import AgentState, Message
 
 
 StateT = TypeVar("StateT", bound="AgentState")

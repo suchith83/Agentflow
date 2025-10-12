@@ -17,7 +17,7 @@ from pyagenity.store.store_schema import (
     MemoryRecord,
     MemorySearchResult,
 )
-from pyagenity.utils.message import Message, TextBlock
+from pyagenity.state import Message, TextBlock
 
 
 class TestEnums:
@@ -322,14 +322,15 @@ class TestMemoryRecord:
     def test_from_message_with_timestamp(self):
         """Test creating MemoryRecord from Message with timestamp."""
         test_time = datetime(2023, 6, 15, 10, 30, 0)
+        timestamp_float = test_time.timestamp()
         message = Message(
             role="user",
             content=[TextBlock(text="Test message")],
-            timestamp=test_time
+            timestamp=timestamp_float
         )
-        
+
         record = MemoryRecord.from_message(message)
-        
+
         assert record.metadata["timestamp"] == test_time.isoformat()
     
     def test_from_message_without_timestamp(self):

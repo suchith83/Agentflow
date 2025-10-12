@@ -4,7 +4,7 @@ import inspect
 from collections.abc import AsyncGenerator, Callable
 from typing import Any
 
-from pyagenity.utils.message import Message
+from pyagenity.state.message import Message
 
 from .base_converter import BaseConverter
 

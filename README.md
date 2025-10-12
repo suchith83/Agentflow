@@ -16,7 +16,7 @@
 - **🤖 Multi-Agent Workflows** - Build complex agent systems with your choice of orchestration patterns
 - **📊 Structured Responses** - Get `content`, optional `thinking`, and `usage` in a standardized format
 - **🌊 Streaming Support** - Real-time incremental responses with delta updates
-- **🔧 Tool Integration** - Native support for function calling, MCP, Composio, and LangChain tools
+- **🔧 Tool Integration** - Native support for function calling, MCP, Composio, and LangChain tools with **parallel execution**
 - **🔀 LangGraph-Inspired Engine** - Flexible graph orchestration with nodes, conditional edges, and control flow
 - **💾 State Management** - Built-in persistence with in-memory and PostgreSQL+Redis checkpointers
 - **🔄 Human-in-the-Loop** - Pause/resume execution for approval workflows and debugging
@@ -480,6 +480,32 @@ python examples/react_stream/stream_react_agent.py
 
 ---
 
+## ⚡ Parallel Tool Execution
+
+PyAgenity automatically executes multiple tool calls **in parallel** when an LLM requests multiple tools simultaneously. This dramatically improves performance for I/O-bound operations.
+
+### Benefits
+
+- **Faster Response Times**: Multiple API calls execute concurrently
+- **Better Resource Utilization**: Don't wait for one tool to finish before starting the next
+- **Seamless Integration**: Works automatically with existing code - no changes needed
+
+### Example Performance
+
+```python
+# LLM requests 3 tools simultaneously:
+# - get_weather("NYC")    # Takes 1.0s
+# - get_news("tech")      # Takes 1.5s
+# - get_stock("AAPL")     # Takes 0.8s
+
+# Sequential execution: 1.0 + 1.5 + 0.8 = 3.3 seconds
+# Parallel execution:   max(1.0, 1.5, 0.8) = 1.5 seconds ⚡
+```
+
+See the [parallel tool execution documentation](https://10xhub.github.io/PyAgenity/Concept/graph/tools/#parallel-tool-execution) for more details.
+
+---
+
 ## 🎯 Use Cases & Patterns
 
 PyAgenity includes prebuilt agent patterns for common scenarios:
@@ -562,6 +588,7 @@ See `pyproject.dev.toml` for complete tool configurations.
 - ✅ Core graph engine with nodes and edges
 - ✅ State management and checkpointing
 - ✅ Tool integration (MCP, Composio, LangChain)
+- ✅ **Parallel tool execution** for improved performance
 - ✅ Streaming and event publishing
 - ✅ Human-in-the-loop support
 - ✅ Prebuilt agent patterns

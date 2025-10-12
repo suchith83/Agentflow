@@ -3,7 +3,7 @@
 import pytest
 
 from pyagenity.checkpointer import BaseCheckpointer, InMemoryCheckpointer
-from pyagenity.utils import Message
+from pyagenity.state import Message
 from pyagenity.utils.thread_info import ThreadInfo
 
 

@@ -6,8 +6,9 @@ import pytest
 
 from pyagenity.checkpointer import InMemoryCheckpointer
 from pyagenity.graph import StateGraph
-from pyagenity.state import AgentState
-from pyagenity.utils import END, Message
+from pyagenity.state import AgentState, Message
+from pyagenity.state.stream_chunks import StreamChunk
+from pyagenity.utils import END
 
 
 class MockStreamingResponse:
@@ -203,7 +204,7 @@ class TestStreamingIntegration:
 
         # Verify we got chunks
         # assert len(chunks) > 0
-        assert all(isinstance(chunk, Message) for chunk in chunks)  # noqa: S101
+        assert all(isinstance(chunk, StreamChunk) for chunk in chunks)  # noqa: S101
 
         # Verify we got multiple chunks (streaming)
         streaming_chunks = list(chunks)

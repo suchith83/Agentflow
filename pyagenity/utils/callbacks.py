@@ -19,7 +19,7 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Union
 
-from pyagenity.utils.message import Message
+from pyagenity.state.message import Message
 
 
 logger = logging.getLogger(__name__)

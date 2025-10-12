@@ -1,7 +1,8 @@
 {
     "cSpell.words": [
         "atrim",
-        "checkpointer"
+        "checkpointer",
+        "pyagenity"
     ],
     "makefile.configureOnOpen": false,
     "python.testing.pytestArgs": [

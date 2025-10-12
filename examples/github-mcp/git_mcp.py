@@ -8,8 +8,7 @@ from litellm import acompletion
 from pyagenity.adapters.llm.model_response_converter import ModelResponseConverter
 from pyagenity.checkpointer import InMemoryCheckpointer
 from pyagenity.graph import StateGraph, ToolNode
-from pyagenity.state.agent_state import AgentState
-from pyagenity.utils import Message
+from pyagenity.state import AgentState, Message
 from pyagenity.utils.constants import END
 from pyagenity.utils.converter import convert_messages
 
@@ -86,7 +85,7 @@ def should_use_tools(state: AgentState) -> str:
         return "TOOL"
 
     # If last message is a tool result, we should be done (AI will make final response)
-    if last_message.role == "tool" and last_message.tool_call_id is not None:
+    if last_message.role == "tool":
         return END
 
     # Default to END for other cases
@@ -118,7 +117,7 @@ app = graph.compile(
 
 inp = {
     "messages": [
-        Message.from_text(
+        Message.text_message(
             "Please call the list_commits function for the github repo 'https://github.com/suchith83/portfolio' of the 'suchith83' username, and give me the all commits in that repo."
         )
     ]

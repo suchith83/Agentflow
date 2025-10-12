@@ -19,10 +19,9 @@ Key Points:
 - Synthesis step uses LiteLLM if available, else falls back to string response
 """
 
-from __future__ import annotations
-
 import os
 from typing import List
+
 
 try:
     # Prefer async interface but we keep retrieval synchronous for simplicity
@@ -31,8 +30,7 @@ except Exception:  # pragma: no cover - optional dependency
     completion = None  # type: ignore
 
 from pyagenity.prebuilt.agent.rag import RAGAgent
-from pyagenity.state.agent_state import AgentState
-from pyagenity.utils import Message
+from pyagenity.state import AgentState, Message
 from pyagenity.utils.constants import END
 
 

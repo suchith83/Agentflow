@@ -3,14 +3,14 @@ import logging
 from collections import defaultdict
 from typing import TYPE_CHECKING, Any, TypeVar
 
-from pyagenity.utils import Message
+from pyagenity.state import AgentState, Message
 from pyagenity.utils.thread_info import ThreadInfo
 
 from .base_checkpointer import BaseCheckpointer
 
 
 if TYPE_CHECKING:
-    from pyagenity.state import AgentState
+    from pyagenity.state import AgentState, Message
 
 logger = logging.getLogger(__name__)
 

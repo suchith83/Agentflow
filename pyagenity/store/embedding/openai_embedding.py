@@ -20,7 +20,7 @@ class OpenAIEmbedding(BaseEmbedding):
     def __init__(
         self,
         model: str = "text-embedding-3-small",
-        OPENAI_API_KEY: str | None = None,
+        api_key: str | None = None,
     ) -> None:
         if not HAS_OPENAI:
             raise ImportError(
@@ -28,8 +28,8 @@ class OpenAIEmbedding(BaseEmbedding):
                 "Please install it via 'pip install openai'."
             )
         self.model = model
-        if OPENAI_API_KEY:
-            self.api_key = OPENAI_API_KEY
+        if api_key:
+            self.api_key = api_key
         elif "OPENAI_API_KEY" in os.environ:
             self.api_key = os.environ["OPENAI_API_KEY"]
         else:

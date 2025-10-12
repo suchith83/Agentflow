@@ -3,9 +3,8 @@
 import pytest
 from unittest.mock import Mock, patch
 
-from pyagenity.state import AgentState
+from pyagenity.state import AgentState, Message, ToolResultBlock
 from pyagenity.utils.converter import _convert_dict, convert_messages
-from pyagenity.utils.message import Message, ToolResultBlock, ToolCallBlock
 
 
 class TestConverterUtils:

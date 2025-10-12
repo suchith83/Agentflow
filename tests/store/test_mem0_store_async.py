@@ -7,7 +7,7 @@ import pytest
 
 from pyagenity.store.mem0_store import Mem0Store
 from pyagenity.store.store_schema import MemoryType
-from pyagenity.utils import Message
+from pyagenity.state import Message
 
 
 class MockAsyncMem0:

@@ -14,12 +14,12 @@ from pyagenity.checkpointer.base_checkpointer import BaseCheckpointer
 from pyagenity.publisher.base_publisher import BasePublisher
 from pyagenity.state import AgentState
 from pyagenity.state.execution_state import StopRequestStatus
+from pyagenity.state.stream_chunks import StreamChunk
 from pyagenity.store.base_store import BaseStore
 from pyagenity.utils import (
     ResponseGranularity,
 )
 from pyagenity.utils.background_task_manager import BackgroundTaskManager
-from pyagenity.utils.message import Message
 
 from .utils.invoke_handler import InvokeHandler
 from .utils.stream_handler import StreamHandler
@@ -302,7 +302,7 @@ class CompiledGraph[StateT: AgentState]:
         input_data: dict[str, Any],
         config: dict[str, Any] | None = None,
         response_granularity: ResponseGranularity = ResponseGranularity.LOW,
-    ) -> Generator[Message]:
+    ) -> Generator[StreamChunk]:
         """Execute the graph synchronously with streaming support.
 
         Yields Message objects containing incremental responses.
@@ -358,7 +358,7 @@ class CompiledGraph[StateT: AgentState]:
         input_data: dict[str, Any],
         config: dict[str, Any] | None = None,
         response_granularity: ResponseGranularity = ResponseGranularity.LOW,
-    ) -> AsyncIterator[Message]:
+    ) -> AsyncIterator[StreamChunk]:
         """Execute the graph asynchronously with streaming support.
 
         Yields Message objects containing incremental responses.

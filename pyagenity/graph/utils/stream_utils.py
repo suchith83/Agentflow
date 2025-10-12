@@ -6,8 +6,7 @@ or processed incrementally as a stream. These utilities are used throughout the
 graph execution engine to support both synchronous and streaming workflows.
 """
 
-from pyagenity.state.agent_state import AgentState
-from pyagenity.utils import Message
+from pyagenity.state import AgentState, Message
 
 
 def check_non_streaming(result) -> bool:

@@ -17,15 +17,12 @@ Run:
     python examples/plan_act_reflect/tool_plan_act_reflect.py
 """
 
-from __future__ import annotations
-
 import re
 from dataclasses import dataclass
 
-from pyagenity.prebuilt.agent.plan_act_reflect import PlanActReflectAgent
 from pyagenity.graph.tool_node import ToolNode
-from pyagenity.state.agent_state import AgentState
-from pyagenity.utils import Message
+from pyagenity.prebuilt.agent.plan_act_reflect import PlanActReflectAgent
+from pyagenity.state import AgentState, Message
 from pyagenity.utils.constants import END
 
 

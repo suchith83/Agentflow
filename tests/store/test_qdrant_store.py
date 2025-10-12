@@ -9,10 +9,9 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from pyagenity.store import MemoryType, QdrantStore
-from pyagenity.store.embedding.base_embedding import BaseEmbedding
-from pyagenity.store.embedding.openai_embedding import OpenAIEmbedding
-from pyagenity.utils import Message
+from pyagenity.store.store_schema import MemoryType
+from pyagenity.store.qdrant_store import QdrantStore
+from pyagenity.state.message import Message
 
 
 class MockEmbeddingService:

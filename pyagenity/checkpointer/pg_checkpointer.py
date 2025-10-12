@@ -35,8 +35,7 @@ except ImportError:
     ConnectionPool = None  # type: ignore
     Redis = None  # type: ignore
 
-from pyagenity.state import AgentState
-from pyagenity.utils import Message
+from pyagenity.state import AgentState, Message
 
 from .base_checkpointer import BaseCheckpointer
 
@@ -1214,7 +1213,7 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
         Returns:
             Message: Message object.
         """
-        from pyagenity.utils.message import TokenUsages
+        from pyagenity.state.message import TokenUsages
 
         # Handle usages JSONB
         usages = None

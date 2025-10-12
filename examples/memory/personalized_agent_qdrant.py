@@ -33,9 +33,8 @@ from mem0 import Memory
 from pyagenity.adapters.llm.model_response_converter import ModelResponseConverter
 from pyagenity.checkpointer import InMemoryCheckpointer
 from pyagenity.graph import StateGraph
-from pyagenity.state.agent_state import AgentState
-from pyagenity.utils import Message
-from pyagenity.utils.constants import END, START
+from pyagenity.state import AgentState, Message
+from pyagenity.utils.constants import END
 from pyagenity.utils.converter import convert_messages
 
 
@@ -125,16 +124,18 @@ class PersonalizedAgent:
     async def _memory_retrieval_node(self, state: PersonalizedAgentState) -> PersonalizedAgentState:
         """Retrieve relevant memories and user context."""
 
-        if not state.messages:
+        if not state.context:
             return state
 
-        user_message = state.messages[-1].content
+        user_message = state.context[-1].content
         user_id = state.user_id
 
         try:
             # Search for relevant memories
             memories = self.memory.search(
-                query=user_message, user_id=user_id, limit=5, output_format="v1.1"
+                query=user_message,
+                user_id=user_id,
+                limit=5,
             )
 
             # Extract user profile and preferences from memories

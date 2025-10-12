@@ -5,7 +5,7 @@ from uuid import uuid4
 
 from pydantic import BaseModel, Field, field_validator
 
-from pyagenity.utils.message import Message
+from pyagenity.state import Message
 
 
 class RetrievalStrategy(Enum):
@@ -94,10 +94,17 @@ class MemoryRecord(BaseModel):
         additional_metadata: dict[str, Any] | None = None,
     ) -> "MemoryRecord":
         content = message.text()
+
+        # Convert timestamp (float) to ISO format string
+        timestamp_str = None
+        if message.timestamp:
+            timestamp_dt = datetime.fromtimestamp(message.timestamp)
+            timestamp_str = timestamp_dt.isoformat()
+
         metadata = {
             "role": message.role,
             "message_id": str(message.message_id),
-            "timestamp": message.timestamp.isoformat() if message.timestamp else None,
+            "timestamp": timestamp_str,
             "has_tool_calls": bool(message.tools_calls),
             "has_reasoning": bool(message.reasoning),
             "token_usage": message.usages.model_dump() if message.usages else None,
