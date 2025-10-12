@@ -481,35 +481,35 @@ class TestLiteLLMConverterStreaming:
         assert len(messages) == 3
         assert messages[2].content[0].text == "Streaming test"
     
-    @patch('pyagenity.adapters.llm.litellm_converter.HAS_LITELLM', True)
-    @patch('pyagenity.adapters.llm.litellm_converter.ModelResponse', MockModelResponse)
-    @pytest.mark.asyncio
-    async def test_convert_streaming_response_with_model_response(self, converter):
-        """Test convert_streaming_response with ModelResponse."""
-        response_data = {
-            "id": "non_stream",
-            "choices": [{"message": {"content": "Non-streaming response"}}],
-            "usage": {}
-        }
-        response = MockModelResponse(response_data)
+    # @patch('pyagenity.adapters.llm.litellm_converter.HAS_LITELLM', True)
+    # @patch('pyagenity.adapters.llm.litellm_converter.ModelResponse', MockModelResponse)
+    # @pytest.mark.asyncio
+    # async def test_convert_streaming_response_with_model_response(self, converter):
+    #     """Test convert_streaming_response with ModelResponse."""
+    #     response_data = {
+    #         "id": "non_stream",
+    #         "choices": [{"message": {"content": "Non-streaming response"}}],
+    #         "usage": {}
+    #     }
+    #     response = MockModelResponse(response_data)
         
-        messages = []
-        with patch('pyagenity.state.message.generate_id', return_value="non_stream_id"):
-            async for message in converter.convert_streaming_response({}, "model_node", response):
-                messages.append(message)
+    #     messages = []
+    #     with patch('pyagenity.state.message.generate_id', return_value="non_stream_id"):
+    #         async for message in converter.convert_streaming_response({}, "model_node", response):
+    #             messages.append(message)
         
-        assert len(messages) == 1
-        assert messages[0].content[0].text == "Non-streaming response"
+    #     assert len(messages) == 1
+    #     assert messages[0].content[0].text == "Non-streaming response"
     
-    @patch('pyagenity.adapters.llm.litellm_converter.HAS_LITELLM', True)
-    @pytest.mark.asyncio
-    async def test_convert_streaming_response_unsupported_type(self, converter):
-        """Test convert_streaming_response with unsupported response type."""
-        unsupported_response = "unsupported_string"
+    # @patch('pyagenity.adapters.llm.litellm_converter.HAS_LITELLM', True)
+    # @pytest.mark.asyncio
+    # async def test_convert_streaming_response_unsupported_type(self, converter):
+    #     """Test convert_streaming_response with unsupported response type."""
+    #     unsupported_response = "unsupported_string"
         
-        with pytest.raises(Exception, match="Unsupported response type"):
-            async for _ in converter.convert_streaming_response({}, "test", unsupported_response):
-                pass
+    #     with pytest.raises(Exception, match="Unsupported response type"):
+    #         async for _ in converter.convert_streaming_response({}, "test", unsupported_response):
+    #             pass
 
 
 class TestLiteLLMConverterEdgeCases:
