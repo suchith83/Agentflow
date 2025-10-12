@@ -49,11 +49,16 @@ from .base_store import BaseStore
 from .store_schema import MemorySearchResult, MemoryType
 
 
-try:  # pragma: no cover - import guard
+HAS_MEM0 = False
+
+try:
     from mem0 import AsyncMemory
     from mem0.configs.base import MemoryConfig
-except ImportError as e:  # pragma: no cover
-    raise ImportError("Mem0 not installed. Install with: pip install mem0ai") from e
+
+    HAS_MEM0 = True
+except ImportError:
+    MemoryConfig = None
+    AsyncMemory = None
 
 logger = logging.getLogger(__name__)
 
@@ -72,10 +77,15 @@ class Mem0Store(BaseStore):
 
     def __init__(
         self,
-        config: MemoryConfig | dict,
+        config: MemoryConfig | dict,  # type: ignore
         app_id: str | None = None,
         **kwargs: Any,
     ) -> None:
+        if not HAS_MEM0:
+            raise ImportError(
+                "mem0 package is required for Mem0Store. Install with `pip install mem0ai`."
+            )
+
         super().__init__()
         self.config = config
         self.app_id = app_id or "pyagenity_app"
@@ -86,17 +96,17 @@ class Mem0Store(BaseStore):
             self.app_id,
         )
 
-    async def _get_client(self) -> AsyncMemory:
+    async def _get_client(self) -> AsyncMemory:  # type: ignore
         """Lazy initialization of AsyncMemory client."""
         if self._client is None:
             try:
                 # Prefer explicit config via Memory.from_config when supplied; fallback to defaults
                 if isinstance(self.config, dict):
-                    self._client = await AsyncMemory.from_config(self.config)
-                elif isinstance(self.config, MemoryConfig):
-                    self._client = AsyncMemory(config=self.config)
+                    self._client = await AsyncMemory.from_config(self.config)  # type: ignore
+                elif isinstance(self.config, MemoryConfig):  # type: ignore
+                    self._client = AsyncMemory(config=self.config)  # type: ignore
                 else:
-                    self._client = AsyncMemory()
+                    self._client = AsyncMemory()  # type: ignore
             except Exception as e:  # pragma: no cover - defensive
                 logger.error(f"Failed to initialize Mem0 client: {e}")
                 raise

@@ -6,14 +6,11 @@ from .base_embedding import BaseEmbedding
 HAS_OPENAI = False
 
 try:
-    from openai import AsyncOpenAI, OpenAIError
+    import openai  # noqa: F401
 
     HAS_OPENAI = True
-except ImportError as e:
-    raise ImportError(
-        "The 'openai' package is required for OpenAIEmbedding. "
-        "Please install it via 'pip install openai'."
-    ) from e
+except ImportError:
+    pass
 
 
 class OpenAIEmbedding(BaseEmbedding):
@@ -37,11 +34,15 @@ class OpenAIEmbedding(BaseEmbedding):
                 "OpenAI API key must be provided via parameter or OPENAI_API_KEY env var"
             )
 
+        from openai import AsyncOpenAI  # noqa: PLC0415
+
         self.client = AsyncOpenAI(
             api_key=self.api_key,
-        )
+        )  # type: ignore
 
     async def aembed_batch(self, texts: list[str]) -> list[list[float]]:
+        from openai import OpenAIError  # noqa: PLC0415
+
         try:
             response = await self.client.embeddings.create(
                 input=texts,
@@ -52,6 +53,8 @@ class OpenAIEmbedding(BaseEmbedding):
             raise RuntimeError(f"OpenAI API error: {e}") from e
 
     async def aembed(self, text: str) -> list[float]:
+        from openai import OpenAIError  # noqa: PLC0415
+
         try:
             response = await self.client.embeddings.create(
                 input=text,

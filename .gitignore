@@ -74,3 +74,6 @@ cython_debug/
 
 # remove sites
 site
+
+# remove idea
+.idea

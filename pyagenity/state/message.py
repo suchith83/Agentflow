@@ -153,7 +153,7 @@ class Message(BaseModel):
     delta: bool = False  # Indicates if this is a delta/partial message
     tools_calls: list[dict[str, Any]] | None = None
     reasoning: str | None = None  # Remove it
-    timestamp: float | None = Field(default_factory=datetime.now().timestamp)
+    timestamp: float | None = Field(default_factory=lambda: datetime.now().timestamp())
     metadata: dict[str, Any] = Field(default_factory=dict)
     usages: TokenUsages | None = None
     raw: dict[str, Any] | None = None

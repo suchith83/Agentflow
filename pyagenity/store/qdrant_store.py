@@ -24,20 +24,14 @@ from .store_schema import (
 )
 
 
+HAS_QDRANT = False
+
 try:
-    from qdrant_client import AsyncQdrantClient
-    from qdrant_client.http import models
-    from qdrant_client.http.models import (
-        Distance,
-        FieldCondition,
-        Filter,
-        MatchValue,
-        PointStruct,
-        VectorParams,
-    )
+    import qdrant_client  # noqa: F401
+
+    HAS_QDRANT = True
 except ImportError:
-    msg = "Qdrant client not installed. Install with: pip install 'pyagenity[qdrant]'"
-    raise ImportError(msg)
+    pass
 
 logger = logging.getLogger(__name__)
 
@@ -98,9 +92,16 @@ class QdrantStore(BaseStore):
             distance_metric: Default distance metric
             **kwargs: Additional client parameters
         """
+        if not HAS_QDRANT:
+            raise ImportError(
+                "qdrant-client package is required for QdrantStore. "
+                "Install with `pip install 'pyagenity[qdrant]'`."
+            )
         self.embedding = embedding
 
         # Initialize async client
+        from qdrant_client import AsyncQdrantClient  # noqa: PLC0415
+
         if path:
             self.client = AsyncQdrantClient(path=path, **kwargs)
         elif url:
@@ -125,8 +126,10 @@ class QdrantStore(BaseStore):
             await self._ensure_collection_exists(self.default_collection)
         return True
 
-    def _distance_metric_to_qdrant(self, metric: DistanceMetric) -> Distance:
+    def _distance_metric_to_qdrant(self, metric: DistanceMetric):
         """Convert framework distance metric to Qdrant distance."""
+        from qdrant_client.http.models import Distance  # noqa: PLC0415
+
         mapping = {
             DistanceMetric.COSINE: Distance.COSINE,
             DistanceMetric.EUCLIDEAN: Distance.EUCLID,
@@ -185,9 +188,15 @@ class QdrantStore(BaseStore):
         memory_type: MemoryType | None = None,
         category: str | None = None,
         filters: dict[str, Any] | None = None,
-    ) -> Filter | None:
+    ) -> Any | None:
         """Build Qdrant filter from parameters."""
         conditions = []
+
+        from qdrant_client.http.models import (  # noqa: PLC0415
+            FieldCondition,
+            Filter,
+            MatchValue,
+        )
 
         # Add user/agent filters
         if user_id:
@@ -226,6 +235,8 @@ class QdrantStore(BaseStore):
         """Ensure collection exists, create if not."""
         if collection in self._collection_cache:
             return
+
+        from qdrant_client.http.models import VectorParams  # noqa: PLC0415
 
         try:
             # Check if collection exists
@@ -298,6 +309,8 @@ class QdrantStore(BaseStore):
     ) -> str:
         """Store a new memory."""
         user_id, thread_id, collection = self._extract_config_values(config)
+
+        from qdrant_client.http.models import PointStruct  # noqa: PLC0415
 
         # Ensure collection exists
         await self._ensure_collection_exists(collection)
@@ -471,6 +484,8 @@ class QdrantStore(BaseStore):
         **kwargs,
     ) -> None:
         """Update an existing memory."""
+        from qdrant_client.http.models import PointStruct  # noqa: PLC0415
+
         user_id, thread_id, collection = self._extract_config_values(config)
 
         # Get existing memory
@@ -527,6 +542,8 @@ class QdrantStore(BaseStore):
         **kwargs,
     ) -> None:
         """Delete a memory by ID."""
+        from qdrant_client.http import models  # noqa: PLC0415
+
         user_id, thread_id, collection = self._extract_config_values(config)
 
         # Verify memory exists and user has access
@@ -554,6 +571,8 @@ class QdrantStore(BaseStore):
         **kwargs,
     ) -> None:
         """Delete all memories for a user or agent."""
+        from qdrant_client.http import models  # noqa: PLC0415
+
         user_id, agent_id, collection = self._extract_config_values(config)
 
         # Build filter for memories to delete

@@ -30,6 +30,14 @@ from .message_block import (
     VideoBlock,
 )
 from .message_context_manager import MessageContextManager
+from .reducers import (
+    add_messages,
+    append_items,
+    remove_tool_messages,
+    replace_messages,
+    replace_value,
+)
+from .stream_chunks import StreamChunk, StreamEvent
 
 
 __all__ = [
@@ -49,10 +57,17 @@ __all__ = [
     "Message",
     "MessageContextManager",
     "ReasoningBlock",
+    "StreamChunk",
+    "StreamEvent",
     "TextBlock",
     "TextBlock",
     "TokenUsages",
     "ToolCallBlock",
     "ToolResultBlock",
     "VideoBlock",
+    "add_messages",
+    "append_items",
+    "remove_tool_messages",
+    "replace_messages",
+    "replace_value",
 ]
