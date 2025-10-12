@@ -1,13 +1,10 @@
-# noqa
-
 from dotenv import load_dotenv
 from litellm import completion
 
 from pyagenity.adapters.llm.model_response_converter import ModelResponseConverter
 from pyagenity.checkpointer import InMemoryCheckpointer
 from pyagenity.graph import StateGraph, ToolNode
-from pyagenity.state.agent_state import AgentState
-from pyagenity.utils import Message
+from pyagenity.state import AgentState, Message
 from pyagenity.utils.constants import END
 from pyagenity.utils.converter import convert_messages
 
@@ -139,13 +136,6 @@ print("Streaming response:")
 message_count = 0
 for i in res:
     message_count += 1
-    print("**********************")
-    print(f"Message #{message_count} - Role: {i.role} and {i.message_id}")
-    print(f"Content: {i.content}")
-    print(f"Delta: {i.delta}")
-    if hasattr(i, "tools_calls") and i.tools_calls:
-        print(f"Tool calls: {len(i.tools_calls)}")
-    print("**********************")
-    print("\n")
+    print(i)
 
 print(f"Total messages received: {message_count}")

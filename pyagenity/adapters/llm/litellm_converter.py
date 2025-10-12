@@ -27,6 +27,9 @@ try:
     HAS_LITELLM = True
 except ImportError:
     HAS_LITELLM = False
+    CustomStreamWrapper = None
+    ModelResponse = None
+    ModelResponseStream = None
 
 
 class LiteLLMConverter(BaseConverter):
@@ -37,7 +40,7 @@ class LiteLLMConverter(BaseConverter):
     tool calls, and token usage details.
     """
 
-    async def convert_response(self, response: ModelResponse) -> Message:
+    async def convert_response(self, response: ModelResponse) -> Message:  # pyright: ignore[reportInvalidTypeForm]
         """
         Convert a LiteLLM ModelResponse to a Message.
 
@@ -127,7 +130,7 @@ class LiteLLMConverter(BaseConverter):
 
     def _process_chunk(
         self,
-        chunk: ModelResponseStream | None,
+        chunk: ModelResponseStream | None,  # type: ignore
         seq: int,
         accumulated_content: str,
         accumulated_reasoning_content: str,
@@ -203,7 +206,7 @@ class LiteLLMConverter(BaseConverter):
         self,
         config: dict,
         node_name: str,
-        stream: CustomStreamWrapper,
+        stream: CustomStreamWrapper,  # type: ignore
         meta: dict | None = None,
     ) -> AsyncGenerator[Message]:
         """
@@ -332,8 +335,8 @@ class LiteLLMConverter(BaseConverter):
         if not HAS_LITELLM:
             raise ImportError("litellm is not installed. Please install it to use this converter.")
 
-        if isinstance(response, CustomStreamWrapper):  # type: ignore[possibly-unbound]
-            stream = cast(CustomStreamWrapper, response)
+        if isinstance(response, CustomStreamWrapper):  # type: ignore
+            stream = cast(CustomStreamWrapper, response)  # type: ignore
             async for event in self._handle_stream(
                 config or {},
                 node_name or "",
@@ -341,8 +344,8 @@ class LiteLLMConverter(BaseConverter):
                 meta,
             ):
                 yield event
-        elif isinstance(response, ModelResponse):  # type: ignore[possibly-unbound]
-            message = await self.convert_response(cast(ModelResponse, response))
+        elif isinstance(response, ModelResponse):  # type: ignore
+            message = await self.convert_response(cast(ModelResponse, response))  # type: ignore
             yield message
         else:
             raise Exception("Unsupported response type for LiteLLMConverter")

@@ -8,8 +8,7 @@ from litellm import acompletion  # type: ignore
 from pyagenity.adapters.llm.model_response_converter import ModelResponseConverter
 from pyagenity.checkpointer import InMemoryCheckpointer
 from pyagenity.graph import StateGraph, ToolNode
-from pyagenity.state.agent_state import AgentState
-from pyagenity.utils import Message
+from pyagenity.state import AgentState, Message
 from pyagenity.utils.constants import END
 from pyagenity.utils.converter import convert_messages
 

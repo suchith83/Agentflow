@@ -36,8 +36,7 @@ except Exception:  # pragma: no cover
     acompletion = None  # type: ignore
 
 from pyagenity.prebuilt.agent.rag import RAGAgent
-from pyagenity.state.agent_state import AgentState
-from pyagenity.utils import Message
+from pyagenity.state import AgentState, Message
 from pyagenity.utils.constants import END
 
 

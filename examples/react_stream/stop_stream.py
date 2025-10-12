@@ -7,9 +7,9 @@ from dotenv import load_dotenv
 
 from pyagenity.checkpointer import InMemoryCheckpointer
 from pyagenity.graph import StateGraph
-from pyagenity.state.agent_state import AgentState
-from pyagenity.utils import Message
+from pyagenity.state import AgentState, Message
 from pyagenity.utils.constants import END
+
 
 # Example: Stop a running streaming graph from the frontend (or caller).
 # This demonstrates how to request a stop using CompiledGraph.stop while a

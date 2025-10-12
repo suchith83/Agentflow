@@ -7,8 +7,8 @@ from litellm import acompletion
 from pyagenity.adapters.llm.model_response_converter import ModelResponseConverter
 from pyagenity.checkpointer import InMemoryCheckpointer
 from pyagenity.graph import StateGraph
-from pyagenity.state.agent_state import AgentState
-from pyagenity.utils import Message, ResponseGranularity
+from pyagenity.state import AgentState, Message
+from pyagenity.utils import ResponseGranularity
 from pyagenity.utils.constants import END
 from pyagenity.utils.converter import convert_messages
 
@@ -116,7 +116,7 @@ app = graph.compile(
 def test_basic_functionality():
     """Test basic functionality with default state."""
     print("=== Testing Basic Functionality ===")
-    inp = {"messages": [Message.from_text("Hello, can you help me with CV analysis?")]}
+    inp = {"messages": [Message.text_message("Hello, can you help me with CV analysis?")]}
     config = {"thread_id": "basic_test", "recursion_limit": 10}
 
     res = app.invoke(inp, config=config)
@@ -142,7 +142,7 @@ def test_custom_state_fields():
 
     custom_app = custom_graph.compile(checkpointer=checkpointer)
 
-    inp = {"messages": [Message.from_text("What's the match score for this candidate?")]}
+    inp = {"messages": [Message.text_message("What's the match score for this candidate?")]}
     config = {"thread_id": "custom_test", "recursion_limit": 10}
 
     res = custom_app.invoke(inp, config=config)
@@ -170,7 +170,7 @@ def test_partial_state_update():
     # Only update 'jd' field via input_data['state']
     partial_update = {"jd": "Looking for Data Scientist with deep learning experience"}
     inp = {
-        "messages": [Message.from_text("Update the job description only.")],
+        "messages": [Message.text_message("Update the job description only.")],
         "state": partial_update,
     }
     config = {"thread_id": "partial_update_test", "recursion_limit": 10}

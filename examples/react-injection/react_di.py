@@ -4,7 +4,7 @@ from injectq import Inject, InjectQ
 from pyagenity.checkpointer import InMemoryCheckpointer
 from pyagenity.graph import StateGraph, ToolNode
 from pyagenity.state import AgentState, Message
-from pyagenity.state.message import TextBlock, ToolCallBlock
+from pyagenity.state.message_block import TextBlock, ToolCallBlock
 from pyagenity.store.base_store import BaseStore
 from pyagenity.utils.callbacks import CallbackManager
 from pyagenity.utils.constants import END

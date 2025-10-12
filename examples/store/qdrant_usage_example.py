@@ -10,20 +10,23 @@ import asyncio
 import os
 from typing import Any
 
-from pyagenity.store import QdrantStore
-from pyagenity.store.qdrant_store import OpenAIEmbeddingService
-from pyagenity.store.store_schema import MemoryType
-from pyagenity.utils import Message
+from pyagenity.state import Message
+from pyagenity.store import MemoryType, OpenAIEmbedding, QdrantStore
+from pyagenity.store.embedding.base_embedding import BaseEmbedding
 
 
 # Example 1: Simple embedding service for testing
-class SimpleEmbeddingService:
+class SimpleEmbeddingService(BaseEmbedding):
     """Simple embedding service that creates mock embeddings."""
 
     def __init__(self, dimension: int = 1536):
         self._dimension = dimension
 
-    async def embed(self, text: str) -> list[float]:
+    async def aembed_batch(self, texts: list[str]) -> list[list[float]]:
+        """Generate simple embeddings based on text hashes."""
+        return [await self.aembed(text) for text in texts]
+
+    async def aembed(self, text: str) -> list[float]:
         """Generate a simple embedding based on text hash."""
         text_hash = hash(text)
         return [float((text_hash + i) % 1000) / 1000.0 for i in range(self._dimension)]
@@ -42,7 +45,7 @@ async def basic_usage_example():
 
     # Create local Qdrant store
     store = QdrantStore(
-        embedding_service=embedding_service,
+        embedding=embedding_service,
         path="./example_qdrant_data",  # Local file-based storage
         default_collection="example_memories",
     )
@@ -81,7 +84,7 @@ async def basic_usage_example():
         print(f"✓ Stored memory 2: {memory2_id[:8]}...")
 
         # Create a Message object and store it
-        message = Message.from_text("The weather is nice today", role="user")
+        message = Message.text_message("The weather is nice today", role="user")
         memory3_id = await store.astore(
             config=config, content=message, memory_type=MemoryType.EPISODIC, category="observations"
         )
@@ -136,7 +139,7 @@ async def basic_usage_example():
             "Need to review the project proposal",
         ]
 
-        batch_id = await store.abatch_store(
+        batch_id = await store.store(
             config=config,
             content=batch_memories,
             memory_type=MemoryType.EPISODIC,
@@ -175,13 +178,14 @@ async def openai_embedding_example():
 
     try:
         # Create OpenAI embedding service
-        embedding_service = OpenAIEmbeddingService(
-            model="text-embedding-3-small", api_key=openai_api_key
+        embedding_service = OpenAIEmbedding(
+            model="text-embedding-3-small",
+            api_key=openai_api_key,
         )
 
         # Create cloud Qdrant store (you would need real Qdrant cloud credentials)
         store = QdrantStore(
-            embedding_service=embedding_service,
+            embedding=embedding_service,
             path="./openai_qdrant_data",  # Using local for demo
         )
 

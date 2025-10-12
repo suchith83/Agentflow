@@ -10,20 +10,19 @@ A streamlined example showing basic integration between:
 This example demonstrates a chatbot that remembers user preferences and conversation history.
 """
 
-import os
 import asyncio
-from typing import Dict, Any
+import os
 
 from dotenv import load_dotenv
 from litellm import acompletion
 from mem0 import Memory
 
+from pyagenity.adapters.llm.model_response_converter import ModelResponseConverter
 from pyagenity.graph import StateGraph
-from pyagenity.state.agent_state import AgentState
-from pyagenity.utils import Message
+from pyagenity.state import AgentState, Message
 from pyagenity.utils.constants import END
 from pyagenity.utils.converter import convert_messages
-from pyagenity.adapters.llm.model_response_converter import ModelResponseConverter
+
 
 # Load environment variables
 load_dotenv()
@@ -77,7 +76,7 @@ class SimplePersonalizedAgent:
 
     async def _chat_with_memory(self, state: MemoryAgentState) -> MemoryAgentState:
         """Chat node with memory integration."""
-        messages = convert_messages({"role": "system", "content": ""}, state)
+        messages = convert_messages(system_prompts=[{"role": "system", "content": ""}], state=state)
         user_message = messages[-1]["content"]
         user_id = state.user_id
 

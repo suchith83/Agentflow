@@ -13,21 +13,20 @@ Mem0Store instead of direct Mem0 integration. This demonstrates:
 This shows how to migrate from direct Mem0 usage to PyAgenity's store framework.
 """
 
-import os
 import asyncio
-from typing import Dict, Any
+import os
+from typing import Any
 
 from dotenv import load_dotenv
 from litellm import acompletion
 
 from pyagenity.graph import StateGraph
-from pyagenity.state.agent_state import AgentState
+from pyagenity.state import AgentState, Message
 from pyagenity.store.mem0_store import create_mem0_store_with_qdrant
 from pyagenity.store.store_schema import MemoryType
-from pyagenity.utils import Message
 from pyagenity.utils.constants import END
 from pyagenity.utils.converter import convert_messages
-from pyagenity.adapters.llm.model_response_converter import ModelResponseConverter
+
 
 # Load environment variables
 load_dotenv()
@@ -182,7 +181,10 @@ Show that you remember previous topics and user preferences."""
                 context=[Message.text_message(message, role="user")], user_id=user_id
             )
 
-            inp = {"messages": [Message.text_message(message, role="user")], "state": {"user_id": user_id}}
+            inp = {
+                "messages": [Message.text_message(message, role="user")],
+                "state": {"user_id": user_id},
+            }
 
             config = {"thread_id": f"chat_{user_id}", "recursion_limit": 10}
 
