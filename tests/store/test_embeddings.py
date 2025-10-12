@@ -131,9 +131,9 @@ class TestOpenAIEmbedding:
         """Test initialization with API key provided as parameter."""
         mock_client = Mock()
         mock_openai_class.return_value = mock_client
-        
-        embedding = OpenAIEmbedding(OPENAI_API_KEY="test-key")
-        
+
+        embedding = OpenAIEmbedding(api_key="test-key")
+
         assert embedding.api_key == "test-key"
         assert embedding.model == "text-embedding-3-small"  # default
         assert embedding.client == mock_client
@@ -161,7 +161,7 @@ class TestOpenAIEmbedding:
         
         embedding = OpenAIEmbedding(
             model="text-embedding-3-large",
-            OPENAI_API_KEY="test-key"
+            api_key="test-key"
         )
         
         assert embedding.model == "text-embedding-3-large"
@@ -195,7 +195,7 @@ class TestOpenAIEmbedding:
         
         mock_client.embeddings.create = AsyncMock(return_value=mock_response)
         
-        embedding = OpenAIEmbedding(OPENAI_API_KEY="test-key")
+        embedding = OpenAIEmbedding(api_key="test-key")
         texts = ["hello", "world"]
         
         result = await embedding.aembed_batch(texts)
@@ -222,7 +222,7 @@ class TestOpenAIEmbedding:
         
         mock_client.embeddings.create = AsyncMock(return_value=mock_response)
         
-        embedding = OpenAIEmbedding(OPENAI_API_KEY="test-key")
+        embedding = OpenAIEmbedding(api_key="test-key")
         text = "hello world"
         
         result = await embedding.aembed(text)
@@ -246,7 +246,7 @@ class TestOpenAIEmbedding:
         
         mock_client.embeddings.create = AsyncMock(return_value=mock_response)
         
-        embedding = OpenAIEmbedding(OPENAI_API_KEY="test-key")
+        embedding = OpenAIEmbedding(api_key="test-key")
         
         result = await embedding.aembed("test")
         
@@ -266,7 +266,7 @@ class TestOpenAIEmbedding:
             side_effect=OpenAIError("Rate limit exceeded")
         )
         
-        embedding = OpenAIEmbedding(OPENAI_API_KEY="test-key")
+        embedding = OpenAIEmbedding(api_key="test-key")
         
         with pytest.raises(RuntimeError) as exc_info:
             await embedding.aembed_batch(["test"])
@@ -288,7 +288,7 @@ class TestOpenAIEmbedding:
             side_effect=OpenAIError("Invalid model")
         )
         
-        embedding = OpenAIEmbedding(OPENAI_API_KEY="test-key")
+        embedding = OpenAIEmbedding(api_key="test-key")
         
         with pytest.raises(RuntimeError) as exc_info:
             await embedding.aembed("test")
@@ -311,7 +311,7 @@ class TestOpenAIEmbedding:
         ]
         
         for model, expected_dim in test_cases:
-            embedding = OpenAIEmbedding(model=model, OPENAI_API_KEY="test-key")
+            embedding = OpenAIEmbedding(model=model, api_key="test-key")
             assert embedding.dimension == expected_dim
     
     @patch('pyagenity.store.embedding.openai_embedding.HAS_OPENAI', True)
@@ -320,7 +320,7 @@ class TestOpenAIEmbedding:
         """Test dimension property raises error for unknown models."""
         mock_openai_class.return_value = Mock()
         
-        embedding = OpenAIEmbedding(model="unknown-model", OPENAI_API_KEY="test-key")
+        embedding = OpenAIEmbedding(model="unknown-model", api_key="test-key")
         
         with pytest.raises(ValueError) as exc_info:
             _ = embedding.dimension
@@ -342,7 +342,7 @@ class TestOpenAIEmbedding:
         mock_response.data = [mock_data]
         mock_client.embeddings.create = AsyncMock(return_value=mock_response)
         
-        embedding = OpenAIEmbedding(OPENAI_API_KEY="test-key")
+        embedding = OpenAIEmbedding(api_key="test-key")
         
         # Test sync single embedding
         result = embedding.embed("test")
@@ -387,7 +387,7 @@ class TestEmbeddingIntegration:
         """Test that OpenAIEmbedding properly implements BaseEmbedding."""
         mock_openai_class.return_value = Mock()
         
-        embedding = OpenAIEmbedding(OPENAI_API_KEY="test-key")
+        embedding = OpenAIEmbedding(api_key="test-key")
         
         # Test that it's an instance of BaseEmbedding
         assert isinstance(embedding, BaseEmbedding)
@@ -468,8 +468,8 @@ class TestEmbeddingEdgeCases:
         """Test that parameter API key takes precedence over environment variable."""
         mock_openai_class.return_value = Mock()
         
-        with patch.dict(os.environ, {'OPENAI_API_KEY': 'env-key'}):
-            embedding = OpenAIEmbedding(OPENAI_API_KEY="param-key")
+        with patch.dict(os.environ, {'api_key': 'env-key'}):
+            embedding = OpenAIEmbedding(api_key="param-key")
             
             assert embedding.api_key == "param-key"
     
