@@ -11,7 +11,7 @@ from typing import Annotated
 
 from pydantic import BaseModel, Field
 
-from agentflow.utils import START
+from agentflow.utils.constants import START
 
 from .execution_state import ExecutionState as ExecMeta
 from .message import Message
