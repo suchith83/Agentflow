@@ -2,7 +2,7 @@
 Integration adapters for optional third-party SDKs.
 
 This module exposes unified wrappers for integrating external tool registries
-and SDKs with TAF agent graphs. The adapters provide registry-based
+and SDKs with agentflow agent graphs. The adapters provide registry-based
 discovery, function-calling schemas, and normalized execution for supported
 tool providers.
 

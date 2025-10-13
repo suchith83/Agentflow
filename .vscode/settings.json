@@ -2,7 +2,7 @@
     "cSpell.words": [
         "atrim",
         "checkpointer",
-        "taf"
+        "agentflow"
     ],
     "makefile.configureOnOpen": false,
     "python.testing.pytestArgs": [

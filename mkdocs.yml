@@ -1,8 +1,8 @@
 site_name: 10xScale Agentflow
 site_description: "A lightweight Python framework for building intelligent agents and multi-agent workflows."
 # Required for Material's instant navigation and previews
-site_url: https://10xhub.github.io/taf/
-repo_url: https://github.com/10xhub/taf
+site_url: https://10xhub.github.io/agentflow/
+repo_url: https://github.com/10xhub/agentflow
 repo_name: 10xhub/agentflow
 
 theme:
@@ -73,4 +73,4 @@ markdown_extensions:
 # nav:
 #   - Home: index.md
 #   - Reference: reference/index.md
-#   - Changelog: https://pypi.org/project/taf/
+#   - Changelog: https://pypi.org/project/agentflow/

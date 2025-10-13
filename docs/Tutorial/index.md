@@ -26,9 +26,9 @@ Before diving in, ensure you have:
 
 1. **Install 10xScale Agentflow** with your preferred LLM provider:
    ```bash
-   pip install agentflow[litellm]
+   pip install 10xscale-agentflow[litellm]
    # Optional: add persistence and tools
-   pip install agentflow[pg_checkpoint,mcp]
+   pip install 10xscale-agentflow[pg_checkpoint,mcp]
    ```
 
 2. **Set up environment variables** in `.env`:
@@ -41,7 +41,7 @@ Before diving in, ensure you have:
 
 3. **Clone examples** to experiment:
    ```bash
-   git clone https://github.com/10xHub/taf.git
+   git clone https://github.com/10xHub/agentflow.git
    cd agentflow/examples/react
    python react_sync.py  # Your first agent!
    ```
@@ -82,13 +82,13 @@ Follow these tutorials in order for the best learning experience:
 | Tutorial | Focus | Key Files |
 |----------|-------|-----------|
 | [Graph Fundamentals](graph.md) | StateGraph, nodes, compilation | `examples/react/react_sync.py` |
-| [State & Messages](state.md) | AgentState, message handling | `taf/state/`, `taf/utils/message.py` |
+| [State & Messages](state.md) | AgentState, message handling | `agentflow/state/`, `agentflow/utils/message.py` |
 | [Tools & DI](adapter.md) | ToolNode, dependency injection | `examples/react-injection/`, `examples/react-mcp/` |
 | [React Agents](react/) | Complete ReAct guide: basic, DI, MCP, streaming | `examples/react*/` |
 | [Control Flow](graph.md#control-flow) | Conditional routing, interrupts | `examples/react/react_weather_agent.py` |
-| [Persistence](checkpointer.md) | Checkpointers, stores | `taf/checkpointer/`, `taf/store/` |
+| [Persistence](checkpointer.md) | Checkpointers, stores | `agentflow/checkpointer/`, `agentflow/store/` |
 | [Streaming](publisher.md) | Real-time responses, events | `examples/react_stream/` |
-| [Advanced](misc/advanced_patterns.md) | Prebuilt agents, orchestration | `taf/prebuilt/agent/` |
+| [Advanced](misc/advanced_patterns.md) | Prebuilt agents, orchestration | `agentflow/prebuilt/agent/` |
 
 ---
 

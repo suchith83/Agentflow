@@ -126,13 +126,13 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
         if not HAS_ASYNCPG:
             raise ImportError(
                 "PgCheckpointer requires 'asyncpg' package. "
-                "Install with: pip install agentflow[pg_checkpoint]"
+                "Install with: pip install 10xscale-agentflow[pg_checkpoint]"
             )
 
         if not HAS_REDIS:
             raise ImportError(
                 "PgCheckpointer requires 'redis' package. "
-                "Install with: pip install agentflow[pg_checkpoint]"
+                "Install with: pip install 10xscale-agentflow[pg_checkpoint]"
             )
 
         self.user_id_type = kwargs.get("user_id_type", "string")

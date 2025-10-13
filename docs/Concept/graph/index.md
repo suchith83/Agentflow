@@ -9,12 +9,12 @@ minimal, composable, and DI-friendly. This section is your conceptual map.
 
 | Concept | File(s) | Role |
 |---------|---------|------|
-| `StateGraph` | `taf/graph/state_graph.py` | Declarative builder: register nodes, edges, tools, conditions |
-| `Node` | `taf/graph/node.py` | Wrapper around user function (sync/async) with DI injection |
-| `ToolNode` | `taf/graph/tool_node/` | Tool registry + dispatcher (local + external providers) |
-| `Edge` | `taf/graph/edge.py` | Directional link; supports conditional routing |
-| `CompiledGraph` | `taf/graph/compiled_graph.py` | Runtime engine: invoke, stream, checkpoint, publish |
-| `Command` | `taf/utils/command.py` | Inline control object for dynamic goto / updates |
+| `StateGraph` | `agentflow/graph/state_graph.py` | Declarative builder: register nodes, edges, tools, conditions |
+| `Node` | `agentflow/graph/node.py` | Wrapper around user function (sync/async) with DI injection |
+| `ToolNode` | `agentflow/graph/tool_node/` | Tool registry + dispatcher (local + external providers) |
+| `Edge` | `agentflow/graph/edge.py` | Directional link; supports conditional routing |
+| `CompiledGraph` | `agentflow/graph/compiled_graph.py` | Runtime engine: invoke, stream, checkpoint, publish |
+| `Command` | `agentflow/utils/command.py` | Inline control object for dynamic goto / updates |
 | **Interrupts & HITL** | Compile options + runtime API | Pause/resume execution for human approval, debugging, external control |
 
 Supporting utilities: converters (LLM output → `Message` blocks), id + thread generators, background task manager,

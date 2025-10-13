@@ -88,7 +88,7 @@ class Mem0Store(BaseStore):
 
         super().__init__()
         self.config = config
-        self.app_id = app_id or "taf_app"
+        self.app_id = app_id or "agentflow_app"
         self._client = None  # Lazy initialization
 
         logger.info(
@@ -393,7 +393,7 @@ def create_mem0_store(
     config: dict[str, Any],
     user_id: str = "default_user",
     thread_id: str | None = None,
-    app_id: str = "taf_app",
+    app_id: str = "agentflow_app",
 ) -> Mem0Store:
     """Factory for a basic Mem0 long-term store."""
     return Mem0Store(
@@ -407,10 +407,10 @@ def create_mem0_store(
 def create_mem0_store_with_qdrant(
     qdrant_url: str,
     qdrant_api_key: str | None = None,
-    collection_name: str = "taf_memories",
+    collection_name: str = "agentflow_memories",
     embedding_model: str = "text-embedding-ada-002",
     llm_model: str = "gpt-4o-mini",
-    app_id: str = "taf_app",
+    app_id: str = "agentflow_app",
     **kwargs: Any,
 ) -> Mem0Store:
     """Factory producing a Mem0Store configured for Qdrant backing."""

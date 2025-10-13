@@ -123,7 +123,7 @@ class TestQdrantStore:
             )
             
             assert store.embedding == mock_embedding_service
-            assert store.default_collection == "taf_memories"
+            assert store.default_collection == "agentflow_memories"
             mock_client.assert_called_once()
 
     @pytest.mark.asyncio

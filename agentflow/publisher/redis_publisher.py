@@ -5,7 +5,7 @@ This publisher uses the redis-py asyncio client to publish events via:
 - Redis Streams (XADD) when configured with mode="stream".
 
 Dependency: redis>=4.2 (provides redis.asyncio).
-Not installed by default; install extra: `pip install agentflow[redis]`.
+Not installed by default; install extra: `pip install 10xscale-agentflow[redis]`.
 """
 
 from __future__ import annotations
@@ -77,7 +77,7 @@ class RedisPublisher(BasePublisher):
         except Exception as exc:  # ImportError and others
             raise RuntimeError(
                 "RedisPublisher requires the 'redis' package. Install with "
-                "'pip install agentflow[redis]' or 'pip install redis'."
+                "'pip install 10xscale-agentflow[redis]' or 'pip install redis'."
             ) from exc
 
         try:

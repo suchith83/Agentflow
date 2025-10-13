@@ -1,12 +1,12 @@
 
 # 10xScale Agentflow
 
-![PyPI](https://img.shields.io/pypi/v/taf?color=blue)
-![License](https://img.shields.io/github/license/10xhub/taf)
-![Python](https://img.shields.io/pypi/pyversions/taf)
+![PyPI](https://img.shields.io/pypi/v/agentflow?color=blue)
+![License](https://img.shields.io/github/license/10xhub/agentflow)
+![Python](https://img.shields.io/pypi/pyversions/agentflow)
 [![Coverage](https://img.shields.io/badge/coverage-74%25-yellow.svg)](#)
 
-**10xScale Agentflow(taf)** is a lightweight Python framework for building intelligent agents and orchestrating multi-agent workflows. It's an **LLM-agnostic orchestration tool** that works with any LLM provider—use LiteLLM, native SDKs from OpenAI, Google Gemini, Anthropic Claude, or any other provider. You choose your LLM library; 10xScale Agentflow provides the workflow orchestration.
+**10xScale Agentflow** is a lightweight Python framework for building intelligent agents and orchestrating multi-agent workflows. It's an **LLM-agnostic orchestration tool** that works with any LLM provider—use LiteLLM, native SDKs from OpenAI, Google Gemini, Anthropic Claude, or any other provider. You choose your LLM library; 10xScale Agentflow provides the workflow orchestration.
 
 ---
 
@@ -31,13 +31,13 @@
 **Basic installation with [uv](https://github.com/astral-sh/uv) (recommended):**
 
 ```bash
-uv pip install agentflow
+uv pip install 10xscale-agentflow
 ```
 
 Or with pip:
 
 ```bash
-pip install agentflow
+pip install 10xscale-agentflow
 ```
 
 **Optional Dependencies:**
@@ -46,24 +46,24 @@ pip install agentflow
 
 ```bash
 # PostgreSQL + Redis checkpointing
-pip install agentflow[pg_checkpoint]
+pip install 10xscale-agentflow[pg_checkpoint]
 
 # MCP (Model Context Protocol) support
-pip install agentflow[mcp]
+pip install 10xscale-agentflow[mcp]
 
 # Composio tools (adapter)
-pip install agentflow[composio]
+pip install 10xscale-agentflow[composio]
 
 # LangChain tools (registry-based adapter)
-pip install agentflow[langchain]
+pip install 10xscale-agentflow[langchain]
 
 # Individual publishers
-pip install agentflow[redis]     # Redis publisher
-pip install agentflow[kafka]     # Kafka publisher
-pip install agentflow[rabbitmq]  # RabbitMQ publisher
+pip install 10xscale-agentflow[redis]     # Redis publisher
+pip install 10xscale-agentflow[kafka]     # Kafka publisher
+pip install 10xscale-agentflow[rabbitmq]  # RabbitMQ publisher
 
 # Multiple extras
-pip install agentflow[pg_checkpoint,mcp,composio,langchain]
+pip install 10xscale-agentflow[pg_checkpoint,mcp,composio,langchain]
 ```
 
 ### Environment Setup
@@ -347,9 +347,9 @@ How to run the MCP example:
 
 1. Install MCP dependencies:
 ```bash
-pip install agentflow[mcp]
+pip install 10xscale-agentflow[mcp]
 # or
-uv pip install agentflow[mcp]
+uv pip install 10xscale-agentflow[mcp]
 ```
 
 2. Start the MCP server in one terminal:
@@ -626,7 +626,7 @@ MIT License - see [LICENSE](https://github.com/10xhub/10xScale Agentflow/blob/ma
 
 - **[Documentation](https://10xhub.github.io/10xScale Agentflow/)** - Full documentation with tutorials and API reference
 - **[GitHub Repository](https://github.com/10xhub/10xScale Agentflow)** - Source code and issues
-- **[PyPI Project](https://pypi.org/project/taf/)** - Package releases
+- **[PyPI Project](https://pypi.org/project/10xScale-Agentflow/)** - Package releases
 - **[Examples Directory](https://github.com/10xhub/10xScale Agentflow/tree/main/examples)** - Runnable code samples
 
 ---

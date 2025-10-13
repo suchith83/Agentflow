@@ -22,7 +22,7 @@ class BaseConverter(ABC):
     Abstract base class for all LLM response converters.
 
     Subclasses should implement methods to convert standard and streaming
-    LLM responses into TAF's internal message/event formats.
+    LLM responses into agentflow's internal message/event formats.
 
     Attributes:
         state (AgentState | None): Optional agent state for context during conversion.

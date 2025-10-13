@@ -4,7 +4,7 @@ Use these repo-specific notes to be productive quickly when generating code, doc
 
 ## Big picture
 - 10xScale Agentflow is a lightweight Python framework for building agent graphs on top of LiteLLM.
-- Core primitives live in `taf/graph/`: `StateGraph`, `Node`, `Edge`, `ToolNode`, `CompiledGraph`.
+- Core primitives live in `agentflow/graph/`: `StateGraph`, `Node`, `Edge`, `ToolNode`, `CompiledGraph`.
 - State is a Pydantic model (`state/agent_state.py`); messages are `utils/message.py::Message`.
 - Flow: build a `StateGraph` → add nodes/edges (incl. conditional) → `set_entry_point` → `compile()` → use `CompiledGraph.invoke()` or `CompiledGraph.stream()`.
 - START/END constants come from `utils/constants.py` (`START="__start__"`, `END="__end__"`). Always reference these.
@@ -27,7 +27,7 @@ Use these repo-specific notes to be productive quickly when generating code, doc
 - Minimal graph pattern: `tests/graph/test_graph.py` shows `add_node` → `set_entry_point` → `add_edge(..., END)` → `compile()` → `invoke()`.
 - Tooling + routing + LiteLLM: `examples/react/react_weather_agent.py`.
 - MCP tools: `examples/react-mcp/`.
-- Prebuilt agents: `taf/prebuilt/agent/` (React, RAG, Swarm, Router, MapReduce, SupervisorTeam, etc.).
+- Prebuilt agents: `agentflow/prebuilt/agent/` (React, RAG, Swarm, Router, MapReduce, SupervisorTeam, etc.).
 
 ## Conventions
 - Create messages via `Message.from_text(...)`, `Message.tool_message(...)`, or `Message.from_response(...)`.
@@ -46,7 +46,7 @@ Use these repo-specific notes to be productive quickly when generating code, doc
 - `pg_checkpoint`: Postgres (`asyncpg`) + Redis cache (`redis`); use `checkpointer.PgCheckpointer`.
 - `mcp`: Model Context Protocol (FastMCP + mcp); pass a client to `ToolNode`.
 - `composio`, `langchain`: adapters for external tool registries via `ToolNode`.
-- Publishers: `redis`, `kafka`, `rabbitmq` classes in `taf/publisher/`.
+- Publishers: `redis`, `kafka`, `rabbitmq` classes in `agentflow/publisher/`.
 
 ## Gotchas
 - Call `set_entry_point(...)` before `compile()` or you’ll get `GraphError`.

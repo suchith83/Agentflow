@@ -1,6 +1,6 @@
 # RAG Examples (10xScale Agentflow)
 
-This directory provides two progressively more capable Retrieval-Augmented Generation (RAG) examples built with the prebuilt [`RAGAgent`](taf/prebuilt/agent/rag.py).
+This directory provides two progressively more capable Retrieval-Augmented Generation (RAG) examples built with the prebuilt [`RAGAgent`](agentflow/prebuilt/agent/rag.py).
 
 ## Files
 

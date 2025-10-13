@@ -34,7 +34,7 @@ except ImportError:
 
 class LiteLLMConverter(BaseConverter):
     """
-    Converter for LiteLLM responses to TAF Message format.
+    Converter for LiteLLM responses to agentflow Message format.
 
     Handles both standard and streaming responses, extracting content, reasoning,
     tool calls, and token usage details.

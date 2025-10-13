@@ -3,7 +3,7 @@
 Uses aiokafka to publish events to a Kafka topic.
 
 Dependency: aiokafka
-Not installed by default; install extra: `pip install agentflow[kafka]`.
+Not installed by default; install extra: `pip install 10xscale-agentflow[kafka]`.
 """
 
 from __future__ import annotations
@@ -70,7 +70,7 @@ class KafkaPublisher(BasePublisher):
         except Exception as exc:
             raise RuntimeError(
                 "KafkaPublisher requires the 'aiokafka' package. Install with "
-                "'pip install agentflow[kafka]' or 'pip install aiokafka'."
+                "'pip install 10xscale-agentflow[kafka]' or 'pip install aiokafka'."
             ) from exc
 
         producer_cls = aiokafka.AIOKafkaProducer

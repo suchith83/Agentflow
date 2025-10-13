@@ -1,8 +1,8 @@
 # 10xScale Agentflow
 
-![PyPI](https://img.shields.io/pypi/v/taf?color=blue)
-![License](https://img.shields.io/github/license/10xhub/taf)
-![Python](https://img.shields.io/pypi/pyversions/taf)
+![PyPI](https://img.shields.io/pypi/v/agentflow?color=blue)
+![License](https://img.shields.io/github/license/10xhub/agentflow)
+![Python](https://img.shields.io/pypi/pyversions/agentflow)
 [![Coverage](https://img.shields.io/badge/coverage-73%25-yellow.svg)](#)
 
 **10xScale Agentflow** is a lightweight Python framework for building intelligent agents and orchestrating multi-agent workflows. It's an **LLM-agnostic orchestration tool** that works with any LLM provider—use LiteLLM, native SDKs from OpenAI, Google Gemini, Anthropic Claude, or any other provider. You choose your LLM library; 10xScale Agentflow provides the workflow orchestration.
@@ -32,13 +32,13 @@
 **Basic installation with [uv](https://github.com/astral-sh/uv) (recommended):**
 
 ```bash
-uv pip install agentflow
+uv pip install 10xscale-agentflow
 ```
 
 Or with pip:
 
 ```bash
-pip install agentflow
+pip install 10xscale-agentflow
 ```
 
 **Optional Dependencies:**
@@ -47,24 +47,24 @@ pip install agentflow
 
 ```bash
 # PostgreSQL + Redis checkpointing
-pip install agentflow[pg_checkpoint]
+pip install 10xscale-agentflow[pg_checkpoint]
 
 # MCP (Model Context Protocol) support
-pip install agentflow[mcp]
+pip install 10xscale-agentflow[mcp]
 
 # Composio tools (adapter)
-pip install agentflow[composio]
+pip install 10xscale-agentflow[composio]
 
 # LangChain tools (registry-based adapter)
-pip install agentflow[langchain]
+pip install 10xscale-agentflow[langchain]
 
 # Individual publishers
-pip install agentflow[redis]     # Redis publisher
-pip install agentflow[kafka]     # Kafka publisher
-pip install agentflow[rabbitmq]  # RabbitMQ publisher
+pip install 10xscale-agentflow[redis]     # Redis publisher
+pip install 10xscale-agentflow[kafka]     # Kafka publisher
+pip install 10xscale-agentflow[rabbitmq]  # RabbitMQ publisher
 
 # Multiple extras
-pip install agentflow[pg_checkpoint,mcp,composio,langchain]
+pip install 10xscale-agentflow[pg_checkpoint,mcp,composio,langchain]
 ```
 
 ### Environment Setup
@@ -273,7 +273,7 @@ Install 10xScale Agentflow as shown above. The `pyproject.toml` contains all run
 
 ```bash
 # Clone the repository
-git clone https://github.com/10xhub/taf.git
+git clone https://github.com/10xhub/agentflow.git
 cd agentflow
 
 # Create virtual environment
@@ -331,15 +331,15 @@ See `pyproject.dev.toml` for complete tool configurations.
 
 ## 📄 License
 
-MIT License - see [LICENSE](https://github.com/10xhub/taf/blob/main/LICENSE) for details.
+MIT License - see [LICENSE](https://github.com/10xhub/agentflow/blob/main/LICENSE) for details.
 
 ---
 
 ## 🔗 Links & Resources
 
-- **[GitHub Repository](https://github.com/10xhub/taf)** - Source code and issues
-- **[PyPI Project](https://pypi.org/project/taf/)** - Package releases
-- **[Examples Directory](https://github.com/10xhub/taf/tree/main/examples)** - Runnable code samples
+- **[GitHub Repository](https://github.com/10xhub/agentflow)** - Source code and issues
+- **[PyPI Project](https://pypi.org/project/agentflow/)** - Package releases
+- **[Examples Directory](https://github.com/10xhub/agentflow/tree/main/examples)** - Runnable code samples
 - **[API Reference](reference/)** - Complete documentation
 - **[Tutorials](Tutorial/)** - Step-by-step guides
 
@@ -347,7 +347,7 @@ MIT License - see [LICENSE](https://github.com/10xhub/taf/blob/main/LICENSE) for
 
 ## 🙏 Contributing
 
-Contributions are welcome! Please see our [GitHub repository](https://github.com/10xhub/taf) for:
+Contributions are welcome! Please see our [GitHub repository](https://github.com/10xhub/agentflow) for:
 
 - Issue reporting and feature requests
 - Pull request guidelines
@@ -359,9 +359,9 @@ Contributions are welcome! Please see our [GitHub repository](https://github.com
 ## 💬 Support
 
 - **Documentation**: You're reading it! See [Tutorials](Tutorial/) and [Concepts](Concept/)
-- **Examples**: Check the [examples directory](https://github.com/10xhub/taf/tree/main/examples)
-- **Issues**: Report bugs on [GitHub Issues](https://github.com/10xhub/taf/issues)
-- **Discussions**: Ask questions in [GitHub Discussions](https://github.com/10xhub/taf/discussions)
+- **Examples**: Check the [examples directory](https://github.com/10xhub/agentflow/tree/main/examples)
+- **Issues**: Report bugs on [GitHub Issues](https://github.com/10xhub/agentflow/issues)
+- **Discussions**: Ask questions in [GitHub Discussions](https://github.com/10xhub/agentflow/discussions)
 
 ---
 

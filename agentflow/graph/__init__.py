@@ -1,4 +1,4 @@
-"""TAF Graph Module - Core Workflow Engine.
+"""Agentflow Graph Module - Core Workflow Engine.
 
 This module provides the foundational components for building and executing
 agent workflows in TAF. It implements a graph-based execution model

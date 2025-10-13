@@ -10,7 +10,7 @@ def test_basic_functionality():
     assert result == expected_result  # noqa: S101
 
 
-def test_taf_import():
+def test_agentflow_import():
     """Test that agentflow module can be imported."""
     # If we get here without errors, the import worked
     assert True  # noqa: S101

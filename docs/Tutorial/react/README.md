@@ -37,10 +37,10 @@ Follow these tutorials in order for the best learning experience:
 
 ```bash
 # Install 10xScale Agentflow with dependencies
-pip install agentflow[litellm]
+pip install 10xscale-agentflow[litellm]
 
 # For MCP examples
-pip install agentflow[mcp]
+pip install 10xscale-agentflow[mcp]
 
 # Set up environment
 export OPENAI_API_KEY=your_key

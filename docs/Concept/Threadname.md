@@ -2,7 +2,7 @@
 
 Thread names label an execution thread (session) for correlation across logs, publishers, and external APIs. While IDs are great for machines, a human-friendly thread name helps during debugging, dashboards, and interactive UIs.
 
-Implemented in: `taf/utils/thread_name_generator.py`
+Implemented in: `agentflow/utils/thread_name_generator.py`
 
 ### How It Works
 

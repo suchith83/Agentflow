@@ -1,8 +1,8 @@
-"""LangChain adapter for TAF (generic wrapper, registry-based).
+"""LangChain adapter for agentflow (generic wrapper, registry-based).
 
 This adapter mirrors the spirit of Google's ADK LangChain wrapper by allowing
 you to register any LangChain tool (BaseTool/StructuredTool) or a duck-typed
-object that exposes a ``run``/``_run`` method, then exposing it to TAF in
+object that exposes a ``run``/``_run`` method, then exposing it to agentflow in
 the uniform function-calling schema that ``ToolNode`` expects.
 
 Key points:
@@ -14,7 +14,7 @@ Key points:
     ``_run`` or calling a wrapped function with kwargs.
 
 Optional install:
-        pip install agentflow[langchain]
+        pip install 10xscale-agentflow[langchain]
 
 Backward-compat convenience:
 - For continuity with prior versions, the adapter can auto-register two common
@@ -249,7 +249,7 @@ class LangChainAdapter:
         if not HAS_LANGCHAIN:
             raise ImportError(
                 "LangChainAdapter requires 'langchain-core' and optional integrations.\n"
-                "Install with: pip install agentflow[langchain]"
+                "Install with: pip install 10xscale-agentflow[langchain]"
             )
         self._registry: dict[str, LangChainToolWrapper] = {}
         self._autoload = autoload_default_tools
@@ -373,7 +373,7 @@ class LangChainAdapter:
             raise ImportError(
                 "Tavily tool requires 'langchain-tavily' (preferred) or"
                 " 'langchain-community' with 'tavily-python'.\n"
-                "Install with: pip install agentflow[langchain]"
+                "Install with: pip install 10xscale-agentflow[langchain]"
             ) from exc
 
     def _create_requests_get_tool(self) -> t.Any:
@@ -402,7 +402,7 @@ class LangChainAdapter:
         except Exception as exc:  # ImportError or runtime
             raise ImportError(
                 "Requests tool requires 'langchain-community'.\n"
-                "Install with: pip install agentflow[langchain]"
+                "Install with: pip install 10xscale-agentflow[langchain]"
             ) from exc
 
     def _try_autoload_defaults(self) -> None:

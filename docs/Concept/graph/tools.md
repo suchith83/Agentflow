@@ -86,7 +86,7 @@ A future high-level helper will streamline this; current pattern mirrors local t
 
 ## Composio Integration
 
-Composio offers a catalogue of real-world service connectors. An adapter (see `taf/adapters/tools/composio_adapter.py` if present) maps Composio tool manifests into the ToolNode schema format.
+Composio offers a catalogue of real-world service connectors. An adapter (see `agentflow/adapters/tools/composio_adapter.py` if present) maps Composio tool manifests into the ToolNode schema format.
 
 Benefits:
 

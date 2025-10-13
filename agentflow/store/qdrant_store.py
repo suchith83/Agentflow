@@ -74,7 +74,7 @@ class QdrantStore(BaseStore):
         port: int | None = None,
         url: str | None = None,
         api_key: str | None = None,
-        default_collection: str = "taf_memories",
+        default_collection: str = "agentflow_memories",
         distance_metric: DistanceMetric = DistanceMetric.COSINE,
         **kwargs: Any,
     ):

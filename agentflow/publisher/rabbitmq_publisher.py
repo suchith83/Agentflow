@@ -3,7 +3,7 @@
 Uses aio-pika to publish events to an exchange with a routing key.
 
 Dependency: aio-pika
-Not installed by default; install extra: `pip install agentflow[rabbitmq]`.
+Not installed by default; install extra: `pip install 10xscale-agentflow[rabbitmq]`.
 """
 
 from __future__ import annotations
@@ -70,7 +70,7 @@ class RabbitMQPublisher(BasePublisher):
         except Exception as exc:
             raise RuntimeError(
                 "RabbitMQPublisher requires the 'aio-pika' package. Install with "
-                "'pip install agentflow[rabbitmq]' or 'pip install aio-pika'."
+                "'pip install 10xscale-agentflow[rabbitmq]' or 'pip install aio-pika'."
             ) from exc
 
         # Connect and declare exchange if needed

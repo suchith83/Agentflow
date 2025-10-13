@@ -2,7 +2,7 @@
 
 LLM SDKs return provider-specific objects (LiteLLM model responses, streaming wrappers, raw dicts). 10xScale Agentflow normalises these into its internal `Message` structure so downstream nodes, tool routing, publishers, and checkpointers operate over a consistent schema.
 
-Core pieces live in `taf/adapters/llm/`:
+Core pieces live in `agentflow/adapters/llm/`:
 
 | File | Purpose |
 |------|---------|

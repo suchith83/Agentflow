@@ -365,7 +365,7 @@ class TestPgCheckpointerIntegration2:
     def real_checkpointer(self):
         """Create checkpointer with real connections (requires services)."""
         return PgCheckpointer(
-            postgres_dsn="postgresql://test:test@localhost:5432/test_taf",
+            postgres_dsn="postgresql://test:test@localhost:5432/test_agentflow",
             redis_url="redis://localhost:6379/1",  # Use different DB for testing
         )
 

@@ -3,7 +3,7 @@ Integration adapters for optional third-party LLM SDKs.
 
 This module exposes universal converter APIs to normalize responses and
 streaming outputs from popular LLM SDKs (e.g., LiteLLM, OpenAI) for use in
-TAF agent graphs. Adapters provide unified conversion, streaming,
+agentflow agent graphs. Adapters provide unified conversion, streaming,
 and message normalization for agent workflows.
 
 Exports:

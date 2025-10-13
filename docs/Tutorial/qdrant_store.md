@@ -326,13 +326,13 @@ See `tests/store/test_qdrant_store.py` for comprehensive test examples and `exam
 
 - `qdrant-client>=1.7.0` - Qdrant Python client
 - `openai` (optional) - For OpenAI embeddings
-- `taf` - Core 10xScale Agentflow framework
+- `agentflow` - Core 10xScale Agentflow framework
 
 ## Troubleshooting
 
 ### Common Issues
 
-1. **Import Error**: Install qdrant-client with `pip install 'taf[qdrant]'`
+1. **Import Error**: Install qdrant-client with `pip install '10xscale-agenflow[qdrant]'`
 2. **Connection Error**: Ensure Qdrant server is running and accessible
 3. **Embedding Dimension Mismatch**: Ensure all embeddings use the same dimension
 4. **API Key Issues**: Verify OpenAI API key is set correctly

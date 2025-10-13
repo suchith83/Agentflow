@@ -143,7 +143,7 @@ class TestComposioAdapterInitialization:
             ComposioAdapter()
         
         assert "ComposioAdapter requires 'composio' package" in str(exc_info.value)
-        assert "pip install agentflow[composio]" in str(exc_info.value)
+        assert "pip install 10xscale-agentflow[composio]" in str(exc_info.value)
 
 
 class TestComposioAdapterToolListing:

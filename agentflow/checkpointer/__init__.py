@@ -1,5 +1,5 @@
 """
-Checkpointer adapters for agent state persistence in TAF.
+Checkpointer adapters for agent state persistence in agentflow.
 
 This module exposes unified checkpointing interfaces for agent graphs, supporting
 in-memory and Postgres-backed persistence. PgCheckpointer is only exported if its
@@ -11,7 +11,7 @@ Exports:
     PgCheckpointer: Postgres+Redis checkpointing (optional, requires extras).
 
 Usage:
-    PgCheckpointer requires: pip install agentflow[pg_checkpoint]
+    PgCheckpointer requires: pip install 10xscale-agentflow[pg_checkpoint]
 """
 
 from .base_checkpointer import BaseCheckpointer

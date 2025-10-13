@@ -122,7 +122,7 @@ class ToolNode(
 
         Note:
             When using MCP client functionality, ensure you have installed the required
-            dependencies with: `pip install agentflow[mcp]`
+            dependencies with: `pip install 10xscale-agentflow[mcp]`
         """
         logger.info("Initializing ToolNode with %d functions", len(list(functions)))
 
@@ -135,7 +135,7 @@ class ToolNode(
             if not has_fastmcp or not has_mcp:
                 raise ImportError(
                     "MCP client functionality requires 'fastmcp' and 'mcp' packages. "
-                    "Install with: pip install agentflow[mcp]"
+                    "Install with: pip install 10xscale-agentflow[mcp]"
                 )
             logger.debug("ToolNode initialized with MCP client")
 

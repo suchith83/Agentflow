@@ -1,5 +1,5 @@
 """
-Custom exception classes for graph operations in TAF.
+Custom exception classes for graph operations in agentflowntflow.
 
 This package provides:
         - GraphError: Base exception for graph-related errors.

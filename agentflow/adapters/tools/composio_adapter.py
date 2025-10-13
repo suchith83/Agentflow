@@ -1,11 +1,11 @@
-"""Composio adapter for TAF.
+"""Composio adapter for agentflow.
 
 This module provides a thin wrapper around the Composio Python SDK to:
 - Fetch tools formatted for LLM function calling (matching ToolNode format)
 - Execute Composio tools directly
 
 The dependency is optional. Install with:
-    pip install agentflow[composio]
+    pip install 10xscale-agentflow[composio]
 
 Usage outline:
     adapter = ComposioAdapter(api_key=os.environ["COMPOSIO_API_KEY"])  # optional key
@@ -70,7 +70,7 @@ class ComposioAdapter:
         if not HAS_COMPOSIO:
             raise ImportError(
                 "ComposioAdapter requires 'composio' package. Install with: "
-                "pip install agentflow[composio]"
+                "pip install 10xscale-agentflow[composio]"
             )
 
         self._composio = Composio(  # type: ignore[call-arg]

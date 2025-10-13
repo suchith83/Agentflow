@@ -823,8 +823,8 @@ class TestLogging:
     def test_logger_hierarchy(self):
         """Test that module-specific loggers work correctly."""
         # Clear agentflow logger
-        taf_logger = logging.getLogger("agentflow")
-        taf_logger.handlers.clear()
+        agentflow_logger = logging.getLogger("agentflow")
+        agentflow_logger.handlers.clear()
 
         # Configure agentflow logging
         configure_logging()
