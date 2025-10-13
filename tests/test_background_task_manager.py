@@ -6,7 +6,7 @@ import pytest
 import time
 from unittest.mock import Mock, patch, AsyncMock
 
-from taf.utils.background_task_manager import BackgroundTaskManager
+from agentflow.utils.background_task_manager import BackgroundTaskManager
 
 
 class TestBackgroundTaskManager:
@@ -56,7 +56,7 @@ class TestBackgroundTaskManager:
     @pytest.mark.asyncio
     async def test_task_error_handling(self, task_manager):
         """Test that task errors are logged but don't crash the manager."""
-        with patch('taf.utils.background_task_manager.logger') as mock_logger:
+        with patch('agentflow.utils.background_task_manager.logger') as mock_logger:
 
             async def failing_task():
                 await asyncio.sleep(0.05)
@@ -95,7 +95,7 @@ class TestBackgroundTaskManager:
     @pytest.mark.asyncio
     async def test_task_cleanup_on_error(self, task_manager):
         """Test that failed tasks are properly removed from tracking."""
-        with patch('taf.utils.background_task_manager.logger'):
+        with patch('agentflow.utils.background_task_manager.logger'):
             async def failing_task():
                 await asyncio.sleep(0.05)
                 raise RuntimeError("Test failure")
@@ -131,7 +131,7 @@ class TestBackgroundTaskManager:
             await asyncio.sleep(0.05)
             raise RuntimeError("Intentional failure")
 
-        with patch('taf.utils.background_task_manager.logger'):
+        with patch('agentflow.utils.background_task_manager.logger'):
             # Mix of success and failure tasks
             task_manager.create_task(success_task("success1"))
             task_manager.create_task(fail_task())
@@ -237,7 +237,7 @@ class TestBackgroundTaskManager:
             else:
                 success_count += 1
         
-        with patch('taf.utils.background_task_manager.logger'):
+        with patch('agentflow.utils.background_task_manager.logger'):
             # Create 60 tasks (20 will fail, 40 will succeed)
             for i in range(60):
                 task_manager.create_task(mixed_task(i))
@@ -330,7 +330,7 @@ class TestBackgroundTaskManager:
     @pytest.mark.asyncio
     async def test_exception_types_handling(self, task_manager):
         """Test handling of different exception types."""
-        with patch('taf.utils.background_task_manager.logger') as mock_logger:
+        with patch('agentflow.utils.background_task_manager.logger') as mock_logger:
             
             async def value_error_task():
                 raise ValueError("Value error")
@@ -390,7 +390,7 @@ class TestBackgroundTaskManager:
     @pytest.mark.asyncio
     async def test_logging_configuration(self, task_manager):
         """Test that logging works correctly under load."""
-        with patch('taf.utils.background_task_manager.logger') as mock_logger:
+        with patch('agentflow.utils.background_task_manager.logger') as mock_logger:
             
             async def logging_task():
                 await asyncio.sleep(0.01)

@@ -46,29 +46,32 @@ If the active generator returns an empty string (the `DefaultIDGenerator` case),
 
 ```python
 from injectq import Inject
-from taf.utils.id_generator import BigIntIDGenerator, BaseIDGenerator
+from agentflow.utils.id_generator import BigIntIDGenerator, BaseIDGenerator
+
 
 async def node(state, config, id_gen: BaseIDGenerator = Inject[BaseIDGenerator]):
-	run_local_id = id_gen.generate()
-	print("Run ID: ", run_local_id)
-	return state
+    run_local_id = id_gen.generate()
+    print("Run ID: ", run_local_id)
+    return state
 ```
 
 To supply a custom generator:
 
 ```python
 from injectq import InjectQ
-from taf.graph import StateGraph
-from taf.utils.id_generator import BaseIDGenerator, IDType
+from agentflow.graph import StateGraph
+from agentflow.utils.id_generator import BaseIDGenerator, IDType
+
 
 class PrefixedUUIDGenerator(BaseIDGenerator):
-	@property
-	def id_type(self):
-		return IDType.STRING
+    @property
+    def id_type(self):
+        return IDType.STRING
 
-	def generate(self) -> str:
-		import uuid
-		return f"agent-{uuid.uuid4()}"
+    def generate(self) -> str:
+        import uuid
+        return f"agent-{uuid.uuid4()}"
+
 
 container = InjectQ.get_instance()
 container.bind(BaseIDGenerator, PrefixedUUIDGenerator())

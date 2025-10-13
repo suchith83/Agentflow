@@ -11,9 +11,9 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__)))
 
 from injectq import inject
 
-from taf.graph.tool_node import ToolNode
-from taf.state.agent_state import AgentState
-from taf.utils import Message
+from agentflow.graph.tool_node import ToolNode
+from agentflow.state.agent_state import AgentState
+from agentflow.utils import Message
 
 
 @inject

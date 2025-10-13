@@ -41,11 +41,12 @@ And a `converter` argument: either an instance of `BaseConverter` or a shortcut 
 Usage inside a node (see `examples/react/react_sync.py`):
 
 ```python
-from taf.adapters.llm.model_response_converter import ModelResponseConverter
+from agentflow.adapters.llm.model_response_converter import ModelResponseConverter
+
 
 def main_agent(state):
-	response = completion(model="gemini/gemini-2.5-flash", messages=...)
-	return ModelResponseConverter(response, converter="litellm")
+    response = completion(model="gemini/gemini-2.5-flash", messages=...)
+    return ModelResponseConverter(response, converter="litellm")
 ```
 
 The invoke handler detects the wrapper, calls `invoke()` (or `stream()` in streaming mode), and appends the resulting `Message`(s) to `state.context`.
@@ -84,17 +85,18 @@ During streaming, each new tool call ID is tracked in a set to avoid duplicates.
 Implement a subclass:
 
 ```python
-from taf.adapters.llm.base_converter import BaseConverter
-from taf.utils import Message, TextBlock
+from agentflow.adapters.llm.base_converter import BaseConverter
+from agentflow.utils import Message, TextBlock
+
 
 class MyProviderConverter(BaseConverter):
-	async def convert_response(self, response):
-		return Message.role_message("assistant", [TextBlock(text=response.text)])
+    async def convert_response(self, response):
+        return Message.role_message("assistant", [TextBlock(text=response.text)])
 
-	async def convert_streaming_response(self, config, node_name, response, meta=None):
-		async for part in response:  # provider-specific async iterator
-			yield Message(role="assistant", content=[TextBlock(text=part.delta)], delta=True)
-		yield Message(role="assistant", content=[TextBlock(text=response.full_text)], delta=False)
+    async def convert_streaming_response(self, config, node_name, response, meta=None):
+        async for part in response:  # provider-specific async iterator
+            yield Message(role="assistant", content=[TextBlock(text=part.delta)], delta=True)
+        yield Message(role="assistant", content=[TextBlock(text=response.full_text)], delta=False)
 ```
 
 Then supply it manually:

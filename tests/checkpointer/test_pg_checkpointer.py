@@ -17,9 +17,9 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from taf.checkpointer.pg_checkpointer import PgCheckpointer
-from taf.state import AgentState, Message
-from taf.utils.thread_info import ThreadInfo
+from agentflow.checkpointer.pg_checkpointer import PgCheckpointer
+from agentflow.state import AgentState, Message
+from agentflow.utils.thread_info import ThreadInfo
 
 
 class TestPgCheckpointer:

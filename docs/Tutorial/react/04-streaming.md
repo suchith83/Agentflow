@@ -43,11 +43,12 @@ User Input → Agent Reasoning → Tool Calls → LLM Streaming → Real-time UI
 
 ```python
 from litellm import acompletion
-from taf.adapters.llm.model_response_converter import ModelResponseConverter
+from agentflow.adapters.llm.model_response_converter import ModelResponseConverter
+
 
 async def streaming_main_agent(
-    state: AgentState,
-    config: dict | None = None
+        state: AgentState,
+        config: dict | None = None
 ) -> ModelResponseConverter:
     """Main agent with streaming support."""
 
@@ -120,8 +121,9 @@ tool_node = ToolNode([streaming_weather_tool])
 ### 3. Graph with Streaming Support
 
 ```python
-from taf.graph import StateGraph
-from taf.utils.constants import END
+from agentflow.graph import StateGraph
+from agentflow.utils.constants import END
+
 
 def streaming_router(state: AgentState) -> str:
     """Router optimized for streaming workflows."""
@@ -133,8 +135,8 @@ def streaming_router(state: AgentState) -> str:
 
     # Tool call routing
     if (hasattr(last_message, "tools_calls") and
-        last_message.tools_calls and
-        last_message.role == "assistant"):
+            last_message.tools_calls and
+            last_message.role == "assistant"):
         return "TOOL"
 
     # Return to main after tool execution
@@ -143,6 +145,7 @@ def streaming_router(state: AgentState) -> str:
 
     # End conversation
     return END
+
 
 # Build streaming graph
 graph = StateGraph()
@@ -174,13 +177,13 @@ from typing import Any
 from dotenv import load_dotenv
 from litellm import acompletion
 
-from taf.adapters.llm.model_response_converter import ModelResponseConverter
-from taf.checkpointer import InMemoryCheckpointer
-from taf.graph import StateGraph, ToolNode
-from taf.state.agent_state import AgentState
-from taf.utils import Message, ResponseGranularity
-from taf.utils.constants import END
-from taf.utils.converter import convert_messages
+from agentflow.adapters.llm.model_response_converter import ModelResponseConverter
+from agentflow.checkpointer import InMemoryCheckpointer
+from agentflow.graph import StateGraph, ToolNode
+from agentflow.state.agent_state import AgentState
+from agentflow.utils import Message, ResponseGranularity
+from agentflow.utils.constants import END
+from agentflow.utils.converter import convert_messages
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -188,11 +191,12 @@ logger = logging.getLogger(__name__)
 
 load_dotenv()
 
+
 # Streaming-compatible tools
 def get_weather_stream(
-    location: str,
-    tool_call_id: str | None = None,
-    state: AgentState | None = None,
+        location: str,
+        tool_call_id: str | None = None,
+        state: AgentState | None = None,
 ) -> Message:
     """Weather tool optimized for streaming workflows."""
 
@@ -216,10 +220,11 @@ def get_weather_stream(
         tool_call_id=tool_call_id
     )
 
+
 def get_forecast_stream(
-    location: str,
-    days: int = 3,
-    tool_call_id: str | None = None,
+        location: str,
+        days: int = 3,
+        tool_call_id: str | None = None,
 ) -> Message:
     """Multi-day forecast tool for streaming."""
 
@@ -242,14 +247,16 @@ Day 3: 🌧️ Light rain - High 19°C, Low 12°C"""
         tool_call_id=tool_call_id
     )
 
+
 # Create tool node
 tool_node = ToolNode([get_weather_stream, get_forecast_stream])
 
+
 async def streaming_main_agent(
-    state: AgentState,
-    config: dict[str, Any] | None = None,
-    checkpointer: Any | None = None,
-    store: Any | None = None,
+        state: AgentState,
+        config: dict[str, Any] | None = None,
+        checkpointer: Any | None = None,
+        store: Any | None = None,
 ) -> ModelResponseConverter:
     """
     Main agent optimized for streaming responses.
@@ -306,6 +313,7 @@ async def streaming_main_agent(
 
     return ModelResponseConverter(response, converter="litellm")
 
+
 def should_use_tools_stream(state: AgentState) -> str:
     """Routing logic optimized for streaming."""
 
@@ -322,9 +330,9 @@ def should_use_tools_stream(state: AgentState) -> str:
     last_message = state.context[-1]
 
     if (hasattr(last_message, "tools_calls") and
-        last_message.tools_calls and
-        len(last_message.tools_calls) > 0 and
-        last_message.role == "assistant"):
+            last_message.tools_calls and
+            len(last_message.tools_calls) > 0 and
+            last_message.role == "assistant"):
         logger.info("[ROUTER] Tool calls detected - routing to TOOL")
         return "TOOL"
 
@@ -334,6 +342,7 @@ def should_use_tools_stream(state: AgentState) -> str:
 
     logger.info("[ROUTER] Conversation complete - ending")
     return END
+
 
 # Build the streaming graph
 graph = StateGraph()
@@ -351,6 +360,7 @@ graph.set_entry_point("MAIN")
 # Compile with checkpointer
 app = graph.compile(checkpointer=InMemoryCheckpointer())
 
+
 # Demo function
 async def demo_streaming_agent():
     """Demonstrate streaming weather agent."""
@@ -365,7 +375,7 @@ async def demo_streaming_agent():
     ]
 
     for i, query in enumerate(test_queries):
-        print(f"\n🔹 Query {i+1}: {query}")
+        print(f"\n🔹 Query {i + 1}: {query}")
         print("-" * 40)
 
         # Prepare input with streaming enabled
@@ -403,6 +413,7 @@ async def demo_streaming_agent():
         except Exception as e:
             print(f"❌ Error: {e}\n")
 
+
 if __name__ == "__main__":
     asyncio.run(demo_streaming_agent())
 ```
@@ -414,7 +425,7 @@ if __name__ == "__main__":
 10xScale Agentflow streams events that represent different stages of agent execution:
 
 ```python
-from taf.utils.streaming import EventModel
+from agentflow.utils.streaming import EventModel
 
 # Event types you'll receive:
 # - "message_start": Beginning of a message

@@ -13,20 +13,20 @@ Think of it as the nervous system of your AI application: every decision, every 
 Every observable action in 10xScale Agentflow is captured as a structured `EventModel` that contains rich metadata about what's happening:
 
 ```python
-from taf.publisher.events import EventModel, Event, EventType, ContentType
+from agentflow.publisher.events import EventModel, Event, EventType, ContentType
 
 # Events are automatically generated during execution
 event = EventModel(
-    event=Event.NODE_EXECUTION,           # Source: graph, node, tool, or streaming
-    event_type=EventType.START,           # Phase: start, progress, result, end, error
-    content="Processing user query...",    # Human-readable content
-    content_type=ContentType.TEXT,        # Semantic type of content
-    node_name="research_agent",           # Which node is executing
-    run_id="run_12345",                   # Unique execution identifier
-    thread_id="thread_abc",               # Conversation thread
-    sequence_id=1,                        # Ordering within the stream
-    timestamp=1638360000.0,               # When this occurred
-    metadata={                            # Additional context
+    event=Event.NODE_EXECUTION,  # Source: graph, node, tool, or streaming
+    event_type=EventType.START,  # Phase: start, progress, result, end, error
+    content="Processing user query...",  # Human-readable content
+    content_type=ContentType.TEXT,  # Semantic type of content
+    node_name="research_agent",  # Which node is executing
+    run_id="run_12345",  # Unique execution identifier
+    thread_id="thread_abc",  # Conversation thread
+    sequence_id=1,  # Ordering within the stream
+    timestamp=1638360000.0,  # When this occurred
+    metadata={  # Additional context
         "user_id": "user_123",
         "query_type": "research",
         "estimated_duration": 5.2
@@ -100,28 +100,28 @@ Streaming events enable real-time UI updates, progressive content delivery, and 
 Events carry semantic information about their content through the `ContentType` enum, enabling intelligent processing and routing:
 
 ```python
-from taf.publisher.events import ContentType
+from agentflow.publisher.events import ContentType
 
 # Text and messaging content
-ContentType.TEXT         # Plain text content
-ContentType.MESSAGE      # Structured message content
-ContentType.REASONING    # Agent reasoning/thinking content
+ContentType.TEXT  # Plain text content
+ContentType.MESSAGE  # Structured message content
+ContentType.REASONING  # Agent reasoning/thinking content
 
 # Tool and function content
-ContentType.TOOL_CALL    # Tool invocation details
+ContentType.TOOL_CALL  # Tool invocation details
 ContentType.TOOL_RESULT  # Tool execution results
 
 # Multimedia content
-ContentType.IMAGE        # Image content or references
-ContentType.AUDIO        # Audio content or references
-ContentType.VIDEO        # Video content or references
-ContentType.DOCUMENT     # Document content or references
+ContentType.IMAGE  # Image content or references
+ContentType.AUDIO  # Audio content or references
+ContentType.VIDEO  # Video content or references
+ContentType.DOCUMENT  # Document content or references
 
 # System content
-ContentType.STATE        # Agent state information
-ContentType.UPDATE       # General update notifications
-ContentType.ERROR        # Error information
-ContentType.DATA         # Structured data payloads
+ContentType.STATE  # Agent state information
+ContentType.UPDATE  # General update notifications
+ContentType.ERROR  # Error information
+ContentType.DATA  # Structured data payloads
 ```
 
 This semantic typing enables sophisticated event processing, such as routing error events to monitoring systems while sending reasoning content to debugging interfaces.
@@ -131,14 +131,15 @@ This semantic typing enables sophisticated event processing, such as routing err
 10xScale Agentflow provides multiple publisher implementations for different use cases:
 
 ### Console Publisher: Development and Debugging
+
 ```python
-from taf.publisher.console_publisher import ConsolePublisher
+from agentflow.publisher.console_publisher import ConsolePublisher
 
 # Simple console output for development
 console_publisher = ConsolePublisher({
-    "format": "json",           # Output format: json or text
+    "format": "json",  # Output format: json or text
     "include_timestamp": True,  # Include timestamps
-    "indent": 2                 # JSON indentation
+    "indent": 2  # JSON indentation
 })
 
 # Configure your graph to use console publishing
@@ -170,8 +171,9 @@ Console output provides immediate feedback during development:
 ```
 
 ### Redis Publisher: Distributed Systems
+
 ```python
-from taf.publisher.redis_publisher import RedisPublisher
+from agentflow.publisher.redis_publisher import RedisPublisher
 
 # Publish to Redis streams for distributed processing
 redis_publisher = RedisPublisher({
@@ -188,8 +190,9 @@ Redis publishing enables:
 - Real-time dashboards across services
 
 ### Kafka Publisher: Enterprise Event Streaming
+
 ```python
-from taf.publisher.kafka_publisher import KafkaPublisher
+from agentflow.publisher.kafka_publisher import KafkaPublisher
 
 # Enterprise-grade event streaming
 kafka_publisher = KafkaPublisher({
@@ -207,8 +210,9 @@ Kafka publishing provides:
 - Integration with analytics platforms
 
 ### RabbitMQ Publisher: Flexible Messaging
+
 ```python
-from taf.publisher.rabbitmq_publisher import RabbitMQPublisher
+from agentflow.publisher.rabbitmq_publisher import RabbitMQPublisher
 
 # Flexible messaging with routing
 rabbitmq_publisher = RabbitMQPublisher({
@@ -230,9 +234,11 @@ RabbitMQ enables:
 The publisher system enables powerful event processing patterns:
 
 ### Real-time Monitoring Dashboard
+
 ```python
 import asyncio
-from taf.publisher.redis_publisher import RedisPublisher
+from agentflow.publisher.redis_publisher import RedisPublisher
+
 
 class AgentMonitor:
     def __init__(self):
@@ -405,8 +411,8 @@ class EventRouter:
 Publishers integrate seamlessly with your graph construction, providing consistent observability across all execution patterns:
 
 ```python
-from taf.graph import StateGraph
-from taf.publisher.console_publisher import ConsolePublisher
+from agentflow.graph import StateGraph
+from agentflow.publisher.console_publisher import ConsolePublisher
 
 # Create your publisher
 publisher = ConsolePublisher({"format": "json", "indent": 2})
@@ -432,8 +438,8 @@ compiled_graph = graph.compile(
 
 # Execute with full observability
 async for chunk in compiled_graph.astream(
-    {"messages": [user_message]},
-    config={"user_id": "user_123", "session_id": "session_456"}
+        {"messages": [user_message]},
+        config={"user_id": "user_123", "session_id": "session_456"}
 ):
     # Both the chunks and the published events provide insight
     # Chunks show what the user sees
@@ -447,8 +453,9 @@ async for chunk in compiled_graph.astream(
 You can extend the event system with custom metadata and routing:
 
 ```python
-from taf.publisher.events import EventModel
-from taf.publisher.publish import publish_event
+from agentflow.publisher.events import EventModel
+from agentflow.publisher.publish import publish_event
+
 
 # Custom event generation
 async def custom_node_with_events(state: AgentState, config: dict):

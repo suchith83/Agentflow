@@ -172,8 +172,8 @@ class ConsoleLogger(Logger):
 
 ```python
 from injectq import InjectQ, Inject
-from taf.checkpointer import InMemoryCheckpointer
-from taf.utils.callbacks import CallbackManager
+from agentflow.checkpointer import InMemoryCheckpointer
+from agentflow.utils.callbacks import CallbackManager
 
 # Get the container instance
 container = InjectQ.get_instance()
@@ -196,20 +196,21 @@ container["max_retries"] = 3
 ### Step 3: Create DI-Enabled Tools
 
 ```python
-from taf.graph import ToolNode
-from taf.state.agent_state import AgentState
-from taf.utils import Message
+from agentflow.graph import ToolNode
+from agentflow.state.agent_state import AgentState
+from agentflow.utils import Message
+
 
 def get_weather_with_di(
-    location: str,
-    # auto-injected parameters
-    tool_call_id: str | None = None,
-    state: AgentState | None = None,
-    config: dict | None = None,
-    # Custom injected services
-    weather_service: WeatherService = Inject[WeatherService],
-    cache: CacheService = Inject[CacheService],
-    logger: Logger = Inject[Logger]
+        location: str,
+        # auto-injected parameters
+        tool_call_id: str | None = None,
+        state: AgentState | None = None,
+        config: dict | None = None,
+        # Custom injected services
+        weather_service: WeatherService = Inject[WeatherService],
+        cache: CacheService = Inject[CacheService],
+        logger: Logger = Inject[Logger]
 ) -> Message:
     """
     Advanced weather tool with dependency injection.
@@ -252,12 +253,13 @@ def get_weather_with_di(
             tool_call_id=tool_call_id
         )
 
+
 def get_forecast_with_di(
-    location: str,
-    days: int = 3,
-    tool_call_id: str | None = None,
-    weather_service: WeatherService = Inject[WeatherService],
-    logger: Logger = Inject[Logger]
+        location: str,
+        days: int = 3,
+        tool_call_id: str | None = None,
+        weather_service: WeatherService = Inject[WeatherService],
+        logger: Logger = Inject[Logger]
 ) -> Message:
     """Multi-day forecast tool with DI."""
 
@@ -271,6 +273,7 @@ def get_forecast_with_di(
         tool_call_id=tool_call_id
     )
 
+
 # Create tool node with DI-enabled tools
 tool_node = ToolNode([get_weather_with_di, get_forecast_with_di])
 ```
@@ -279,17 +282,18 @@ tool_node = ToolNode([get_weather_with_di, get_forecast_with_di])
 
 ```python
 from litellm import acompletion
-from taf.adapters.llm.model_response_converter import ModelResponseConverter
-from taf.utils.converter import convert_messages
+from agentflow.adapters.llm.model_response_converter import ModelResponseConverter
+from agentflow.utils.converter import convert_messages
+
 
 async def main_agent_with_di(
-    state: AgentState,
-    config: dict,
-    # services injected via DI
-    checkpointer: InMemoryCheckpointer = Inject[InMemoryCheckpointer],
-    callback_manager: CallbackManager = Inject[CallbackManager],
-    # Custom services
-    logger: Logger = Inject[Logger]
+        state: AgentState,
+        config: dict,
+        # services injected via DI
+        checkpointer: InMemoryCheckpointer = Inject[InMemoryCheckpointer],
+        callback_manager: CallbackManager = Inject[CallbackManager],
+        # Custom services
+        logger: Logger = Inject[Logger]
 ) -> ModelResponseConverter:
     """
     Main agent with dependency injection for services.
@@ -354,12 +358,13 @@ async def main_agent_with_di(
 ### Step 5: Graph with DI Container
 
 ```python
-from taf.graph import StateGraph
-from taf.utils.constants import END
+from agentflow.graph import StateGraph
+from agentflow.utils.constants import END
+
 
 def should_use_tools_with_logging(
-    state: AgentState,
-    logger: Logger = Inject[Logger]
+        state: AgentState,
+        logger: Logger = Inject[Logger]
 ) -> str:
     """Routing function with injected logging."""
 
@@ -376,8 +381,8 @@ def should_use_tools_with_logging(
     last_message = state.context[-1]
 
     if (hasattr(last_message, "tools_calls") and
-        last_message.tools_calls and
-        last_message.role == "assistant"):
+            last_message.tools_calls and
+            last_message.role == "assistant"):
         logger.info("Assistant made tool calls, routing to TOOL")
         return "TOOL"
 
@@ -387,6 +392,7 @@ def should_use_tools_with_logging(
 
     logger.info("Conversation complete, ending")
     return END
+
 
 # Create graph with DI container
 graph = StateGraph(container=container)
@@ -412,7 +418,8 @@ app = graph.compile()
 ### Step 6: Running and Testing the DI Agent
 
 ```python
-from taf.utils import Message
+from agentflow.utils import Message
+
 
 async def demo_di_agent():
     """Demonstrate the DI-enabled weather agent."""
@@ -425,9 +432,9 @@ async def demo_di_agent():
     ]
 
     for i, query in enumerate(test_cases):
-        print(f"\n{'='*60}")
-        print(f"Test {i+1}: {query}")
-        print('='*60)
+        print(f"\n{'=' * 60}")
+        print(f"Test {i + 1}: {query}")
+        print('=' * 60)
 
         inp = {"messages": [Message.text_message(query)]}
         config = {"thread_id": f"di-test-{i}", "recursion_limit": 10}
@@ -443,8 +450,10 @@ async def demo_di_agent():
         except Exception as e:
             print(f"❌ Error: {e}")
 
+
 if __name__ == "__main__":
     import asyncio
+
     asyncio.run(demo_di_agent())
 ```
 

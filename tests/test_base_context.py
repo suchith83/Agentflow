@@ -3,9 +3,9 @@
 import pytest
 from unittest.mock import AsyncMock, Mock
 
-from taf.state import AgentState
-from taf.state.base_context import BaseContextManager
-from taf.state import Message
+from agentflow.state import AgentState
+from agentflow.state.base_context import BaseContextManager
+from agentflow.state import Message
 
 
 class TestBaseContextManager:

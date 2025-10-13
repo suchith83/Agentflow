@@ -14,9 +14,9 @@ from typing import Any
 import pytest
 from pydantic import Field
 
-from taf.graph import CompiledGraph, StateGraph
-from taf.state import AgentState, Message
-from taf.utils import Command, END, ResponseGranularity, add_messages
+from agentflow.graph import CompiledGraph, StateGraph
+from agentflow.state import AgentState, Message
+from agentflow.utils import Command, END, ResponseGranularity, add_messages
 
 
 class HierarchyState(AgentState):

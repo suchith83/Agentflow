@@ -2,9 +2,9 @@
 
 import pytest
 
-from taf.checkpointer import BaseCheckpointer, InMemoryCheckpointer
-from taf.state import Message
-from taf.utils.thread_info import ThreadInfo
+from agentflow.checkpointer import BaseCheckpointer, InMemoryCheckpointer
+from agentflow.state import Message
+from agentflow.utils.thread_info import ThreadInfo
 
 
 class TestInMemoryCheckpointer:

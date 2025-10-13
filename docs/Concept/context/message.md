@@ -7,7 +7,7 @@ Messages in 10xScale Agentflow are far more than simple text containers—they a
 Think of a `Message` as a **living communication artifact** that captures not just what was said, but the complete context of how it was said, when, by whom, and with what intent. Each message carries a comprehensive record of its place in the conversation ecosystem.
 
 ```python
-from taf.utils import Message
+from agentflow.utils import Message
 from datetime import datetime
 
 # A message is more than text—it's a rich communication artifact

@@ -4,10 +4,10 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from taf.graph.tool_node import ToolNode
-from taf.state import AgentState
-from taf.utils import CallbackManager
-from taf.state.message import Message
+from agentflow.graph.tool_node import ToolNode
+from agentflow.state import AgentState
+from agentflow.utils import CallbackManager
+from agentflow.state.message import Message
 
 
 class DummyLangChainAdapter:

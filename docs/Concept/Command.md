@@ -32,8 +32,9 @@ A `Command` object contains four key attributes:
 ### Simple State Update with Routing
 
 ```python
-from taf.utils import Command, END
-from taf.state import AgentState
+from agentflow.utils import Command, END
+from agentflow.state import AgentState
+
 
 def process_request(state: AgentState, config: dict) -> Command[AgentState]:
     """Process a user request and route to appropriate handler."""
@@ -178,8 +179,8 @@ Commands integrate seamlessly with 10xScale Agentflow's state graph system. When
 ### Graph Configuration
 
 ```python
-from taf.graph import StateGraph
-from taf.utils import END
+from agentflow.graph import StateGraph
+from agentflow.utils import END
 
 # Create graph with Command-supporting nodes
 graph = StateGraph[AgentState]()

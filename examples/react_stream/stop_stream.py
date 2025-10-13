@@ -5,10 +5,10 @@ import time
 
 from dotenv import load_dotenv
 
-from taf.checkpointer import InMemoryCheckpointer
-from taf.graph import StateGraph
-from taf.state import AgentState, Message
-from taf.utils.constants import END
+from agentflow.checkpointer import InMemoryCheckpointer
+from agentflow.graph import StateGraph
+from agentflow.state import AgentState, Message
+from agentflow.utils.constants import END
 
 
 # Example: Stop a running streaming graph from the frontend (or caller).

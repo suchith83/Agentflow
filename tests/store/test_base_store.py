@@ -13,7 +13,7 @@
 
 # import pytest
 
-# from taf.store.base_store import (
+# from agentflow.store.base_store import (
 #     DistanceMetric,
 #     MemoryRecord,
 #     MemorySearchResult,
@@ -21,7 +21,7 @@
 #     MessageMemoryStore,
 #     BaseStore,
 # )
-# from taf.utils.message import Message, TextBlock, TokenUsages
+# from agentflow.utils.message import Message, TextBlock, TokenUsages
 
 
 # class MockBaseStore(BaseStore[Message]):

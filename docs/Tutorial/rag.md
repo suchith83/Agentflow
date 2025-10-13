@@ -120,13 +120,14 @@ You can omit any unused stage—`RAGAgent` only wires what you provide.
 Replace placeholder retrieval with a vector store powered by `QdrantStore` (see `qdrant_store.md`):
 
 ```python
-from taf.store import QdrantStore
-from taf.store.qdrant_store import OpenAIEmbeddingService
-from taf.store.store_schema import MemoryType
+from agentflow.store import QdrantStore
+from agentflow.store.qdrant_store import OpenAIEmbeddingService
+from agentflow.store.store_schema import MemoryType
 
 embedding = OpenAIEmbeddingService(api_key="...", model="text-embedding-3-small")
 store = QdrantStore(embedding_service=embedding, path="./qdrant_data")
 await store.asetup()
+
 
 async def dense_retriever(state: AgentState) -> AgentState:
     query = last_user_text(state)
@@ -148,9 +149,10 @@ For sparse retrieval, you could maintain a keyword index or use another store in
 When long-term personalization or session continuity is needed, integrate `Mem0Store`:
 
 ```python
-from taf.store import create_mem0_store
+from agentflow.store import create_mem0_store
 
 mem_store = create_mem0_store(user_id="user-1")
+
 
 async def memory_retriever(state: AgentState) -> AgentState:
     query = last_user_text(state)

@@ -2,15 +2,15 @@
 
 import pytest
 
-from taf.graph import (
+from agentflow.graph import (
     CompiledGraph,
     Edge,
     Node,
     StateGraph,
     ToolNode,
 )
-from taf.state import AgentState, Message
-from taf.utils import END
+from agentflow.state import AgentState, Message
+from agentflow.utils import END
 
 
 class TestEdge:
@@ -132,7 +132,7 @@ class TestStateGraph:
 
     def test_state_graph_creation_with_publisher(self):
         """Test creating a StateGraph with publisher."""
-        from taf.publisher import ConsolePublisher
+        from agentflow.publisher import ConsolePublisher
 
         publisher = ConsolePublisher()
         graph = StateGraph[AgentState](AgentState(), publisher=publisher)

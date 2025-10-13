@@ -6,12 +6,12 @@ from dotenv import load_dotenv
 from fastmcp import Client
 from litellm import acompletion
 
-from taf.adapters.llm.model_response_converter import ModelResponseConverter
-from taf.checkpointer import InMemoryCheckpointer
-from taf.graph import StateGraph, ToolNode
-from taf.state import AgentState, Message
-from taf.utils.constants import END
-from taf.utils.converter import convert_messages
+from agentflow.adapters.llm.model_response_converter import ModelResponseConverter
+from agentflow.checkpointer import InMemoryCheckpointer
+from agentflow.graph import StateGraph, ToolNode
+from agentflow.state import AgentState, Message
+from agentflow.utils.constants import END
+from agentflow.utils.converter import convert_messages
 
 
 # Root logger: show INFO and above
@@ -19,8 +19,8 @@ logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 
-# Set taf logger to DEBUG explicitly
-logging.getLogger("taf").setLevel(logging.DEBUG)
+# Set agentflow logger to DEBUG explicitly
+logging.getLogger("agentflow").setLevel(logging.DEBUG)
 
 logger = logging.getLogger(__name__)
 

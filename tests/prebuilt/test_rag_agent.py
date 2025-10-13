@@ -2,12 +2,12 @@
 
 import pytest
 
-from taf.checkpointer import InMemoryCheckpointer
-from taf.graph import ToolNode, CompiledGraph
-from taf.prebuilt.agent.rag import RAGAgent
-from taf.state.agent_state import AgentState
-from taf.state import Message
-from taf.utils import END
+from agentflow.checkpointer import InMemoryCheckpointer
+from agentflow.graph import ToolNode, CompiledGraph
+from agentflow.prebuilt.agent.rag import RAGAgent
+from agentflow.state.agent_state import AgentState
+from agentflow.state import Message
+from agentflow.utils import END
 
 
 class TestRAGAgent:

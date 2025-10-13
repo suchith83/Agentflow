@@ -7,8 +7,8 @@ The Store system in 10xScale Agentflow represents the highest level of your agen
 Think of the Store as your agent's **accumulated wisdom**—the repository where insights, user preferences, learned patterns, and contextual knowledge persist beyond individual conversations. This is where agents transition from being reactive responders to proactive, intelligent assistants that improve over time.
 
 ```python
-from taf.store import QdrantStore
-from taf.store.store_schema import MemoryType, RetrievalStrategy
+from agentflow.store import QdrantStore
+from agentflow.store.store_schema import MemoryType, RetrievalStrategy
 
 # Knowledge that transcends individual conversations
 store = QdrantStore(collection_name="agent_knowledge")

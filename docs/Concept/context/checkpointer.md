@@ -41,7 +41,7 @@ The architecture reflects different **temporal access patterns**:
 - **System recovery** demands reliable state reconstruction
 
 ```python
-from taf.checkpointer import PgCheckpointer
+from agentflow.checkpointer import PgCheckpointer
 
 checkpointer = PgCheckpointer(
     postgres_dsn="postgresql://user:pass@localhost/db",
@@ -158,7 +158,7 @@ checkpointer = PgCheckpointer(
 ### InMemoryCheckpointer: Development and Testing
 
 ```python
-from taf.checkpointer import InMemoryCheckpointer
+from agentflow.checkpointer import InMemoryCheckpointer
 
 # Perfect for development, testing, and demos
 checkpointer = InMemoryCheckpointer()
@@ -180,7 +180,7 @@ checkpointer = InMemoryCheckpointer()
 ### PgCheckpointer: Production-Ready Persistence
 
 ```python
-from taf.checkpointer import PgCheckpointer
+from agentflow.checkpointer import PgCheckpointer
 
 # Production-grade persistence with caching
 checkpointer = PgCheckpointer(
@@ -246,12 +246,13 @@ One of 10xScale Agentflow's most elegant features is **automatic checkpointer in
 
 ```python
 from injectq import Inject
-from taf.checkpointer import BaseCheckpointer
+from agentflow.checkpointer import BaseCheckpointer
+
 
 def audit_node(
-    state: AgentState,
-    config: dict,
-    checkpointer: BaseCheckpointer = Inject[BaseCheckpointer]
+        state: AgentState,
+        config: dict,
+        checkpointer: BaseCheckpointer = Inject[BaseCheckpointer]
 ) -> AgentState:
     """Node function with automatic checkpointer injection."""
 

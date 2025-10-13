@@ -10,9 +10,9 @@ import asyncio
 import os
 from typing import Any
 
-from taf.state import Message
-from taf.store import MemoryType, OpenAIEmbedding, QdrantStore
-from taf.store.embedding.base_embedding import BaseEmbedding
+from agentflow.state import Message
+from agentflow.store import MemoryType, OpenAIEmbedding, QdrantStore
+from agentflow.store.embedding.base_embedding import BaseEmbedding
 
 
 # Example 1: Simple embedding service for testing
@@ -223,7 +223,7 @@ def remote_qdrant_example():
 
     # This is just configuration - not actually connecting
 
-    from taf.store.qdrant_store import create_remote_qdrant_store
+    from agentflow.store.qdrant_store import create_remote_qdrant_store
 
     print("Example configurations for different Qdrant deployments:")
 
@@ -247,7 +247,7 @@ def remote_qdrant_example():
 
     print("3. Qdrant Cloud:")
     print("""
-    from taf.store.qdrant_store import create_cloud_qdrant_store
+    from agentflow.store.qdrant_store import create_cloud_qdrant_store
     
     store = create_cloud_qdrant_store(
         url="https://your-cluster.qdrant.io",
@@ -285,7 +285,7 @@ async def main():
 
     print("\n🎉 Examples completed!")
     print("\nNext steps:")
-    print("1. Install qdrant-client: pip install 'taf[qdrant]'")
+    print("1. Install qdrant-client: pip install 'agentflow[qdrant]'")
     print("2. For OpenAI embeddings: pip install openai")
     print("3. Start local Qdrant: docker run -p 6333:6333 qdrant/qdrant")
     print("4. Set OPENAI_API_KEY environment variable for OpenAI embeddings")

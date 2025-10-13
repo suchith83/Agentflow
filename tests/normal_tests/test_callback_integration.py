@@ -9,10 +9,10 @@ import sys
 from typing import Any
 
 
-# Add the project root to the path so we can import taf
+# Add the project root to the path so we can import agentflow
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from taf.utils import (
+from agentflow.utils import (
     AfterInvokeCallback,
     BeforeInvokeCallback,
     CallbackContext,

@@ -38,15 +38,18 @@ Override by passing `condition=` to `compile` for custom depth, budgets, or stra
 ## 📦 Minimal Usage
 
 ```python
-from taf.prebuilt.agent.plan_act_reflect import PlanActReflectAgent
-from taf.graph.tool_node import ToolNode
-from taf.state.agent_state import AgentState
-from taf.utils import Message
+from agentflow.prebuilt.agent.plan_act_reflect import PlanActReflectAgent
+from agentflow.graph.tool_node import ToolNode
+from agentflow.state.agent_state import AgentState
+from agentflow.utils import Message
+
 
 def fetch(query: str) -> str:
     return f"Result for: {query}"
 
+
 tools = ToolNode([fetch])
+
 
 def plan(state: AgentState) -> AgentState:
     user = next((m for m in reversed(state.context) if m.role == "user"), None)
@@ -56,11 +59,13 @@ def plan(state: AgentState) -> AgentState:
     state.context.append(msg)
     return state
 
+
 def reflect(state: AgentState) -> AgentState:
     state.context.append(
         Message.text_message("Reflection: tool output received.", role="assistant")
     )
     return state
+
 
 agent = PlanActReflectAgent[AgentState](state=AgentState())
 app = agent.compile(plan_node=plan, tool_node=tools, reflect_node=reflect)
@@ -88,7 +93,8 @@ Use when you need:
 - Alternate branch targets (e.g., evaluator node)
 
 ```python
-from taf.utils.constants import END
+from agentflow.utils.constants import END
+
 
 def condition(state: AgentState) -> str:
     last = state.context[-1] if state.context else None
@@ -155,7 +161,8 @@ Insert checks in:
 Provide `checkpointer=` in `compile` to persist intermediate states or resume after interruption:
 
 ```python
-from taf.checkpointer import InMemoryCheckpointer
+from agentflow.checkpointer import InMemoryCheckpointer
+
 app = agent.compile(
     plan_node=plan,
     tool_node=tools,

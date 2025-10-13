@@ -44,26 +44,32 @@ React agents solve these problems:
 A React agent requires these 10xScale Agentflow components:
 
 ### 1. Tools (Action Layer)
+
 ```python
-from taf.graph import ToolNode
+from agentflow.graph import ToolNode
+
 
 def get_weather(location: str) -> str:
     """Get weather for a location."""
     # In production: call weather API
     return f"The weather in {location} is sunny, 75°F"
 
+
 def search_web(query: str) -> str:
     """Search the web for information."""
     # In production: call search API
     return f"Search results for: {query}"
 
+
 tool_node = ToolNode([get_weather, search_web])
 ```
 
 ### 2. Main Agent (Reasoning Layer)
+
 ```python
 from litellm import acompletion
-from taf.adapters.llm.model_response_converter import ModelResponseConverter
+from agentflow.adapters.llm.model_response_converter import ModelResponseConverter
+
 
 async def main_agent(state: AgentState) -> ModelResponseConverter:
     """The reasoning component that decides when to use tools."""
@@ -87,8 +93,10 @@ async def main_agent(state: AgentState) -> ModelResponseConverter:
 ```
 
 ### 3. Conditional Routing (Control Layer)
+
 ```python
-from taf.utils.constants import END
+from agentflow.utils.constants import END
+
 
 def should_use_tools(state: AgentState) -> str:
     """Decide whether to use tools, continue reasoning, or end."""
@@ -100,8 +108,8 @@ def should_use_tools(state: AgentState) -> str:
 
     # If assistant made tool calls, execute them
     if (hasattr(last_message, "tools_calls") and
-        last_message.tools_calls and
-        last_message.role == "assistant"):
+            last_message.tools_calls and
+            last_message.role == "assistant"):
         return "TOOL"
 
     # If we got tool results, return to reasoning
@@ -113,8 +121,9 @@ def should_use_tools(state: AgentState) -> str:
 ```
 
 ### 4. Graph Assembly
+
 ```python
-from taf.graph import StateGraph
+from agentflow.graph import StateGraph
 
 graph = StateGraph()
 graph.add_node("MAIN", main_agent)
@@ -141,15 +150,16 @@ Let's build a complete weather agent that demonstrates all the concepts:
 
 ```python
 from dotenv import load_dotenv
-from taf.graph import ToolNode
-from taf.state.agent_state import AgentState
+from agentflow.graph import ToolNode
+from agentflow.state.agent_state import AgentState
 
 load_dotenv()
 
+
 def get_weather(
-    location: str,
-    tool_call_id: str | None = None,  # Auto-injected by InjectQ
-    state: AgentState | None = None,  # Auto-injected by InjectQ
+        location: str,
+        tool_call_id: str | None = None,  # Auto-injected by InjectQ
+        state: AgentState | None = None,  # Auto-injected by InjectQ
 ) -> str:
     """
     Get the current weather for a specific location.
@@ -173,6 +183,7 @@ def get_weather(
     # For demo, return mock data
     return f"The weather in {location} is sunny with a temperature of 72°F (22°C)"
 
+
 # Register the tool
 tool_node = ToolNode([get_weather])
 ```
@@ -181,8 +192,9 @@ tool_node = ToolNode([get_weather])
 
 ```python
 from litellm import acompletion
-from taf.adapters.llm.model_response_converter import ModelResponseConverter
-from taf.utils.converter import convert_messages
+from agentflow.adapters.llm.model_response_converter import ModelResponseConverter
+from agentflow.utils.converter import convert_messages
+
 
 async def main_agent(state: AgentState) -> ModelResponseConverter:
     """
@@ -231,7 +243,8 @@ async def main_agent(state: AgentState) -> ModelResponseConverter:
 ### Step 3: Implement Smart Routing
 
 ```python
-from taf.utils.constants import END
+from agentflow.utils.constants import END
+
 
 def should_use_tools(state: AgentState) -> str:
     """
@@ -256,9 +269,9 @@ def should_use_tools(state: AgentState) -> str:
 
     # If the assistant just made tool calls, execute them
     if (hasattr(last_message, "tools_calls") and
-        last_message.tools_calls and
-        len(last_message.tools_calls) > 0 and
-        last_message.role == "assistant"):
+            last_message.tools_calls and
+            len(last_message.tools_calls) > 0 and
+            last_message.role == "assistant"):
         return "TOOL"
 
     # If we just received tool results, go back to main agent
@@ -272,8 +285,8 @@ def should_use_tools(state: AgentState) -> str:
 ### Step 4: Build the Graph
 
 ```python
-from taf.graph import StateGraph
-from taf.checkpointer import InMemoryCheckpointer
+from agentflow.graph import StateGraph
+from agentflow.checkpointer import InMemoryCheckpointer
 
 # Create the state graph
 graph = StateGraph()
@@ -285,7 +298,7 @@ graph.add_node("TOOL", tool_node)
 # Add conditional routing from main agent
 graph.add_conditional_edges("MAIN", should_use_tools, {
     "TOOL": "TOOL",  # Execute tools
-    END: END         # End conversation
+    END: END  # End conversation
 })
 
 # Tools always return to main agent for processing
@@ -303,7 +316,8 @@ app = graph.compile(
 ### Step 5: Run the Agent
 
 ```python
-from taf.utils import Message
+from agentflow.utils import Message
+
 
 async def run_weather_agent():
     """Demonstrate the weather agent in action."""
@@ -316,9 +330,9 @@ async def run_weather_agent():
     ]
 
     for i, query in enumerate(queries):
-        print(f"\n{'='*50}")
-        print(f"Query {i+1}: {query}")
-        print('='*50)
+        print(f"\n{'=' * 50}")
+        print(f"Query {i + 1}: {query}")
+        print('=' * 50)
 
         # Create input
         inp = {"messages": [Message.text_message(query)]}
@@ -337,9 +351,11 @@ async def run_weather_agent():
         except Exception as e:
             print(f"Error: {e}")
 
+
 # Run it
 if __name__ == "__main__":
     import asyncio
+
     asyncio.run(run_weather_agent())
 ```
 
@@ -538,7 +554,7 @@ graph.add_node("FILE_TOOLS", file_tool_node)
 ### Enable Detailed Logging
 
 ```python
-from taf.publisher import ConsolePublisher
+from agentflow.publisher import ConsolePublisher
 import logging
 
 # Configure logging
@@ -597,7 +613,8 @@ def debug_routing(state: AgentState) -> str:
 
 ```python
 import pytest
-from taf.utils import Message
+from agentflow.utils import Message
+
 
 @pytest.mark.asyncio
 async def test_weather_agent_basic():

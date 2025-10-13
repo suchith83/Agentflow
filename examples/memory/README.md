@@ -38,7 +38,7 @@ Install the required packages:
 
 ```bash
 # Core dependencies
-pip install taf litellm mem0ai python-dotenv
+pip install agentflow litellm mem0ai python-dotenv
 
 # Optional: For local development/testing
 pip install qdrant-client

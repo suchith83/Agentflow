@@ -19,9 +19,9 @@ These come from adjective–noun / action / compound pattern pools.
 ### API Surface
 
 ```python
-from taf.utils.thread_name_generator import (
-	generate_dummy_thread_name,
-	AIThreadNameGenerator,
+from agentflow.utils.thread_name_generator import (
+    generate_dummy_thread_name,
+    AIThreadNameGenerator,
 )
 
 name = generate_dummy_thread_name()  # one-off helper
@@ -39,12 +39,13 @@ custom = gen.generate_action_name()
 ### Attaching to a Graph
 
 ```python
-from taf.graph import StateGraph
-from taf.utils.thread_name_generator import AIThreadNameGenerator
+from agentflow.graph import StateGraph
+from agentflow.utils.thread_name_generator import AIThreadNameGenerator
 
 
 def handler(state, config):
-	return []
+    return []
+
 
 graph = StateGraph(thread_name_generator=AIThreadNameGenerator().generate_name)
 graph.add_node("MAIN", handler)

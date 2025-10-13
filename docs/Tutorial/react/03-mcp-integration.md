@@ -67,7 +67,7 @@ mcp_client = Client(config)
 ### 2. ToolNode with MCP Integration
 
 ```python
-from taf.graph import ToolNode
+from agentflow.graph import ToolNode
 
 # ToolNode with MCP client (no custom functions needed)
 tool_node = ToolNode(functions=[], client=mcp_client)
@@ -212,13 +212,13 @@ from typing import Any
 from dotenv import load_dotenv
 from litellm import acompletion
 
-from taf.adapters.llm.model_response_converter import ModelResponseConverter
-from taf.checkpointer import InMemoryCheckpointer
-from taf.graph import StateGraph, ToolNode
-from taf.state.agent_state import AgentState
-from taf.utils import Message
-from taf.utils.constants import END
-from taf.utils.converter import convert_messages
+from agentflow.adapters.llm.model_response_converter import ModelResponseConverter
+from agentflow.checkpointer import InMemoryCheckpointer
+from agentflow.graph import StateGraph, ToolNode
+from agentflow.state.agent_state import AgentState
+from agentflow.utils import Message
+from agentflow.utils.constants import END
+from agentflow.utils.converter import convert_messages
 from mcp_config import create_mcp_client
 
 load_dotenv()
@@ -227,11 +227,12 @@ load_dotenv()
 mcp_client = create_mcp_client()
 tool_node = ToolNode(functions=[], client=mcp_client)
 
+
 async def mcp_main_agent(
-    state: AgentState,
-    config: dict[str, Any],
-    checkpointer: Any | None = None,
-    store: Any | None = None,
+        state: AgentState,
+        config: dict[str, Any],
+        checkpointer: Any | None = None,
+        store: Any | None = None,
 ) -> ModelResponseConverter:
     """
     Main agent that uses MCP tools for weather information.
@@ -276,6 +277,7 @@ async def mcp_main_agent(
 
     return ModelResponseConverter(response, converter="litellm")
 
+
 def should_use_mcp_tools(state: AgentState) -> str:
     """Routing logic for MCP-enabled agent."""
 
@@ -286,9 +288,9 @@ def should_use_mcp_tools(state: AgentState) -> str:
 
     # If assistant made tool calls, execute them via MCP
     if (hasattr(last_message, "tools_calls") and
-        last_message.tools_calls and
-        len(last_message.tools_calls) > 0 and
-        last_message.role == "assistant"):
+            last_message.tools_calls and
+            len(last_message.tools_calls) > 0 and
+            last_message.role == "assistant"):
         return "TOOL"
 
     # If we got MCP tool results, return to main agent
@@ -297,6 +299,7 @@ def should_use_mcp_tools(state: AgentState) -> str:
 
     # Default: conversation complete
     return END
+
 
 # Build the graph
 graph = StateGraph()
@@ -320,7 +323,8 @@ app = graph.compile(checkpointer=InMemoryCheckpointer())
 ```python
 # File: run_mcp_agent.py
 import asyncio
-from taf.utils import Message
+from agentflow.utils import Message
+
 
 async def demo_mcp_agent():
     """Demonstrate MCP-enabled weather agent."""
@@ -336,7 +340,7 @@ async def demo_mcp_agent():
     ]
 
     for i, query in enumerate(test_queries):
-        print(f"\n🔹 Query {i+1}: {query}")
+        print(f"\n🔹 Query {i + 1}: {query}")
         print("-" * 40)
 
         try:
@@ -365,6 +369,7 @@ async def demo_mcp_agent():
             print(f"❌ Error: {e}")
 
         print()
+
 
 if __name__ == "__main__":
     asyncio.run(demo_mcp_agent())

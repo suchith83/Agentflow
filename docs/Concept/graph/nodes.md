@@ -9,15 +9,16 @@ state, optional config, and any number of injected dependencies. Its return valu
 
 ```python
 from injectq import Inject
-from taf.state import AgentState
-from taf.checkpointer import InMemoryCheckpointer
-from taf.utils.command import Command
-from taf.adapters.llm.model_response_converter import ModelResponseConverter
+from agentflow.state import AgentState
+from agentflow.checkpointer import InMemoryCheckpointer
+from agentflow.utils.command import Command
+from agentflow.adapters.llm.model_response_converter import ModelResponseConverter
+
 
 async def planner(
-    state: AgentState,
-    config: dict,
-    checkpointer: InMemoryCheckpointer = Inject[InMemoryCheckpointer],
+        state: AgentState,
+        config: dict,
+        checkpointer: InMemoryCheckpointer = Inject[InMemoryCheckpointer],
 ) -> list:
     # read from state
     # maybe store something
@@ -52,8 +53,9 @@ Avoid returning complex nested structures—wrap them into messages or attach to
 ## Command for Inline Routing
 
 ```python
-from taf.utils import END
-from taf.utils.command import Command
+from agentflow.utils import END
+from agentflow.utils.command import Command
+
 
 def router(state, config):
     last = state.context[-1].text() if state.context else ""
@@ -124,7 +126,8 @@ Node purity matters for resumability. Guidelines:
 Mock injected dependencies; supply a minimal `AgentState`:
 
 ```python
-from taf.state import AgentState
+from agentflow.state import AgentState
+
 
 def test_router_basic():
     s = AgentState()

@@ -7,8 +7,8 @@ In 10xScale Agentflow, the `AgentState` is far more than just a data container�
 Think of `AgentState` as your agent's working memory—the mental workspace where it holds current thoughts, maintains conversation flow, and tracks its own decision-making process.
 
 ```python
-from taf.state import AgentState
-from taf.utils import Message
+from agentflow.state import AgentState
+from agentflow.utils import Message
 
 # The agent's mind in action
 state = AgentState()
@@ -90,7 +90,8 @@ Context management in 10xScale Agentflow is a sophisticated process that mirrors
 ### The BaseContextManager Philosophy
 
 ```python
-from taf.state import BaseContextManager
+from agentflow.state import BaseContextManager
+
 
 class MyContextManager(BaseContextManager):
     async def atrim_context(self, state: AgentState) -> AgentState:
@@ -98,7 +99,7 @@ class MyContextManager(BaseContextManager):
         if len(state.context) > self.max_context_length:
             # Strategy: Keep recent context, summarize the rest
             recent_context = state.context[-20:]  # Last 20 messages
-            older_context = state.context[:-20]   # Everything before
+            older_context = state.context[:-20]  # Everything before
 
             # Create a summary of older interactions
             summary = await self.create_summary(older_context)
@@ -181,8 +182,9 @@ One of 10xScale Agentflow's most powerful features is **state extensibility**—
 ### Custom State Classes
 
 ```python
-from taf.state import AgentState
+from agentflow.state import AgentState
 from pydantic import Field
+
 
 class CustomerServiceState(AgentState):
     """Specialized state for customer service agents."""

@@ -7,7 +7,7 @@ from io import StringIO
 
 import pytest
 
-from taf.utils import (
+from agentflow.utils import (
     END,
     START,
     CallbackContext,
@@ -19,9 +19,9 @@ from taf.utils import (
     replace_messages,
     replace_value,
 )
-from taf.state.reducers import append_items
-from taf.utils.background_task_manager import BackgroundTaskManager
-from taf.utils.id_generator import (
+from agentflow.state.reducers import append_items
+from agentflow.utils.background_task_manager import BackgroundTaskManager
+from agentflow.utils.id_generator import (
     AsyncIDGenerator,
     BigIntIDGenerator,
     DefaultIDGenerator,
@@ -32,9 +32,9 @@ from taf.utils.id_generator import (
     TimestampIDGenerator,
     UUIDGenerator,
 )
-from taf.utils.logging import configure_logging
-from taf.state.message import Message, TokenUsages, generate_id
-from taf.state.message_block import TextBlock, ToolResultBlock
+from agentflow.utils.logging import configure_logging
+from agentflow.state.message import Message, TokenUsages, generate_id
+from agentflow.state.message_block import TextBlock, ToolResultBlock
 
 
 class TestMessage:
@@ -465,7 +465,7 @@ class TestConverter:
 
     def test_convert_messages_with_state_context_summary(self):
         """Test convert_messages with state having context summary."""
-        from taf.state import AgentState
+        from agentflow.state import AgentState
 
         system_prompts = [{"role": "system", "content": "Test"}]
         state = AgentState()
@@ -477,7 +477,7 @@ class TestConverter:
 
     def test_convert_messages_with_state_context(self):
         """Test convert_messages with state having context messages."""
-        from taf.state import AgentState
+        from agentflow.state import AgentState
 
         system_prompts = [{"role": "system", "content": "Test"}]
         state = AgentState()
@@ -504,7 +504,7 @@ class TestConverter:
 
     def test_convert_messages_tool_message(self):
         """Test converting tool messages."""
-        from taf.state import AgentState
+        from agentflow.state import AgentState
 
         system_prompts = [{"role": "system", "content": "Test"}]
         state = AgentState()
@@ -532,7 +532,7 @@ class TestConvenienceFunctions:
 
     def test_register_before_invoke_convenience(self):
         """Test register_before_invoke convenience function."""
-        from taf.utils.callbacks import register_before_invoke
+        from agentflow.utils.callbacks import register_before_invoke
 
         def callback(ctx, data):
             return data
@@ -542,7 +542,7 @@ class TestConvenienceFunctions:
 
     def test_register_after_invoke_convenience(self):
         """Test register_after_invoke convenience function."""
-        from taf.utils.callbacks import register_after_invoke
+        from agentflow.utils.callbacks import register_after_invoke
 
         def callback(ctx, input_data, output_data):
             return output_data
@@ -552,7 +552,7 @@ class TestConvenienceFunctions:
 
     def test_register_on_error_convenience(self):
         """Test register_on_error convenience function."""
-        from taf.utils.callbacks import register_on_error
+        from agentflow.utils.callbacks import register_on_error
 
         def callback(ctx, input_data, error):
             return None
@@ -677,7 +677,7 @@ class TestLogging:
     def test_configure_logging_default(self):
         """Test configure_logging with default parameters."""
         # Clear any existing handlers
-        logger = logging.getLogger("taf")
+        logger = logging.getLogger("agentflow")
         logger.handlers.clear()
 
         # Configure with defaults
@@ -704,7 +704,7 @@ class TestLogging:
     def test_configure_logging_custom_level(self):
         """Test configure_logging with custom log level."""
         # Clear any existing handlers
-        logger = logging.getLogger("taf")
+        logger = logging.getLogger("agentflow")
         logger.handlers.clear()
 
         # Configure with DEBUG level
@@ -717,7 +717,7 @@ class TestLogging:
     def test_configure_logging_custom_format(self):
         """Test configure_logging with custom format string."""
         # Clear any existing handlers
-        logger = logging.getLogger("taf")
+        logger = logging.getLogger("agentflow")
         logger.handlers.clear()
 
         # Configure with custom format
@@ -733,7 +733,7 @@ class TestLogging:
     def test_configure_logging_custom_handler(self):
         """Test configure_logging with custom handler."""
         # Clear any existing handlers
-        logger = logging.getLogger("taf")
+        logger = logging.getLogger("agentflow")
         logger.handlers.clear()
 
         # Create custom handler
@@ -751,7 +751,7 @@ class TestLogging:
     def test_configure_logging_no_duplicate_handlers(self):
         """Test that configure_logging doesn't add duplicate handlers."""
         # Clear any existing handlers
-        logger = logging.getLogger("taf")
+        logger = logging.getLogger("agentflow")
         logger.handlers.clear()
 
         # Configure logging twice
@@ -767,7 +767,7 @@ class TestLogging:
     def test_configure_logging_preserves_existing_handlers(self):
         """Test that configure_logging replaces existing handlers."""
         # Clear any existing handlers
-        logger = logging.getLogger("taf")
+        logger = logging.getLogger("agentflow")
         logger.handlers.clear()
 
         # Add a custom handler manually
@@ -783,7 +783,7 @@ class TestLogging:
     def test_configure_logging_with_all_custom_params(self):
         """Test configure_logging with all custom parameters."""
         # Clear any existing handlers
-        logger = logging.getLogger("taf")
+        logger = logging.getLogger("agentflow")
         logger.handlers.clear()
 
         # Configure with all custom parameters
@@ -812,7 +812,7 @@ class TestLogging:
     def test_default_configuration_on_import(self):
         """Test that default configuration is applied on module import."""
         # Get the logger
-        logger = logging.getLogger("taf")
+        logger = logging.getLogger("agentflow")
 
         # Should have at least one handler (configured on import)
         assert len(logger.handlers) >= 1
@@ -822,19 +822,19 @@ class TestLogging:
 
     def test_logger_hierarchy(self):
         """Test that module-specific loggers work correctly."""
-        # Clear taf logger
-        taf_logger = logging.getLogger("taf")
+        # Clear agentflow logger
+        taf_logger = logging.getLogger("agentflow")
         taf_logger.handlers.clear()
 
-        # Configure taf logging
+        # Configure agentflow logging
         configure_logging()
 
         # Create module-specific logger
-        module_logger = logging.getLogger("taf.test_module")
+        module_logger = logging.getLogger("agentflow.test_module")
 
         # Module logger should inherit configuration
         assert module_logger.level == logging.NOTSET  # Inherits from parent
-        assert module_logger.propagate  # Should propagate to taf logger
+        assert module_logger.propagate  # Should propagate to agentflow logger
 
         # Test logging through module logger
         import io
@@ -853,7 +853,7 @@ class TestLogging:
             # Verify that the message was logged
             output = log_output.getvalue()
             assert "Test message" in output
-            assert "taf.test_module" in output
+            assert "agentflow.test_module" in output
         finally:
             # Clean up the handler
             module_logger.removeHandler(handler)
@@ -861,7 +861,7 @@ class TestLogging:
     def test_logging_output_capture(self):
         """Test that logging actually outputs to the configured stream."""
         # Clear any existing handlers
-        logger = logging.getLogger("taf")
+        logger = logging.getLogger("agentflow")
         logger.handlers.clear()
 
         # Configure with string stream
@@ -876,7 +876,7 @@ class TestLogging:
         output = string_stream.getvalue()
         assert "Test log message" in output
         assert "INFO" in output
-        assert "taf" in output
+        assert "agentflow" in output
 
     def test_configure_logging_with_file_handler(self):
         """Test configure_logging with a file handler."""
@@ -884,7 +884,7 @@ class TestLogging:
         import tempfile
 
         # Clear any existing handlers
-        logger = logging.getLogger("taf")
+        logger = logging.getLogger("agentflow")
         logger.handlers.clear()
 
         # Create temporary file

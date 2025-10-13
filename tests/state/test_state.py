@@ -1,14 +1,14 @@
 """Tests for the state module."""
 
-from taf.state import (
+from agentflow.state import (
     AgentState,
     BaseContextManager,
     ExecutionState,
     ExecutionStatus,
     MessageContextManager,
 )
-from taf.utils import START
-from taf.state.message import Message
+from agentflow.utils import START
+from agentflow.state.message import Message
 
 
 class TestAgentState:

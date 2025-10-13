@@ -1,6 +1,6 @@
 """Basic test to verify pytest setup."""
 
-import taf  # noqa: F401
+import agentflow  # noqa: F401
 
 
 def test_basic_functionality():
@@ -11,6 +11,6 @@ def test_basic_functionality():
 
 
 def test_taf_import():
-    """Test that taf module can be imported."""
+    """Test that agentflow module can be imported."""
     # If we get here without errors, the import worked
     assert True  # noqa: S101

@@ -3,12 +3,12 @@
 import pytest
 from unittest.mock import Mock
 
-from taf.checkpointer import InMemoryCheckpointer
-from taf.graph import ToolNode, CompiledGraph
-from taf.prebuilt.agent.router import RouterAgent
-from taf.state.agent_state import AgentState
-from taf.state.message import Message
-from taf.utils import  END
+from agentflow.checkpointer import InMemoryCheckpointer
+from agentflow.graph import ToolNode, CompiledGraph
+from agentflow.prebuilt.agent.router import RouterAgent
+from agentflow.state.agent_state import AgentState
+from agentflow.state.message import Message
+from agentflow.utils import  END
 
 
 class TestRouterAgent:

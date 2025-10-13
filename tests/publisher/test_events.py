@@ -12,13 +12,13 @@ from datetime import datetime
 from unittest.mock import patch, Mock
 import pytest
 
-from taf.publisher.events import (
+from agentflow.publisher.events import (
     Event,
     EventType,
     ContentType,
     EventModel,
 )
-from taf.state.message import TextBlock
+from agentflow.state.message import TextBlock
 
 
 class TestEventEnums:

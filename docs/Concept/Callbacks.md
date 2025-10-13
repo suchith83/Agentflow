@@ -19,8 +19,10 @@ This creates a layered architecture where your core agent logic remains clean an
 The callback system operates around three fundamental moments in any operation:
 
 ### Before Invoke: The Preparation Phase
+
 ```python
-from taf.utils.callbacks import register_before_invoke, InvocationType, CallbackContext
+from agentflow.utils.callbacks import register_before_invoke, InvocationType, CallbackContext
+
 
 async def validate_tool_input(context: CallbackContext, input_data: dict) -> dict:
     """Validate and potentially modify tool inputs before execution."""
@@ -35,6 +37,7 @@ async def validate_tool_input(context: CallbackContext, input_data: dict) -> dic
 
     return input_data
 
+
 # Register for tool invocations
 register_before_invoke(InvocationType.TOOL, validate_tool_input)
 ```
@@ -47,8 +50,10 @@ Before any tool, AI model, or MCP function is called, 10xScale Agentflow execute
 - Log invocation attempts for audit trails
 
 ### After Invoke: The Processing Phase
+
 ```python
-from taf.utils.callbacks import register_after_invoke
+from agentflow.utils.callbacks import register_after_invoke
+
 
 async def enrich_ai_response(context: CallbackContext, input_data: dict, output_data: any) -> any:
     """Enrich AI responses with additional context and formatting."""
@@ -64,6 +69,7 @@ async def enrich_ai_response(context: CallbackContext, input_data: dict, output_
 
     return output_data
 
+
 register_after_invoke(InvocationType.AI, enrich_ai_response)
 ```
 
@@ -75,9 +81,11 @@ After successful execution, `after_invoke` callbacks process the results. This p
 - Logging successful operations
 
 ### On Error: The Recovery Phase
+
 ```python
-from taf.utils.callbacks import register_on_error
-from taf.utils.message import Message
+from agentflow.utils.callbacks import register_on_error
+from agentflow.utils.message import Message
+
 
 async def handle_tool_errors(context: CallbackContext, input_data: dict, error: Exception) -> Message | None:
     """Implement intelligent error recovery for tool failures."""
@@ -96,6 +104,7 @@ async def handle_tool_errors(context: CallbackContext, input_data: dict, error: 
 
     # Return None to propagate the error normally
     return None
+
 
 register_on_error(InvocationType.TOOL, handle_tool_errors)
 ```
@@ -300,8 +309,8 @@ async def intelligent_error_recovery(
 Callbacks integrate seamlessly with your graph construction, providing consistent behavior across all nodes:
 
 ```python
-from taf.utils.callbacks import CallbackManager, default_callback_manager
-from taf.graph import StateGraph
+from agentflow.utils.callbacks import CallbackManager, default_callback_manager
+from agentflow.graph import StateGraph
 
 # Set up callbacks
 register_before_invoke(InvocationType.TOOL, security_validator)
@@ -332,7 +341,8 @@ result = await compiled_graph.invoke(
 Callbacks can significantly impact your agent's behavior, making testing crucial:
 
 ```python
-from taf.utils.callbacks import CallbackManager, InvocationType
+from agentflow.utils.callbacks import CallbackManager, InvocationType
+
 
 async def test_callback_behavior():
     """Test callback system with controlled inputs."""
@@ -363,6 +373,7 @@ async def test_callback_behavior():
 
     assert result["query"] == "test query"
     assert "processed_by_callback" in result
+
 
 # Debug callback with logging
 async def debug_callback(context: CallbackContext, input_data: dict) -> dict:

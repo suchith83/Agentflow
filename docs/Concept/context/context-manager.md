@@ -12,8 +12,8 @@
 ### Usage
 
 ```python
-from taf.state.message_context_manager import MessageContextManager
-from taf.state.agent_state import AgentState
+from agentflow.state.message_context_manager import MessageContextManager
+from agentflow.state.agent_state import AgentState
 
 # Create a manager to keep max 10 user messages, removing tool messages
 mgr = MessageContextManager(max_messages=10, remove_tool_msgs=True)

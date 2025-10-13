@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 
-from taf.graph import StateGraph
-from taf.state.agent_state import AgentState
-from taf.utils import Message
+from agentflow.graph import StateGraph
+from agentflow.state.agent_state import AgentState
+from agentflow.utils import Message
 
 
 def test_graph_integration():

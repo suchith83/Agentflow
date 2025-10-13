@@ -4,11 +4,11 @@ import asyncio
 
 import pytest
 
-from taf.checkpointer import InMemoryCheckpointer
-from taf.graph import StateGraph
-from taf.state import AgentState, Message
-from taf.state.stream_chunks import StreamChunk
-from taf.utils import END
+from agentflow.checkpointer import InMemoryCheckpointer
+from agentflow.graph import StateGraph
+from agentflow.state import AgentState, Message
+from agentflow.state.stream_chunks import StreamChunk
+from agentflow.utils import END
 
 
 class MockStreamingResponse:

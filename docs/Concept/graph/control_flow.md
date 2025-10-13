@@ -33,7 +33,8 @@ The runtime tracks current node name in `execution_meta.current_node` inside `Ag
 ## Conditional Edges
 
 ```python
-from taf.utils import END
+from agentflow.utils import END
+
 
 def classify(state: AgentState) -> str:
     last = state.context[-1].text() if state.context else ""
@@ -42,6 +43,7 @@ def classify(state: AgentState) -> str:
     if "bye" in last:
         return END
     return "RESPOND"
+
 
 graph.add_node("CLASSIFY", classify)
 graph.add_node("RESPOND", respond)
@@ -109,13 +111,13 @@ Best practices:
 ### Basic Interrupt Example
 
 ```python
-from taf.checkpointer import InMemoryCheckpointer
+from agentflow.checkpointer import InMemoryCheckpointer
 
 # Compile with interrupt points
 app = graph.compile(
     checkpointer=InMemoryCheckpointer(),  # Required for resuming
-    interrupt_before=["EXECUTE_TOOL"],    # Pause before tool execution for approval
-    interrupt_after=["ANALYZE"]           # Pause after analysis for inspection
+    interrupt_before=["EXECUTE_TOOL"],  # Pause before tool execution for approval
+    interrupt_after=["ANALYZE"]  # Pause after analysis for inspection
 )
 
 # Initial execution (will pause at interrupt point)

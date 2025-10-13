@@ -53,9 +53,11 @@ Pattern:
 
 ```python
 from injectq import Inject
-from taf.utils.background_task_manager import BackgroundTaskManager
+from agentflow.utils.background_task_manager import BackgroundTaskManager
+
 
 async def summarizer(state): ...
+
 
 async def node(state, config, tasks: BackgroundTaskManager = Inject[BackgroundTaskManager]):
     tasks.create_task(summarizer(state))
@@ -81,7 +83,7 @@ Ensure background tasks are idempotent or reference stable state snapshots to av
 The `AgentState.execution_meta` tracks pause/resume state:
 
 ```python
-from taf.state import ExecutionStatus
+from agentflow.state import ExecutionStatus
 
 # Check interrupt status
 if state.execution_meta.is_interrupted():

@@ -4,9 +4,9 @@ import pytest
 from collections.abc import AsyncGenerator
 from unittest.mock import Mock, AsyncMock
 
-from taf.adapters.llm.base_converter import BaseConverter, ConverterType
-from taf.state import AgentState, Message
-from taf.publisher.events import EventModel
+from agentflow.adapters.llm.base_converter import BaseConverter, ConverterType
+from agentflow.state import AgentState, Message
+from agentflow.publisher.events import EventModel
 
 
 class TestConverterType:
@@ -128,7 +128,7 @@ class TestBaseConverter:
                 yield Message.text_message(f"Stream 1: {response}", "assistant")
                 yield Message.text_message(f"Stream 2: {node_name}", "assistant")
                 # Can also yield EventModel
-                from taf.publisher.events import Event, EventType, ContentType
+                from agentflow.publisher.events import Event, EventType, ContentType
                 yield EventModel(
                     event=Event.STREAMING,
                     event_type=EventType.PROGRESS,

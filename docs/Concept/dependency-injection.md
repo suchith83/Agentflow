@@ -80,14 +80,15 @@ The most common pattern uses the `Inject[Type]` annotation to specify what depen
 
 ```python
 from injectq import Inject
-from taf.checkpointer import InMemoryCheckpointer
-from taf.utils.callbacks import CallbackManager
+from agentflow.checkpointer import InMemoryCheckpointer
+from agentflow.utils.callbacks import CallbackManager
+
 
 async def my_agent_node(
-    state: AgentState,
-    config: dict,
-    checkpointer: InMemoryCheckpointer = Inject[InMemoryCheckpointer],
-    callback: CallbackManager = Inject[CallbackManager],
+        state: AgentState,
+        config: dict,
+        checkpointer: InMemoryCheckpointer = Inject[InMemoryCheckpointer],
+        callback: CallbackManager = Inject[CallbackManager],
 ):
     # Use your injected dependencies
     saved_state = await checkpointer.aget(config)
@@ -455,7 +456,7 @@ container.validate()  # Throws if circular dependencies exist
 10xScale Agentflow's prebuilt agents automatically work with dependency injection:
 
 ```python
-from taf.prebuilt.agent import ReactAgent
+from agentflow.prebuilt.agent import ReactAgent
 
 # Create container with your dependencies
 container = InjectQ.get_instance()
@@ -491,7 +492,8 @@ container.bind_instance(MetricsCallback, metrics_callback)
 Publishers can also be injected dependencies:
 
 ```python
-from taf.publisher import ConsolePublisher
+from agentflow.publisher import ConsolePublisher
+
 
 class CustomPublisher(ConsolePublisher):
     def __init__(self, notification_service: NotificationService):
@@ -502,6 +504,7 @@ class CustomPublisher(ConsolePublisher):
         await super().publish_event(event)
         if event.event_type == "error":
             await self.notifications.alert("Agent error occurred")
+
 
 container.bind_instance(CustomPublisher, CustomPublisher(notification_service))
 ```

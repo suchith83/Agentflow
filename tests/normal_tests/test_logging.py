@@ -7,18 +7,18 @@ import logging
 import sys
 
 
-sys.path.insert(0, "/home/shudipto/projects/taf")
+sys.path.insert(0, "/home/shudipto/projects/agentflow")
 
 # Import logging setup first
-from taf.utils.logging import configure_logging
+from agentflow.utils.logging import configure_logging
 
 
 # Configure logging to DEBUG level to see all logs
 configure_logging(level=logging.DEBUG)
 
 # Test imports and basic functionality
-from taf.graph import StateGraph
-from taf.utils import Message
+from agentflow.graph import StateGraph
+from agentflow.utils import Message
 
 
 def simple_node(state, config):

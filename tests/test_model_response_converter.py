@@ -5,15 +5,15 @@ import asyncio
 import inspect
 from unittest.mock import Mock, AsyncMock, patch, MagicMock
 
-from taf.adapters.llm.model_response_converter import ModelResponseConverter
-from taf.adapters.llm.base_converter import BaseConverter
-from taf.state.message import Message
+from agentflow.adapters.llm.model_response_converter import ModelResponseConverter
+from agentflow.adapters.llm.base_converter import BaseConverter
+from agentflow.state.message import Message
 
 
 class TestModelResponseConverter:
     """Test suite for ModelResponseConverter."""
 
-    @patch('taf.adapters.llm.litellm_converter.LiteLLMConverter')
+    @patch('agentflow.adapters.llm.litellm_converter.LiteLLMConverter')
     def test_initialization_with_string_converter(self, MockConverter):
         """Test initialization with string converter identifier."""
         response = "test response"
@@ -453,7 +453,7 @@ class TestModelResponseConverter:
             assert len(results) == 1
             assert results[0].text() == f"Stream: stream_{i}"
 
-    @patch('taf.adapters.llm.litellm_converter.LiteLLMConverter')
+    @patch('agentflow.adapters.llm.litellm_converter.LiteLLMConverter')
     def test_litellm_converter_import_and_creation(self, MockLiteLLM):
         """Test that LiteLLMConverter is properly imported and created."""
         mock_instance = Mock(spec=BaseConverter)

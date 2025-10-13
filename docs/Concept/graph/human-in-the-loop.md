@@ -30,8 +30,8 @@ Human-in-the-loop patterns are essential for:
 Define pause points when compiling your graph:
 
 ```python
-from taf.graph import StateGraph
-from taf.checkpointer import InMemoryCheckpointer
+from agentflow.graph import StateGraph
+from agentflow.checkpointer import InMemoryCheckpointer
 
 # Build your graph
 graph = StateGraph()
@@ -42,8 +42,8 @@ graph.add_node("CLEANUP", cleanup_resources)
 # Compile with interrupt points
 app = graph.compile(
     checkpointer=InMemoryCheckpointer(),  # Required for resuming
-    interrupt_before=["EXECUTE_TOOL"],    # Pause before tool execution
-    interrupt_after=["ANALYZE"]           # Pause after analysis for review
+    interrupt_before=["EXECUTE_TOOL"],  # Pause before tool execution
+    interrupt_after=["ANALYZE"]  # Pause after analysis for review
 )
 ```
 
@@ -84,7 +84,7 @@ print(f"Stop status: {status}")
 `AgentState.execution_meta` tracks interrupt status:
 
 ```python
-from taf.state import ExecutionStatus
+from agentflow.state import ExecutionStatus
 
 # Check if execution is interrupted
 if state.execution_meta.is_interrupted():
@@ -105,7 +105,8 @@ if state.execution_meta.is_interrupted():
 You can also set interrupts programmatically from within nodes:
 
 ```python
-from taf.state import ExecutionStatus
+from agentflow.state import ExecutionStatus
+
 
 async def approval_node(state: AgentState, config: dict) -> AgentState:
     # Check some condition
@@ -320,8 +321,9 @@ async def smart_escalation_node(state: AgentState, config: dict) -> AgentState:
 ### Monitoring Interrupt Events
 
 ```python
-from taf.publisher import ConsolePublisher
-from taf.publisher.events import EventType
+from agentflow.publisher import ConsolePublisher
+from agentflow.publisher.events import EventType
+
 
 class InterruptMonitor(ConsolePublisher):
     def publish(self, event):
@@ -331,6 +333,7 @@ class InterruptMonitor(ConsolePublisher):
             print(f"   Interrupt type: {event.data.get('interrupted', 'Unknown')}")
 
         super().publish(event)
+
 
 # Use custom publisher
 app = graph.compile(

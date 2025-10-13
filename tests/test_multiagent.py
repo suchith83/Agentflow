@@ -6,11 +6,11 @@ import pytest
 from injectq import Inject, InjectQ, inject
 from pydantic import Field
 
-from taf.exceptions import NodeError
-from taf.graph import CompiledGraph, StateGraph
-from taf.publisher import ConsolePublisher
-from taf.state import AgentState, Message
-from taf.utils import END
+from agentflow.exceptions import NodeError
+from agentflow.graph import CompiledGraph, StateGraph
+from agentflow.publisher import ConsolePublisher
+from agentflow.state import AgentState, Message
+from agentflow.utils import END
 
 
 class TestMultiAgentSuite:

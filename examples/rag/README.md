@@ -43,8 +43,10 @@ Swap the in-memory keyword scorer with a vector store:
 
 ```python
 # Pseudocode snippet
-from taf.store import QdrantStore
+from agentflow.store import QdrantStore
+
 store = QdrantStore(...)
+
 
 async def dense_retriever(state: AgentState) -> AgentState:
     query = state.context[-1].text()

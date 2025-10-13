@@ -37,10 +37,10 @@ Follow these tutorials in order for the best learning experience:
 
 ```bash
 # Install 10xScale Agentflow with dependencies
-pip install taf[litellm]
+pip install agentflow[litellm]
 
 # For MCP examples
-pip install taf[mcp]
+pip install agentflow[mcp]
 
 # Set up environment
 export OPENAI_API_KEY=your_key
@@ -74,24 +74,29 @@ python stream1.py
 All React agents in 10xScale Agentflow follow this pattern:
 
 ```python
-from taf.graph import StateGraph, ToolNode
-from taf.utils.constants import END
+from agentflow.graph import StateGraph, ToolNode
+from agentflow.utils.constants import END
+
 
 # 1. Define tools
 def my_tool(param: str) -> str:
     return f"Result for {param}"
 
+
 tool_node = ToolNode([my_tool])
+
 
 # 2. Create reasoning agent
 async def main_agent(state: AgentState):
     # LLM reasoning with optional tool calls
     return llm_response_with_tools
 
+
 # 3. Implement conditional routing
 def should_use_tools(state: AgentState) -> str:
     # Logic to decide: tools, main agent, or end
     return "TOOL" | "MAIN" | END
+
 
 # 4. Build the graph
 graph = StateGraph()
@@ -150,8 +155,9 @@ async def streaming_agent(state: AgentState, config: dict):
 ## 🐛 Debugging Tips
 
 ### Enable Detailed Logging
+
 ```python
-from taf.publisher import ConsolePublisher
+from agentflow.publisher import ConsolePublisher
 
 app = graph.compile(
     checkpointer=InMemoryCheckpointer(),

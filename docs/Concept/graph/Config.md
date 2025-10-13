@@ -127,12 +127,15 @@ config = {
 **Purpose**: Specifies custom state class for specialized workflows.
 
 **Usage**: For applications requiring custom state fields.
+
 ```python
-from taf.state import AgentState
+from agentflow.state import AgentState
+
 
 class CustomState(AgentState):
     user_data: dict = Field(default_factory=dict)
     custom_field: str = "default"
+
 
 config = {
     "thread_id": "custom-session",

@@ -32,13 +32,13 @@
 **Basic installation with [uv](https://github.com/astral-sh/uv) (recommended):**
 
 ```bash
-uv pip install taf
+uv pip install agentflow
 ```
 
 Or with pip:
 
 ```bash
-pip install taf
+pip install agentflow
 ```
 
 **Optional Dependencies:**
@@ -47,24 +47,24 @@ pip install taf
 
 ```bash
 # PostgreSQL + Redis checkpointing
-pip install taf[pg_checkpoint]
+pip install agentflow[pg_checkpoint]
 
 # MCP (Model Context Protocol) support
-pip install taf[mcp]
+pip install agentflow[mcp]
 
 # Composio tools (adapter)
-pip install taf[composio]
+pip install agentflow[composio]
 
 # LangChain tools (registry-based adapter)
-pip install taf[langchain]
+pip install agentflow[langchain]
 
 # Individual publishers
-pip install taf[redis]     # Redis publisher
-pip install taf[kafka]     # Kafka publisher
-pip install taf[rabbitmq]  # RabbitMQ publisher
+pip install agentflow[redis]     # Redis publisher
+pip install agentflow[kafka]     # Kafka publisher
+pip install agentflow[rabbitmq]  # RabbitMQ publisher
 
 # Multiple extras
-pip install taf[pg_checkpoint,mcp,composio,langchain]
+pip install agentflow[pg_checkpoint,mcp,composio,langchain]
 ```
 
 ### Environment Setup
@@ -130,20 +130,21 @@ Here's a minimal React agent with tool calling:
 from dotenv import load_dotenv
 from litellm import acompletion
 
-from taf.checkpointer import InMemoryCheckpointer
-from taf.graph import StateGraph, ToolNode
-from taf.state.agent_state import AgentState
-from taf.utils import Message
-from taf.utils.constants import END
-from taf.utils.converter import convert_messages
+from agentflow.checkpointer import InMemoryCheckpointer
+from agentflow.graph import StateGraph, ToolNode
+from agentflow.state.agent_state import AgentState
+from agentflow.utils import Message
+from agentflow.utils.constants import END
+from agentflow.utils.converter import convert_messages
 
 load_dotenv()
 
+
 # Define a tool with dependency injection
 def get_weather(
-    location: str,
-    tool_call_id: str | None = None,
-    state: AgentState | None = None,
+        location: str,
+        tool_call_id: str | None = None,
+        state: AgentState | None = None,
 ) -> Message:
     """Get the current weather for a specific location."""
     res = f"The weather in {location} is sunny"
@@ -152,8 +153,10 @@ def get_weather(
         tool_call_id=tool_call_id,
     )
 
+
 # Create tool node
 tool_node = ToolNode([get_weather])
+
 
 # Define main agent node
 async def main_agent(state: AgentState):
@@ -166,9 +169,9 @@ async def main_agent(state: AgentState):
 
     # Check if we need tools
     if (
-        state.context
-        and len(state.context) > 0
-        and state.context[-1].role == "tool"
+            state.context
+            and len(state.context) > 0
+            and state.context[-1].role == "tool"
     ):
         response = await acompletion(
             model="gemini/gemini-2.5-flash",
@@ -184,6 +187,7 @@ async def main_agent(state: AgentState):
 
     return response
 
+
 # Define routing logic
 def should_use_tools(state: AgentState) -> str:
     """Determine if we should use tools or end."""
@@ -193,13 +197,14 @@ def should_use_tools(state: AgentState) -> str:
     last_message = state.context[-1]
 
     if (
-        hasattr(last_message, "tools_calls")
-        and last_message.tools_calls
-        and len(last_message.tools_calls) > 0
+            hasattr(last_message, "tools_calls")
+            and last_message.tools_calls
+            and len(last_message.tools_calls) > 0
     ):
         return "TOOL"
 
     return END
+
 
 # Build the graph
 graph = StateGraph()
@@ -269,7 +274,7 @@ Install 10xScale Agentflow as shown above. The `pyproject.toml` contains all run
 ```bash
 # Clone the repository
 git clone https://github.com/10xhub/taf.git
-cd taf
+cd agentflow
 
 # Create virtual environment
 python -m venv .venv

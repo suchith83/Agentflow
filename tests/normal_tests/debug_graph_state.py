@@ -1,7 +1,7 @@
 from dataclasses import dataclass, field
 
-from taf.graph import StateGraph
-from taf.state.agent_state import AgentState
+from agentflow.graph import StateGraph
+from agentflow.state.agent_state import AgentState
 
 
 @dataclass

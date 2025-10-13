@@ -4,15 +4,15 @@ from unittest.mock import Mock
 
 import pytest
 
-from taf.graph import (
+from agentflow.graph import (
     CompiledGraph,
     Edge,
     Node,
     StateGraph,
     ToolNode,
 )
-from taf.state import AgentState, Message
-from taf.utils import END
+from agentflow.state import AgentState, Message
+from agentflow.utils import END
 
 
 class TestNode:

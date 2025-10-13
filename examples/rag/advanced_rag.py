@@ -35,9 +35,9 @@ try:
 except Exception:  # pragma: no cover
     acompletion = None  # type: ignore
 
-from taf.prebuilt.agent.rag import RAGAgent
-from taf.state import AgentState, Message
-from taf.utils.constants import END
+from agentflow.prebuilt.agent.rag import RAGAgent
+from agentflow.state import AgentState, Message
+from agentflow.utils.constants import END
 
 
 # -----------------------------------------------------------------------------

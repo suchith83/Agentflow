@@ -75,13 +75,18 @@ Compared to ReAct, this pattern isolates reflection, making it easier to:
 ## Minimal Skeleton
 
 ```python
-from taf.prebuilt.agent.plan_act_reflect import PlanActReflectAgent
-from taf.graph.tool_node import ToolNode
-from taf.state.agent_state import AgentState
-from taf.utils import Message
+from agentflow.prebuilt.agent.plan_act_reflect import PlanActReflectAgent
+from agentflow.graph.tool_node import ToolNode
+from agentflow.state.agent_state import AgentState
+from agentflow.utils import Message
+
 
 def plan(state: AgentState) -> AgentState: ...
+
+
 def reflect(state: AgentState) -> AgentState: ...
+
+
 tools = ToolNode([your_tool])
 
 agent = PlanActReflectAgent[AgentState](state=AgentState())

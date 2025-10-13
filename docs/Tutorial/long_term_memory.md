@@ -22,7 +22,7 @@ This document shows how to enable long-term memory using the optional
 ## Creating a Mem0Store
 
 ```python
-from taf.store import create_mem0_store
+from agentflow.store import create_mem0_store
 
 mem_store = create_mem0_store(
     config={  # Optional Mem0 configuration; can be omitted for defaults
@@ -30,9 +30,9 @@ mem_store = create_mem0_store(
         "embedder": {"provider": "openai", "config": {"model": "text-embedding-3-small"}},
         "llm": {"provider": "openai", "config": {"model": "gpt-4o-mini"}},
     },
-    user_id="user-123",           # default user scope
-    thread_id="conversation-1",    # optional thread / agent scope
-    app_id="demo-app",            # application scoping
+    user_id="user-123",  # default user scope
+    thread_id="conversation-1",  # optional thread / agent scope
+    app_id="demo-app",  # application scoping
 )
 ```
 
@@ -60,8 +60,9 @@ internal id. You use the framework id with `aget`, `aupdate`, and `adelete`.
 You can add a node that retrieves similar memories before tool / LLM reasoning.
 
 ```python
-from taf.graph import StateGraph, Node
-from taf.utils import Message
+from agentflow.graph import StateGraph, Node
+from agentflow.utils import Message
+
 
 async def recall_node(state, config):
     query = state.latest_user_message().text()
@@ -69,6 +70,7 @@ async def recall_node(state, config):
     # Attach recalled facts to state metadata or messages
     state.context.memories = [m.content for m in memories]
     return state
+
 
 graph = StateGraph(state_type=YourStateModel)
 graph.add_node("recall", recall_node)

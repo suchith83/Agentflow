@@ -3,7 +3,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from taf.adapters.tools.langchain_adapter import LangChainAdapter, LangChainToolWrapper
+from agentflow.adapters.tools.langchain_adapter import LangChainAdapter, LangChainToolWrapper
 
 
 class MockLangChainTool:
@@ -386,36 +386,36 @@ class TestLangChainToolWrapper:
 class TestLangChainAdapter:
     """Test class for LangChainAdapter."""
     
-    @patch('taf.adapters.tools.langchain_adapter.HAS_LANGCHAIN', False)
+    @patch('agentflow.adapters.tools.langchain_adapter.HAS_LANGCHAIN', False)
     def test_adapter_init_no_langchain(self):
         """Test adapter initialization fails when LangChain not available."""
         with pytest.raises(ImportError, match="LangChainAdapter requires 'langchain-core'"):
             LangChainAdapter()
     
-    @patch('taf.adapters.tools.langchain_adapter.HAS_LANGCHAIN', True)
+    @patch('agentflow.adapters.tools.langchain_adapter.HAS_LANGCHAIN', True)
     def test_adapter_init_success(self):
         """Test successful adapter initialization."""
         adapter = LangChainAdapter(autoload_default_tools=False)
         assert adapter._registry == {}
         assert adapter._autoload is False
     
-    @patch('taf.adapters.tools.langchain_adapter.HAS_LANGCHAIN', True)
+    @patch('agentflow.adapters.tools.langchain_adapter.HAS_LANGCHAIN', True)
     def test_adapter_init_with_autoload(self):
         """Test adapter initialization with autoload enabled."""
         adapter = LangChainAdapter(autoload_default_tools=True)
         assert adapter._autoload is True
     
-    @patch('taf.adapters.tools.langchain_adapter.HAS_LANGCHAIN', True)
+    @patch('agentflow.adapters.tools.langchain_adapter.HAS_LANGCHAIN', True)
     def test_is_available_true(self):
         """Test is_available returns True when LangChain is available."""
         assert LangChainAdapter.is_available() is True
     
-    @patch('taf.adapters.tools.langchain_adapter.HAS_LANGCHAIN', False)
+    @patch('agentflow.adapters.tools.langchain_adapter.HAS_LANGCHAIN', False)
     def test_is_available_false(self):
         """Test is_available returns False when LangChain not available."""
         assert LangChainAdapter.is_available() is False
     
-    @patch('taf.adapters.tools.langchain_adapter.HAS_LANGCHAIN', True)
+    @patch('agentflow.adapters.tools.langchain_adapter.HAS_LANGCHAIN', True)
     def test_register_tool(self):
         """Test register_tool method."""
         adapter = LangChainAdapter(autoload_default_tools=False)
@@ -427,7 +427,7 @@ class TestLangChainAdapter:
         assert "mock_tool" in adapter._registry
         assert adapter._registry["mock_tool"]._tool is tool
     
-    @patch('taf.adapters.tools.langchain_adapter.HAS_LANGCHAIN', True)
+    @patch('agentflow.adapters.tools.langchain_adapter.HAS_LANGCHAIN', True)
     def test_register_tool_with_overrides(self):
         """Test register_tool with name and description overrides."""
         adapter = LangChainAdapter(autoload_default_tools=False)
@@ -443,7 +443,7 @@ class TestLangChainAdapter:
         assert adapter._registry["custom_tool"].name == "custom_tool"
         assert adapter._registry["custom_tool"].description == "Custom description"
     
-    @patch('taf.adapters.tools.langchain_adapter.HAS_LANGCHAIN', True)
+    @patch('agentflow.adapters.tools.langchain_adapter.HAS_LANGCHAIN', True)
     def test_register_tools_multiple(self):
         """Test register_tools method with multiple tools."""
         adapter = LangChainAdapter(autoload_default_tools=False)
@@ -457,7 +457,7 @@ class TestLangChainAdapter:
         assert "tool1" in adapter._registry
         assert "tool2" in adapter._registry
     
-    @patch('taf.adapters.tools.langchain_adapter.HAS_LANGCHAIN', True)
+    @patch('agentflow.adapters.tools.langchain_adapter.HAS_LANGCHAIN', True)
     def test_list_tools_for_llm_empty(self):
         """Test list_tools_for_llm with empty registry."""
         adapter = LangChainAdapter(autoload_default_tools=False)
@@ -466,7 +466,7 @@ class TestLangChainAdapter:
         
         assert tools == []
     
-    @patch('taf.adapters.tools.langchain_adapter.HAS_LANGCHAIN', True)
+    @patch('agentflow.adapters.tools.langchain_adapter.HAS_LANGCHAIN', True)
     def test_list_tools_for_llm_with_tools(self):
         """Test list_tools_for_llm with registered tools."""
         adapter = LangChainAdapter(autoload_default_tools=False)
@@ -479,7 +479,7 @@ class TestLangChainAdapter:
         assert tools[0]["type"] == "function"
         assert tools[0]["function"]["name"] == "mock_tool"
     
-    @patch('taf.adapters.tools.langchain_adapter.HAS_LANGCHAIN', True)
+    @patch('agentflow.adapters.tools.langchain_adapter.HAS_LANGCHAIN', True)
     def test_execute_success(self):
         """Test execute method with successful tool execution."""
         adapter = LangChainAdapter(autoload_default_tools=False)
@@ -491,7 +491,7 @@ class TestLangChainAdapter:
         assert result["successful"] is True
         assert "Mock result for" in result["data"]
     
-    @patch('taf.adapters.tools.langchain_adapter.HAS_LANGCHAIN', True)
+    @patch('agentflow.adapters.tools.langchain_adapter.HAS_LANGCHAIN', True)
     def test_execute_tool_not_found(self):
         """Test execute method with unknown tool name."""
         adapter = LangChainAdapter(autoload_default_tools=False)
@@ -502,7 +502,7 @@ class TestLangChainAdapter:
         assert result["data"] is None
         assert result["error"] == "Unknown LangChain tool: unknown_tool"
     
-    @patch('taf.adapters.tools.langchain_adapter.HAS_LANGCHAIN', True)
+    @patch('agentflow.adapters.tools.langchain_adapter.HAS_LANGCHAIN', True)
     def test_list_tools_autoload_triggered(self):
         """Test list_tools_for_llm triggers autoload when enabled."""
         adapter = LangChainAdapter(autoload_default_tools=True)
@@ -511,7 +511,7 @@ class TestLangChainAdapter:
             adapter.list_tools_for_llm()
             mock_autoload.assert_called_once()
     
-    @patch('taf.adapters.tools.langchain_adapter.HAS_LANGCHAIN', True)
+    @patch('agentflow.adapters.tools.langchain_adapter.HAS_LANGCHAIN', True)
     def test_execute_autoload_triggered(self):
         """Test execute triggers autoload when enabled and tool not found."""
         adapter = LangChainAdapter(autoload_default_tools=True)
@@ -524,7 +524,7 @@ class TestLangChainAdapter:
 class TestLangChainAdapterAutoload:
     """Test class for LangChain adapter autoload functionality."""
     
-    @patch('taf.adapters.tools.langchain_adapter.HAS_LANGCHAIN', True)
+    @patch('agentflow.adapters.tools.langchain_adapter.HAS_LANGCHAIN', True)
     def test_create_tavily_search_tool_success(self):
         """Test _create_tavily_search_tool with successful import."""
         adapter = LangChainAdapter(autoload_default_tools=False)
@@ -539,7 +539,7 @@ class TestLangChainAdapterAutoload:
             assert tool is not None
             mock_import.assert_called_with('langchain_tavily')
     
-    @patch('taf.adapters.tools.langchain_adapter.HAS_LANGCHAIN', True)
+    @patch('agentflow.adapters.tools.langchain_adapter.HAS_LANGCHAIN', True)
     def test_create_tavily_search_tool_fallback(self):
         """Test _create_tavily_search_tool fallback to community tool."""
         adapter = LangChainAdapter(autoload_default_tools=False)
@@ -563,7 +563,7 @@ class TestLangChainAdapterAutoload:
             assert tool is not None
             assert mock_import.call_count == 2
     
-    @patch('taf.adapters.tools.langchain_adapter.HAS_LANGCHAIN', True)
+    @patch('agentflow.adapters.tools.langchain_adapter.HAS_LANGCHAIN', True)
     def test_create_tavily_search_tool_failure(self):
         """Test _create_tavily_search_tool with import failure."""
         adapter = LangChainAdapter(autoload_default_tools=False)
@@ -572,7 +572,7 @@ class TestLangChainAdapterAutoload:
             with pytest.raises(ImportError, match="Tavily tool requires"):
                 adapter._create_tavily_search_tool()
     
-    @patch('taf.adapters.tools.langchain_adapter.HAS_LANGCHAIN', True)
+    @patch('agentflow.adapters.tools.langchain_adapter.HAS_LANGCHAIN', True)
     def test_create_requests_get_tool_success(self):
         """Test _create_requests_get_tool with successful import."""
         adapter = LangChainAdapter(autoload_default_tools=False)
@@ -597,7 +597,7 @@ class TestLangChainAdapterAutoload:
             assert tool is not None
             assert mock_import.call_count == 2
     
-    @patch('taf.adapters.tools.langchain_adapter.HAS_LANGCHAIN', True)
+    @patch('agentflow.adapters.tools.langchain_adapter.HAS_LANGCHAIN', True)
     def test_create_requests_get_tool_failure(self):
         """Test _create_requests_get_tool with import failure."""
         adapter = LangChainAdapter(autoload_default_tools=False)
@@ -606,7 +606,7 @@ class TestLangChainAdapterAutoload:
             with pytest.raises(ImportError, match="Requests tool requires"):
                 adapter._create_requests_get_tool()
     
-    @patch('taf.adapters.tools.langchain_adapter.HAS_LANGCHAIN', True)
+    @patch('agentflow.adapters.tools.langchain_adapter.HAS_LANGCHAIN', True)
     def test_try_autoload_defaults_success(self):
         """Test _try_autoload_defaults with successful tool creation."""
         adapter = LangChainAdapter(autoload_default_tools=False)
@@ -622,7 +622,7 @@ class TestLangChainAdapterAutoload:
                 assert "tavily_search" in adapter._registry
                 assert "requests_get" in adapter._registry
     
-    @patch('taf.adapters.tools.langchain_adapter.HAS_LANGCHAIN', True)
+    @patch('agentflow.adapters.tools.langchain_adapter.HAS_LANGCHAIN', True)
     def test_try_autoload_defaults_partial_failure(self):
         """Test _try_autoload_defaults with partial failure."""
         adapter = LangChainAdapter(autoload_default_tools=False)
@@ -639,7 +639,7 @@ class TestLangChainAdapterAutoload:
                 assert "requests_get" in adapter._registry
                 assert "tavily_search" not in adapter._registry
     
-    @patch('taf.adapters.tools.langchain_adapter.HAS_LANGCHAIN', True)
+    @patch('agentflow.adapters.tools.langchain_adapter.HAS_LANGCHAIN', True)
     def test_try_autoload_defaults_complete_failure(self):
         """Test _try_autoload_defaults with complete failure."""
         adapter = LangChainAdapter(autoload_default_tools=False)
@@ -658,7 +658,7 @@ class TestLangChainAdapterAutoload:
 class TestLangChainAdapterEdgeCases:
     """Test class for LangChain adapter edge cases."""
     
-    @patch('taf.adapters.tools.langchain_adapter.HAS_LANGCHAIN', True)
+    @patch('agentflow.adapters.tools.langchain_adapter.HAS_LANGCHAIN', True)
     def test_wrapper_with_coroutine_attribute(self):
         """Test wrapper with tool that has coroutine attribute."""
         tool = Mock()
@@ -668,7 +668,7 @@ class TestLangChainAdapterEdgeCases:
         
         assert wrapper._callable is tool.coroutine
     
-    @patch('taf.adapters.tools.langchain_adapter.HAS_LANGCHAIN', True)
+    @patch('agentflow.adapters.tools.langchain_adapter.HAS_LANGCHAIN', True)
     def test_wrapper_exception_in_callable_resolution(self):
         """Test wrapper handles exceptions during callable resolution."""
         tool = Mock()
@@ -679,7 +679,7 @@ class TestLangChainAdapterEdgeCases:
         # Should not crash, should fallback to other methods
         assert wrapper is not None
     
-    @patch('taf.adapters.tools.langchain_adapter.HAS_LANGCHAIN', True)
+    @patch('agentflow.adapters.tools.langchain_adapter.HAS_LANGCHAIN', True)
     def test_wrapper_pydantic_schema_exception(self):
         """Test wrapper handles pydantic schema exceptions."""
         tool = Mock()
@@ -691,7 +691,7 @@ class TestLangChainAdapterEdgeCases:
         schema = wrapper._json_schema_from_args_schema()
         assert schema is None
     
-    @patch('taf.adapters.tools.langchain_adapter.HAS_LANGCHAIN', True)
+    @patch('agentflow.adapters.tools.langchain_adapter.HAS_LANGCHAIN', True)
     def test_map_annotation_exception_handling(self):
         """Test _map_annotation_to_json_type handles exceptions."""
         # Test with an object that will cause get_origin to fail
@@ -701,7 +701,7 @@ class TestLangChainAdapterEdgeCases:
         result = LangChainToolWrapper._map_annotation_to_json_type(ProblematicType())
         assert result is None
     
-    @patch('taf.adapters.tools.langchain_adapter.HAS_LANGCHAIN', True)
+    @patch('agentflow.adapters.tools.langchain_adapter.HAS_LANGCHAIN', True)
     def test_infer_schema_signature_exception(self):
         """Test _infer_schema_from_signature handles signature exceptions."""
         def problematic_func():
@@ -716,7 +716,7 @@ class TestLangChainAdapterEdgeCases:
             schema = wrapper._infer_schema_from_signature()
             assert schema == {"type": "object", "properties": {}}
     
-    @patch('taf.adapters.tools.langchain_adapter.HAS_LANGCHAIN', True)
+    @patch('agentflow.adapters.tools.langchain_adapter.HAS_LANGCHAIN', True)
     def test_execute_json_dumps_check(self):
         """Test execute method JSON serialization check."""
         class JsonSerializable:

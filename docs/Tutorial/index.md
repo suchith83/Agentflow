@@ -26,9 +26,9 @@ Before diving in, ensure you have:
 
 1. **Install 10xScale Agentflow** with your preferred LLM provider:
    ```bash
-   pip install taf[litellm]
+   pip install agentflow[litellm]
    # Optional: add persistence and tools
-   pip install taf[pg_checkpoint,mcp]
+   pip install agentflow[pg_checkpoint,mcp]
    ```
 
 2. **Set up environment variables** in `.env`:
@@ -42,7 +42,7 @@ Before diving in, ensure you have:
 3. **Clone examples** to experiment:
    ```bash
    git clone https://github.com/10xHub/taf.git
-   cd taf/examples/react
+   cd agentflow/examples/react
    python react_sync.py  # Your first agent!
    ```
 

@@ -22,14 +22,16 @@ Key responsibilities:
 ## Defining Local Tools
 
 ```python
-from taf.graph import ToolNode
-from taf.utils import Message
-from taf.state import AgentState
+from agentflow.graph import ToolNode
+from agentflow.utils import Message
+from agentflow.state import AgentState
+
 
 # Regular Python function
 def get_weather(city: str, tool_call_id: str | None = None, state: AgentState | None = None) -> Message:
     data = {"city": city, "temp_c": 24}
     return Message.tool_message(content=data, tool_call_id=tool_call_id)
+
 
 # Register
 weather_tools = ToolNode([get_weather])

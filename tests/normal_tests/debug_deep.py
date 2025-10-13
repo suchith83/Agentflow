@@ -1,6 +1,6 @@
 from dataclasses import dataclass, field
 
-from taf.state.agent_state import AgentState
+from agentflow.state.agent_state import AgentState
 
 
 @dataclass
@@ -38,7 +38,7 @@ for f in fields:
     print(f"Field {f.name}: {f}")
 
 # Test 5: What happens with the actual state from the graph
-from taf.graph import StateGraph
+from agentflow.graph import StateGraph
 
 
 print("\n=== Test 5: StateGraph state ===")

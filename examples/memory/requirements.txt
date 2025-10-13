@@ -3,7 +3,7 @@
 # Core dependencies for 10xScale Agentflow + Mem0 + Cloud Qdrant integration
 
 # 10xScale Agentflow framework (Main framework)
-# taf>=0.3.0
+# agentflow>=0.3.0
 
 # Memory management with Mem0
 mem0ai>=0.1.30

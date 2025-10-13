@@ -30,8 +30,8 @@ Let's explore how each layer works in practice.
 Working memory in 10xScale Agentflow is embodied by the `AgentState`, which holds the current conversation context as a living, breathing entity.
 
 ```python
-from taf.state import AgentState
-from taf.utils import Message
+from agentflow.state import AgentState
+from agentflow.utils import Message
 
 # The agent's working memory
 state = AgentState()
@@ -62,7 +62,8 @@ A critical challenge emerges: **context windows have limits**. As conversations 
 
 ```python
 # Context managers handle the "forgetting" process
-from taf.state import BaseContextManager
+from agentflow.state import BaseContextManager
+
 
 class SummaryContextManager(BaseContextManager):
     async def atrim_context(self, state):
@@ -89,7 +90,7 @@ Think about the difference between:
 Session memory serves **persistence, auditability, and user experience** rather than immediate decision-making.
 
 ```python
-from taf.checkpointer import PgCheckpointer
+from agentflow.checkpointer import PgCheckpointer
 
 # Session memory persists the full interaction history
 checkpointer = PgCheckpointer(postgres_dsn="postgresql://...")
@@ -125,7 +126,7 @@ Knowledge memory transcends individual conversations. It's where agents develop 
 Unlike working memory (single conversation) and session memory (conversation history), knowledge memory operates across **multiple conversations, users, and time periods**.
 
 ```python
-from taf.store import QdrantStore
+from agentflow.store import QdrantStore
 
 # Knowledge that persists across conversations
 store = QdrantStore(collection_name="user_preferences")

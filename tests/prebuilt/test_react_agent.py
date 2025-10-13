@@ -3,12 +3,12 @@
 import pytest
 from unittest.mock import Mock, patch
 
-from taf.checkpointer import InMemoryCheckpointer
-from taf.graph import ToolNode, CompiledGraph
-from taf.prebuilt.agent.react import ReactAgent, _should_use_tools
-from taf.state import AgentState, Message
-from taf.utils import END
-from taf.utils.callbacks import CallbackManager
+from agentflow.checkpointer import InMemoryCheckpointer
+from agentflow.graph import ToolNode, CompiledGraph
+from agentflow.prebuilt.agent.react import ReactAgent, _should_use_tools
+from agentflow.state import AgentState, Message
+from agentflow.utils import END
+from agentflow.utils.callbacks import CallbackManager
 
 
 class TestReactAgent:

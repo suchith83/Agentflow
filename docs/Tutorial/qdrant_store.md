@@ -20,7 +20,7 @@
 Install 10xScale Agentflow with Qdrant support:
 
 ```bash
-pip install 'taf[qdrant]'
+pip install 'agentflow[qdrant]'
 ```
 
 For OpenAI embeddings, also install:
@@ -35,8 +35,8 @@ pip install openai
 
 ```python
 import asyncio
-from taf.store import QdrantStore
-from taf.store.qdrant_store import OpenAIEmbeddingService
+from agentflow.store import QdrantStore
+from agentflow.store.qdrant_store import OpenAIEmbeddingService
 
 # Create embedding service
 embedding_service = OpenAIEmbeddingService(api_key="your-openai-key")
@@ -46,6 +46,7 @@ store = QdrantStore(
     embedding_service=embedding_service,
     path="./qdrant_data"  # Local file-based storage
 )
+
 
 async def main():
     # Initialize the store
@@ -75,13 +76,14 @@ async def main():
     # Clean up
     await store.arelease()
 
+
 asyncio.run(main())
 ```
 
 ### 2. Remote Qdrant Server
 
 ```python
-from taf.store.qdrant_store import create_remote_qdrant_store
+from agentflow.store.qdrant_store import create_remote_qdrant_store
 
 store = create_remote_qdrant_store(
     host="localhost",  # or your Qdrant server IP
@@ -93,7 +95,7 @@ store = create_remote_qdrant_store(
 ### 3. Qdrant Cloud
 
 ```python
-from taf.store.qdrant_store import create_cloud_qdrant_store
+from agentflow.store.qdrant_store import create_cloud_qdrant_store
 
 store = create_cloud_qdrant_store(
     url="https://your-cluster.qdrant.io",
@@ -107,7 +109,7 @@ store = create_cloud_qdrant_store(
 ### OpenAI Embeddings
 
 ```python
-from taf.store.qdrant_store import OpenAIEmbeddingService
+from agentflow.store.qdrant_store import OpenAIEmbeddingService
 
 # Small model (1536 dimensions, faster)
 embedding_service = OpenAIEmbeddingService(
@@ -127,7 +129,8 @@ embedding_service = OpenAIEmbeddingService(
 Implement the `EmbeddingService` protocol:
 
 ```python
-from taf.store.qdrant_store import EmbeddingService
+from agentflow.store.qdrant_store import EmbeddingService
+
 
 class MyCustomEmbeddingService:
     def __init__(self):
@@ -141,6 +144,7 @@ class MyCustomEmbeddingService:
     @property
     def dimension(self) -> int:
         return self._dimension
+
 
 # Use your custom service
 embedding_service = MyCustomEmbeddingService()
@@ -162,7 +166,8 @@ memory_id = await store.astore(
 )
 
 # Store Message objects
-from taf.utils import Message
+from agentflow.utils import Message
+
 message = Message.from_text("Hello world", role="user")
 memory_id = await store.astore(config=config, content=message)
 
@@ -263,16 +268,16 @@ config = {
 ## Memory Types and Categories
 
 ```python
-from taf.store.store_schema import MemoryType
+from agentflow.store.store_schema import MemoryType
 
 # Memory types
-MemoryType.EPISODIC      # Personal experiences, events
-MemoryType.SEMANTIC      # Facts and knowledge
-MemoryType.PROCEDURAL    # How-to knowledge, procedures
-MemoryType.ENTITY        # Entity-specific information
+MemoryType.EPISODIC  # Personal experiences, events
+MemoryType.SEMANTIC  # Facts and knowledge
+MemoryType.PROCEDURAL  # How-to knowledge, procedures
+MemoryType.ENTITY  # Entity-specific information
 MemoryType.RELATIONSHIP  # Entity relationships
-MemoryType.DECLARATIVE   # Explicit facts and events
-MemoryType.CUSTOM        # Custom memory types
+MemoryType.DECLARATIVE  # Explicit facts and events
+MemoryType.CUSTOM  # Custom memory types
 
 # Categories are free-form strings for organization
 categories = ["work", "personal", "learning", "tasks", "conversations"]
@@ -281,12 +286,12 @@ categories = ["work", "personal", "learning", "tasks", "conversations"]
 ## Distance Metrics
 
 ```python
-from taf.store.store_schema import DistanceMetric
+from agentflow.store.store_schema import DistanceMetric
 
-DistanceMetric.COSINE      # Cosine similarity (default)
-DistanceMetric.EUCLIDEAN   # Euclidean distance
-DistanceMetric.DOT_PRODUCT # Dot product
-DistanceMetric.MANHATTAN   # Manhattan distance
+DistanceMetric.COSINE  # Cosine similarity (default)
+DistanceMetric.EUCLIDEAN  # Euclidean distance
+DistanceMetric.DOT_PRODUCT  # Dot product
+DistanceMetric.MANHATTAN  # Manhattan distance
 ```
 
 ## Error Handling
@@ -346,5 +351,5 @@ Enable debug logging to troubleshoot issues:
 ```python
 import logging
 logging.basicConfig(level=logging.DEBUG)
-logger = logging.getLogger("taf.store.qdrant_store")
+logger = logging.getLogger("agentflow.store.qdrant_store")
 ```
