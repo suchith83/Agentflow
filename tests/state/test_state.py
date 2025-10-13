@@ -1,14 +1,14 @@
 """Tests for the state module."""
 
-from pyagenity.state import (
+from taf.state import (
     AgentState,
     BaseContextManager,
     ExecutionState,
     ExecutionStatus,
     MessageContextManager,
 )
-from pyagenity.utils import START
-from pyagenity.state.message import Message
+from taf.utils import START
+from taf.state.message import Message
 
 
 class TestAgentState:

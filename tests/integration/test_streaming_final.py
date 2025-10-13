@@ -1,14 +1,14 @@
-"""Comprehensive streaming integration tests for PyAgenity framework."""
+"""Comprehensive streaming integration tests for TAF framework."""
 
 import asyncio
 
 import pytest
 
-from pyagenity.checkpointer import InMemoryCheckpointer
-from pyagenity.graph import StateGraph
-from pyagenity.state import AgentState, Message
-from pyagenity.state.stream_chunks import StreamChunk
-from pyagenity.utils import END
+from taf.checkpointer import InMemoryCheckpointer
+from taf.graph import StateGraph
+from taf.state import AgentState, Message
+from taf.state.stream_chunks import StreamChunk
+from taf.utils import END
 
 
 class MockStreamingResponse:

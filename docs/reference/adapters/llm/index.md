@@ -1,1 +1,1 @@
-::: pyagenity.adapters.llm
+::: taf.adapters.llm

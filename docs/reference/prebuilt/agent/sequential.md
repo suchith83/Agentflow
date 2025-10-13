@@ -1,1 +1,1 @@
-::: pyagenity.prebuilt.agent.sequential
+::: taf.prebuilt.agent.sequential

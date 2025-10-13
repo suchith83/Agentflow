@@ -1,24 +1,24 @@
 #!/usr/bin/env python3
 """
-Simple test script to verify logging functionality in PyAgenity.
+Simple test script to verify logging functionality in TAF.
 """
 
 import logging
 import sys
 
 
-sys.path.insert(0, "/home/shudipto/projects/pyagenity")
+sys.path.insert(0, "/home/shudipto/projects/taf")
 
 # Import logging setup first
-from pyagenity.utils.logging import configure_logging
+from taf.utils.logging import configure_logging
 
 
 # Configure logging to DEBUG level to see all logs
 configure_logging(level=logging.DEBUG)
 
 # Test imports and basic functionality
-from pyagenity.graph import StateGraph
-from pyagenity.utils import Message
+from taf.graph import StateGraph
+from taf.utils import Message
 
 
 def simple_node(state, config):
@@ -29,7 +29,7 @@ def simple_node(state, config):
 def main():
     """Test basic graph creation and logging."""
     logger = logging.getLogger(__name__)
-    logger.info("Testing PyAgenity logging...")
+    logger.info("Testing TAF logging...")
 
     # Create a simple graph
     graph = StateGraph()

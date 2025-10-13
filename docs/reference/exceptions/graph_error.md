@@ -1,1 +1,1 @@
-::: pyagenity.exceptions.graph_error
+::: taf.exceptions.graph_error

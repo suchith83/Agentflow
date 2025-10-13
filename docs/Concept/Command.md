@@ -1,10 +1,10 @@
 # Commands: Combining State Updates with Control Flow
 
-Commands in PyAgenity represent a powerful pattern that allows your agent nodes to simultaneously update the agent state and direct the graph's execution flow. Inspired by LangGraph's Command API, this approach enables more dynamic and expressive agent behaviors where a single node can both modify data and make routing decisions.
+Commands in 10xScale Agentflow represent a powerful pattern that allows your agent nodes to simultaneously update the agent state and direct the graph's execution flow. Inspired by LangGraph's Command API, this approach enables more dynamic and expressive agent behaviors where a single node can both modify data and make routing decisions.
 
 ## The Command Pattern
 
-Traditional graph nodes in PyAgenity return either updated state or a simple value that gets passed to the next node. Commands break this limitation by allowing nodes to return a `Command` object that encapsulates both:
+Traditional graph nodes in 10xScale Agentflow return either updated state or a simple value that gets passed to the next node. Commands break this limitation by allowing nodes to return a `Command` object that encapsulates both:
 
 - **State updates**: Modifications to the agent state
 - **Control flow**: Instructions on where the graph should execute next
@@ -32,18 +32,18 @@ A `Command` object contains four key attributes:
 ### Simple State Update with Routing
 
 ```python
-from pyagenity.utils import Command, END
-from pyagenity.state import AgentState
+from taf.utils import Command, END
+from taf.state import AgentState
 
 def process_request(state: AgentState, config: dict) -> Command[AgentState]:
     """Process a user request and route to appropriate handler."""
-    
+
     # Analyze the request
     request_type = analyze_request(state.context[-1].text())
-    
+
     # Update state with analysis
     state.analysis = request_type
-    
+
     if request_type == "question":
         return Command(update=state, goto="answer_question")
     elif request_type == "task":
@@ -57,13 +57,13 @@ def process_request(state: AgentState, config: dict) -> Command[AgentState]:
 ```python
 async def intelligent_router(state: AgentState, config: dict) -> Command[AgentState]:
     """Route based on AI analysis of the current state."""
-    
+
     # Use AI to determine next action
     analysis = await analyze_state_with_ai(state)
-    
+
     # Update state with AI insights
     state.ai_insights = analysis
-    
+
     # Route based on confidence and requirements
     if analysis.confidence > 0.8:
         return Command(update=state, goto="high_confidence_path")
@@ -82,14 +82,14 @@ Commands enable sophisticated hierarchical agent coordination where supervisors 
 ```python
 def supervisor_node(state: SupervisorState, config: dict) -> Command[SupervisorState]:
     """Supervisor that delegates to specialized workers."""
-    
+
     # Determine which worker should handle this
     worker_type = determine_worker_type(state.current_task)
-    
+
     # Update supervisor state
     state.active_worker = worker_type
     state.delegation_time = datetime.utcnow()
-    
+
     # Delegate to appropriate sub-graph
     return Command(
         update=state,
@@ -99,11 +99,11 @@ def supervisor_node(state: SupervisorState, config: dict) -> Command[SupervisorS
 
 async def worker_completion_handler(state: WorkerState, config: dict) -> Command[WorkerState]:
     """Worker signals completion back to supervisor."""
-    
+
     # Mark task as completed
     state.task_completed = True
     state.completion_time = datetime.utcnow()
-    
+
     # Return control to supervisor
     return Command(
         update=state,
@@ -119,17 +119,17 @@ async def worker_completion_handler(state: WorkerState, config: dict) -> Command
 ```python
 async def resilient_processor(state: AgentState, config: dict) -> Command[AgentState]:
     """Process with automatic retry on failure."""
-    
+
     try:
         result = await process_with_external_service(state.data)
         state.result = result
         state.retry_count = 0
         return Command(update=state, goto="success_handler")
-        
+
     except TemporaryFailureError as e:
         state.retry_count = getattr(state, 'retry_count', 0) + 1
         state.last_error = str(e)
-        
+
         if state.retry_count < 3:
             # Retry with backoff
             await asyncio.sleep(2 ** state.retry_count)
@@ -144,10 +144,10 @@ async def resilient_processor(state: AgentState, config: dict) -> Command[AgentS
 ```python
 def adaptive_planner(state: PlanningState, config: dict) -> Command[PlanningState]:
     """Dynamically build execution plan based on requirements."""
-    
+
     # Analyze requirements
     requirements = analyze_requirements(state.user_request)
-    
+
     # Build dynamic plan
     plan = []
     if requirements.needs_research:
@@ -156,11 +156,11 @@ def adaptive_planner(state: PlanningState, config: dict) -> Command[PlanningStat
         plan.append("design_phase")
     if requirements.needs_implementation:
         plan.append("implementation_phase")
-    
+
     # Update state with plan
     state.execution_plan = plan
     state.current_phase = plan[0] if plan else None
-    
+
     # Route to first phase or end if no work needed
     next_node = plan[0] if plan else END
     return Command(update=state, goto=next_node)
@@ -168,7 +168,7 @@ def adaptive_planner(state: PlanningState, config: dict) -> Command[PlanningStat
 
 ## Integration with State Graphs
 
-Commands integrate seamlessly with PyAgenity's state graph system. When a node returns a `Command`, the graph execution engine:
+Commands integrate seamlessly with 10xScale Agentflow's state graph system. When a node returns a `Command`, the graph execution engine:
 
 1. **Applies the state update** if `update` is provided
 2. **Updates the execution pointer** based on `goto`
@@ -178,8 +178,8 @@ Commands integrate seamlessly with PyAgenity's state graph system. When a node r
 ### Graph Configuration
 
 ```python
-from pyagenity.graph import StateGraph
-from pyagenity.utils import END
+from taf.graph import StateGraph
+from taf.utils import END
 
 # Create graph with Command-supporting nodes
 graph = StateGraph[AgentState]()
@@ -236,4 +236,4 @@ app = graph.compile()
 | Limited to current graph | Cross-graph navigation support |
 | Simple conditional logic | Complex multi-factor routing |
 
-Commands represent a significant enhancement to PyAgenity's expressiveness, enabling agents that can adapt their behavior dynamically while maintaining clean, maintainable code architecture.
+Commands represent a significant enhancement to 10xScale Agentflow's expressiveness, enabling agents that can adapt their behavior dynamically while maintaining clean, maintainable code architecture.

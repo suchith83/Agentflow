@@ -1,1 +1,1 @@
-::: pyagenity.graph.utils.stream_handler
+::: taf.graph.utils.stream_handler

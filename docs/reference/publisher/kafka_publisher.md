@@ -1,1 +1,1 @@
-::: pyagenity.publisher.kafka_publisher
+::: taf.publisher.kafka_publisher

@@ -3,7 +3,7 @@
 These tests emulate a supervisor-led team where synchronous nodes call into
 async helpers and vice versa. The goal is to pressure the execution pipeline
 with nested graph invocations, mixed sync/async behavior, and recursion
-pressure while verifying that PyAgenity handles the orchestration cleanly.
+pressure while verifying that TAF handles the orchestration cleanly.
 """
 
 from __future__ import annotations
@@ -14,9 +14,9 @@ from typing import Any
 import pytest
 from pydantic import Field
 
-from pyagenity.graph import CompiledGraph, StateGraph
-from pyagenity.state import AgentState, Message
-from pyagenity.utils import Command, END, ResponseGranularity, add_messages
+from taf.graph import CompiledGraph, StateGraph
+from taf.state import AgentState, Message
+from taf.utils import Command, END, ResponseGranularity, add_messages
 
 
 class HierarchyState(AgentState):

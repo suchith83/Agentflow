@@ -1,14 +1,14 @@
 # Store: The Agent's Knowledge Memory
 
-The Store system in PyAgenity represents the highest level of your agent's memory architecture—the **knowledge memory** that accumulates wisdom, learns patterns, and provides contextual intelligence across conversation boundaries. While working memory handles immediate thinking and session memory preserves interaction history, the Store enables agents to develop **persistent understanding** and **evolving intelligence**.
+The Store system in 10xScale Agentflow represents the highest level of your agent's memory architecture—the **knowledge memory** that accumulates wisdom, learns patterns, and provides contextual intelligence across conversation boundaries. While working memory handles immediate thinking and session memory preserves interaction history, the Store enables agents to develop **persistent understanding** and **evolving intelligence**.
 
 ## The Knowledge Memory Paradigm
 
 Think of the Store as your agent's **accumulated wisdom**—the repository where insights, user preferences, learned patterns, and contextual knowledge persist beyond individual conversations. This is where agents transition from being reactive responders to proactive, intelligent assistants that improve over time.
 
 ```python
-from pyagenity.store import QdrantStore
-from pyagenity.store.store_schema import MemoryType, RetrievalStrategy
+from taf.store import QdrantStore
+from taf.store.store_schema import MemoryType, RetrievalStrategy
 
 # Knowledge that transcends individual conversations
 store = QdrantStore(collection_name="agent_knowledge")
@@ -27,7 +27,7 @@ await store.astore(
 What distinguishes knowledge memory is its **cross-temporal and cross-conversational** nature:
 
 - **Temporal Persistence**: Knowledge outlives individual sessions
-- **Pattern Recognition**: Learning from interaction patterns over time  
+- **Pattern Recognition**: Learning from interaction patterns over time
 - **Contextual Intelligence**: Enriching responses with relevant background knowledge
 - **Personalization**: Building user-specific understanding and preferences
 
@@ -35,7 +35,7 @@ The Store doesn't just save data—it creates **intelligent retrieval** mechanis
 
 ## Memory Types: Organizing Knowledge by Purpose
 
-PyAgenity's Store system organizes knowledge using a sophisticated **memory type taxonomy** that mirrors cognitive science research:
+10xScale Agentflow's Store system organizes knowledge using a sophisticated **memory type taxonomy** that mirrors cognitive science research:
 
 ### **Episodic Memory**: Experience-Based Knowledge
 
@@ -117,7 +117,7 @@ await store.astore(
 
 ## Retrieval Strategies: Finding the Right Knowledge
 
-The power of knowledge memory lies not just in storage but in **intelligent retrieval**—finding the most relevant information at precisely the right moment. PyAgenity provides multiple retrieval strategies:
+The power of knowledge memory lies not just in storage but in **intelligent retrieval**—finding the most relevant information at precisely the right moment. 10xScale Agentflow provides multiple retrieval strategies:
 
 ### **Similarity Search**: Semantic Relevance
 
@@ -142,7 +142,7 @@ relevant_memories = await store.asearch(
 ```python
 # Retrieve recent or time-relevant memories
 recent_insights = await store.asearch(
-    config={"domain": "product_feedback"}, 
+    config={"domain": "product_feedback"},
     query="feature request patterns",
     retrieval_strategy=RetrievalStrategy.TEMPORAL,
     limit=10
@@ -159,7 +159,7 @@ recent_insights = await store.asearch(
 # Combine multiple retrieval approaches
 best_knowledge = await store.asearch(
     config={"user_id": "alice"},
-    query="technical documentation preferences", 
+    query="technical documentation preferences",
     retrieval_strategy=RetrievalStrategy.HYBRID,
     score_threshold=0.7,
     distance_metric=DistanceMetric.COSINE
@@ -185,10 +185,10 @@ async def knowledge_enhanced_agent(
     store: BaseStore = Inject[BaseStore]
 ) -> AgentState:
     """Agent that leverages knowledge for enhanced responses."""
-    
+
     # Extract key concepts from current context
     current_query = state.context[-1].text() if state.context else ""
-    
+
     # Retrieve relevant knowledge
     relevant_memories = await store.asearch(
         config=config,
@@ -197,22 +197,22 @@ async def knowledge_enhanced_agent(
         limit=3,
         score_threshold=0.6
     )
-    
+
     # Enrich system prompts with relevant knowledge
     knowledge_context = "\n".join([
-        f"Relevant insight: {memory.content}" 
+        f"Relevant insight: {memory.content}"
         for memory in relevant_memories
     ])
-    
+
     # Agent now has access to accumulated knowledge
     enhanced_prompt = f"""
     You are an intelligent assistant with access to relevant background knowledge:
-    
+
     {knowledge_context}
-    
+
     Use this knowledge to provide more informed, personalized responses.
     """
-    
+
     # Continue with enhanced context...
     return state
 ```
@@ -221,21 +221,21 @@ async def knowledge_enhanced_agent(
 
 ```python
 async def learning_agent(
-    state: AgentState, 
+    state: AgentState,
     config: dict,
     store: BaseStore = Inject[BaseStore]
 ) -> AgentState:
     """Agent that learns from interactions."""
-    
+
     # Generate response first
     response = await generate_response(state, config)
     state.context.append(response)
-    
+
     # Extract learnings from the interaction
     if should_extract_knowledge(state):
         # Analyze interaction for insights
         insights = await extract_insights(state.context[-10:])  # Last 10 messages
-        
+
         # Store new knowledge
         for insight in insights:
             await store.astore(
@@ -245,7 +245,7 @@ async def learning_agent(
                 category=insight.category,
                 metadata=insight.metadata
             )
-    
+
     return state
 ```
 
@@ -303,7 +303,7 @@ await store.astore(
 
 ## Conclusion: Building Learning Agents
 
-The Store system in PyAgenity transforms agents from reactive responders into **proactive, learning intelligences** that grow wiser with each interaction. By providing:
+The Store system in 10xScale Agentflow transforms agents from reactive responders into **proactive, learning intelligences** that grow wiser with each interaction. By providing:
 
 - **Sophisticated memory organization** through memory types and categories
 - **Intelligent retrieval strategies** for contextually relevant knowledge access

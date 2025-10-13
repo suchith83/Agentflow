@@ -1,6 +1,6 @@
 # Human-in-the-Loop (HITL) & Interrupts
 
-PyAgenity provides robust human-in-the-loop capabilities through its interrupt and stop mechanisms. These features enable agents to pause execution for human approval, debugging, external intervention, and dynamic control flow management.
+10xScale Agentflow provides robust human-in-the-loop capabilities through its interrupt and stop mechanisms. These features enable agents to pause execution for human approval, debugging, external intervention, and dynamic control flow management.
 
 ---
 
@@ -14,7 +14,7 @@ Human-in-the-loop patterns are essential for:
 - **Safety gates** – Require human confirmation for high-risk actions
 - **Progressive automation** – Start manual, gradually automate as confidence grows
 
-PyAgenity supports HITL through two complementary mechanisms:
+10xScale Agentflow supports HITL through two complementary mechanisms:
 
 | Mechanism | When Defined | Trigger | Use Case |
 |-----------|--------------|---------|----------|
@@ -30,8 +30,8 @@ PyAgenity supports HITL through two complementary mechanisms:
 Define pause points when compiling your graph:
 
 ```python
-from pyagenity.graph import StateGraph
-from pyagenity.checkpointer import InMemoryCheckpointer
+from taf.graph import StateGraph
+from taf.checkpointer import InMemoryCheckpointer
 
 # Build your graph
 graph = StateGraph()
@@ -84,7 +84,7 @@ print(f"Stop status: {status}")
 `AgentState.execution_meta` tracks interrupt status:
 
 ```python
-from pyagenity.state import ExecutionStatus
+from taf.state import ExecutionStatus
 
 # Check if execution is interrupted
 if state.execution_meta.is_interrupted():
@@ -95,7 +95,7 @@ if state.execution_meta.is_interrupted():
 
 **Interrupt Statuses:**
 - `ExecutionStatus.INTERRUPTED_BEFORE` – Paused before node execution
-- `ExecutionStatus.INTERRUPTED_AFTER` – Paused after node completion  
+- `ExecutionStatus.INTERRUPTED_AFTER` – Paused after node completion
 - `ExecutionStatus.RUNNING` – Normal execution
 - `ExecutionStatus.COMPLETED` – Successfully finished
 - `ExecutionStatus.ERROR` – Failed with exception
@@ -105,14 +105,14 @@ if state.execution_meta.is_interrupted():
 You can also set interrupts programmatically from within nodes:
 
 ```python
-from pyagenity.state import ExecutionStatus
+from taf.state import ExecutionStatus
 
 async def approval_node(state: AgentState, config: dict) -> AgentState:
     # Check some condition
     if requires_human_approval(state):
         state.set_interrupt(
             node="approval_node",
-            reason="Requires human approval for high-value transaction", 
+            reason="Requires human approval for high-value transaction",
             status=ExecutionStatus.INTERRUPTED_BEFORE,
             data={"transaction_amount": 10000, "requires_approval": True}
         )
@@ -135,10 +135,10 @@ result = app.invoke(
 # Check if interrupted
 if result.get("interrupted"):
     print(f"Execution paused: {result['interrupt_reason']}")
-    
+
     # Human reviews and approves...
     human_decision = input("Approve transaction? (y/n): ")
-    
+
     if human_decision.lower() == 'y':
         # Resume with approval
         result = app.invoke(
@@ -163,7 +163,7 @@ resumed_result = app.invoke({
 
 The checkpointer automatically:
 1. Detects existing interrupted state for the thread
-2. Merges new input data with saved state 
+2. Merges new input data with saved state
 3. Continues from the interruption point
 4. Clears interrupt flags to resume normal execution
 
@@ -176,22 +176,22 @@ The checkpointer automatically:
 ```python
 def build_approval_agent():
     graph = StateGraph()
-    
+
     # Analysis node
     graph.add_node("ANALYZE_REQUEST", analyze_user_request)
-    
+
     # Decision point - will pause here for approval
-    graph.add_node("EXECUTE_ACTION", execute_user_action) 
-    
+    graph.add_node("EXECUTE_ACTION", execute_user_action)
+
     # Cleanup
     graph.add_node("FINALIZE", finalize_action)
-    
+
     # Routing
     graph.add_edge(START, "ANALYZE_REQUEST")
     graph.add_edge("ANALYZE_REQUEST", "EXECUTE_ACTION")
     graph.add_edge("EXECUTE_ACTION", "FINALIZE")
     graph.add_edge("FINALIZE", END)
-    
+
     return graph.compile(
         checkpointer=InMemoryCheckpointer(),
         interrupt_before=["EXECUTE_ACTION"]  # Require approval before executing
@@ -199,16 +199,16 @@ def build_approval_agent():
 
 async def approval_workflow():
     app = build_approval_agent()
-    
+
     # Step 1: Initial request
     result = app.invoke({
         "messages": [Message.text_message("Delete all production data")]
     }, config={"thread_id": "dangerous-operation"})
-    
+
     # Step 2: Human review (execution paused at EXECUTE_ACTION)
     print(f"Request analysis: {result['messages'][-1].content}")
     approval = input("This is dangerous. Approve? (yes/no): ")
-    
+
     # Step 3: Resume with decision
     if approval == "yes":
         final_result = app.invoke({
@@ -228,7 +228,7 @@ def build_debug_agent():
     graph.add_node("PREPROCESS", preprocess_data)
     graph.add_node("MODEL_INFERENCE", run_ml_model)
     graph.add_node("POSTPROCESS", postprocess_results)
-    
+
     return graph.compile(
         interrupt_after=["PREPROCESS", "MODEL_INFERENCE"]  # Inspect after each major step
     )
@@ -236,18 +236,18 @@ def build_debug_agent():
 def debug_session():
     app = build_debug_agent()
     config = {"thread_id": "debug-session"}
-    
+
     # Run until first interrupt
     result = app.invoke({"input_data": raw_data}, config=config)
-    
+
     while result.get("interrupted"):
         # Inspect current state
         print(f"Paused after: {result['current_node']}")
         print(f"Current state: {result['state']}")
-        
+
         # Interactive debugging
         import pdb; pdb.set_trace()  # Or any debugging tool
-        
+
         # Continue execution
         result = app.invoke({}, config=config)  # Empty input to just resume
 ```
@@ -266,7 +266,7 @@ agent_app = build_streaming_agent()
 def start_agent():
     thread_id = request.json['thread_id']
     messages = request.json['messages']
-    
+
     # Start agent in background task
     def run_agent():
         for chunk in agent_app.stream({
@@ -274,14 +274,14 @@ def start_agent():
         }, config={"thread_id": thread_id}):
             # Stream to frontend via WebSocket/SSE
             send_to_frontend(chunk)
-    
+
     threading.Thread(target=run_agent, daemon=True).start()
     return jsonify({"status": "started", "thread_id": thread_id})
 
 @app_flask.route('/agent/stop', methods=['POST'])
 def stop_agent():
     thread_id = request.json['thread_id']
-    
+
     # Request stop
     status = agent_app.stop({"thread_id": thread_id})
     return jsonify({"status": "stopped", "details": status})
@@ -292,11 +292,11 @@ def stop_agent():
 ```python
 async def smart_escalation_node(state: AgentState, config: dict) -> AgentState:
     """Automatically escalate complex cases to humans."""
-    
+
     # Check complexity/confidence metrics
     confidence = calculate_confidence(state.context)
     complexity = assess_complexity(state.context)
-    
+
     if confidence < 0.7 or complexity > 0.8:
         # Escalate to human
         state.set_interrupt(
@@ -309,7 +309,7 @@ async def smart_escalation_node(state: AgentState, config: dict) -> AgentState:
                 "escalation_reason": "Requires human expertise"
             }
         )
-    
+
     return state
 ```
 
@@ -320,8 +320,8 @@ async def smart_escalation_node(state: AgentState, config: dict) -> AgentState:
 ### Monitoring Interrupt Events
 
 ```python
-from pyagenity.publisher import ConsolePublisher
-from pyagenity.publisher.events import EventType
+from taf.publisher import ConsolePublisher
+from taf.publisher.events import EventType
 
 class InterruptMonitor(ConsolePublisher):
     def publish(self, event):
@@ -329,7 +329,7 @@ class InterruptMonitor(ConsolePublisher):
             print(f"🛑 Execution paused at {event.node_name}")
             print(f"   Reason: {event.metadata.get('status', 'Unknown')}")
             print(f"   Interrupt type: {event.data.get('interrupted', 'Unknown')}")
-        
+
         super().publish(event)
 
 # Use custom publisher
@@ -349,18 +349,18 @@ app = graph.compile(
 async def streaming_with_interrupts():
     app = build_approval_agent()
     config = {"thread_id": "stream-interrupt-demo"}
-    
+
     # Start streaming
     async for chunk in app.astream({
         "messages": [Message.text_message("Process sensitive request")]
     }, config=config):
-        
+
         if chunk.event_type == "interrupted":
             print(f"⏸️  Execution paused: {chunk.content}")
-            
+
             # Get human input
             approval = input("Approve? (y/n): ")
-            
+
             if approval.lower() == 'y':
                 # Resume streaming
                 async for resume_chunk in app.astream({
@@ -403,11 +403,11 @@ async def streaming_with_interrupts():
 async def robust_interrupt_handling():
     try:
         result = app.invoke(input_data, config=config)
-        
+
         if result.get("interrupted"):
             # Handle interrupt gracefully
             return handle_interrupt(result)
-            
+
     except Exception as e:
         # Clean up any interrupt state on errors
         if hasattr(e, 'thread_id'):
@@ -423,20 +423,20 @@ import pytest
 def test_interrupt_approval_workflow():
     app = build_approval_agent()
     config = {"thread_id": "test-interrupt"}
-    
+
     # First execution should interrupt
     result = app.invoke({
         "messages": [Message.text_message("Execute sensitive action")]
     }, config=config)
-    
+
     assert result["interrupted"] == True
     assert "EXECUTE_ACTION" in result["interrupt_reason"]
-    
+
     # Resume with approval
     final_result = app.invoke({
         "messages": [Message.text_message("APPROVED")]
     }, config=config)
-    
+
     assert final_result["interrupted"] == False
     assert len(final_result["messages"]) > 0
 ```

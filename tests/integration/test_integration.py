@@ -1,11 +1,11 @@
-"""Integration tests for PyAgenity framework."""
+"""Integration tests for TAF framework."""
 
-from pyagenity.graph import CompiledGraph, StateGraph, ToolNode
-from pyagenity.publisher import ConsolePublisher
-from pyagenity.publisher.events import Event, EventModel, EventType
-from pyagenity.state import AgentState, Message
-from pyagenity.utils import END
-from pyagenity.state.message import ToolResultBlock
+from taf.graph import CompiledGraph, StateGraph, ToolNode
+from taf.publisher import ConsolePublisher
+from taf.publisher.events import Event, EventModel, EventType
+from taf.state import AgentState, Message
+from taf.utils import END
+from taf.state.message import ToolResultBlock
 
 
 def dummy_ai_agent(state: AgentState) -> dict:
@@ -158,7 +158,7 @@ class TestBasicIntegration:
 
     def test_callback_system_usage(self):
         """Test callback system usage."""
-        from pyagenity.utils import CallbackContext, CallbackManager, InvocationType
+        from taf.utils import CallbackContext, CallbackManager, InvocationType
 
         manager = CallbackManager()
 
@@ -172,7 +172,7 @@ class TestBasicIntegration:
 
     def test_error_handling_integration(self):
         """Test error handling with custom exceptions."""
-        from pyagenity.exceptions import GraphError, NodeError
+        from taf.exceptions import GraphError, NodeError
 
         # Test exception creation and inheritance
         graph_error = GraphError("Graph failed")
@@ -191,9 +191,9 @@ class TestBasicIntegration:
 def test_framework_import_coverage():
     """Test importing various framework components for coverage."""
     # Import and instantiate various components
-    from pyagenity.graph import Edge
-    from pyagenity.state import ExecutionState, MessageContextManager
-    from pyagenity.utils import Command, add_messages
+    from taf.graph import Edge
+    from taf.state import ExecutionState, MessageContextManager
+    from taf.utils import Command, add_messages
 
     # Test Edge creation
     edge = Edge(from_node="a", to_node="b")

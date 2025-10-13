@@ -5,12 +5,12 @@ import time
 from dotenv import load_dotenv
 from litellm import acompletion  # type: ignore
 
-from pyagenity.adapters.llm.model_response_converter import ModelResponseConverter
-from pyagenity.checkpointer import InMemoryCheckpointer
-from pyagenity.graph import StateGraph, ToolNode
-from pyagenity.state import AgentState, Message
-from pyagenity.utils.constants import END
-from pyagenity.utils.converter import convert_messages
+from taf.adapters.llm.model_response_converter import ModelResponseConverter
+from taf.checkpointer import InMemoryCheckpointer
+from taf.graph import StateGraph, ToolNode
+from taf.state import AgentState, Message
+from taf.utils.constants import END
+from taf.utils.converter import convert_messages
 
 
 logging.basicConfig(level=logging.INFO)

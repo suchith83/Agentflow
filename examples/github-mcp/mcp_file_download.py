@@ -6,12 +6,12 @@ from dotenv import load_dotenv
 from fastmcp import Client
 from litellm import acompletion
 
-from pyagenity.adapters.llm.model_response_converter import ModelResponseConverter
-from pyagenity.checkpointer import InMemoryCheckpointer
-from pyagenity.graph import StateGraph, ToolNode
-from pyagenity.state import AgentState, Message
-from pyagenity.utils.constants import END
-from pyagenity.utils.converter import convert_messages
+from taf.adapters.llm.model_response_converter import ModelResponseConverter
+from taf.checkpointer import InMemoryCheckpointer
+from taf.graph import StateGraph, ToolNode
+from taf.state import AgentState, Message
+from taf.utils.constants import END
+from taf.utils.converter import convert_messages
 
 
 # Root logger: show INFO and above
@@ -19,8 +19,8 @@ logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 
-# Set pyagenity logger to DEBUG explicitly
-logging.getLogger("pyagenity").setLevel(logging.DEBUG)
+# Set taf logger to DEBUG explicitly
+logging.getLogger("taf").setLevel(logging.DEBUG)
 
 logger = logging.getLogger(__name__)
 

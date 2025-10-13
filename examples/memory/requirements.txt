@@ -1,9 +1,9 @@
 # Requirements for Personalized Agent Examples
-# 
-# Core dependencies for PyAgenity + Mem0 + Cloud Qdrant integration
+#
+# Core dependencies for 10xScale Agentflow + Mem0 + Cloud Qdrant integration
 
-# PyAgenity framework (your main framework)
-# pyagenity>=0.3.0
+# 10xScale Agentflow framework (Main framework)
+# taf>=0.3.0
 
 # Memory management with Mem0
 mem0ai>=0.1.30

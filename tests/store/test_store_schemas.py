@@ -10,14 +10,14 @@ from unittest.mock import Mock
 from uuid import UUID
 import pytest
 
-from pyagenity.store.store_schema import (
+from taf.store.store_schema import (
     DistanceMetric,
     MemoryType,
     RetrievalStrategy,
     MemoryRecord,
     MemorySearchResult,
 )
-from pyagenity.state import Message, TextBlock
+from taf.state import Message, TextBlock
 
 
 class TestEnums:

@@ -38,10 +38,10 @@ Override by passing `condition=` to `compile` for custom depth, budgets, or stra
 ## 📦 Minimal Usage
 
 ```python
-from pyagenity.prebuilt.agent.plan_act_reflect import PlanActReflectAgent
-from pyagenity.graph.tool_node import ToolNode
-from pyagenity.state.agent_state import AgentState
-from pyagenity.utils import Message
+from taf.prebuilt.agent.plan_act_reflect import PlanActReflectAgent
+from taf.graph.tool_node import ToolNode
+from taf.state.agent_state import AgentState
+from taf.utils import Message
 
 def fetch(query: str) -> str:
     return f"Result for: {query}"
@@ -88,7 +88,7 @@ Use when you need:
 - Alternate branch targets (e.g., evaluator node)
 
 ```python
-from pyagenity.utils.constants import END
+from taf.utils.constants import END
 
 def condition(state: AgentState) -> str:
     last = state.context[-1] if state.context else None
@@ -155,7 +155,7 @@ Insert checks in:
 Provide `checkpointer=` in `compile` to persist intermediate states or resume after interruption:
 
 ```python
-from pyagenity.checkpointer import InMemoryCheckpointer
+from taf.checkpointer import InMemoryCheckpointer
 app = agent.compile(
     plan_node=plan,
     tool_node=tools,

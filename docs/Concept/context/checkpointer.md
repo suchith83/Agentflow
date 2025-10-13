@@ -1,6 +1,6 @@
 # Checkpointer: The Agent's Session Memory
 
-The checkpointer in PyAgenity serves as your agent's **session memory**—a sophisticated persistence layer that maintains the complete record of interactions, state transitions, and execution history. Unlike working memory (AgentState), which focuses on immediate context, checkpointers preserve the **full conversational narrative** for different purposes entirely.
+The checkpointer in 10xScale Agentflow serves as your agent's **session memory**—a sophisticated persistence layer that maintains the complete record of interactions, state transitions, and execution history. Unlike working memory (AgentState), which focuses on immediate context, checkpointers preserve the **full conversational narrative** for different purposes entirely.
 
 ## The Session Memory Philosophy
 
@@ -8,14 +8,14 @@ Think of checkpointers as the difference between what you're thinking about righ
 
 - **Conversation Continuity**: Resume interactions exactly where they left off
 - **User Experience**: Provide conversation history in interfaces
-- **Debugging & Analytics**: Track agent behavior and decision paths  
+- **Debugging & Analytics**: Track agent behavior and decision paths
 - **Audit & Compliance**: Maintain comprehensive interaction records
 
 The key insight is that **session memory is not for the agent's immediate thinking**—it's for persistence, recovery, and human-oriented use cases.
 
 ## The Dual-Storage Architecture
 
-PyAgenity implements a sophisticated **dual-storage strategy** that balances speed with durability:
+10xScale Agentflow implements a sophisticated **dual-storage strategy** that balances speed with durability:
 
 ```
 ┌─────────────────┐    Fast Access    ┌─────────────────┐
@@ -36,12 +36,12 @@ PyAgenity implements a sophisticated **dual-storage strategy** that balances spe
 The architecture reflects different **temporal access patterns**:
 
 - **Active conversations** need millisecond response times (Redis cache)
-- **Historical data** can tolerate moderate latency (PostgreSQL storage)  
+- **Historical data** can tolerate moderate latency (PostgreSQL storage)
 - **Data integrity** requires durable persistence (PostgreSQL with transactions)
 - **System recovery** demands reliable state reconstruction
 
 ```python
-from pyagenity.checkpointer import PgCheckpointer
+from taf.checkpointer import PgCheckpointer
 
 checkpointer = PgCheckpointer(
     postgres_dsn="postgresql://user:pass@localhost/db",
@@ -60,7 +60,7 @@ Checkpointers operate at different **levels of granularity**, each serving speci
 # Save the complete agent state
 await checkpointer.aput_state(config, state)
 
-# Retrieve agent state for conversation resumption  
+# Retrieve agent state for conversation resumption
 recovered_state = await checkpointer.aget_state(config)
 ```
 
@@ -71,7 +71,7 @@ State persistence captures the agent's **complete mental state** at a given mome
 ```python
 # Persist individual messages with metadata
 await checkpointer.aput_messages(
-    config, 
+    config,
     messages=[tool_call_message, tool_result_message],
     metadata={"execution_step": 3, "node": "tool_executor"}
 )
@@ -93,7 +93,7 @@ Message persistence maintains the **detailed interaction history**—every user 
 thread_info = ThreadInfo(
     thread_id="conv_123",
     user_id="alice",
-    thread_name="Weather Inquiry", 
+    thread_name="Weather Inquiry",
     metadata={
         "tags": ["weather", "location_services"],
         "created_at": "2024-10-01T12:00:00Z"
@@ -108,7 +108,7 @@ Thread persistence captures **conversation-level metadata**—titles, tags, part
 
 ## The Caching Strategy: Speed Meets Durability
 
-The brilliance of PyAgenity's checkpointer design lies in its **intelligent caching strategy** that optimizes for both performance and reliability.
+The brilliance of 10xScale Agentflow's checkpointer design lies in its **intelligent caching strategy** that optimizes for both performance and reliability.
 
 ### Hot Path: Active Conversation Flow
 
@@ -153,19 +153,19 @@ checkpointer = PgCheckpointer(
 
 ## Checkpointer Implementations: Choosing the Right Strategy
 
-PyAgenity provides different checkpointer implementations optimized for different deployment scenarios:
+10xScale Agentflow provides different checkpointer implementations optimized for different deployment scenarios:
 
 ### InMemoryCheckpointer: Development and Testing
 
 ```python
-from pyagenity.checkpointer import InMemoryCheckpointer
+from taf.checkpointer import InMemoryCheckpointer
 
 # Perfect for development, testing, and demos
 checkpointer = InMemoryCheckpointer()
 
 # Benefits:
 # - Zero setup complexity
-# - Immediate availability  
+# - Immediate availability
 # - Perfect for unit tests
 # - No external dependencies
 
@@ -180,13 +180,13 @@ checkpointer = InMemoryCheckpointer()
 ### PgCheckpointer: Production-Ready Persistence
 
 ```python
-from pyagenity.checkpointer import PgCheckpointer
+from taf.checkpointer import PgCheckpointer
 
 # Production-grade persistence with caching
 checkpointer = PgCheckpointer(
     postgres_dsn="postgresql://user:pass@host:5432/db",
     redis_url="redis://cache-host:6379",
-    user_id_type="string",  # or "int", "bigint" 
+    user_id_type="string",  # or "int", "bigint"
     cache_ttl=3600,
     release_resources=True  # Clean shutdown
 )
@@ -215,7 +215,7 @@ checkpointer = PgCheckpointer(
     redis_url="redis://agent-cache:6379/1"
 )
 
-# Pattern 2: Shared Database with Custom Schema  
+# Pattern 2: Shared Database with Custom Schema
 checkpointer = PgCheckpointer(
     postgres_dsn="postgresql://app:pass@main-db:5432/app_db",
     schema="agent"  # Tables: agent_states, agent_messages, etc.
@@ -231,7 +231,7 @@ checkpointer = PgCheckpointer(pg_pool=existing_pool)
 ```python
 # Match your application's ID patterns
 string_ids = PgCheckpointer(user_id_type="string")  # UUIDs, usernames
-int_ids = PgCheckpointer(user_id_type="int")       # Auto-increment IDs  
+int_ids = PgCheckpointer(user_id_type="int")       # Auto-increment IDs
 bigint_ids = PgCheckpointer(user_id_type="bigint") # Large-scale systems
 
 # Configuration automatically handles schema generation
@@ -240,13 +240,13 @@ await checkpointer.asetup()  # Creates appropriate column types
 
 ## Dependency Injection and Framework Integration
 
-One of PyAgenity's most elegant features is **automatic checkpointer injection**, making persistence seamless for node functions:
+One of 10xScale Agentflow's most elegant features is **automatic checkpointer injection**, making persistence seamless for node functions:
 
 ### Automatic Injection in Node Functions
 
 ```python
 from injectq import Inject
-from pyagenity.checkpointer import BaseCheckpointer
+from taf.checkpointer import BaseCheckpointer
 
 def audit_node(
     state: AgentState,
@@ -254,18 +254,18 @@ def audit_node(
     checkpointer: BaseCheckpointer = Inject[BaseCheckpointer]
 ) -> AgentState:
     """Node function with automatic checkpointer injection."""
-    
+
     # Access checkpointer without manual wiring
     audit_message = Message.text_message(
         f"Decision made at step {state.execution_meta.step}",
         role="system"
     )
-    
+
     # Log decision to persistent storage
     asyncio.create_task(
         checkpointer.aput_messages(config, [audit_message])
     )
-    
+
     return state
 ```
 
@@ -277,19 +277,19 @@ async def debug_conversation(
     checkpointer: BaseCheckpointer = Inject[BaseCheckpointer]
 ):
     """Analyze conversation patterns for debugging."""
-    
+
     config = {"thread_id": thread_id}
-    
+
     # Get complete interaction history
     messages = await checkpointer.alist_messages(config, limit=1000)
-    
+
     # Analyze patterns
     tool_calls = [msg for msg in messages if msg.tools_calls]
     errors = [msg for msg in messages if "error" in msg.text().lower()]
-    
+
     print(f"Conversation analysis for {thread_id}:")
     print(f"- Total messages: {len(messages)}")
-    print(f"- Tool calls: {len(tool_calls)}")  
+    print(f"- Tool calls: {len(tool_calls)}")
     print(f"- Potential errors: {len(errors)}")
 ```
 
@@ -314,17 +314,17 @@ await checkpointer.aput_state(branch_config, current_state)
 ```python
 async def analyze_user_patterns(user_id: str):
     """Analyze patterns across all user conversations."""
-    
+
     # Query across multiple threads for a user
     user_threads = await checkpointer.alist_threads(
         {"user_id": user_id},
         limit=100
     )
-    
+
     # Aggregate interaction patterns
     total_messages = 0
     common_topics = {}
-    
+
     for thread_info in user_threads:
         thread_config = {
             "thread_id": thread_info.thread_id,
@@ -332,13 +332,13 @@ async def analyze_user_patterns(user_id: str):
         }
         messages = await checkpointer.alist_messages(thread_config)
         total_messages += len(messages)
-        
+
         # Extract and count topics
         for msg in messages:
             topics = extract_topics(msg.text())
             for topic in topics:
                 common_topics[topic] = common_topics.get(topic, 0) + 1
-    
+
     return {
         "total_conversations": len(user_threads),
         "total_messages": total_messages,
@@ -351,12 +351,12 @@ async def analyze_user_patterns(user_id: str):
 ```python
 async def resume_conversation(thread_id: str, user_id: str):
     """Resume a previous conversation seamlessly."""
-    
+
     config = {"thread_id": thread_id, "user_id": user_id}
-    
+
     # Retrieve previous state
     previous_state = await checkpointer.aget_state(config)
-    
+
     if previous_state:
         # Continue from where we left off
         print(f"Resuming conversation with {len(previous_state.context)} messages")
@@ -374,13 +374,13 @@ async def resume_conversation(thread_id: str, user_id: str):
 # Warm cache for expected active users
 async def warm_cache_for_users(user_ids: List[str]):
     """Preload likely-to-be-accessed conversations into cache."""
-    
+
     for user_id in user_ids:
         recent_threads = await checkpointer.alist_threads(
-            {"user_id": user_id}, 
+            {"user_id": user_id},
             limit=3  # Most recent conversations
         )
-        
+
         # Load recent conversations into cache
         for thread_info in recent_threads:
             config = {"thread_id": thread_info.thread_id, "user_id": user_id}
@@ -393,10 +393,10 @@ async def warm_cache_for_users(user_ids: List[str]):
 # Batch message insertion for better performance
 async def log_conversation_batch(config: dict, messages: List[Message]):
     """Efficiently persist multiple messages."""
-    
+
     # Single database transaction for multiple messages
     await checkpointer.aput_messages(config, messages)
-    
+
     # More efficient than individual puts:
     # for msg in messages:
     #     await checkpointer.aput_messages(config, [msg])  # Avoid this
@@ -409,16 +409,16 @@ async def log_conversation_batch(config: dict, messages: List[Message]):
 ```python
 async def resilient_state_retrieval(config: dict):
     """Retrieve state with graceful fallback handling."""
-    
+
     try:
         # Try cache first (fastest)
         state = await checkpointer.aget_state_cache(config)
         if state:
             return state
-            
+
         # Fall back to database
         return await checkpointer.aget_state(config)
-        
+
     except ConnectionError:
         # Final fallback: fresh state with warning
         logger.warning(f"Checkpointer unavailable for {config}, starting fresh")
@@ -430,19 +430,19 @@ async def resilient_state_retrieval(config: dict):
 ```python
 async def repair_conversation_integrity(thread_id: str):
     """Repair conversation state from message history."""
-    
+
     config = {"thread_id": thread_id}
-    
+
     # Retrieve all messages
     messages = await checkpointer.alist_messages(config, limit=10000)
-    
+
     # Reconstruct state from message history
     reconstructed_state = AgentState()
     reconstructed_state.context = messages
-    
+
     # Update stored state
     await checkpointer.aput_state(config, reconstructed_state)
-    
+
     print(f"Repaired state for {thread_id} with {len(messages)} messages")
 ```
 
@@ -475,11 +475,11 @@ class MonitoredCheckpointer(PgCheckpointer):
     async def aput_state(self, config, state):
         start_time = time.time()
         result = await super().aput_state(config, state)
-        
-        metrics.histogram("checkpointer.put_state.duration", 
+
+        metrics.histogram("checkpointer.put_state.duration",
                          time.time() - start_time)
         metrics.counter("checkpointer.put_state.calls").inc()
-        
+
         return result
 ```
 
@@ -500,7 +500,7 @@ checkpointer = PgCheckpointer(
 
 **Perfect for:**
 - Local development and testing
-- Demo applications and prototypes  
+- Demo applications and prototypes
 - Unit tests requiring isolation
 - Single-session applications
 
@@ -525,10 +525,10 @@ checkpointer = PgCheckpointer(
 
 ## Conclusion: Session Memory as a Strategic Asset
 
-The checkpointer system in PyAgenity transforms conversation persistence from a technical necessity into a **strategic asset**. By providing:
+The checkpointer system in 10xScale Agentflow transforms conversation persistence from a technical necessity into a **strategic asset**. By providing:
 
 - **Dual-storage architecture** for optimal performance and durability
-- **Automatic dependency injection** for seamless integration  
+- **Automatic dependency injection** for seamless integration
 - **Multiple implementation strategies** for different deployment needs
 - **Rich querying capabilities** for analytics and debugging
 

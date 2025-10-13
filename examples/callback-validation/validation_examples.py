@@ -1,5 +1,5 @@
 """
-Comprehensive examples showing how to use the PyAgenity callback system
+Comprehensive examples showing how to use the TAF callback system
 for custom validation logic across AI, TOOL, and MCP invocations.
 """
 
@@ -8,9 +8,9 @@ import logging
 from datetime import datetime
 from typing import Any
 
-from pyagenity.graph import StateGraph
-from pyagenity.state import AgentState, Message
-from pyagenity.utils import (
+from taf.graph import StateGraph
+from taf.state import AgentState, Message
+from taf.utils import (
     AfterInvokeCallback,
     BeforeInvokeCallback,
     CallbackContext,
@@ -186,7 +186,7 @@ def setup_callback_manager() -> CallbackManager:
 
 async def run_example():
     """Run example showing callback validation in action."""
-    logger.info("🚀 Starting PyAgenity callback validation example")
+    logger.info("🚀 Starting TAF callback validation example")
 
     # Set up callback manager with validation logic
     callback_manager = setup_callback_manager()

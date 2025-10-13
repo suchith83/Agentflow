@@ -1,14 +1,14 @@
 # Agent State: The Mind of Your Agent
 
-In PyAgenity, the `AgentState` is far more than just a data container—it's the **cognitive foundation** that gives your agent the ability to think, remember, and reason across interactions. Understanding how state works is crucial for building agents that can maintain coherent, contextual conversations.
+In 10xScale Agentflow, the `AgentState` is far more than just a data container—it's the **cognitive foundation** that gives your agent the ability to think, remember, and reason across interactions. Understanding how state works is crucial for building agents that can maintain coherent, contextual conversations.
 
 ## The State as Living Memory
 
 Think of `AgentState` as your agent's working memory—the mental workspace where it holds current thoughts, maintains conversation flow, and tracks its own decision-making process.
 
 ```python
-from pyagenity.state import AgentState
-from pyagenity.utils import Message
+from taf.state import AgentState
+from taf.utils import Message
 
 # The agent's mind in action
 state = AgentState()
@@ -56,7 +56,7 @@ state = AgentState()
 # User interaction updates context
 state.context.append(user_message)
 
-# Agent processing adds responses  
+# Agent processing adds responses
 state.context.append(assistant_message)
 
 # Tool usage expands the context
@@ -85,12 +85,12 @@ This is where **context management** becomes essential—the art of maintaining 
 
 ## Context Management: The Art of Forgetting
 
-Context management in PyAgenity is a sophisticated process that mirrors how humans manage their working memory—keeping what's relevant, summarizing what's important, and gracefully forgetting what's no longer needed.
+Context management in 10xScale Agentflow is a sophisticated process that mirrors how humans manage their working memory—keeping what's relevant, summarizing what's important, and gracefully forgetting what's no longer needed.
 
 ### The BaseContextManager Philosophy
 
 ```python
-from pyagenity.state import BaseContextManager
+from taf.state import BaseContextManager
 
 class MyContextManager(BaseContextManager):
     async def atrim_context(self, state: AgentState) -> AgentState:
@@ -99,17 +99,17 @@ class MyContextManager(BaseContextManager):
             # Strategy: Keep recent context, summarize the rest
             recent_context = state.context[-20:]  # Last 20 messages
             older_context = state.context[:-20]   # Everything before
-            
+
             # Create a summary of older interactions
             summary = await self.create_summary(older_context)
-            
+
             # Update state with compressed memory
             state.context_summary = self.merge_summaries(
-                state.context_summary, 
+                state.context_summary,
                 summary
             )
             state.context = recent_context
-            
+
         return state
 ```
 
@@ -124,7 +124,7 @@ Keep the most recent interactions, assuming current context matters most:
 class RecentContextManager(BaseContextManager):
     def __init__(self, max_messages=30):
         self.max_messages = max_messages
-    
+
     async def atrim_context(self, state):
         if len(state.context) > self.max_messages:
             # Keep only recent messages
@@ -176,27 +176,27 @@ result = await compiled_graph.ainvoke(input_data, config)
 
 ## State Extension: Building Specialized Agents
 
-One of PyAgenity's most powerful features is **state extensibility**—the ability to create custom state classes that capture domain-specific information while maintaining compatibility with the framework.
+One of 10xScale Agentflow's most powerful features is **state extensibility**—the ability to create custom state classes that capture domain-specific information while maintaining compatibility with the framework.
 
 ### Custom State Classes
 
 ```python
-from pyagenity.state import AgentState
+from taf.state import AgentState
 from pydantic import Field
 
 class CustomerServiceState(AgentState):
     """Specialized state for customer service agents."""
-    
+
     customer_id: str | None = None
     issue_category: str = "general"
     escalation_level: int = 1
     customer_sentiment: float = 0.0  # -1 to 1 scale
     resolved_issues: List[str] = Field(default_factory=list)
-    
+
     def escalate_issue(self):
         """Domain-specific behavior."""
         self.escalation_level = min(self.escalation_level + 1, 3)
-        
+
     def is_high_priority(self) -> bool:
         """Business logic embedded in state."""
         return self.escalation_level >= 2 or self.customer_sentiment < -0.5
@@ -212,19 +212,19 @@ async def customer_service_agent(
     state: CustomerServiceState,  # Type-safe access to custom fields
     config: dict,
 ) -> CustomerServiceState:
-    
+
     # Access custom state information
     if state.is_high_priority():
         response = "I'll prioritize your issue immediately."
     else:
         response = "Thanks for contacting us."
-    
+
     # Update domain-specific state
     state.customer_sentiment = await analyze_sentiment(state.context)
-    
+
     # Add response to context
     state.context.append(Message.text_message(response, role="assistant"))
-    
+
     return state
 ```
 
@@ -250,7 +250,7 @@ class OnboardingState(AgentState):
     current_step: str = "welcome"
     completed_steps: Set[str] = Field(default_factory=set)
     user_profile: dict = Field(default_factory=dict)
-    
+
     def advance_to_step(self, step: str):
         self.completed_steps.add(self.current_step)
         self.current_step = step
@@ -264,7 +264,7 @@ class AnalyticsState(AgentState):
     interaction_count: int = 0
     topic_distribution: dict = Field(default_factory=dict)
     user_satisfaction: float = 0.0
-    
+
     def record_interaction(self, topic: str):
         self.interaction_count += 1
         self.topic_distribution[topic] = (
@@ -312,7 +312,7 @@ def modify_state_node(state: AgentState) -> AgentState:
 def message_node(state: AgentState) -> List[Message]:
     return [response_message]
 
-# Single message updates  
+# Single message updates
 def simple_node(state: AgentState) -> Message:
     return Message.text_message("Simple response")
 ```
@@ -324,18 +324,18 @@ State content can drive graph routing decisions:
 ```python
 def routing_condition(state: AgentState) -> str:
     """Route based on state content."""
-    
+
     if state.execution_meta.is_interrupted():
         return "handle_interruption"
-    
+
     last_message = state.context[-1] if state.context else None
-    
+
     if last_message and last_message.role == "user":
         if "urgent" in last_message.text().lower():
             return "urgent_handler"
         else:
             return "normal_handler"
-    
+
     return "default_handler"
 ```
 
@@ -349,7 +349,7 @@ While `AgentState` represents working memory, understanding its relationship wit
 # State can be serialized to JSON for storage
 state_dict = state.model_dump()
 
-# And reconstructed from stored data  
+# And reconstructed from stored data
 recovered_state = AgentState.model_validate(state_dict)
 ```
 
@@ -392,7 +392,7 @@ from enum import Enum
 
 class TaskStatus(Enum):
     PENDING = "pending"
-    IN_PROGRESS = "in_progress" 
+    IN_PROGRESS = "in_progress"
     COMPLETED = "completed"
 
 class TypedState(AgentState):
@@ -409,7 +409,7 @@ class ObservableState(AgentState):
     last_decision_rationale: str | None = None
     confidence_score: float = 1.0
     processing_time: float = 0.0
-    
+
     def log_decision(self, rationale: str, confidence: float):
         self.last_decision_rationale = rationale
         self.confidence_score = confidence
@@ -436,7 +436,7 @@ def compute_sentiment(message: str) -> float:
 The `AgentState` is more than a technical necessity—it's the **foundation of your agent's intelligence**. By thoughtfully designing state structures, implementing intelligent context management, and understanding state flow patterns, you create agents that can:
 
 - **Maintain coherent conversations** through context awareness
-- **Scale to long interactions** through intelligent context management  
+- **Scale to long interactions** through intelligent context management
 - **Embed domain expertise** through custom state extensions
 - **Provide observability** into agent decision-making processes
 

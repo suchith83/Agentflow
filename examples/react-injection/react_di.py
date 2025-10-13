@@ -1,13 +1,13 @@
 from dotenv import load_dotenv
 from injectq import Inject, InjectQ
 
-from pyagenity.checkpointer import InMemoryCheckpointer
-from pyagenity.graph import StateGraph, ToolNode
-from pyagenity.state import AgentState, Message
-from pyagenity.state.message_block import TextBlock, ToolCallBlock
-from pyagenity.store.base_store import BaseStore
-from pyagenity.utils.callbacks import CallbackManager
-from pyagenity.utils.constants import END
+from taf.checkpointer import InMemoryCheckpointer
+from taf.graph import StateGraph, ToolNode
+from taf.state import AgentState, Message
+from taf.state.message_block import TextBlock, ToolCallBlock
+from taf.store.base_store import BaseStore
+from taf.utils.callbacks import CallbackManager
+from taf.utils.constants import END
 
 
 load_dotenv()

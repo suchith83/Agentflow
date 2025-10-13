@@ -1,5 +1,5 @@
 """
-Basic RAG (Retrieval-Augmented Generation) example using PyAgenity's RAGAgent.
+Basic RAG (Retrieval-Augmented Generation) example using TAF's RAGAgent.
 
 Pattern:
 1. RETRIEVE  - Collect relevant context for the latest user query
@@ -29,9 +29,9 @@ try:
 except Exception:  # pragma: no cover - optional dependency
     completion = None  # type: ignore
 
-from pyagenity.prebuilt.agent.rag import RAGAgent
-from pyagenity.state import AgentState, Message
-from pyagenity.utils.constants import END
+from taf.prebuilt.agent.rag import RAGAgent
+from taf.state import AgentState, Message
+from taf.utils.constants import END
 
 
 # -----------------------------------------------------------------------------
@@ -44,7 +44,7 @@ DOCUMENTS: list[dict[str, str]] = [
     },
     {
         "id": "doc2",
-        "text": "PyAgenity StateGraph lets you wire custom nodes and conditional edges.",
+        "text": "TAF StateGraph lets you wire custom nodes and conditional edges.",
     },
     {
         "id": "doc3",
@@ -168,7 +168,7 @@ def run_sync_demo() -> None:
 
     initial_input = {
         "messages": [
-            Message.text_message("Explain how RAG systems work with PyAgenity.", role="user")
+            Message.text_message("Explain how RAG systems work with TAF.", role="user")
         ]
     }
 

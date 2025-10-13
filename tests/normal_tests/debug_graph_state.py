@@ -1,7 +1,7 @@
 from dataclasses import dataclass, field
 
-from pyagenity.graph import StateGraph
-from pyagenity.state.agent_state import AgentState
+from taf.graph import StateGraph
+from taf.state.agent_state import AgentState
 
 
 @dataclass

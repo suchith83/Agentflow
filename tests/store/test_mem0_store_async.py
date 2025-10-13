@@ -5,9 +5,9 @@ from unittest.mock import patch
 
 import pytest
 
-from pyagenity.store.mem0_store import Mem0Store
-from pyagenity.store.store_schema import MemoryType
-from pyagenity.state import Message
+from taf.store.mem0_store import Mem0Store
+from taf.store.store_schema import MemoryType
+from taf.state import Message
 
 
 class MockAsyncMem0:
@@ -91,7 +91,7 @@ class MockAsyncMem0:
 @pytest.fixture()
 def store():
     mock_instance = MockAsyncMem0()
-    with patch("pyagenity.store.mem0_store.AsyncMemory") as mock_class:
+    with patch("taf.store.mem0_store.AsyncMemory") as mock_class:
         # Mock the from_config class method to return our mock instance
         async def mock_from_config(config):
             return mock_instance

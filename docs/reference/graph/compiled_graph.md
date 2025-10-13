@@ -1,1 +1,1 @@
-::: pyagenity.graph.compiled_graph
+::: taf.graph.compiled_graph

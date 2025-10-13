@@ -9,9 +9,9 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from pyagenity.store.store_schema import MemoryType
-from pyagenity.store.qdrant_store import QdrantStore
-from pyagenity.state.message import Message
+from taf.store.store_schema import MemoryType
+from taf.store.qdrant_store import QdrantStore
+from taf.state.message import Message
 
 
 class MockEmbeddingService:
@@ -123,7 +123,7 @@ class TestQdrantStore:
             )
             
             assert store.embedding == mock_embedding_service
-            assert store.default_collection == "pyagenity_memories"
+            assert store.default_collection == "taf_memories"
             mock_client.assert_called_once()
 
     @pytest.mark.asyncio
@@ -329,7 +329,7 @@ class TestQdrantStore:
 
     def test_distance_metric_conversion(self, qdrant_store):
         """Test distance metric conversion."""
-        from pyagenity.store.store_schema import DistanceMetric
+        from taf.store.store_schema import DistanceMetric
         from qdrant_client.http.models import Distance
         
         assert qdrant_store._distance_metric_to_qdrant(DistanceMetric.COSINE) == Distance.COSINE
@@ -421,7 +421,7 @@ class TestConvenienceFunctions:
     def test_create_local_qdrant_store(self, mock_embedding_service):
         """Test local store creation."""
         with patch("qdrant_client.AsyncQdrantClient"):
-            from pyagenity.store.qdrant_store import create_local_qdrant_store
+            from taf.store.qdrant_store import create_local_qdrant_store
             
             store = create_local_qdrant_store(
                 path="./test_data",
@@ -433,7 +433,7 @@ class TestConvenienceFunctions:
     def test_create_remote_qdrant_store(self, mock_embedding_service):
         """Test remote store creation."""
         with patch("qdrant_client.AsyncQdrantClient"):
-            from pyagenity.store.qdrant_store import create_remote_qdrant_store
+            from taf.store.qdrant_store import create_remote_qdrant_store
             
             store = create_remote_qdrant_store(
                 host="localhost",
@@ -446,7 +446,7 @@ class TestConvenienceFunctions:
     def test_create_cloud_qdrant_store(self, mock_embedding_service):
         """Test cloud store creation."""
         with patch("qdrant_client.AsyncQdrantClient"):
-            from pyagenity.store.qdrant_store import create_cloud_qdrant_store
+            from taf.store.qdrant_store import create_cloud_qdrant_store
             
             store = create_cloud_qdrant_store(
                 url="https://test.qdrant.io",

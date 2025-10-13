@@ -1,10 +1,10 @@
 """
-Unit tests for the PyAgenity callback system.
+Unit tests for the TAF callback system.
 """
 
 import pytest
 
-from pyagenity.utils import (
+from taf.utils import (
     AfterInvokeCallback,
     BeforeInvokeCallback,
     CallbackContext,

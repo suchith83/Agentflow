@@ -1,7 +1,7 @@
 # Tools & Integrations
 
 Tools extend an agent beyond pure language reasoning—letting it call functions, external APIs, local system utilities,
-MCP servers, or third‑party registries like Composio or LangChain toolkits. PyAgenity unifies these via `ToolNode`.
+MCP servers, or third‑party registries like Composio or LangChain toolkits. 10xScale Agentflow unifies these via `ToolNode`.
 
 ---
 
@@ -22,9 +22,9 @@ Key responsibilities:
 ## Defining Local Tools
 
 ```python
-from pyagenity.graph import ToolNode
-from pyagenity.utils import Message
-from pyagenity.state import AgentState
+from taf.graph import ToolNode
+from taf.utils import Message
+from taf.state import AgentState
 
 # Regular Python function
 def get_weather(city: str, tool_call_id: str | None = None, state: AgentState | None = None) -> Message:
@@ -69,7 +69,7 @@ The LiteLLM converter then observes any resulting `tool_calls` in the response a
 
 ## MCP (Model Context Protocol) Tools
 
-PyAgenity can integrate MCP tool providers (e.g. filesystem, Git, HTTP). MCP clients enumerate capabilities which the
+10xScale Agentflow can integrate MCP tool providers (e.g. filesystem, Git, HTTP). MCP clients enumerate capabilities which the
 ToolNode merges with local tools.
 
 Conceptual steps:
@@ -84,7 +84,7 @@ A future high-level helper will streamline this; current pattern mirrors local t
 
 ## Composio Integration
 
-Composio offers a catalogue of real-world service connectors. An adapter (see `pyagenity/adapters/tools/composio_adapter.py` if present) maps Composio tool manifests into the ToolNode schema format.
+Composio offers a catalogue of real-world service connectors. An adapter (see `taf/adapters/tools/composio_adapter.py` if present) maps Composio tool manifests into the ToolNode schema format.
 
 Benefits:
 
@@ -97,7 +97,7 @@ Benefits:
 ## LangChain Tools
 
 For teams already using LangChain, you can register LangChain tool objects via the LangChain adapter. It converts
-LangChain tool metadata into a shape PyAgenity expects (name, description, parameters). Mixed usage with local tools is
+LangChain tool metadata into a shape 10xScale Agentflow expects (name, description, parameters). Mixed usage with local tools is
 supported.
 
 ---
@@ -120,7 +120,7 @@ Return tool messages → appended to state.context → next node
 
 ## Parallel Tool Execution
 
-**New in PyAgenity**: When an LLM returns multiple tool calls in a single response, PyAgenity executes them **in parallel** 
+**New in 10xScale Agentflow**: When an LLM returns multiple tool calls in a single response, 10xScale Agentflow executes them **in parallel**
 using `asyncio.gather`. This significantly improves performance when:
 
 - Multiple independent API calls are needed
@@ -144,7 +144,7 @@ tool_calls = [
     {"function": {"name": "get_stock", "arguments": '{"symbol": "AAPL"}'}}
 ]
 
-# PyAgenity executes all three tools concurrently
+# 10xScale Agentflow executes all three tools concurrently
 # Total time ≈ max(weather_time, news_time, stock_time)
 # Instead of: weather_time + news_time + stock_time
 ```

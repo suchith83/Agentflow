@@ -1,1 +1,1 @@
-::: pyagenity.prebuilt.agent.map_reduce
+::: taf.prebuilt.agent.map_reduce

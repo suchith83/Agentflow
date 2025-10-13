@@ -10,8 +10,8 @@ from abc import ABC
 from typing import Any
 from unittest.mock import AsyncMock, Mock
 
-from pyagenity.publisher.base_publisher import BasePublisher
-from pyagenity.publisher.events import EventModel, Event, EventType, ContentType
+from taf.publisher.base_publisher import BasePublisher
+from taf.publisher.events import EventModel, Event, EventType, ContentType
 
 
 class MockPublisher(BasePublisher):

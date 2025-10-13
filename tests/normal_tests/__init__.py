@@ -1,1 +1,1 @@
-"""PyAgenity tests package."""
+"""TAF tests package."""

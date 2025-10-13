@@ -1,1 +1,1 @@
-::: pyagenity.adapters.tools.composio_adapter
+::: taf.adapters.tools.composio_adapter

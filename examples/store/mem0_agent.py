@@ -1,16 +1,16 @@
 """
-Simple Personalized Agent Example using PyAgenity Mem0Store
+Simple Personalized Agent Example using TAF Mem0Store
 
-A refactored version of the simple personalized agent that uses PyAgenity's
+A refactored version of the simple personalized agent that uses TAF's
 Mem0Store instead of direct Mem0 integration. This demonstrates:
 
-- PyAgenity StateGraph with memory integration
+- TAF StateGraph with memory integration
 - Mem0Store for standardized memory operations
 - Cloud Qdrant vector storage via Mem0Store
 - Message-based memory storage and retrieval
 - Better error handling and abstraction
 
-This shows how to migrate from direct Mem0 usage to PyAgenity's store framework.
+This shows how to migrate from direct Mem0 usage to TAF's store framework.
 """
 
 import asyncio
@@ -20,12 +20,12 @@ from typing import Any
 from dotenv import load_dotenv
 from litellm import acompletion
 
-from pyagenity.graph import StateGraph
-from pyagenity.state import AgentState, Message
-from pyagenity.store.mem0_store import create_mem0_store_with_qdrant
-from pyagenity.store.store_schema import MemoryType
-from pyagenity.utils.constants import END
-from pyagenity.utils.converter import convert_messages
+from taf.graph import StateGraph
+from taf.state import AgentState, Message
+from taf.store.mem0_store import create_mem0_store_with_qdrant
+from taf.store.store_schema import MemoryType
+from taf.utils.constants import END
+from taf.utils.converter import convert_messages
 
 
 # Load environment variables
@@ -43,9 +43,9 @@ class MemoryAgentState(AgentState):
 
 class SimplePersonalizedAgentWithStore:
     """
-    Simple personalized agent using PyAgenity Mem0Store for memory.
+    Simple personalized agent using TAF Mem0Store for memory.
 
-    This version demonstrates how to use the PyAgenity store framework
+    This version demonstrates how to use the TAF store framework
     instead of direct Mem0 integration for better abstraction and
     standardized memory operations.
     """
@@ -72,7 +72,7 @@ class SimplePersonalizedAgentWithStore:
         self._build_graph()
 
     def _build_graph(self):
-        """Build PyAgenity graph with memory integration."""
+        """Build TAF graph with memory integration."""
         graph = StateGraph[MemoryAgentState](MemoryAgentState())
 
         graph.add_node("chat_with_store", self._chat_with_store_memory)
@@ -82,7 +82,7 @@ class SimplePersonalizedAgentWithStore:
         self.app = graph.compile()
 
     async def _chat_with_store_memory(self, state: MemoryAgentState) -> MemoryAgentState:
-        """Chat node using PyAgenity Mem0Store for memory operations."""
+        """Chat node using TAF Mem0Store for memory operations."""
         messages = convert_messages([], state)
         user_message = messages[-1]["content"]
         user_id = state.user_id
@@ -134,7 +134,7 @@ Show that you remember previous topics and user preferences."""
 
         assistant_content = response.choices[0].message.content
 
-        # Convert response to PyAgenity Message and create return state
+        # Convert response to TAF Message and create return state
         assistant_message = Message.text_message(assistant_content, role="assistant")
 
         # Store the conversation in memory using store's message storage
@@ -174,7 +174,7 @@ Show that you remember previous topics and user preferences."""
         return MemoryAgentState(context=[*state.context, assistant_message], user_id=state.user_id)
 
     async def chat(self, message: str, user_id: str) -> str:
-        """Simple chat interface using PyAgenity store."""
+        """Simple chat interface using TAF store."""
         try:
             # Create initial state with proper structure
             initial_state = MemoryAgentState(
@@ -270,9 +270,9 @@ async def main():
     agent = SimplePersonalizedAgentWithStore()
     user_id = "jack"
 
-    print("🤖 Simple Personalized Agent with PyAgenity Mem0Store\n")
+    print("🤖 Simple Personalized Agent with TAF Mem0Store\n")
     print("Features:")
-    print("- Memory storage via PyAgenity Mem0Store")
+    print("- Memory storage via TAF Mem0Store")
     print("- Standardized memory operations")
     print("- Better error handling and abstraction")
     print("- Memory statistics and management\n")

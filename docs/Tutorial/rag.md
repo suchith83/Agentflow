@@ -1,6 +1,6 @@
-# RAG (Retrieval-Augmented Generation) with PyAgenity
+# RAG (Retrieval-Augmented Generation) with 10xScale Agentflow
 
-Retrieval-Augmented Generation pairs document (or memory) retrieval with LLM synthesis. PyAgenity provides a concise prebuilt [`rag.py`](pyagenity/prebuilt/agent/rag.py) RAG agent plus composable building blocks to extend from “single fetch + answer” to multi-stage hybrid pipelines.
+Retrieval-Augmented Generation pairs document (or memory) retrieval with LLM synthesis. 10xScale Agentflow provides a concise prebuilt [`rag.py`](taf/prebuilt/agent/rag.py) RAG agent plus composable building blocks to extend from “single fetch + answer” to multi-stage hybrid pipelines.
 
 ## 🎯 Goals
 
@@ -120,9 +120,9 @@ You can omit any unused stage—`RAGAgent` only wires what you provide.
 Replace placeholder retrieval with a vector store powered by `QdrantStore` (see `qdrant_store.md`):
 
 ```python
-from pyagenity.store import QdrantStore
-from pyagenity.store.qdrant_store import OpenAIEmbeddingService
-from pyagenity.store.store_schema import MemoryType
+from taf.store import QdrantStore
+from taf.store.qdrant_store import OpenAIEmbeddingService
+from taf.store.store_schema import MemoryType
 
 embedding = OpenAIEmbeddingService(api_key="...", model="text-embedding-3-small")
 store = QdrantStore(embedding_service=embedding, path="./qdrant_data")
@@ -148,7 +148,7 @@ For sparse retrieval, you could maintain a keyword index or use another store in
 When long-term personalization or session continuity is needed, integrate `Mem0Store`:
 
 ```python
-from pyagenity.store import create_mem0_store
+from taf.store import create_mem0_store
 
 mem_store = create_mem0_store(user_id="user-1")
 
@@ -247,7 +247,7 @@ Explore:
 - `long_term_memory.md` for Mem0-based persistence
 - Advanced orchestration patterns in `misc/advanced_patterns.md`
 
-RAG scalability depends on disciplined stage isolation—PyAgenity’s node + conditional edge model keeps each concern explicit and testable.
+RAG scalability depends on disciplined stage isolation—10xScale Agentflow’s node + conditional edge model keeps each concern explicit and testable.
 
 ---
 

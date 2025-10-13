@@ -12,13 +12,13 @@ from datetime import datetime
 from unittest.mock import patch, Mock
 import pytest
 
-from pyagenity.publisher.events import (
+from taf.publisher.events import (
     Event,
     EventType,
     ContentType,
     EventModel,
 )
-from pyagenity.state.message import TextBlock
+from taf.state.message import TextBlock
 
 
 class TestEventEnums:

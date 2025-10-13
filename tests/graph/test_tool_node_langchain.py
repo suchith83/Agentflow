@@ -4,10 +4,10 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from pyagenity.graph.tool_node import ToolNode
-from pyagenity.state import AgentState
-from pyagenity.utils import CallbackManager
-from pyagenity.state.message import Message
+from taf.graph.tool_node import ToolNode
+from taf.state import AgentState
+from taf.utils import CallbackManager
+from taf.state.message import Message
 
 
 class DummyLangChainAdapter:

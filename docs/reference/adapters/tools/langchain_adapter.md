@@ -1,1 +1,1 @@
-::: pyagenity.adapters.tools.langchain_adapter
+::: taf.adapters.tools.langchain_adapter

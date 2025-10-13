@@ -1,19 +1,19 @@
 # Publisher: Real-time Agent Observability
 
-The publisher system in PyAgenity provides real-time visibility into your agent's execution, transforming what was once a black box into a transparent, observable process. Rather than simply logging events after the fact, the publisher system creates live streams of execution data that enable monitoring, debugging, analytics, and real-time decision making.
+The publisher system in 10xScale Agentflow provides real-time visibility into your agent's execution, transforming what was once a black box into a transparent, observable process. Rather than simply logging events after the fact, the publisher system creates live streams of execution data that enable monitoring, debugging, analytics, and real-time decision making.
 
 ## Understanding Event-Driven Observability
 
-Traditional logging systems capture what happened after it's over. PyAgenity's publisher system captures what's happening as it happens, creating a continuous stream of execution events that flow from your agent graphs to whatever destination you choose—console output, message queues, databases, monitoring systems, or custom analytics platforms.
+Traditional logging systems capture what happened after it's over. 10xScale Agentflow's publisher system captures what's happening as it happens, creating a continuous stream of execution events that flow from your agent graphs to whatever destination you choose—console output, message queues, databases, monitoring systems, or custom analytics platforms.
 
 Think of it as the nervous system of your AI application: every decision, every tool call, every state change, every error generates events that flow through the publisher pipeline, giving you unprecedented insight into your agent's behavior and performance.
 
 ## Event Model: The Foundation of Observability
 
-Every observable action in PyAgenity is captured as a structured `EventModel` that contains rich metadata about what's happening:
+Every observable action in 10xScale Agentflow is captured as a structured `EventModel` that contains rich metadata about what's happening:
 
 ```python
-from pyagenity.publisher.events import EventModel, Event, EventType, ContentType
+from taf.publisher.events import EventModel, Event, EventType, ContentType
 
 # Events are automatically generated during execution
 event = EventModel(
@@ -38,7 +38,7 @@ This rich event model enables sophisticated analysis, filtering, and routing bas
 
 ## Event Sources and Types
 
-PyAgenity generates events from four primary sources, each providing different levels of granularity:
+10xScale Agentflow generates events from four primary sources, each providing different levels of granularity:
 
 ### Graph Execution Events
 These provide the highest-level view of your agent's operation:
@@ -100,7 +100,7 @@ Streaming events enable real-time UI updates, progressive content delivery, and 
 Events carry semantic information about their content through the `ContentType` enum, enabling intelligent processing and routing:
 
 ```python
-from pyagenity.publisher.events import ContentType
+from taf.publisher.events import ContentType
 
 # Text and messaging content
 ContentType.TEXT         # Plain text content
@@ -128,11 +128,11 @@ This semantic typing enables sophisticated event processing, such as routing err
 
 ## Publisher Implementations
 
-PyAgenity provides multiple publisher implementations for different use cases:
+10xScale Agentflow provides multiple publisher implementations for different use cases:
 
 ### Console Publisher: Development and Debugging
 ```python
-from pyagenity.publisher.console_publisher import ConsolePublisher
+from taf.publisher.console_publisher import ConsolePublisher
 
 # Simple console output for development
 console_publisher = ConsolePublisher({
@@ -171,7 +171,7 @@ Console output provides immediate feedback during development:
 
 ### Redis Publisher: Distributed Systems
 ```python
-from pyagenity.publisher.redis_publisher import RedisPublisher
+from taf.publisher.redis_publisher import RedisPublisher
 
 # Publish to Redis streams for distributed processing
 redis_publisher = RedisPublisher({
@@ -189,7 +189,7 @@ Redis publishing enables:
 
 ### Kafka Publisher: Enterprise Event Streaming
 ```python
-from pyagenity.publisher.kafka_publisher import KafkaPublisher
+from taf.publisher.kafka_publisher import KafkaPublisher
 
 # Enterprise-grade event streaming
 kafka_publisher = KafkaPublisher({
@@ -208,7 +208,7 @@ Kafka publishing provides:
 
 ### RabbitMQ Publisher: Flexible Messaging
 ```python
-from pyagenity.publisher.rabbitmq_publisher import RabbitMQPublisher
+from taf.publisher.rabbitmq_publisher import RabbitMQPublisher
 
 # Flexible messaging with routing
 rabbitmq_publisher = RabbitMQPublisher({
@@ -232,21 +232,21 @@ The publisher system enables powerful event processing patterns:
 ### Real-time Monitoring Dashboard
 ```python
 import asyncio
-from pyagenity.publisher.redis_publisher import RedisPublisher
+from taf.publisher.redis_publisher import RedisPublisher
 
 class AgentMonitor:
     def __init__(self):
         self.active_runs = {}
         self.performance_metrics = {}
-    
+
     async def monitor_events(self):
         """Process events in real-time for dashboard updates."""
         async for event in self.event_stream():
             await self.process_event(event)
-    
+
     async def process_event(self, event: EventModel):
         """Update monitoring metrics based on incoming events."""
-        
+
         # Track active executions
         if event.event_type == EventType.START:
             self.active_runs[event.run_id] = {
@@ -254,23 +254,23 @@ class AgentMonitor:
                 "node_name": event.node_name,
                 "status": "running"
             }
-        
+
         # Calculate performance metrics
         elif event.event_type == EventType.END:
             if event.run_id in self.active_runs:
                 duration = event.timestamp - self.active_runs[event.run_id]["start_time"]
                 node_name = event.node_name
-                
+
                 if node_name not in self.performance_metrics:
                     self.performance_metrics[node_name] = []
-                
+
                 self.performance_metrics[node_name].append(duration)
                 del self.active_runs[event.run_id]
-        
+
         # Track errors
         elif event.event_type == EventType.ERROR:
             await self.handle_error_event(event)
-    
+
     async def handle_error_event(self, event: EventModel):
         """Handle error events with alerting."""
         error_data = {
@@ -279,7 +279,7 @@ class AgentMonitor:
             "timestamp": event.timestamp,
             "run_id": event.run_id
         }
-        
+
         # Send alert if error rate is high
         recent_errors = await self.get_recent_error_rate(event.node_name)
         if recent_errors > 0.1:  # > 10% error rate
@@ -293,55 +293,55 @@ class AgentAnalytics:
         self.tool_usage = {}
         self.conversation_patterns = {}
         self.user_behavior = {}
-    
+
     async def analyze_events(self):
         """Continuous analytics processing."""
         async for event in self.event_stream():
             await self.update_analytics(event)
-    
+
     async def update_analytics(self, event: EventModel):
         """Update analytics based on event patterns."""
-        
+
         # Tool usage analytics
         if event.event == Event.TOOL_EXECUTION and event.event_type == EventType.START:
             tool_name = event.metadata.get("function_name")
             if tool_name:
                 self.tool_usage[tool_name] = self.tool_usage.get(tool_name, 0) + 1
-        
+
         # Conversation flow analysis
         if event.event == Event.NODE_EXECUTION:
             user_id = event.metadata.get("user_id")
             if user_id:
                 if user_id not in self.conversation_patterns:
                     self.conversation_patterns[user_id] = []
-                
+
                 self.conversation_patterns[user_id].append({
                     "node": event.node_name,
                     "timestamp": event.timestamp,
                     "type": event.event_type
                 })
-        
+
         # Generate insights periodically
         if len(self.tool_usage) % 100 == 0:  # Every 100 tool calls
             await self.generate_insights()
-    
+
     async def generate_insights(self):
         """Generate actionable insights from collected data."""
         # Most used tools
         popular_tools = sorted(self.tool_usage.items(), key=lambda x: x[1], reverse=True)
-        
+
         # Conversation patterns
         avg_conversation_length = sum(
             len(pattern) for pattern in self.conversation_patterns.values()
         ) / len(self.conversation_patterns) if self.conversation_patterns else 0
-        
+
         insights = {
             "popular_tools": popular_tools[:5],
             "avg_conversation_length": avg_conversation_length,
             "total_conversations": len(self.conversation_patterns),
             "timestamp": time.time()
         }
-        
+
         await self.store_insights(insights)
 ```
 
@@ -355,35 +355,35 @@ class EventRouter:
             "content": self.handle_content,
             "tools": self.handle_tools
         }
-    
+
     async def route_events(self):
         """Route events to appropriate handlers."""
         async for event in self.event_stream():
             # Route error events
             if event.event_type == EventType.ERROR:
                 await self.routes["errors"](event)
-            
+
             # Route performance events
             elif event.event in [Event.NODE_EXECUTION, Event.GRAPH_EXECUTION]:
                 await self.routes["performance"](event)
-            
+
             # Route tool events
             elif event.event == Event.TOOL_EXECUTION:
                 await self.routes["tools"](event)
-            
+
             # Route content events
             elif event.content_type in [ContentType.TEXT, ContentType.MESSAGE]:
                 await self.routes["content"](event)
-    
+
     async def handle_errors(self, event: EventModel):
         """Specialized error handling."""
         # Send to error monitoring system
         await self.send_to_monitoring(event)
-        
+
         # Log critical errors
         if event.metadata.get("severity") == "critical":
             await self.alert_on_call_team(event)
-    
+
     async def handle_performance(self, event: EventModel):
         """Performance monitoring."""
         # Track execution times
@@ -391,7 +391,7 @@ class EventRouter:
             duration = event.metadata.get("duration")
             if duration and duration > 10.0:  # > 10 seconds
                 await self.log_slow_operation(event)
-    
+
     async def handle_tools(self, event: EventModel):
         """Tool usage tracking."""
         # Track API costs and usage
@@ -405,8 +405,8 @@ class EventRouter:
 Publishers integrate seamlessly with your graph construction, providing consistent observability across all execution patterns:
 
 ```python
-from pyagenity.graph import StateGraph
-from pyagenity.publisher.console_publisher import ConsolePublisher
+from taf.graph import StateGraph
+from taf.publisher.console_publisher import ConsolePublisher
 
 # Create your publisher
 publisher = ConsolePublisher({"format": "json", "indent": 2})
@@ -447,13 +447,13 @@ async for chunk in compiled_graph.astream(
 You can extend the event system with custom metadata and routing:
 
 ```python
-from pyagenity.publisher.events import EventModel
-from pyagenity.publisher.publish import publish_event
+from taf.publisher.events import EventModel
+from taf.publisher.publish import publish_event
 
 # Custom event generation
 async def custom_node_with_events(state: AgentState, config: dict):
     """Node that generates custom observability events."""
-    
+
     # Generate custom start event
     start_event = EventModel(
         event=Event.NODE_EXECUTION,
@@ -470,7 +470,7 @@ async def custom_node_with_events(state: AgentState, config: dict):
         }
     )
     publish_event(start_event)
-    
+
     # Perform analysis with progress events
     for step in ["preprocessing", "analysis", "postprocessing"]:
         progress_event = EventModel(
@@ -482,10 +482,10 @@ async def custom_node_with_events(state: AgentState, config: dict):
             metadata={"step": step, "progress": get_progress_percentage()}
         )
         publish_event(progress_event)
-        
+
         # Do actual work
         result = await perform_analysis_step(step, state)
-    
+
     # Generate completion event
     end_event = EventModel(
         event=Event.NODE_EXECUTION,
@@ -500,7 +500,7 @@ async def custom_node_with_events(state: AgentState, config: dict):
         }
     )
     publish_event(end_event)
-    
+
     return result
 ```
 
@@ -521,7 +521,7 @@ class ProductionMonitoring:
             "redis_url": "redis://redis-cluster:6379",
             "stream_name": "live_agent_events"
         })
-        
+
         # Health metrics
         self.health_metrics = {
             "total_events": 0,
@@ -529,21 +529,21 @@ class ProductionMonitoring:
             "avg_response_time": 0.0,
             "active_sessions": set()
         }
-    
+
     async def setup_monitoring(self, graph):
         """Set up comprehensive monitoring for production."""
-        
+
         # Use composite publisher for multiple destinations
         composite_publisher = CompositePublisher([
             self.kafka_publisher,   # Long-term analytics
             self.redis_publisher,   # Real-time monitoring
         ])
-        
+
         return graph.compile(
             checkpointer=production_checkpointer,
             publisher=composite_publisher
         )
-    
+
     async def monitor_health(self):
         """Continuous health monitoring."""
         while True:
@@ -551,17 +551,17 @@ class ProductionMonitoring:
             error_rate = self.health_metrics["error_count"] / max(
                 self.health_metrics["total_events"], 1
             )
-            
+
             if error_rate > 0.05:  # > 5% error rate
                 await self.alert_operations_team(f"High error rate: {error_rate:.2%}")
-            
+
             # Check response times
             if self.health_metrics["avg_response_time"] > 30.0:  # > 30 seconds
                 await self.alert_performance_issue(
                     f"Slow response time: {self.health_metrics['avg_response_time']:.1f}s"
                 )
-            
+
             await asyncio.sleep(60)  # Check every minute
 ```
 
-The publisher system transforms PyAgenity agents from opaque processes into fully observable, monitorable, and analytically rich systems. By providing real-time insight into every aspect of agent execution—from high-level conversation flows to individual tool calls—publishers enable you to build production-ready AI systems with the observability and control needed for enterprise deployment.
+The publisher system transforms 10xScale Agentflow agents from opaque processes into fully observable, monitorable, and analytically rich systems. By providing real-time insight into every aspect of agent execution—from high-level conversation flows to individual tool calls—publishers enable you to build production-ready AI systems with the observability and control needed for enterprise deployment.

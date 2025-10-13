@@ -2,13 +2,13 @@ from dotenv import load_dotenv
 from injectq import Inject
 from litellm import acompletion
 
-from pyagenity.adapters.llm.model_response_converter import ModelResponseConverter
-from pyagenity.checkpointer import InMemoryCheckpointer
-from pyagenity.graph import StateGraph, ToolNode
-from pyagenity.state import AgentState, Message
-from pyagenity.utils.callbacks import CallbackManager
-from pyagenity.utils.constants import END
-from pyagenity.utils.converter import convert_messages
+from taf.adapters.llm.model_response_converter import ModelResponseConverter
+from taf.checkpointer import InMemoryCheckpointer
+from taf.graph import StateGraph, ToolNode
+from taf.state import AgentState, Message
+from taf.utils.callbacks import CallbackManager
+from taf.utils.constants import END
+from taf.utils.converter import convert_messages
 
 
 load_dotenv()

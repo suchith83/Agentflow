@@ -1,6 +1,6 @@
 # Graph Architecture
 
-PyAgenity's graph system orchestrates agent reasoning, tool execution, and stateful message flow. It is intentionally
+10xScale Agentflow's graph system orchestrates agent reasoning, tool execution, and stateful message flow. It is intentionally
 minimal, composable, and DI-friendly. This section is your conceptual map.
 
 ---
@@ -9,12 +9,12 @@ minimal, composable, and DI-friendly. This section is your conceptual map.
 
 | Concept | File(s) | Role |
 |---------|---------|------|
-| `StateGraph` | `pyagenity/graph/state_graph.py` | Declarative builder: register nodes, edges, tools, conditions |
-| `Node` | `pyagenity/graph/node.py` | Wrapper around user function (sync/async) with DI injection |
-| `ToolNode` | `pyagenity/graph/tool_node/` | Tool registry + dispatcher (local + external providers) |
-| `Edge` | `pyagenity/graph/edge.py` | Directional link; supports conditional routing |
-| `CompiledGraph` | `pyagenity/graph/compiled_graph.py` | Runtime engine: invoke, stream, checkpoint, publish |
-| `Command` | `pyagenity/utils/command.py` | Inline control object for dynamic goto / updates |
+| `StateGraph` | `taf/graph/state_graph.py` | Declarative builder: register nodes, edges, tools, conditions |
+| `Node` | `taf/graph/node.py` | Wrapper around user function (sync/async) with DI injection |
+| `ToolNode` | `taf/graph/tool_node/` | Tool registry + dispatcher (local + external providers) |
+| `Edge` | `taf/graph/edge.py` | Directional link; supports conditional routing |
+| `CompiledGraph` | `taf/graph/compiled_graph.py` | Runtime engine: invoke, stream, checkpoint, publish |
+| `Command` | `taf/utils/command.py` | Inline control object for dynamic goto / updates |
 | **Interrupts & HITL** | Compile options + runtime API | Pause/resume execution for human approval, debugging, external control |
 
 Supporting utilities: converters (LLM output → `Message` blocks), id + thread generators, background task manager,

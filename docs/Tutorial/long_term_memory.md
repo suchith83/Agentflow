@@ -1,6 +1,6 @@
 # Long-Term Memory with Mem0
 
-PyAgenity separates **short-term memory** (the evolving `AgentState` inside a graph
+10xScale Agentflow separates **short-term memory** (the evolving `AgentState` inside a graph
 invocation) from **long-term memory** (durable memories persisted across runs).
 This document shows how to enable long-term memory using the optional
 [`mem0`](https://github.com/mem0ai/mem0) library.
@@ -22,7 +22,7 @@ This document shows how to enable long-term memory using the optional
 ## Creating a Mem0Store
 
 ```python
-from pyagenity.store import create_mem0_store
+from taf.store import create_mem0_store
 
 mem_store = create_mem0_store(
     config={  # Optional Mem0 configuration; can be omitted for defaults
@@ -60,8 +60,8 @@ internal id. You use the framework id with `aget`, `aupdate`, and `adelete`.
 You can add a node that retrieves similar memories before tool / LLM reasoning.
 
 ```python
-from pyagenity.graph import StateGraph, Node
-from pyagenity.utils import Message
+from taf.graph import StateGraph, Node
+from taf.utils import Message
 
 async def recall_node(state, config):
     query = state.latest_user_message().text()

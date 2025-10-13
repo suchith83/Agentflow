@@ -1,6 +1,6 @@
-# The Three Layers of Memory in PyAgenity
+# The Three Layers of Memory in 10xScale Agentflow
 
-PyAgenity implements a sophisticated three-tier memory architecture that mirrors how humans process and retain information. Understanding this layered approach is crucial for building effective agents that can maintain context, learn from interactions, and provide personalized experiences.
+10xScale Agentflow implements a sophisticated three-tier memory architecture that mirrors how humans process and retain information. Understanding this layered approach is crucial for building effective agents that can maintain context, learn from interactions, and provide personalized experiences.
 
 ## The Memory Hierarchy: A Conceptual Foundation
 
@@ -9,7 +9,7 @@ Think of an intelligent agent as having three different types of memory, each se
 **1. Working Memory (Short-term Context)**
 Like holding a conversation in your mind, this is the immediate context that drives current interactions. It's fast, temporary, and directly influences what the agent says next.
 
-**2. Session Memory (Conversation History)** 
+**2. Session Memory (Conversation History)**
 Similar to remembering what happened in a meeting, this preserves the flow and history of interactions for reference, debugging, and user interface purposes.
 
 **3. Knowledge Memory (Long-term Storage)**
@@ -20,18 +20,18 @@ Like accumulated wisdom and learned facts, this stores insights, preferences, an
 This separation isn't just about technical organization—it reflects different **temporal needs** and **access patterns** in agent behavior:
 
 - **Working memory** needs to be fast and contextually relevant for real-time decision making
-- **Session memory** serves persistence and auditability without overwhelming the agent's thinking process  
+- **Session memory** serves persistence and auditability without overwhelming the agent's thinking process
 - **Knowledge memory** enables learning and personalization across conversation boundaries
 
 Let's explore how each layer works in practice.
 
 ## Layer 1: Working Memory - The Agent's Active Thoughts
 
-Working memory in PyAgenity is embodied by the `AgentState`, which holds the current conversation context as a living, breathing entity.
+Working memory in 10xScale Agentflow is embodied by the `AgentState`, which holds the current conversation context as a living, breathing entity.
 
 ```python
-from pyagenity.state import AgentState
-from pyagenity.utils import Message
+from taf.state import AgentState
+from taf.utils import Message
 
 # The agent's working memory
 state = AgentState()
@@ -46,13 +46,13 @@ state.context = [
 What makes working memory special is its **dynamic, evolving nature**. Unlike static data storage, the agent's context:
 
 - **Grows** with each interaction (user messages, assistant responses, tool calls)
-- **Transforms** through processing (the agent reasons about and responds to context)  
+- **Transforms** through processing (the agent reasons about and responds to context)
 - **Adapts** through trimming (older context gets summarized or removed when limits are reached)
 
 ```python
 # Context evolves through the conversation
 state.context.append(tool_call_message)
-state.context.append(tool_result_message)  
+state.context.append(tool_result_message)
 state.context.append(final_response_message)
 ```
 
@@ -62,7 +62,7 @@ A critical challenge emerges: **context windows have limits**. As conversations 
 
 ```python
 # Context managers handle the "forgetting" process
-from pyagenity.state import BaseContextManager
+from taf.state import BaseContextManager
 
 class SummaryContextManager(BaseContextManager):
     async def atrim_context(self, state):
@@ -89,7 +89,7 @@ Think about the difference between:
 Session memory serves **persistence, auditability, and user experience** rather than immediate decision-making.
 
 ```python
-from pyagenity.checkpointer import PgCheckpointer
+from taf.checkpointer import PgCheckpointer
 
 # Session memory persists the full interaction history
 checkpointer = PgCheckpointer(postgres_dsn="postgresql://...")
@@ -101,7 +101,7 @@ await checkpointer.aput_state(config, final_state)
 
 ### The Dual Storage Strategy
 
-Here's a key insight: PyAgenity uses a **two-tier persistence strategy** within session memory itself:
+Here's a key insight: 10xScale Agentflow uses a **two-tier persistence strategy** within session memory itself:
 
 1. **Fast Cache (Redis)** - For active conversations and immediate retrieval
 2. **Durable Storage (PostgreSQL)** - For permanent record-keeping
@@ -110,7 +110,7 @@ Here's a key insight: PyAgenity uses a **two-tier persistence strategy** within 
 # Fast retrieval from cache during active conversation
 cached_state = await checkpointer.aget_state_cache(config)
 
-# Durable persistence for long-term storage  
+# Durable persistence for long-term storage
 await checkpointer.aput_state(config, state)  # Writes to both cache and DB
 ```
 
@@ -125,7 +125,7 @@ Knowledge memory transcends individual conversations. It's where agents develop 
 Unlike working memory (single conversation) and session memory (conversation history), knowledge memory operates across **multiple conversations, users, and time periods**.
 
 ```python
-from pyagenity.store import QdrantStore
+from taf.store import QdrantStore
 
 # Knowledge that persists across conversations
 store = QdrantStore(collection_name="user_preferences")
@@ -140,7 +140,7 @@ await store.astore(
 
 # Retrieve relevant knowledge in future conversations
 relevant_memories = await store.asearch(
-    config={"user_id": "alice"}, 
+    config={"user_id": "alice"},
     query="how should I explain technical concepts?",
     limit=3
 )
@@ -191,7 +191,7 @@ response = await agent_function(state, config)
 # Update working memory
 state.context.append(response)
 
-# Persist to session memory  
+# Persist to session memory
 await checkpointer.aput_state(config, state)
 
 # Extract insights for knowledge memory
@@ -213,7 +213,7 @@ This three-tier architecture embodies several key design principles:
 ### **Separation of Concerns**
 Each memory layer has a distinct purpose, preventing interference and enabling optimization
 
-### **Performance Optimization**  
+### **Performance Optimization**
 Fast access patterns for immediate needs, efficient storage for long-term retention
 
 ### **Flexible Integration**
@@ -231,7 +231,7 @@ Understanding **when and why** to engage each memory layer is crucial for effect
 
 ### Use Working Memory When:
 - Making immediate responses and decisions
-- Maintaining conversation flow and coherence  
+- Maintaining conversation flow and coherence
 - Processing current context for LLM interactions
 - Managing real-time state transitions
 
@@ -251,10 +251,10 @@ The key insight is that these layers serve **different stakeholders** and **use 
 
 ## Conclusion: Building Memory-Aware Agents
 
-PyAgenity's three-tier memory architecture provides a foundation for building truly intelligent agents that can:
+10xScale Agentflow's three-tier memory architecture provides a foundation for building truly intelligent agents that can:
 
 - **Think clearly** with focused working memory
-- **Remember completely** with persistent session memory  
+- **Remember completely** with persistent session memory
 - **Learn continuously** with accumulated knowledge memory
 
 By understanding these layers and their interactions, you can design agents that not only respond intelligently in the moment but also grow wiser over time—much like human intelligence itself.

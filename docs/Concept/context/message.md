@@ -1,13 +1,13 @@
 # Messages: The Lifeblood of Agent Communication
 
-Messages in PyAgenity are far more than simple text containers—they are the **fundamental units of communication** that flow through your agent graphs, carrying not just content but rich context, metadata, and semantic information that enables sophisticated agent interactions. Understanding messages deeply is crucial for building agents that can engage in complex, multimodal conversations.
+Messages in 10xScale Agentflow are far more than simple text containers—they are the **fundamental units of communication** that flow through your agent graphs, carrying not just content but rich context, metadata, and semantic information that enables sophisticated agent interactions. Understanding messages deeply is crucial for building agents that can engage in complex, multimodal conversations.
 
 ## The Message as a Living Entity
 
 Think of a `Message` as a **living communication artifact** that captures not just what was said, but the complete context of how it was said, when, by whom, and with what intent. Each message carries a comprehensive record of its place in the conversation ecosystem.
 
 ```python
-from pyagenity.utils import Message
+from taf.utils import Message
 from datetime import datetime
 
 # A message is more than text—it's a rich communication artifact
@@ -22,14 +22,14 @@ message = Message(
 
 ### The Anatomy of Intelligence: Message Components
 
-Every message in PyAgenity contains multiple layers of information that collectively enable intelligent communication:
+Every message in 10xScale Agentflow contains multiple layers of information that collectively enable intelligent communication:
 
 #### **Core Identity**
 - **Message ID**: Unique identifier for tracking and reference
 - **Role**: The communicator's identity (user, assistant, system, tool)
 - **Timestamp**: Temporal context for the communication
 
-#### **Content Payload**  
+#### **Content Payload**
 - **Content Blocks**: Rich, multimodal content representation
 - **Delta Flag**: Indicates streaming/partial content
 - **Tool Calls**: Structured function invocations
@@ -54,7 +54,7 @@ user_message = Message.text_message(
 
 **User messages** represent human input and intent. They typically:
 - Initiate new conversation threads
-- Provide context and requirements  
+- Provide context and requirements
 - Express needs, questions, or feedback
 - Drive the overall conversation direction
 
@@ -122,7 +122,7 @@ tool_message = Message.tool_message(
 
 ## Content Blocks: Multimodal Communication
 
-PyAgenity's content block system enables **rich, multimodal communication** that goes far beyond simple text:
+10xScale Agentflow's content block system enables **rich, multimodal communication** that goes far beyond simple text:
 
 ### **Text Blocks**: Fundamental Communication
 
@@ -147,7 +147,7 @@ image_block = ImageBlock(
 # Code documentation with multimedia
 document_block = DocumentBlock(
     media=MediaRef(
-        kind="file_id", 
+        kind="file_id",
         file_id="code_example_123",
         filename="optimized_example.py"
     )
@@ -175,7 +175,7 @@ tool_result_block = ToolResultBlock(
     call_id="performance_analyzer_001",
     output={
         "execution_time": "2.3s",
-        "memory_usage": "45MB", 
+        "memory_usage": "45MB",
         "bottlenecks": ["nested_loops", "string_concatenation"]
     },
     is_error=False,
@@ -214,7 +214,7 @@ assistant_response = Message(
     content=[TextBlock(text="I'll help plan your Paris trip by checking flights, hotels, and attractions.")],
     tools_calls=[
         {"id": "flight_001", "function": {"name": "search_flights"}},
-        {"id": "hotel_001", "function": {"name": "search_hotels"}}, 
+        {"id": "hotel_001", "function": {"name": "search_hotels"}},
         {"id": "attraction_001", "function": {"name": "get_attractions"}}
     ]
 )
@@ -351,18 +351,18 @@ complex_message = Message(
 ```python
 def enrich_message_with_context(base_message: Message, context: dict) -> Message:
     """Enrich a message with contextual information."""
-    
+
     # Add user context
     base_message.metadata.update({
         "user_expertise": context.get("user_level", "intermediate"),
         "preferred_style": context.get("communication_style", "detailed"),
         "previous_topics": context.get("recent_topics", [])
     })
-    
+
     # Add temporal context
     base_message.metadata["session_duration"] = context.get("session_time", 0)
     base_message.metadata["message_sequence"] = context.get("message_count", 1)
-    
+
     return base_message
 ```
 
@@ -393,12 +393,12 @@ response_with_usage = Message(
 ```python
 def optimize_message_for_context_window(message: Message, max_tokens: int) -> Message:
     """Optimize message content for context window constraints."""
-    
+
     current_tokens = estimate_tokens(message)
-    
+
     if current_tokens <= max_tokens:
         return message
-    
+
     # Strategy 1: Summarize long text blocks
     optimized_content = []
     for block in message.content:
@@ -407,11 +407,11 @@ def optimize_message_for_context_window(message: Message, max_tokens: int) -> Me
             optimized_content.append(TextBlock(text=summary))
         else:
             optimized_content.append(block)
-    
+
     # Strategy 2: Remove non-essential metadata
-    essential_metadata = {k: v for k, v in message.metadata.items() 
+    essential_metadata = {k: v for k, v in message.metadata.items()
                          if k in ["user_id", "session_id", "priority"]}
-    
+
     return Message(
         role=message.role,
         content=optimized_content,
@@ -429,25 +429,25 @@ def optimize_message_for_context_window(message: Message, max_tokens: int) -> Me
 ```python
 def validate_message_integrity(message: Message) -> bool:
     """Validate message structure and content quality."""
-    
+
     # Basic structure validation
     if not message.role or not message.content:
         return False
-    
+
     # Role-specific validation
     if message.role == "tool":
         # Tool messages must have tool results
         return any(isinstance(block, ToolResultBlock) for block in message.content)
-    
+
     if message.role == "assistant" and message.tools_calls:
         # Assistant with tool calls should have corresponding content
         return len(message.content) > 0 or len(message.tools_calls) > 0
-    
+
     # Content quality checks
     for block in message.content:
         if isinstance(block, TextBlock) and len(block.text.strip()) == 0:
             return False  # Empty text blocks
-    
+
     return True
 ```
 
@@ -458,25 +458,25 @@ def validate_message_integrity(message: Message) -> bool:
 ```python
 def verify_conversation_consistency(messages: List[Message]) -> List[str]:
     """Verify logical consistency in message flow."""
-    
+
     issues = []
-    
+
     for i, msg in enumerate(messages):
         # Check tool call/result pairing
         if msg.role == "assistant" and msg.tools_calls:
             # Next message should be tool result
             if i + 1 >= len(messages) or messages[i + 1].role != "tool":
                 issues.append(f"Message {i}: Tool call without corresponding result")
-        
+
         # Check role transitions
         if i > 0:
             prev_role = messages[i - 1].role
             curr_role = msg.role
-            
+
             # Invalid transitions
             if prev_role == "tool" and curr_role != "assistant":
                 issues.append(f"Message {i}: Tool result not followed by assistant response")
-    
+
     return issues
 ```
 
@@ -489,19 +489,19 @@ def verify_conversation_consistency(messages: List[Message]) -> List[str]:
 ```python
 def integrate_message_with_state(message: Message, state: AgentState) -> AgentState:
     """Integrate a new message into agent state."""
-    
+
     # Add to conversation context
     state.context.append(message)
-    
+
     # Update execution metadata if needed
     if message.role == "assistant":
         state.execution_meta.advance_step()
-    
+
     # Extract and store insights
     if message.metadata.get("extract_insights", False):
         insights = extract_message_insights(message)
         state.metadata.setdefault("learned_insights", []).extend(insights)
-    
+
     return state
 ```
 
@@ -512,13 +512,13 @@ def integrate_message_with_state(message: Message, state: AgentState) -> AgentSt
 ```python
 def message_flow_node(state: AgentState, config: dict) -> List[Message]:
     """Node that processes and transforms message flow."""
-    
+
     # Analyze incoming context
     recent_messages = state.context[-5:]  # Last 5 messages
-    
+
     # Extract conversation patterns
     patterns = analyze_conversation_patterns(recent_messages)
-    
+
     # Generate contextually appropriate response
     if patterns.indicates_confusion:
         response = Message.text_message(
@@ -529,12 +529,12 @@ def message_flow_node(state: AgentState, config: dict) -> List[Message]:
     elif patterns.indicates_completion:
         response = Message.text_message(
             "Is there anything else I can help you with?",
-            role="assistant", 
+            role="assistant",
             metadata={"response_type": "completion_check"}
         )
     else:
         response = generate_standard_response(recent_messages)
-    
+
     return [response]
 ```
 
@@ -596,7 +596,7 @@ robust_message = Message(
 
 ## Conclusion: Messages as the Foundation of Intelligence
 
-Messages in PyAgenity are the **fundamental building blocks** of agent intelligence. They are:
+Messages in 10xScale Agentflow are the **fundamental building blocks** of agent intelligence. They are:
 
 - **Rich communication artifacts** that carry content, context, and metadata
 - **Flexible containers** supporting multimodal communication patterns

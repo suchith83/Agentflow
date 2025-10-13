@@ -1,7 +1,7 @@
 [project]
-name = "pyagenity"
+name = "taf"
 version = "0.3.9"
-description = "PyAgenity is a Python framework for building, orchestrating, and managing multi-agent systems. Designed for flexibility and scalability, PyAgenity enables developers to create intelligent agents that collaborate, communicate, and solve complex tasks together."
+description = "10xScale Agentflow is a Python framework for building, orchestrating, and managing multi-agent systems. Designed for flexibility and scalability, 10xScale Agentflow enables developers to create intelligent agents that collaborate, communicate, and solve complex tasks together."
 readme = "README.md"
 license = {file = "LICENSE"}
 requires-python = ">=3.12"
@@ -11,7 +11,7 @@ dependencies = [
     "python-dotenv>=1.1.0",
 ]
 authors = [
-    {name = "Shudipto", email = "shudipto.trafder@gmail.com"}
+    {name = "10xScale", email = "contact@10xscale.ai"}
 ]
 classifiers = [
     "Programming Language :: Python :: 3",
@@ -52,7 +52,7 @@ all_publishers = [
 ]
 
 [tool.setuptools.packages.find]
-include = ["pyagenity*"]
+include = ["taf*"]
 exclude = ["normal_tests*", "tests*", "examples*", "docs*"]
 
 
@@ -176,12 +176,12 @@ norecursedirs = [
     ".tox",
     "dist",
     "build",
-    "pyagenity.egg-info",
+    "taf.egg-info",
     "__pycache__",
     ".venv"
 ]
 addopts = [
-    "--cov=pyagenity",
+    "--cov=taf",
     "--cov-report=html",
     "--cov-report=term-missing",
     "--cov-report=xml",
@@ -195,7 +195,7 @@ markers = [
 ]
 
 [tool.coverage.run]
-source = ["pyagenity"]
+source = ["taf"]
 omit = [
     "*/tests/*",
     "*/test_*",

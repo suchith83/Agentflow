@@ -15,7 +15,7 @@ class TestPublisherModuleImports:
     
     def test_base_publisher_import(self):
         """Test that BasePublisher can be imported from publisher module."""
-        from pyagenity.publisher import BasePublisher
+        from taf.publisher import BasePublisher
         
         assert BasePublisher is not None
         
@@ -25,17 +25,17 @@ class TestPublisherModuleImports:
     
     def test_console_publisher_import(self):
         """Test that ConsolePublisher can be imported."""
-        from pyagenity.publisher import ConsolePublisher
+        from taf.publisher import ConsolePublisher
         
         assert ConsolePublisher is not None
         
         # Should be a concrete publisher
-        from pyagenity.publisher.base_publisher import BasePublisher
+        from taf.publisher.base_publisher import BasePublisher
         assert issubclass(ConsolePublisher, BasePublisher)
     
     def test_core_publishers_always_available(self):
         """Test that core publishers are always available."""
-        from pyagenity.publisher import BasePublisher, ConsolePublisher
+        from taf.publisher import BasePublisher, ConsolePublisher
         
         # These should always be importable
         assert BasePublisher is not None
@@ -47,7 +47,7 @@ class TestPublisherModuleImports:
     
     def test_module_structure(self):
         """Test the overall structure of the publisher module."""
-        import pyagenity.publisher as publisher_module
+        import taf.publisher as publisher_module
         
         # Should have core components
         assert hasattr(publisher_module, 'BasePublisher')
@@ -55,7 +55,7 @@ class TestPublisherModuleImports:
     
     def test_all_exports_basic(self):
         """Test that __all__ contains at least basic exports."""
-        import pyagenity.publisher as publisher_module
+        import taf.publisher as publisher_module
         
         # Should have __all__ defined
         assert hasattr(publisher_module, '__all__')
@@ -74,7 +74,7 @@ class TestPublisherModuleImports:
         
     def test_redis_publisher_availability_true(self):
         """Test RedisPublisher availability."""
-        import pyagenity.publisher as publisher_module
+        import taf.publisher as publisher_module
         
         # RedisPublisher should always be importable as a class
         assert hasattr(publisher_module, 'RedisPublisher')
@@ -84,13 +84,13 @@ class TestPublisherModuleImports:
         assert 'RedisPublisher' in publisher_module.__all__
         
         # Should be the actual class
-        from pyagenity.publisher.redis_publisher import RedisPublisher
+        from taf.publisher.redis_publisher import RedisPublisher
         assert publisher_module.RedisPublisher == RedisPublisher
     
     def test_redis_publisher_availability_false(self):
         """Test RedisPublisher availability behavior."""
         # Publishers are always imported regardless of dependencies
-        import pyagenity.publisher as publisher_module
+        import taf.publisher as publisher_module
         
         # RedisPublisher attribute should always exist as a class
         assert hasattr(publisher_module, 'RedisPublisher')
@@ -102,7 +102,7 @@ class TestPublisherModuleImports:
     
     def test_kafka_publisher_availability_true(self):
         """Test KafkaPublisher availability."""
-        import pyagenity.publisher as publisher_module
+        import taf.publisher as publisher_module
         
         # KafkaPublisher should always be importable as a class
         assert hasattr(publisher_module, 'KafkaPublisher')
@@ -112,13 +112,13 @@ class TestPublisherModuleImports:
         assert 'KafkaPublisher' in publisher_module.__all__
         
         # Should be the actual class  
-        from pyagenity.publisher.kafka_publisher import KafkaPublisher
+        from taf.publisher.kafka_publisher import KafkaPublisher
         assert publisher_module.KafkaPublisher == KafkaPublisher
     
     def test_kafka_publisher_availability_false(self):
         """Test KafkaPublisher availability behavior."""
         # Publishers are always imported regardless of dependencies
-        import pyagenity.publisher as publisher_module
+        import taf.publisher as publisher_module
         
         # KafkaPublisher attribute should always exist as a class
         assert hasattr(publisher_module, 'KafkaPublisher')
@@ -126,7 +126,7 @@ class TestPublisherModuleImports:
     
     def test_rabbitmq_publisher_availability_true(self):
         """Test RabbitMQPublisher availability."""
-        import pyagenity.publisher as publisher_module
+        import taf.publisher as publisher_module
         
         # RabbitMQPublisher should always be importable as a class
         assert hasattr(publisher_module, 'RabbitMQPublisher')
@@ -136,13 +136,13 @@ class TestPublisherModuleImports:
         assert 'RabbitMQPublisher' in publisher_module.__all__
         
         # Should be the actual class
-        from pyagenity.publisher.rabbitmq_publisher import RabbitMQPublisher
+        from taf.publisher.rabbitmq_publisher import RabbitMQPublisher
         assert publisher_module.RabbitMQPublisher == RabbitMQPublisher
     
     def test_rabbitmq_publisher_availability_false(self):
         """Test RabbitMQPublisher availability behavior."""
         # Publishers are always imported regardless of dependencies
-        import pyagenity.publisher as publisher_module
+        import taf.publisher as publisher_module
         
         # RabbitMQPublisher attribute should always exist as a class
         assert hasattr(publisher_module, 'RabbitMQPublisher')
@@ -154,7 +154,7 @@ class TestOptionalPublisherCombinations:
     
     def test_all_optional_publishers_available(self):
         """Test that all publishers are always available as classes."""
-        import pyagenity.publisher as publisher_module
+        import taf.publisher as publisher_module
         
         # Check that core publishers are always available
         assert publisher_module.BasePublisher is not None
@@ -177,7 +177,7 @@ class TestOptionalPublisherCombinations:
         # All publishers are imported in __init__.py regardless of dependencies
         # They just raise runtime errors if dependencies aren't available
         
-        import pyagenity.publisher as publisher_module
+        import taf.publisher as publisher_module
         
         # All publishers should be available as classes
         assert publisher_module.RedisPublisher is not None
@@ -193,7 +193,7 @@ class TestOptionalPublisherCombinations:
     
     def test_no_optional_publishers_available(self):
         """Test that publishers are always available regardless of dependencies."""
-        import pyagenity.publisher as publisher_module
+        import taf.publisher as publisher_module
         
         # Core publishers should always be available
         assert publisher_module.BasePublisher is not None
@@ -218,7 +218,7 @@ class TestPublisherModuleDocumentation:
     
     def test_module_docstring(self):
         """Test that publisher module has proper documentation."""
-        import pyagenity.publisher as publisher_module
+        import taf.publisher as publisher_module
         
         # Should have a comprehensive docstring
         assert publisher_module.__doc__ is not None
@@ -238,7 +238,7 @@ class TestPublisherModuleReload:
     def test_module_reload_safety(self):
         """Test that publisher module can be safely reloaded."""
         import importlib
-        import pyagenity.publisher as publisher_module
+        import taf.publisher as publisher_module
         
         # Get original exports
         original_all = list(publisher_module.__all__)
@@ -263,10 +263,10 @@ class TestPublisherModuleReload:
         """Test that import order doesn't matter."""
         # Clear any existing imports
         modules_to_clear = [
-            'pyagenity.publisher',
-            'pyagenity.publisher.base_publisher',
-            'pyagenity.publisher.console_publisher',
-            'pyagenity.publisher.events'
+            'taf.publisher',
+            'taf.publisher.base_publisher',
+            'taf.publisher.console_publisher',
+            'taf.publisher.events'
         ]
         
         for module in modules_to_clear:
@@ -274,9 +274,9 @@ class TestPublisherModuleReload:
                 del sys.modules[module]
         
         # Import in different order
-        from pyagenity.publisher.console_publisher import ConsolePublisher
-        from pyagenity.publisher.base_publisher import BasePublisher
-        from pyagenity.publisher.events import EventModel
+        from taf.publisher.console_publisher import ConsolePublisher
+        from taf.publisher.base_publisher import BasePublisher
+        from taf.publisher.events import EventModel
         
         # All should work
         assert ConsolePublisher is not None
@@ -284,7 +284,7 @@ class TestPublisherModuleReload:
         assert EventModel is not None
         
         # Top-level import should also work
-        from pyagenity.publisher import BasePublisher as TopLevelBasePublisher
+        from taf.publisher import BasePublisher as TopLevelBasePublisher
         
         # Should be the same class
         assert BasePublisher is TopLevelBasePublisher
@@ -295,7 +295,7 @@ class TestPublisherModuleEdgeCases:
     
     def test_import_success_but_none_returned(self):
         """Test that publisher imports are consistent."""
-        import pyagenity.publisher as publisher_module
+        import taf.publisher as publisher_module
         
         # This test verifies that the module structure is consistent
         # All publishers should exist as attributes and be classes

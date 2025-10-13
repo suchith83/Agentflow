@@ -1,6 +1,6 @@
 """Basic test to verify pytest setup."""
 
-import pyagenity  # noqa: F401
+import taf  # noqa: F401
 
 
 def test_basic_functionality():
@@ -10,7 +10,7 @@ def test_basic_functionality():
     assert result == expected_result  # noqa: S101
 
 
-def test_pyagenity_import():
-    """Test that pyagenity module can be imported."""
+def test_taf_import():
+    """Test that taf module can be imported."""
     # If we get here without errors, the import worked
     assert True  # noqa: S101

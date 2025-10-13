@@ -1,1 +1,1 @@
-::: pyagenity.graph.edge
+::: taf.graph.edge

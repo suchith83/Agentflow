@@ -1,13 +1,13 @@
-# React Agent Patterns (PyAgenity)
+# React Agent Patterns (10xScale Agentflow)
 
-This directory provides comprehensive tutorials for building **ReAct (Reasoning and Acting)** agents in PyAgenity, from basic patterns to advanced integrations. These tutorials demonstrate the most common and powerful agent architecture: the think → act → observe → repeat loop.
+This directory provides comprehensive tutorials for building **ReAct (Reasoning and Acting)** agents in 10xScale Agentflow, from basic patterns to advanced integrations. These tutorials demonstrate the most common and powerful agent architecture: the think → act → observe → repeat loop.
 
 ## 🎯 What Are React Agents?
 
 React agents combine **reasoning** (LLM thinking) with **acting** (tool usage) to solve complex problems by iteratively:
-1. **Analyzing** the current situation  
+1. **Analyzing** the current situation
 2. **Choosing** appropriate tools to gather information
-3. **Observing** the results  
+3. **Observing** the results
 4. **Adapting** their approach based on what they learned
 
 This pattern enables agents to access real-time data, perform actions, and handle multi-step workflows dynamically.
@@ -36,11 +36,11 @@ Follow these tutorials in order for the best learning experience:
 ### Prerequisites
 
 ```bash
-# Install PyAgenity with dependencies
-pip install pyagenity[litellm]
+# Install 10xScale Agentflow with dependencies
+pip install taf[litellm]
 
 # For MCP examples
-pip install pyagenity[mcp]
+pip install taf[mcp]
 
 # Set up environment
 export OPENAI_API_KEY=your_key
@@ -71,11 +71,11 @@ python stream1.py
 
 ## 🏗️ Core React Architecture
 
-All React agents in PyAgenity follow this pattern:
+All React agents in 10xScale Agentflow follow this pattern:
 
 ```python
-from pyagenity.graph import StateGraph, ToolNode
-from pyagenity.utils.constants import END
+from taf.graph import StateGraph, ToolNode
+from taf.utils.constants import END
 
 # 1. Define tools
 def my_tool(param: str) -> str:
@@ -88,7 +88,7 @@ async def main_agent(state: AgentState):
     # LLM reasoning with optional tool calls
     return llm_response_with_tools
 
-# 3. Implement conditional routing  
+# 3. Implement conditional routing
 def should_use_tools(state: AgentState) -> str:
     # Logic to decide: tools, main agent, or end
     return "TOOL" | "MAIN" | END
@@ -96,7 +96,7 @@ def should_use_tools(state: AgentState) -> str:
 # 4. Build the graph
 graph = StateGraph()
 graph.add_node("MAIN", main_agent)
-graph.add_node("TOOL", tool_node) 
+graph.add_node("TOOL", tool_node)
 graph.add_conditional_edges("MAIN", should_use_tools, {
     "TOOL": "TOOL", END: END
 })
@@ -137,7 +137,7 @@ def smart_routing(state: AgentState) -> str:
 async def streaming_agent(state: AgentState, config: dict):
     is_stream = config.get("is_stream", False)
     response = await acompletion(
-        model="gpt-4", 
+        model="gpt-4",
         messages=messages,
         tools=tools,
         stream=is_stream
@@ -151,7 +151,7 @@ async def streaming_agent(state: AgentState, config: dict):
 
 ### Enable Detailed Logging
 ```python
-from pyagenity.publisher import ConsolePublisher
+from taf.publisher import ConsolePublisher
 
 app = graph.compile(
     checkpointer=InMemoryCheckpointer(),
@@ -202,7 +202,7 @@ def debug_routing(state: AgentState) -> str:
 ## 🔗 Related Concepts
 
 - **[State Management](../state.md)** - Understanding AgentState and message flow
-- **[Tool Creation](../adapter.md)** - Building custom tools and integrations  
+- **[Tool Creation](../adapter.md)** - Building custom tools and integrations
 - **[Checkpointers](../checkpointer.md)** - Conversation persistence
 - **[Publishers](../publisher.md)** - Event streaming and monitoring
 
@@ -222,7 +222,6 @@ examples/
 ├── react/                     # Basic patterns
 │   ├── react_sync.py         # Synchronous React agent
 │   ├── react_weather_agent.py # Async weather agent
-│   └── react_native_tools_agent.py # PyAgenity native tools
 ├── react-injection/           # Dependency injection
 │   ├── react_di.py           # Basic DI with InjectQ
 │   └── react_di2.py          # Advanced DI patterns
@@ -238,4 +237,4 @@ examples/
 
 ---
 
-**Ready to build intelligent agents?** Start with **[Basic React Patterns](01-basic-react.md)** to learn the fundamentals, then progress through each tutorial to master advanced React agent development in PyAgenity!
+**Ready to build intelligent agents?** Start with **[Basic React Patterns](01-basic-react.md)** to learn the fundamentals, then progress through each tutorial to master advanced React agent development in 10xScale Agentflow!

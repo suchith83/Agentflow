@@ -18,9 +18,9 @@ This example is fully deterministic and does not require model APIs.
 
 from __future__ import annotations
 
-from pyagenity.graph.tool_node import ToolNode
-from pyagenity.prebuilt.agent.plan_act_reflect import PlanActReflectAgent
-from pyagenity.state import AgentState, Message
+from taf.graph.tool_node import ToolNode
+from taf.prebuilt.agent.plan_act_reflect import PlanActReflectAgent
+from taf.state import AgentState, Message
 
 
 # ------------------------------------------------------------------------------

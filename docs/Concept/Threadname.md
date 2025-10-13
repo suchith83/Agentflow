@@ -2,7 +2,7 @@
 
 Thread names label an execution thread (session) for correlation across logs, publishers, and external APIs. While IDs are great for machines, a human-friendly thread name helps during debugging, dashboards, and interactive UIs.
 
-Implemented in: `pyagenity/utils/thread_name_generator.py`
+Implemented in: `taf/utils/thread_name_generator.py`
 
 ### How It Works
 
@@ -19,7 +19,7 @@ These come from adjective–noun / action / compound pattern pools.
 ### API Surface
 
 ```python
-from pyagenity.utils.thread_name_generator import (
+from taf.utils.thread_name_generator import (
 	generate_dummy_thread_name,
 	AIThreadNameGenerator,
 )
@@ -39,8 +39,8 @@ custom = gen.generate_action_name()
 ### Attaching to a Graph
 
 ```python
-from pyagenity.graph import StateGraph
-from pyagenity.utils.thread_name_generator import AIThreadNameGenerator
+from taf.graph import StateGraph
+from taf.utils.thread_name_generator import AIThreadNameGenerator
 
 
 def handler(state, config):
@@ -53,7 +53,7 @@ graph.set_entry_point("MAIN")
 app = graph.compile()
 ```
 
-When deployed via a future PyAgenity API service layer (PyAgnoty-API), a thread name is auto-generated if none is supplied, aiding multi-session inspection.
+When deployed via a future 10xScale Agentflow API service layer (PyAgnoty-API), a thread name is auto-generated if none is supplied, aiding multi-session inspection.
 
 ### Overriding Strategy
 

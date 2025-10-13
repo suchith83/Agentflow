@@ -2095,7 +2095,7 @@ wheels = [
 ]
 
 [[package]]
-name = "pyagenity"
+name = "taf"
 version = "0.3.5"
 source = { editable = "." }
 dependencies = [

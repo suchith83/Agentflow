@@ -3,12 +3,12 @@
 import pytest
 from unittest.mock import Mock
 
-from pyagenity.checkpointer import InMemoryCheckpointer
-from pyagenity.graph import ToolNode, CompiledGraph
-from pyagenity.prebuilt.agent.router import RouterAgent
-from pyagenity.state.agent_state import AgentState
-from pyagenity.state.message import Message
-from pyagenity.utils import  END
+from taf.checkpointer import InMemoryCheckpointer
+from taf.graph import ToolNode, CompiledGraph
+from taf.prebuilt.agent.router import RouterAgent
+from taf.state.agent_state import AgentState
+from taf.state.message import Message
+from taf.utils import  END
 
 
 class TestRouterAgent:

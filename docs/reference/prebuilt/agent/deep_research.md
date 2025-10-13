@@ -1,1 +1,1 @@
-::: pyagenity.prebuilt.agent.deep_research
+::: taf.prebuilt.agent.deep_research
