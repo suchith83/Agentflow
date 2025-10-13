@@ -531,7 +531,7 @@ See the [parallel tool execution documentation](https://10xhub.github.io/10xScal
 - **Deep Research** - Multi-level research and synthesis
 - **Network** - Complex agent networks
 
-See the [documentation](https://10xhub.github.io/10xScale Agentflow/) for complete examples.
+See the [documentation](https://10xhub.github.io/Agentflow/) for complete examples.
 
 ---
 
