@@ -1,1 +1,1 @@
-::: pyagenity.graph.utils.stream_utils
+::: taf.graph.utils.stream_utils

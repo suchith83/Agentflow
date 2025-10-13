@@ -1,5 +1,5 @@
 """
-Demonstration of the PyAgenity Event Publishing System
+Demonstration of the TAF Event Publishing System
 
 This script shows how to use the publisher system to capture and publish
 all events that occur during graph execution.
@@ -9,10 +9,10 @@ import asyncio
 import logging
 from typing import Any
 
-from pyagenity.graph import StateGraph
-from pyagenity.publisher import BasePublisher, Event, EventType, SourceType
-from pyagenity.state import AgentState
-from pyagenity.utils import END, Message
+from taf.graph import StateGraph
+from taf.publisher import BasePublisher, Event, EventType, SourceType
+from taf.state import AgentState
+from taf.utils import END, Message
 
 
 # Configure logging to see the events
@@ -80,7 +80,7 @@ async def summary_agent(state: AgentState, **kwargs) -> str:
 
 async def demo_event_publishing():
     """Demonstrate the complete event publishing system."""
-    print("🎭 PyAgenity Event Publishing Demo")
+    print("🎭 TAF Event Publishing Demo")
     print("=" * 50)
 
     # Create custom publisher

@@ -1,8 +1,8 @@
 import pytest
-from pyagenity.state.message_context_manager import MessageContextManager
-from pyagenity.state.agent_state import AgentState
-from pyagenity.state.message import Message
-from pyagenity.state.message_block import TextBlock, ToolCallBlock, ToolResultBlock
+from taf.state.message_context_manager import MessageContextManager
+from taf.state.agent_state import AgentState
+from taf.state.message import Message
+from taf.state.message_block import TextBlock, ToolCallBlock, ToolResultBlock
 
 @pytest.fixture
 def system_msg():

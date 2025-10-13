@@ -11,9 +11,9 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__)))
 
 from injectq import inject
 
-from pyagenity.graph.tool_node import ToolNode
-from pyagenity.state.agent_state import AgentState
-from pyagenity.utils import Message
+from taf.graph.tool_node import ToolNode
+from taf.state.agent_state import AgentState
+from taf.utils import Message
 
 
 @inject

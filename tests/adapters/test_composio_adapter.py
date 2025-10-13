@@ -10,7 +10,7 @@ import logging
 from unittest.mock import Mock, MagicMock, patch
 import pytest
 
-from pyagenity.adapters.tools.composio_adapter import ComposioAdapter
+from taf.adapters.tools.composio_adapter import ComposioAdapter
 
 
 class MockComposioSDK:
@@ -85,20 +85,20 @@ class TestComposioAdapterAvailability:
     
     def test_is_available_when_composio_imported(self):
         """Test is_available returns True when composio is available."""
-        with patch('pyagenity.adapters.tools.composio_adapter.HAS_COMPOSIO', True):
+        with patch('taf.adapters.tools.composio_adapter.HAS_COMPOSIO', True):
             assert ComposioAdapter.is_available() is True
     
     def test_is_available_when_composio_not_imported(self):
         """Test is_available returns False when composio is not available."""
-        with patch('pyagenity.adapters.tools.composio_adapter.HAS_COMPOSIO', False):
+        with patch('taf.adapters.tools.composio_adapter.HAS_COMPOSIO', False):
             assert ComposioAdapter.is_available() is False
 
 
 class TestComposioAdapterInitialization:
     """Test ComposioAdapter initialization."""
     
-    @patch('pyagenity.adapters.tools.composio_adapter.HAS_COMPOSIO', True)
-    @patch('pyagenity.adapters.tools.composio_adapter.Composio')
+    @patch('taf.adapters.tools.composio_adapter.HAS_COMPOSIO', True)
+    @patch('taf.adapters.tools.composio_adapter.Composio')
     def test_init_with_default_params(self, mock_composio_class):
         """Test initialization with default parameters."""
         mock_composio_instance = Mock()
@@ -114,8 +114,8 @@ class TestComposioAdapterInitialization:
             toolkit_versions=None
         )
     
-    @patch('pyagenity.adapters.tools.composio_adapter.HAS_COMPOSIO', True)
-    @patch('pyagenity.adapters.tools.composio_adapter.Composio')
+    @patch('taf.adapters.tools.composio_adapter.HAS_COMPOSIO', True)
+    @patch('taf.adapters.tools.composio_adapter.Composio')
     def test_init_with_custom_params(self, mock_composio_class):
         """Test initialization with custom parameters."""
         mock_composio_instance = Mock()
@@ -136,14 +136,14 @@ class TestComposioAdapterInitialization:
             toolkit_versions={"toolkit1": "v1.0"}
         )
     
-    @patch('pyagenity.adapters.tools.composio_adapter.HAS_COMPOSIO', False)
+    @patch('taf.adapters.tools.composio_adapter.HAS_COMPOSIO', False)
     def test_init_raises_import_error_when_composio_unavailable(self):
         """Test initialization raises ImportError when composio is not available."""
         with pytest.raises(ImportError) as exc_info:
             ComposioAdapter()
         
         assert "ComposioAdapter requires 'composio' package" in str(exc_info.value)
-        assert "pip install pyagenity[composio]" in str(exc_info.value)
+        assert "pip install taf[composio]" in str(exc_info.value)
 
 
 class TestComposioAdapterToolListing:
@@ -154,8 +154,8 @@ class TestComposioAdapterToolListing:
         self.mock_composio = MockComposioSDK()
         
         # Patch the availability and Composio class
-        self.composio_patcher = patch('pyagenity.adapters.tools.composio_adapter.HAS_COMPOSIO', True)
-        self.class_patcher = patch('pyagenity.adapters.tools.composio_adapter.Composio', return_value=self.mock_composio)
+        self.composio_patcher = patch('taf.adapters.tools.composio_adapter.HAS_COMPOSIO', True)
+        self.class_patcher = patch('taf.adapters.tools.composio_adapter.Composio', return_value=self.mock_composio)
         
         self.composio_patcher.start()
         self.class_patcher.start()
@@ -209,7 +209,7 @@ class TestComposioAdapterToolListing:
             {"type": "function", "function": {"name": "test", "parameters": {"type": "object"}}},  # Valid one
         ]
         
-        with patch('pyagenity.adapters.tools.composio_adapter.logger') as mock_logger:
+        with patch('taf.adapters.tools.composio_adapter.logger') as mock_logger:
             tools = self.adapter.list_tools_for_llm(user_id="test-user")
             
             # Should include at least the valid tool
@@ -280,7 +280,7 @@ class TestComposioAdapterToolListing:
         faulty_tool = FaultyTool()
         self.mock_composio.tools._raw_tools = [faulty_tool, MockRawTool()]
         
-        with patch('pyagenity.adapters.tools.composio_adapter.logger') as mock_logger:
+        with patch('taf.adapters.tools.composio_adapter.logger') as mock_logger:
             tools = self.adapter.list_raw_tools_for_llm()
             
             # Should process the good tool and skip the faulty one
@@ -298,8 +298,8 @@ class TestComposioAdapterExecution:
         self.mock_composio = MockComposioSDK()
         
         # Patch the availability and Composio class
-        self.composio_patcher = patch('pyagenity.adapters.tools.composio_adapter.HAS_COMPOSIO', True)
-        self.class_patcher = patch('pyagenity.adapters.tools.composio_adapter.Composio', return_value=self.mock_composio)
+        self.composio_patcher = patch('taf.adapters.tools.composio_adapter.HAS_COMPOSIO', True)
+        self.class_patcher = patch('taf.adapters.tools.composio_adapter.Composio', return_value=self.mock_composio)
         
         self.composio_patcher.start()
         self.class_patcher.start()
@@ -449,7 +449,7 @@ class TestComposioAdapterExecution:
         mock_response = MockResponse()
         self.mock_composio.tools._execution_result = mock_response
         
-        with patch('pyagenity.adapters.tools.composio_adapter.logger') as mock_logger:
+        with patch('taf.adapters.tools.composio_adapter.logger') as mock_logger:
             result = self.adapter.execute(
                 slug="TEST_TOOL",
                 arguments={"test": "value"}
@@ -470,8 +470,8 @@ class TestComposioAdapterIntegration:
         self.mock_composio = MockComposioSDK()
         
         # Patch the availability and Composio class
-        self.composio_patcher = patch('pyagenity.adapters.tools.composio_adapter.HAS_COMPOSIO', True)
-        self.class_patcher = patch('pyagenity.adapters.tools.composio_adapter.Composio', return_value=self.mock_composio)
+        self.composio_patcher = patch('taf.adapters.tools.composio_adapter.HAS_COMPOSIO', True)
+        self.class_patcher = patch('taf.adapters.tools.composio_adapter.Composio', return_value=self.mock_composio)
         
         self.composio_patcher.start()
         self.class_patcher.start()
@@ -520,7 +520,7 @@ class TestComposioAdapterIntegration:
         ]
         
         for config in configs:
-            with patch('pyagenity.adapters.tools.composio_adapter.Composio') as mock_composio_class:
+            with patch('taf.adapters.tools.composio_adapter.Composio') as mock_composio_class:
                 mock_composio_class.return_value = self.mock_composio
                 
                 adapter = ComposioAdapter(**config)
@@ -550,7 +550,7 @@ class TestComposioAdapterIntegration:
     
     def test_logging_behavior(self):
         """Test that appropriate logging occurs."""
-        with patch('pyagenity.adapters.tools.composio_adapter.logger') as mock_logger:
+        with patch('taf.adapters.tools.composio_adapter.logger') as mock_logger:
             # Test with raw tools that will cause logging
             class FaultyTool:
                 @property
@@ -591,8 +591,8 @@ class TestComposioAdapterEdgeCases:
         self.mock_composio = MockComposioSDK()
         
         # Patch the availability and Composio class
-        self.composio_patcher = patch('pyagenity.adapters.tools.composio_adapter.HAS_COMPOSIO', True)
-        self.class_patcher = patch('pyagenity.adapters.tools.composio_adapter.Composio', return_value=self.mock_composio)
+        self.composio_patcher = patch('taf.adapters.tools.composio_adapter.HAS_COMPOSIO', True)
+        self.class_patcher = patch('taf.adapters.tools.composio_adapter.Composio', return_value=self.mock_composio)
         
         self.composio_patcher.start()
         self.class_patcher.start()

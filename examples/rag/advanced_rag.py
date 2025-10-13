@@ -1,5 +1,5 @@
 """
-Advanced RAG (Retrieval-Augmented Generation) example using PyAgenity's RAGAgent.compile_advanced.
+Advanced RAG (Retrieval-Augmented Generation) example using TAF's RAGAgent.compile_advanced.
 
 Chain (conceptual):
     QUERY_PLAN -> RETRIEVE_1 (dense) -> MERGE -> RETRIEVE_2 (sparse) -> MERGE
@@ -35,16 +35,16 @@ try:
 except Exception:  # pragma: no cover
     acompletion = None  # type: ignore
 
-from pyagenity.prebuilt.agent.rag import RAGAgent
-from pyagenity.state import AgentState, Message
-from pyagenity.utils.constants import END
+from taf.prebuilt.agent.rag import RAGAgent
+from taf.state import AgentState, Message
+from taf.utils.constants import END
 
 
 # -----------------------------------------------------------------------------
 # Mock Corpora / Indices (replace with real retrieval backends)
 # -----------------------------------------------------------------------------
 DENSE_CORPUS = [
-    {"id": "d1", "text": "PyAgenity enables composable agent graphs."},
+    {"id": "d1", "text": "TAF enables composable agent graphs."},
     {"id": "d2", "text": "RAG pipelines combine retrieval with LLM synthesis."},
     {"id": "d3", "text": "Hybrid retrieval blends dense and sparse search signals."},
 ]

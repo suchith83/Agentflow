@@ -16,7 +16,7 @@ class TestStoreModuleImports:
     
     def test_base_store_import(self):
         """Test that BaseStore can be imported from store module."""
-        from pyagenity.store import BaseStore
+        from taf.store import BaseStore
         
         # Should be able to import without errors
         assert BaseStore is not None
@@ -27,7 +27,7 @@ class TestStoreModuleImports:
     
     def test_store_schemas_import(self):
         """Test that store schemas can be imported."""
-        from pyagenity.store import (
+        from taf.store import (
             MemoryRecord,
             MemorySearchResult,
             MemoryType,
@@ -41,18 +41,18 @@ class TestStoreModuleImports:
         assert DistanceMetric is not None
         
         # RetrievalStrategy is not exported but should be importable directly
-        from pyagenity.store.store_schema import RetrievalStrategy
+        from taf.store.store_schema import RetrievalStrategy
         assert RetrievalStrategy is not None
     
     def test_embedding_classes_import(self):
         """Test that embedding classes can be imported."""
-        from pyagenity.store import BaseEmbedding
+        from taf.store import BaseEmbedding
         
         assert BaseEmbedding is not None
         
         # Test optional OpenAIEmbedding import
         try:
-            from pyagenity.store import OpenAIEmbedding
+            from taf.store import OpenAIEmbedding
             assert OpenAIEmbedding is not None
         except ImportError:
             # Should only fail if openai is not installed
@@ -60,7 +60,7 @@ class TestStoreModuleImports:
     
     def test_store_module_structure(self):
         """Test the overall structure of the store module."""
-        import pyagenity.store as store_module
+        import taf.store as store_module
         
         # Should have the main components
         assert hasattr(store_module, 'BaseStore')
@@ -73,12 +73,12 @@ class TestStoreModuleImports:
         assert hasattr(store_module, 'DistanceMetric')
         
         # RetrievalStrategy is not in the main __init__.py but exists in schema
-        from pyagenity.store.store_schema import RetrievalStrategy
+        from taf.store.store_schema import RetrievalStrategy
         assert RetrievalStrategy is not None
     
     def test_all_exports(self):
         """Test that __all__ is properly defined."""
-        import pyagenity.store as store_module
+        import taf.store as store_module
         
         # Should have __all__ defined
         if hasattr(store_module, '__all__'):
@@ -101,12 +101,12 @@ class TestOptionalDependencies:
         
         if openai_available:
             # Should be able to import OpenAIEmbedding
-            from pyagenity.store import OpenAIEmbedding
+            from taf.store import OpenAIEmbedding
             assert OpenAIEmbedding is not None
         else:
             # Should either not be available or import gracefully
             try:
-                from pyagenity.store import OpenAIEmbedding
+                from taf.store import OpenAIEmbedding
                 # If it imports, it should work
                 assert OpenAIEmbedding is not None
             except (ImportError, AttributeError):
@@ -117,13 +117,13 @@ class TestOptionalDependencies:
     def test_graceful_degradation_without_openai(self):
         """Test that store module works without openai package."""
         # Force reimport without openai
-        if 'pyagenity.store' in sys.modules:
-            del sys.modules['pyagenity.store']
-        if 'pyagenity.store.embedding.openai_embedding' in sys.modules:
-            del sys.modules['pyagenity.store.embedding.openai_embedding']
+        if 'taf.store' in sys.modules:
+            del sys.modules['taf.store']
+        if 'taf.store.embedding.openai_embedding' in sys.modules:
+            del sys.modules['taf.store.embedding.openai_embedding']
         
         # Should still be able to import basic store functionality
-        from pyagenity.store import BaseStore, MemoryRecord
+        from taf.store import BaseStore, MemoryRecord
         
         assert BaseStore is not None
         assert MemoryRecord is not None
@@ -131,9 +131,9 @@ class TestOptionalDependencies:
     def test_store_functionality_without_optional_deps(self):
         """Test that core store functionality works without optional dependencies."""
         # Core classes should always be available
-        from pyagenity.store.base_store import BaseStore
-        from pyagenity.store.store_schema import MemoryRecord, MemorySearchResult
-        from pyagenity.store.embedding.base_embedding import BaseEmbedding
+        from taf.store.base_store import BaseStore
+        from taf.store.store_schema import MemoryRecord, MemorySearchResult
+        from taf.store.embedding.base_embedding import BaseEmbedding
         
         # Should be able to create instances (where applicable)
         record = MemoryRecord(content="test")
@@ -155,7 +155,7 @@ class TestStoreModuleConstants:
     
     def test_has_openai_flag(self):
         """Test that HAS_OPENAI flag is properly set."""
-        from pyagenity.store.embedding.openai_embedding import HAS_OPENAI
+        from taf.store.embedding.openai_embedding import HAS_OPENAI
         
         # Should be a boolean
         assert isinstance(HAS_OPENAI, bool)
@@ -171,7 +171,7 @@ class TestStoreModuleConstants:
     
     def test_embedding_module_constants(self):
         """Test constants in embedding modules."""
-        from pyagenity.store.embedding import BaseEmbedding
+        from taf.store.embedding import BaseEmbedding
         
         # BaseEmbedding should have proper abstract methods
         assert BaseEmbedding.__abstractmethods__
@@ -181,7 +181,7 @@ class TestStoreModuleConstants:
     
     def test_store_schema_enums(self):
         """Test that enums have expected values."""
-        from pyagenity.store.store_schema import MemoryType, DistanceMetric, RetrievalStrategy
+        from taf.store.store_schema import MemoryType, DistanceMetric, RetrievalStrategy
         
         # MemoryType should have core types
         memory_types = [mt.value for mt in MemoryType]
@@ -210,8 +210,8 @@ class TestStoreModuleCompatibility:
         assert sys.version_info >= (3, 10), "Store module requires Python 3.10+"
         
         # Import should work
-        import pyagenity.store
-        assert pyagenity.store is not None
+        import taf.store
+        assert taf.store is not None
     
     def test_import_performance(self):
         """Test that imports are reasonably fast."""
@@ -220,10 +220,10 @@ class TestStoreModuleCompatibility:
         start_time = time.time()
         
         # Fresh import
-        if 'pyagenity.store' in sys.modules:
-            del sys.modules['pyagenity.store']
+        if 'taf.store' in sys.modules:
+            del sys.modules['taf.store']
         
-        import pyagenity.store
+        import taf.store
         
         import_time = time.time() - start_time
         
@@ -233,11 +233,11 @@ class TestStoreModuleCompatibility:
     def test_circular_imports(self):
         """Test that there are no circular import issues."""
         # These imports should all work without circular dependency errors
-        from pyagenity.store import BaseStore
-        from pyagenity.store import BaseEmbedding  
-        from pyagenity.store import MemoryRecord, MemorySearchResult
-        from pyagenity.store.base_store import BaseStore as BaseStoreFromModule
-        from pyagenity.store.embedding.base_embedding import BaseEmbedding as BaseEmbeddingFromModule
+        from taf.store import BaseStore
+        from taf.store import BaseEmbedding  
+        from taf.store import MemoryRecord, MemorySearchResult
+        from taf.store.base_store import BaseStore as BaseStoreFromModule
+        from taf.store.embedding.base_embedding import BaseEmbedding as BaseEmbeddingFromModule
         
         # Should be the same objects
         assert BaseStore is BaseStoreFromModule
@@ -249,7 +249,7 @@ class TestStoreModuleDocumentation:
     
     def test_module_docstring(self):
         """Test that store module has documentation."""
-        import pyagenity.store as store_module
+        import taf.store as store_module
         
         # Module docstring may be None, that's acceptable for an __init__.py
         # Just check that the module can be imported
@@ -257,7 +257,7 @@ class TestStoreModuleDocumentation:
     
     def test_class_docstrings(self):
         """Test that main classes have docstrings."""
-        from pyagenity.store import BaseStore, BaseEmbedding, MemoryRecord
+        from taf.store import BaseStore, BaseEmbedding, MemoryRecord
         
         # Main classes should exist (docstrings may be None)
         assert BaseStore is not None
@@ -272,8 +272,8 @@ class TestStoreModuleDocumentation:
     
     def test_enum_docstrings(self):
         """Test that enums have proper documentation."""
-        from pyagenity.store import MemoryType, DistanceMetric
-        from pyagenity.store.store_schema import RetrievalStrategy
+        from taf.store import MemoryType, DistanceMetric
+        from taf.store.store_schema import RetrievalStrategy
         
         # Enums should have docstrings
         assert MemoryType.__doc__ is not None
@@ -290,15 +290,15 @@ class TestStoreModuleEdgeCases:
         with patch.dict(sys.modules, {'nonexistent_package': None}):
             # Store module should still import successfully
             try:
-                import pyagenity.store
-                assert pyagenity.store is not None
+                import taf.store
+                assert taf.store is not None
             except ImportError as e:
                 # If there is an ImportError, it should be specific and clear
                 assert 'nonexistent_package' not in str(e)
     
     def test_namespace_pollution(self):
         """Test that store module doesn't pollute namespace."""
-        import pyagenity.store as store_module
+        import taf.store as store_module
         
         # Should not have internal implementation details exposed
         internal_names = ['sys', 'os', 'typing', 'import_module', '__builtins__']
@@ -313,7 +313,7 @@ class TestStoreModuleEdgeCases:
     def test_module_reload_safety(self):
         """Test that module can be safely reloaded."""
         import importlib
-        import pyagenity.store as store_module
+        import taf.store as store_module
         
         # Get original BaseStore
         original_base_store = store_module.BaseStore
@@ -332,11 +332,11 @@ class TestStoreModuleEdgeCases:
         """Test that import order doesn't matter."""
         # Clear any existing imports
         modules_to_clear = [
-            'pyagenity.store',
-            'pyagenity.store.base_store', 
-            'pyagenity.store.store_schema',
-            'pyagenity.store.embedding',
-            'pyagenity.store.embedding.base_embedding'
+            'taf.store',
+            'taf.store.base_store', 
+            'taf.store.store_schema',
+            'taf.store.embedding',
+            'taf.store.embedding.base_embedding'
         ]
         
         for module in modules_to_clear:
@@ -344,9 +344,9 @@ class TestStoreModuleEdgeCases:
                 del sys.modules[module]
         
         # Import in different order
-        from pyagenity.store.store_schema import MemoryRecord
-        from pyagenity.store.base_store import BaseStore
-        from pyagenity.store.embedding.base_embedding import BaseEmbedding
+        from taf.store.store_schema import MemoryRecord
+        from taf.store.base_store import BaseStore
+        from taf.store.embedding.base_embedding import BaseEmbedding
         
         # All should work
         assert MemoryRecord is not None
@@ -354,7 +354,7 @@ class TestStoreModuleEdgeCases:
         assert BaseEmbedding is not None
         
         # Top-level import should also work
-        from pyagenity.store import BaseStore as TopLevelBaseStore
+        from taf.store import BaseStore as TopLevelBaseStore
         
         # Should be the same class
         assert BaseStore is TopLevelBaseStore

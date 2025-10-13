@@ -1,8 +1,8 @@
 """
-Personalized AI Agent using PyAgenity + Mem0 + Cloud Qdrant
+Personalized AI Agent using TAF + Mem0 + Cloud Qdrant
 
 This example demonstrates a sophisticated personalized AI agent that:
-1. Uses PyAgenity framework for agent orchestration
+1. Uses TAF framework for agent orchestration
 2. Integrates Mem0 for advanced memory management
 3. Uses Cloud Qdrant for vector storage (768 dimensions for Gemini embeddings)
 4. Leverages LiteLLM for multiple model support
@@ -30,12 +30,12 @@ from dotenv import load_dotenv
 from litellm import acompletion
 from mem0 import Memory
 
-from pyagenity.adapters.llm.model_response_converter import ModelResponseConverter
-from pyagenity.checkpointer import InMemoryCheckpointer
-from pyagenity.graph import StateGraph
-from pyagenity.state import AgentState, Message
-from pyagenity.utils.constants import END
-from pyagenity.utils.converter import convert_messages
+from taf.adapters.llm.model_response_converter import ModelResponseConverter
+from taf.checkpointer import InMemoryCheckpointer
+from taf.graph import StateGraph
+from taf.state import AgentState, Message
+from taf.utils.constants import END
+from taf.utils.converter import convert_messages
 
 
 # Load environment variables
@@ -58,7 +58,7 @@ class PersonalizedAgentState(AgentState):
 
 class PersonalizedAgent:
     """
-    A sophisticated personalized AI agent using PyAgenity + Mem0 + Cloud Qdrant.
+    A sophisticated personalized AI agent using TAF + Mem0 + Cloud Qdrant.
 
     Features:
     - Maintains long-term memory across conversations
@@ -97,12 +97,12 @@ class PersonalizedAgent:
         self.memory = Memory.from_config(self.mem0_config)
         self.app_id = "personalized-agent-v1"
 
-        # Initialize PyAgenity graph
+        # Initialize TAF graph
         self.checkpointer = InMemoryCheckpointer()
         self._build_agent_graph()
 
     def _build_agent_graph(self):
-        """Build the PyAgenity agent graph with memory integration."""
+        """Build the TAF agent graph with memory integration."""
 
         # Create state graph
         self.graph = StateGraph[PersonalizedAgentState](PersonalizedAgentState())

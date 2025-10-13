@@ -1,6 +1,6 @@
 # Control Flow & Edges
 
-Control flow in PyAgenity is explicit: you wire deterministic edges when constructing the graph or emit a `Command` at
+Control flow in 10xScale Agentflow is explicit: you wire deterministic edges when constructing the graph or emit a `Command` at
 runtime to jump. This page explains edges, conditional routing, recursion limits, interrupts, and stop requests.
 
 ---
@@ -33,7 +33,7 @@ The runtime tracks current node name in `execution_meta.current_node` inside `Ag
 ## Conditional Edges
 
 ```python
-from pyagenity.utils import END
+from taf.utils import END
 
 def classify(state: AgentState) -> str:
     last = state.context[-1].text() if state.context else ""
@@ -99,7 +99,7 @@ Best practices:
 
 ## Interrupts & Stop Requests
 
-PyAgenity supports robust human-in-the-loop (HITL) patterns through interrupt and stop mechanisms:
+10xScale Agentflow supports robust human-in-the-loop (HITL) patterns through interrupt and stop mechanisms:
 
 | Mechanism | Trigger | Effect | Use Case |
 |-----------|---------|--------|----------|
@@ -109,7 +109,7 @@ PyAgenity supports robust human-in-the-loop (HITL) patterns through interrupt an
 ### Basic Interrupt Example
 
 ```python
-from pyagenity.checkpointer import InMemoryCheckpointer
+from taf.checkpointer import InMemoryCheckpointer
 
 # Compile with interrupt points
 app = graph.compile(
@@ -124,10 +124,10 @@ result = app.invoke(input_data, config={"thread_id": "session-123"})
 if result.get("interrupted"):
     print(f"Paused: {result['interrupt_reason']}")
     # Human review/approval logic here...
-    
+
     # Resume with same thread_id
     final_result = app.invoke(
-        {"messages": [Message.text_message("Approved")]}, 
+        {"messages": [Message.text_message("Approved")]},
         config={"thread_id": "session-123"}
     )
 ```

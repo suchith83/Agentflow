@@ -17,9 +17,9 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from pyagenity.checkpointer.pg_checkpointer import PgCheckpointer
-from pyagenity.state import AgentState, Message
-from pyagenity.utils.thread_info import ThreadInfo
+from taf.checkpointer.pg_checkpointer import PgCheckpointer
+from taf.state import AgentState, Message
+from taf.utils.thread_info import ThreadInfo
 
 
 class TestPgCheckpointer:
@@ -365,7 +365,7 @@ class TestPgCheckpointerIntegration2:
     def real_checkpointer(self):
         """Create checkpointer with real connections (requires services)."""
         return PgCheckpointer(
-            postgres_dsn="postgresql://test:test@localhost:5432/test_pyagenity",
+            postgres_dsn="postgresql://test:test@localhost:5432/test_taf",
             redis_url="redis://localhost:6379/1",  # Use different DB for testing
         )
 

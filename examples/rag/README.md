@@ -1,6 +1,6 @@
-# RAG Examples (PyAgenity)
+# RAG Examples (10xScale Agentflow)
 
-This directory provides two progressively more capable Retrieval-Augmented Generation (RAG) examples built with the prebuilt [`RAGAgent`](pyagenity/prebuilt/agent/rag.py).
+This directory provides two progressively more capable Retrieval-Augmented Generation (RAG) examples built with the prebuilt [`RAGAgent`](taf/prebuilt/agent/rag.py).
 
 ## Files
 
@@ -43,7 +43,7 @@ Swap the in-memory keyword scorer with a vector store:
 
 ```python
 # Pseudocode snippet
-from pyagenity.store import QdrantStore
+from taf.store import QdrantStore
 store = QdrantStore(...)
 
 async def dense_retriever(state: AgentState) -> AgentState:

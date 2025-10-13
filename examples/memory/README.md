@@ -1,13 +1,13 @@
 # Personalized Agent with Mem0 + Cloud Qdrant
 
-This directory contains examples of personalized AI agents built with PyAgenity, Mem0, and Cloud Qdrant for long-term memory storage.
+This directory contains examples of personalized AI agents built with 10xScale Agentflow, Mem0 and Cloud Qdrant for long-term memory storage.
 
 ## 🏗️ Architecture
 
 ```
-PyAgenity (Agent Framework)
+10xScale Agentflow (Agent Framework)
     ↓
-Mem0 (Memory Management)  
+Mem0 (Memory Management)
     ↓
 Cloud Qdrant (Vector Storage)
     ↓
@@ -38,7 +38,7 @@ Install the required packages:
 
 ```bash
 # Core dependencies
-pip install pyagenity litellm mem0ai python-dotenv
+pip install taf litellm mem0ai python-dotenv
 
 # Optional: For local development/testing
 pip install qdrant-client
@@ -74,11 +74,11 @@ import asyncio
 
 async def chat_example():
     agent = SimplePersonalizedAgent()
-    
+
     # The agent remembers across conversations
     response1 = await agent.chat("Hi, I'm Alice and I love hiking!", "alice")
     response2 = await agent.chat("What outdoor activities do I enjoy?", "alice")
-    
+
     print(response1)
     print(response2)
 
@@ -96,7 +96,7 @@ python simple_personalized_agent.py
 A comprehensive example with sophisticated memory management:
 
 **Features:**
-- Multi-node PyAgenity graph
+- Multi-node 10xScale Agentflow graph
 - Advanced memory retrieval and storage
 - User preference extraction
 - Session management
@@ -137,7 +137,7 @@ memory.add(interaction, user_id="alice", metadata={"app_id": "my-agent"})
 # Semantic search for relevant memories
 memories = memory.search(
     query="What food do I like?",
-    user_id="alice", 
+    user_id="alice",
     limit=5
 )
 ```
@@ -195,7 +195,7 @@ memories = memory.search(query, user_id=user_id, limit=10)  # Default: 5
 
 # Add metadata filtering
 memories = memory.search(
-    query, 
+    query,
     user_id=user_id,
     filters={"app_id": "specific-app"}
 )
@@ -206,7 +206,7 @@ memories = memory.search(
 # Add custom metadata
 metadata = {
     "app_id": "my-agent",
-    "session_id": "session_123", 
+    "session_id": "session_123",
     "conversation_type": "support",
     "timestamp": datetime.now().isoformat()
 }
@@ -258,7 +258,7 @@ logging.basicConfig(level=logging.DEBUG)
 
 ## 📚 Learn More
 
-- [PyAgenity Documentation](https://github.com/Iamsdt/PyAgenity)
+- [10xScale Agentflow Documentation](https://github.com/10xHub/taf)
 - [Mem0 Documentation](https://docs.mem0.ai/)
 - [Qdrant Documentation](https://qdrant.tech/documentation/)
 - [LiteLLM Documentation](https://docs.litellm.ai/)
@@ -267,7 +267,7 @@ logging.basicConfig(level=logging.DEBUG)
 
 Try extending the examples:
 1. Add multiple agent types with different memory contexts
-2. Implement memory pruning/summarization 
+2. Implement memory pruning/summarization
 3. Add conversation threading
 4. Create specialized memory categories (preferences, facts, history)
 5. Integrate with external data sources

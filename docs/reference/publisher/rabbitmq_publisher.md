@@ -1,1 +1,1 @@
-::: pyagenity.publisher.rabbitmq_publisher
+::: taf.publisher.rabbitmq_publisher

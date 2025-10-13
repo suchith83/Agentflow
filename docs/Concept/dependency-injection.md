@@ -1,6 +1,6 @@
-# Dependency Injection in PyAgenity
+# Dependency Injection in 10xScale Agentflow
 
-Dependency injection (DI) is a fundamental design pattern that PyAgenity embraces to build flexible, testable, and maintainable agent applications. By integrating with InjectQ, PyAgenity provides a powerful dependency injection system that makes your agents more modular and easier to configure.
+Dependency injection (DI) is a fundamental design pattern that 10xScale Agentflow embraces to build flexible, testable, and maintainable agent applications. By integrating with InjectQ, 10xScale Agentflow provides a powerful dependency injection system that makes your agents more modular and easier to configure.
 
 ## What is Dependency Injection?
 
@@ -12,18 +12,18 @@ This approach offers several advantages:
 - **Flexibility**: Different implementations can be swapped without code changes
 - **Configuration**: Dependencies can be configured externally
 
-## PyAgenity's DI Integration
+## 10xScale Agentflow's DI Integration
 
-PyAgenity integrates seamlessly with [InjectQ](https://iamsdt.github.io/injectq/), a lightweight, type-friendly dependency injection library. This integration allows you to inject dependencies into:
+10xScale Agentflow integrates seamlessly with [InjectQ](https://iamsdt.github.io/injectq/), a lightweight, type-friendly dependency injection library. This integration allows you to inject dependencies into:
 
 - **Node functions** in your state graphs
 - **Tool functions** in your tool nodes
 - **Prebuilt agents** and their components
 - **Custom services** and utilities
 
-## Available Injectable Objects, that packed with PyAgenity
+## Available Injectable Objects, that packed with 10xScale Agentflow
 
-When you compile a PyAgenity graph, several core services are automatically registered in the dependency injection container:
+When you compile a 10xScale Agentflow graph, several core services are automatically registered in the dependency injection container:
 
 | Name | Details | Usages |
 |------|---------|--------|
@@ -39,12 +39,12 @@ When you compile a PyAgenity graph, several core services are automatically regi
 | `BackgroundTaskManager` | Manages background tasks for agents, allowing long-running work to be offloaded. | Use to schedule async work, retries, or background side-effects without blocking the main run. |
 | `StateGraph` | The current `StateGraph` instance representing the compiled graph. | Access the graph structure, read node metadata, or perform runtime introspection and dynamic wiring. |
 
-Note: For `BaseStore`, `BaseContextManager`, and `BasePublisher`, PyAgenity provides default implementations, but you can bind your own implementations to the container if needed.
+Note: For `BaseStore`, `BaseContextManager`, and `BasePublisher`, 10xScale Agentflow provides default implementations, but you can bind your own implementations to the container if needed.
 
 
 ## The Container Pattern
 
-At the heart of PyAgenity's dependency injection is the **container** - a centralized registry that manages how dependencies are created and provided. Think of it as a smart factory that knows how to build and deliver the right objects when needed.
+At the heart of 10xScale Agentflow's dependency injection is the **container** - a centralized registry that manages how dependencies are created and provided. Think of it as a smart factory that knows how to build and deliver the right objects when needed.
 
 ### Basic Container Usage
 
@@ -63,7 +63,7 @@ database = DatabaseConnection()
 container.bind_instance(DatabaseConnection, database)
 ```
 
-When you compile a PyAgenity graph, you can pass this container, and it becomes available throughout your agent execution:
+When you compile a 10xScale Agentflow graph, you can pass this container, and it becomes available throughout your agent execution:
 
 ```python
 graph = StateGraph(container=container)
@@ -72,7 +72,7 @@ app = graph.compile(checkpointer=checkpointer)
 
 ## Injection Patterns
 
-PyAgenity supports several ways to declare and receive dependencies in your functions.
+10xScale Agentflow supports several ways to declare and receive dependencies in your functions.
 
 ### Type-Based Injection with Inject[]
 
@@ -80,8 +80,8 @@ The most common pattern uses the `Inject[Type]` annotation to specify what depen
 
 ```python
 from injectq import Inject
-from pyagenity.checkpointer import InMemoryCheckpointer
-from pyagenity.utils.callbacks import CallbackManager
+from taf.checkpointer import InMemoryCheckpointer
+from taf.utils.callbacks import CallbackManager
 
 async def my_agent_node(
     state: AgentState,
@@ -92,14 +92,14 @@ async def my_agent_node(
     # Use your injected dependencies
     saved_state = await checkpointer.aget(config)
     await callback.before_invoke("AI", state)
-    
+
     # Your agent logic here
     return updated_state
 ```
 
 ### Tool Parameter Injection
 
-Tool functions can receive special injectable parameters that PyAgenity provides automatically:
+Tool functions can receive special injectable parameters that 10xScale Agentflow provides automatically:
 
 ```python
 def get_weather(
@@ -110,10 +110,10 @@ def get_weather(
 ) -> Message:
     # tool_call_id and state are automatically provided
     # checkpointer comes from the container
-    
+
     if tool_call_id:
         print(f"Handling tool call: {tool_call_id}")
-    
+
     weather_data = fetch_from_api(location)
     return Message.tool_message(content=weather_data, tool_call_id=tool_call_id)
 ```
@@ -125,13 +125,13 @@ Sometimes you need direct access to the container for dynamic dependency resolut
 ```python
 async def flexible_agent(state: AgentState, config: dict):
     container = InjectQ.get_instance()
-    
+
     # Get a required dependency
     message_id = container.get("generated_id")
-    
+
     # Try to get an optional dependency with fallback
     custom_config = container.try_get("custom_config", "default-value")
-    
+
     # Your logic here
 ```
 
@@ -182,17 +182,17 @@ class RequestContext:
         self.start_time = time.time()
 ```
 
-## Common PyAgenity Dependency Patterns
+## Common 10xScale Agentflow Dependency Patterns
 
 ### Injecting Core Services
 
-PyAgenity automatically registers several core services in the container:
+10xScale Agentflow automatically registers several core services in the container:
 
 ```python
 async def my_node(
     state: AgentState,
     config: dict,
-    # Core PyAgenity services
+    # Core 10xScale Agentflow services
     checkpointer: InMemoryCheckpointer = Inject[InMemoryCheckpointer],
     callback: CallbackManager = Inject[CallbackManager],
     store: BaseStore = Inject[BaseStore],
@@ -209,7 +209,7 @@ You can register your own services for injection:
 class WeatherService:
     def __init__(self, api_key: str):
         self.api_key = api_key
-    
+
     async def get_weather(self, location: str):
         # Implementation here
         pass
@@ -304,15 +304,15 @@ async def notification_agent(
     config: dict,
 ):
     container = InjectQ.get_instance()
-    
+
     # Choose notification method based on user preference
     user_preference = extract_preference(state)
-    
+
     if user_preference == "email":
         notifier = container.get(EmailService)
     else:
         notifier = container.get(SlackService)
-    
+
     await notifier.send("Your agent task is complete!")
 ```
 
@@ -327,22 +327,22 @@ from unittest.mock import Mock
 def test_weather_agent():
     # Create test container
     test_container = InjectQ.get_instance()
-    
+
     # Mock the weather service
     mock_weather = Mock()
     mock_weather.get_weather.return_value = "Sunny, 75°F"
     test_container.bind_instance(WeatherService, mock_weather)
-    
+
     # Create graph with test container
     graph = StateGraph(container=test_container)
     graph.add_node("weather", weather_agent_node)
     # ... configure graph
-    
+
     app = graph.compile()
-    
+
     # Test your agent
     result = app.invoke({"messages": [Message.text_message("Weather in NYC?")]})
-    
+
     # Verify mock was called
     mock_weather.get_weather.assert_called_once_with("NYC")
 ```
@@ -397,7 +397,7 @@ from abc import ABC, abstractmethod
 class StorageService(ABC):
     @abstractmethod
     async def save(self, key: str, data: dict): pass
-    
+
     @abstractmethod
     async def load(self, key: str) -> dict: pass
 
@@ -408,7 +408,7 @@ class FileStorageService(StorageService):
 
 class DatabaseStorageService(StorageService):
     async def save(self, key: str, data: dict):
-        # Database implementation  
+        # Database implementation
         pass
 
 # Register the interface, not the concrete class
@@ -423,16 +423,16 @@ Set up your container and all dependencies before creating your graph:
 def create_app():
     # Container setup
     container = InjectQ.get_instance()
-    
+
     # Register all dependencies
     container.bind_instance(Logger, setup_logger())
     container.bind(DatabaseService, create_database_service())
     container["environment"] = os.getenv("ENVIRONMENT", "development")
-    
+
     # Create and configure graph
     graph = StateGraph(container=container)
     # ... add nodes and edges
-    
+
     return graph.compile(checkpointer=checkpointer)
 ```
 
@@ -448,14 +448,14 @@ print("Registered dependencies:", container.get_dependency_graph())
 container.validate()  # Throws if circular dependencies exist
 ```
 
-## Integration with PyAgenity Features
+## Integration with 10xScale Agentflow Features
 
 ### Prebuilt Agents
 
-PyAgenity's prebuilt agents automatically work with dependency injection:
+10xScale Agentflow's prebuilt agents automatically work with dependency injection:
 
 ```python
-from pyagenity.prebuilt.agent import ReactAgent
+from taf.prebuilt.agent import ReactAgent
 
 # Create container with your dependencies
 container = InjectQ.get_instance()
@@ -477,7 +477,7 @@ Callbacks themselves can be dependency-injected services:
 class MetricsCallback:
     def __init__(self, metrics_service: MetricsService):
         self.metrics = metrics_service
-    
+
     async def before_invoke(self, type_: str, state: AgentState):
         await self.metrics.increment(f"{type_}_invocations")
 
@@ -491,13 +491,13 @@ container.bind_instance(MetricsCallback, metrics_callback)
 Publishers can also be injected dependencies:
 
 ```python
-from pyagenity.publisher import ConsolePublisher
+from taf.publisher import ConsolePublisher
 
 class CustomPublisher(ConsolePublisher):
     def __init__(self, notification_service: NotificationService):
         super().__init__()
         self.notifications = notification_service
-    
+
     async def publish_event(self, event: EventModel):
         await super().publish_event(event)
         if event.event_type == "error":
@@ -552,7 +552,7 @@ async def agent(database: DatabaseService = Inject[DatabaseService]):
 The dependency injection container has minimal overhead, but be aware of:
 
 - **Singleton vs Transient**: Singletons are faster for repeated access
-- **Factory Functions**: More flexible but slightly slower than direct instances  
+- **Factory Functions**: More flexible but slightly slower than direct instances
 - **Container Lookups**: Direct `container.get()` calls are fast but consider caching for hot paths
 
 ### Memory Management
@@ -561,4 +561,4 @@ The dependency injection container has minimal overhead, but be aware of:
 - Transient dependencies are garbage collected when no longer referenced
 - Request-scoped dependencies are cleaned up at request end
 
-Dependency injection in PyAgenity transforms your agent applications from rigid, tightly-coupled systems into flexible, testable, and maintainable architectures. By embracing these patterns, you'll build agents that are easier to develop, test, and deploy in production environments.
+Dependency injection in 10xScale Agentflow transforms your agent applications from rigid, tightly-coupled systems into flexible, testable, and maintainable architectures. By embracing these patterns, you'll build agents that are easier to develop, test, and deploy in production environments.

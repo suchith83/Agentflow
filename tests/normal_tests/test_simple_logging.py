@@ -7,10 +7,10 @@ import logging
 import sys
 
 
-sys.path.insert(0, "/home/shudipto/projects/pyagenity")
+sys.path.insert(0, "/home/shudipto/projects/taf")
 
 # Import and configure logging directly
-from pyagenity.utils.logging import configure_logging
+from taf.utils.logging import configure_logging
 
 
 # Test logging configuration
@@ -27,13 +27,13 @@ def test_logging():
     logger.error("This is an error message")
 
     # Test logging from different modules
-    graph_logger = logging.getLogger("pyagenity.graph.compiled_graph")
+    graph_logger = logging.getLogger("taf.graph.compiled_graph")
     graph_logger.info("Testing graph module logging")
 
-    state_logger = logging.getLogger("pyagenity.state.agent_state")
+    state_logger = logging.getLogger("taf.state.agent_state")
     state_logger.info("Testing state module logging")
 
-    utils_logger = logging.getLogger("pyagenity.utils.dependency_injection")
+    utils_logger = logging.getLogger("taf.utils.dependency_injection")
     utils_logger.info("Testing utils module logging")
 
     print("Logging test completed - check output above for log messages")

@@ -1,1 +1,1 @@
-::: pyagenity.publisher.redis_publisher
+::: taf.publisher.redis_publisher

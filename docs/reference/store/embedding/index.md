@@ -1,1 +1,1 @@
-::: pyagenity.store.embedding
+::: taf.store.embedding

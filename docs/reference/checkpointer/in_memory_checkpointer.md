@@ -1,1 +1,1 @@
-::: pyagenity.checkpointer.in_memory_checkpointer
+::: taf.checkpointer.in_memory_checkpointer

@@ -5,11 +5,11 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from pyagenity.graph.tool_node import ToolNode
-from pyagenity.graph.utils.stream_node_handler import StreamNodeHandler
-from pyagenity.state import AgentState, Message
-from pyagenity.state.message_block import ToolCallBlock, ToolResultBlock
-from pyagenity.utils import CallbackManager
+from taf.graph.tool_node import ToolNode
+from taf.graph.utils.stream_node_handler import StreamNodeHandler
+from taf.state import AgentState, Message
+from taf.state.message_block import ToolCallBlock, ToolResultBlock
+from taf.utils import CallbackManager
 
 
 class TestParallelToolCalls:
@@ -345,7 +345,7 @@ class TestParallelToolCalls:
     @pytest.mark.asyncio
     async def test_empty_tool_calls_raises_error(self):
         """Test that empty tool calls list raises appropriate error."""
-        from pyagenity.exceptions import NodeError
+        from taf.exceptions import NodeError
 
         tool_node = ToolNode([])
 

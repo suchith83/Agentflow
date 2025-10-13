@@ -2,9 +2,9 @@
 
 import pytest
 
-from pyagenity.checkpointer import BaseCheckpointer, InMemoryCheckpointer
-from pyagenity.state import Message
-from pyagenity.utils.thread_info import ThreadInfo
+from taf.checkpointer import BaseCheckpointer, InMemoryCheckpointer
+from taf.state import Message
+from taf.utils.thread_info import ThreadInfo
 
 
 class TestInMemoryCheckpointer:

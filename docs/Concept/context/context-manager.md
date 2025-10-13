@@ -1,4 +1,4 @@
-## MessageContextManager: Professional Context Trimming in PyAgenity
+## MessageContextManager: Professional Context Trimming in 10xScale Agentflow
 
 `MessageContextManager` is responsible for managing and trimming the message history (context) in agent interactions. It ensures efficient use of the context window, preserves conversation continuity, and supports robust edge case handling for production-grade agent workflows.
 
@@ -12,8 +12,8 @@
 ### Usage
 
 ```python
-from pyagenity.state.message_context_manager import MessageContextManager
-from pyagenity.state.agent_state import AgentState
+from taf.state.message_context_manager import MessageContextManager
+from taf.state.agent_state import AgentState
 
 # Create a manager to keep max 10 user messages, removing tool messages
 mgr = MessageContextManager(max_messages=10, remove_tool_msgs=True)

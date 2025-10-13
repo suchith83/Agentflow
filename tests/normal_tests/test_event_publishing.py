@@ -3,10 +3,10 @@
 import asyncio
 from typing import Any
 
-from pyagenity.graph import StateGraph
-from pyagenity.publisher import BasePublisher, ConsolePublisher, Event, EventType, SourceType
-from pyagenity.state import AgentState
-from pyagenity.utils import END, Message
+from taf.graph import StateGraph
+from taf.publisher import BasePublisher, ConsolePublisher, Event, EventType, SourceType
+from taf.state import AgentState
+from taf.utils import END, Message
 
 
 class TestPublisher(BasePublisher):

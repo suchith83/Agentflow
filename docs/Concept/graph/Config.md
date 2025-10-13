@@ -1,6 +1,6 @@
 # Graph Configuration
 
-The configuration object (`config`) is a Python dictionary that controls various aspects of graph execution in PyAgenity. It serves as the control panel for how your agent graph behaves during runtime, affecting everything from execution limits to state persistence and authentication.
+The configuration object (`config`) is a Python dictionary that controls various aspects of graph execution in 10xScale Agentflow. It serves as the control panel for how your agent graph behaves during runtime, affecting everything from execution limits to state persistence and authentication.
 
 ## Core Configuration Fields
 
@@ -24,7 +24,7 @@ config = {"thread_id": "user-session-123"}
 
 ### Optional Fields (with defaults)
 
-#### `user_id: str` 
+#### `user_id: str`
 **Default**: `"test-user-id"` (auto-generated if not provided)
 
 **Purpose**: Identifies the user or system making the request.
@@ -32,7 +32,7 @@ config = {"thread_id": "user-session-123"}
 **Usage**: Used for multi-tenant systems, authentication, and data isolation.
 ```python
 config = {
-    "thread_id": "session-456", 
+    "thread_id": "session-456",
     "user_id": "john.doe@example.com"
 }
 ```
@@ -128,7 +128,7 @@ config = {
 
 **Usage**: For applications requiring custom state fields.
 ```python
-from pyagenity.state import AgentState
+from taf.state import AgentState
 
 class CustomState(AgentState):
     user_data: dict = Field(default_factory=dict)
@@ -160,7 +160,7 @@ config = {
 **Usage**: For multi-application deployments using Mem0.
 ```python
 config = {
-    "thread_id": "session-123", 
+    "thread_id": "session-123",
     "user_id": "user-456",
     "app_id": "customer-service-bot"
 }
@@ -220,7 +220,7 @@ config = {
     "recursion_limit": 30,
     "meta": {
         "ticket_id": ticket_id,
-        "priority": "high", 
+        "priority": "high",
         "department": "technical_support",
         "created_at": datetime.now().isoformat()
     }
@@ -259,7 +259,7 @@ for chunk in app.stream(input_data, config=config):
 
 ### With Authentication Systems
 
-When deployed using PyAgenity CLI or similar deployment systems, the authentication system can populate the config with user information:
+When deployed using 10xScale Agentflow CLI or similar deployment systems, the authentication system can populate the config with user information:
 
 ```python
 # Authentication system provides user context
@@ -307,7 +307,7 @@ config = {"user_id": "user-123"}
 # ✅ Good - Always include thread_id
 config = {
     "thread_id": "session-456",
-    "user_id": "user-123"  
+    "user_id": "user-123"
 }
 ```
 
@@ -328,7 +328,7 @@ config = {
 # ❌ Bad - Too high, potential runaway
 config = {"recursion_limit": 1000}
 
-# ❌ Bad - Too low, premature termination  
+# ❌ Bad - Too low, premature termination
 config = {"recursion_limit": 5}
 
 # ✅ Good - Reasonable limit for use case
@@ -367,9 +367,9 @@ def create_safe_config(authenticated_user, thread_id):
     # Validate inputs
     if not authenticated_user.is_active:
         raise ValueError("User not active")
-    
+
     safe_thread_id = sanitize_thread_id(thread_id)
-    
+
     return {
         "thread_id": safe_thread_id,
         "user_id": authenticated_user.id,  # Trusted source

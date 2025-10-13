@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 
-from pyagenity.graph import StateGraph
-from pyagenity.state.agent_state import AgentState
-from pyagenity.utils import Message
+from taf.graph import StateGraph
+from taf.state.agent_state import AgentState
+from taf.utils import Message
 
 
 def test_graph_integration():

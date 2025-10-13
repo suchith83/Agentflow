@@ -2,15 +2,15 @@
 
 import pytest
 
-from pyagenity.graph import (
+from taf.graph import (
     CompiledGraph,
     Edge,
     Node,
     StateGraph,
     ToolNode,
 )
-from pyagenity.state import AgentState, Message
-from pyagenity.utils import END
+from taf.state import AgentState, Message
+from taf.utils import END
 
 
 class TestEdge:
@@ -132,7 +132,7 @@ class TestStateGraph:
 
     def test_state_graph_creation_with_publisher(self):
         """Test creating a StateGraph with publisher."""
-        from pyagenity.publisher import ConsolePublisher
+        from taf.publisher import ConsolePublisher
 
         publisher = ConsolePublisher()
         graph = StateGraph[AgentState](AgentState(), publisher=publisher)

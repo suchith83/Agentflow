@@ -2,14 +2,14 @@
 
 ## Overview
 
-`QdrantStore` is a modern, async-first vector store implementation for PyAgenity that uses [Qdrant](https://qdrant.tech/) as the backend vector database. It provides efficient vector similarity search, memory management, and supports both local and cloud Qdrant deployments.
+`QdrantStore` is a modern, async-first vector store implementation for 10xScale Agentflow that uses [Qdrant](https://qdrant.tech/) as the backend vector database. It provides efficient vector similarity search, memory management, and supports both local and cloud Qdrant deployments.
 
 ## Features
 
 - **Async-first design** for optimal performance
 - **Configurable embedding services** (OpenAI, custom implementations)
 - **Multiple deployment options** (local, remote, cloud)
-- **Rich metadata filtering** and search capabilities  
+- **Rich metadata filtering** and search capabilities
 - **User and agent-scoped operations**
 - **Batch operations** for high-throughput scenarios
 - **Automatic collection management**
@@ -17,10 +17,10 @@
 
 ## Installation
 
-Install PyAgenity with Qdrant support:
+Install 10xScale Agentflow with Qdrant support:
 
 ```bash
-pip install 'pyagenity[qdrant]'
+pip install 'taf[qdrant]'
 ```
 
 For OpenAI embeddings, also install:
@@ -35,8 +35,8 @@ pip install openai
 
 ```python
 import asyncio
-from pyagenity.store import QdrantStore
-from pyagenity.store.qdrant_store import OpenAIEmbeddingService
+from taf.store import QdrantStore
+from taf.store.qdrant_store import OpenAIEmbeddingService
 
 # Create embedding service
 embedding_service = OpenAIEmbeddingService(api_key="your-openai-key")
@@ -50,13 +50,13 @@ store = QdrantStore(
 async def main():
     # Initialize the store
     await store.asetup()
-    
+
     # Configuration for operations
     config = {
         "user_id": "user123",
         "agent_id": "agent456"
     }
-    
+
     # Store a memory
     memory_id = await store.astore(
         config=config,
@@ -64,14 +64,14 @@ async def main():
         memory_type=MemoryType.EPISODIC,
         category="interests"
     )
-    
+
     # Search for memories
     results = await store.asearch(
         config=config,
         query="artificial intelligence",
         limit=5
     )
-    
+
     # Clean up
     await store.arelease()
 
@@ -81,7 +81,7 @@ asyncio.run(main())
 ### 2. Remote Qdrant Server
 
 ```python
-from pyagenity.store.qdrant_store import create_remote_qdrant_store
+from taf.store.qdrant_store import create_remote_qdrant_store
 
 store = create_remote_qdrant_store(
     host="localhost",  # or your Qdrant server IP
@@ -93,7 +93,7 @@ store = create_remote_qdrant_store(
 ### 3. Qdrant Cloud
 
 ```python
-from pyagenity.store.qdrant_store import create_cloud_qdrant_store
+from taf.store.qdrant_store import create_cloud_qdrant_store
 
 store = create_cloud_qdrant_store(
     url="https://your-cluster.qdrant.io",
@@ -107,7 +107,7 @@ store = create_cloud_qdrant_store(
 ### OpenAI Embeddings
 
 ```python
-from pyagenity.store.qdrant_store import OpenAIEmbeddingService
+from taf.store.qdrant_store import OpenAIEmbeddingService
 
 # Small model (1536 dimensions, faster)
 embedding_service = OpenAIEmbeddingService(
@@ -127,17 +127,17 @@ embedding_service = OpenAIEmbeddingService(
 Implement the `EmbeddingService` protocol:
 
 ```python
-from pyagenity.store.qdrant_store import EmbeddingService
+from taf.store.qdrant_store import EmbeddingService
 
 class MyCustomEmbeddingService:
     def __init__(self):
         self._dimension = 768
-    
+
     async def embed(self, text: str) -> list[float]:
         # Your embedding logic here
         # Return a list of floats with length = self.dimension
         pass
-    
+
     @property
     def dimension(self) -> int:
         return self._dimension
@@ -162,7 +162,7 @@ memory_id = await store.astore(
 )
 
 # Store Message objects
-from pyagenity.utils import Message
+from taf.utils import Message
 message = Message.from_text("Hello world", role="user")
 memory_id = await store.astore(config=config, content=message)
 
@@ -238,11 +238,11 @@ store = QdrantStore(
     path="./local_data",              # Local file storage
     host="localhost", port=6333,      # Remote server
     url="https://...", api_key="...", # Qdrant Cloud
-    
+
     # Store options
     default_collection="my_memories",
     distance_metric=DistanceMetric.COSINE,
-    
+
     # Qdrant client options
     timeout=30,
     prefer_grpc=True,
@@ -255,7 +255,7 @@ store = QdrantStore(
 ```python
 config = {
     "user_id": "user123",        # Filter memories by user
-    "agent_id": "agent456",      # Filter memories by agent  
+    "agent_id": "agent456",      # Filter memories by agent
     "collection": "custom_name", # Use specific collection
 }
 ```
@@ -263,7 +263,7 @@ config = {
 ## Memory Types and Categories
 
 ```python
-from pyagenity.store.store_schema import MemoryType
+from taf.store.store_schema import MemoryType
 
 # Memory types
 MemoryType.EPISODIC      # Personal experiences, events
@@ -281,7 +281,7 @@ categories = ["work", "personal", "learning", "tasks", "conversations"]
 ## Distance Metrics
 
 ```python
-from pyagenity.store.store_schema import DistanceMetric
+from taf.store.store_schema import DistanceMetric
 
 DistanceMetric.COSINE      # Cosine similarity (default)
 DistanceMetric.EUCLIDEAN   # Euclidean distance
@@ -321,13 +321,13 @@ See `tests/store/test_qdrant_store.py` for comprehensive test examples and `exam
 
 - `qdrant-client>=1.7.0` - Qdrant Python client
 - `openai` (optional) - For OpenAI embeddings
-- `pyagenity` - Core PyAgenity framework
+- `taf` - Core 10xScale Agentflow framework
 
 ## Troubleshooting
 
 ### Common Issues
 
-1. **Import Error**: Install qdrant-client with `pip install 'pyagenity[qdrant]'`
+1. **Import Error**: Install qdrant-client with `pip install 'taf[qdrant]'`
 2. **Connection Error**: Ensure Qdrant server is running and accessible
 3. **Embedding Dimension Mismatch**: Ensure all embeddings use the same dimension
 4. **API Key Issues**: Verify OpenAI API key is set correctly
@@ -346,5 +346,5 @@ Enable debug logging to troubleshoot issues:
 ```python
 import logging
 logging.basicConfig(level=logging.DEBUG)
-logger = logging.getLogger("pyagenity.store.qdrant_store")
+logger = logging.getLogger("taf.store.qdrant_store")
 ```

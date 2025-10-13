@@ -1,6 +1,6 @@
 from dataclasses import dataclass, field
 
-from pyagenity.state.agent_state import AgentState
+from taf.state.agent_state import AgentState
 
 
 @dataclass

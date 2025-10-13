@@ -11,7 +11,7 @@ from unittest.mock import patch
 
 import pytest
 
-from pyagenity.utils.thread_name_generator import (
+from taf.utils.thread_name_generator import (
     AIThreadNameGenerator,
     generate_dummy_thread_name,
 )

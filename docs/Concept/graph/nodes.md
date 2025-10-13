@@ -1,6 +1,6 @@
 # Nodes & Return Types
 
-Nodes are the executable units of a PyAgenity graph. Each node is a Python function (sync or async) that receives
+Nodes are the executable units of a 10xScale Agentflow graph. Each node is a Python function (sync or async) that receives
 state, optional config, and any number of injected dependencies. Its return value determines how the graph proceeds.
 
 ---
@@ -9,10 +9,10 @@ state, optional config, and any number of injected dependencies. Its return valu
 
 ```python
 from injectq import Inject
-from pyagenity.state import AgentState
-from pyagenity.checkpointer import InMemoryCheckpointer
-from pyagenity.utils.command import Command
-from pyagenity.adapters.llm.model_response_converter import ModelResponseConverter
+from taf.state import AgentState
+from taf.checkpointer import InMemoryCheckpointer
+from taf.utils.command import Command
+from taf.adapters.llm.model_response_converter import ModelResponseConverter
 
 async def planner(
     state: AgentState,
@@ -52,8 +52,8 @@ Avoid returning complex nested structures—wrap them into messages or attach to
 ## Command for Inline Routing
 
 ```python
-from pyagenity.utils import END
-from pyagenity.utils.command import Command
+from taf.utils import END
+from taf.utils.command import Command
 
 def router(state, config):
     last = state.context[-1].text() if state.context else ""
@@ -124,7 +124,7 @@ Node purity matters for resumability. Guidelines:
 Mock injected dependencies; supply a minimal `AgentState`:
 
 ```python
-from pyagenity.state import AgentState
+from taf.state import AgentState
 
 def test_router_basic():
     s = AgentState()

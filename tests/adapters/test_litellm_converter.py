@@ -6,9 +6,9 @@ from unittest.mock import AsyncMock, Mock, patch, MagicMock
 
 import pytest
 
-from pyagenity.adapters.llm.litellm_converter import LiteLLMConverter
-from pyagenity.state.message import Message
-from pyagenity.state.message_block import ReasoningBlock, ToolCallBlock, TextBlock
+from taf.adapters.llm.litellm_converter import LiteLLMConverter
+from taf.state.message import Message
+from taf.state.message_block import ReasoningBlock, ToolCallBlock, TextBlock
 
 
 class MockModelResponse:
@@ -105,7 +105,7 @@ class TestLiteLLMConverter:
         """Test LiteLLM converter initialization."""
         assert isinstance(converter, LiteLLMConverter)
     
-    @patch('pyagenity.adapters.llm.litellm_converter.HAS_LITELLM', False)
+    @patch('taf.adapters.llm.litellm_converter.HAS_LITELLM', False)
     @pytest.mark.asyncio
     async def test_convert_response_no_litellm(self, converter):
         """Test convert_response raises ImportError when LiteLLM is not available."""
@@ -114,7 +114,7 @@ class TestLiteLLMConverter:
         with pytest.raises(ImportError, match="litellm is not installed"):
             await converter.convert_response(response)
     
-    @patch('pyagenity.adapters.llm.litellm_converter.HAS_LITELLM', True)
+    @patch('taf.adapters.llm.litellm_converter.HAS_LITELLM', True)
     @pytest.mark.asyncio
     async def test_convert_response_basic(self, converter):
         """Test basic response conversion."""
@@ -160,7 +160,7 @@ class TestLiteLLMConverter:
         assert message.metadata["model"] == "gpt-3.5-turbo"
         assert message.metadata["finish_reason"] == "stop"
     
-    @patch('pyagenity.adapters.llm.litellm_converter.HAS_LITELLM', True)
+    @patch('taf.adapters.llm.litellm_converter.HAS_LITELLM', True)
     @pytest.mark.asyncio
     async def test_convert_response_with_reasoning(self, converter):
         """Test response conversion with reasoning content."""
@@ -180,7 +180,7 @@ class TestLiteLLMConverter:
         
         response = MockModelResponse(response_data)
         
-        with patch('pyagenity.state.message.generate_id', return_value="reasoning_id"):
+        with patch('taf.state.message.generate_id', return_value="reasoning_id"):
             message = await converter.convert_response(response)
         
         assert len(message.content) == 2
@@ -189,7 +189,7 @@ class TestLiteLLMConverter:
         assert message.content[1].summary == "Let me think through this step by step..."
         assert message.reasoning == "Let me think through this step by step..."
     
-    @patch('pyagenity.adapters.llm.litellm_converter.HAS_LITELLM', True)
+    @patch('taf.adapters.llm.litellm_converter.HAS_LITELLM', True)
     @pytest.mark.asyncio
     async def test_convert_response_with_tool_calls(self, converter):
         """Test response conversion with tool calls."""
@@ -218,7 +218,7 @@ class TestLiteLLMConverter:
         
         response = MockModelResponse(response_data)
         
-        with patch('pyagenity.state.message.generate_id', return_value="tools_id"):
+        with patch('taf.state.message.generate_id', return_value="tools_id"):
             message = await converter.convert_response(response)
         
         assert len(message.content) == 2
@@ -230,7 +230,7 @@ class TestLiteLLMConverter:
         assert message.tools_calls is not None
         assert len(message.tools_calls) == 1
     
-    @patch('pyagenity.adapters.llm.litellm_converter.HAS_LITELLM', True)
+    @patch('taf.adapters.llm.litellm_converter.HAS_LITELLM', True)
     @pytest.mark.asyncio
     async def test_convert_response_empty_content(self, converter):
         """Test response conversion with empty content."""
@@ -250,13 +250,13 @@ class TestLiteLLMConverter:
         
         response = MockModelResponse(response_data)
         
-        with patch('pyagenity.state.message.generate_id', return_value="empty_id"):
+        with patch('taf.state.message.generate_id', return_value="empty_id"):
             message = await converter.convert_response(response)
         
         assert len(message.content) == 0
         assert message.metadata["finish_reason"] == "length"
     
-    @patch('pyagenity.adapters.llm.litellm_converter.HAS_LITELLM', True)
+    @patch('taf.adapters.llm.litellm_converter.HAS_LITELLM', True)
     @pytest.mark.asyncio
     async def test_convert_response_missing_fields(self, converter):
         """Test response conversion with missing optional fields."""
@@ -301,7 +301,7 @@ class TestLiteLLMConverter:
         choice = MockChoice(delta)
         chunk = MockModelResponseStream("test_123", [choice])
         
-        with patch('pyagenity.state.message.generate_id', return_value="chunk_id"):
+        with patch('taf.state.message.generate_id', return_value="chunk_id"):
             result = converter._process_chunk(chunk, 1, "Previous ", "", [], set())
         
         accumulated_content, accumulated_reasoning, tool_calls, seq, message = result
@@ -318,7 +318,7 @@ class TestLiteLLMConverter:
         choice = MockChoice(delta)
         chunk = MockModelResponseStream("test_reasoning", [choice])
         
-        with patch('pyagenity.state.message.generate_id', return_value="reasoning_chunk_id"):
+        with patch('taf.state.message.generate_id', return_value="reasoning_chunk_id"):
             result = converter._process_chunk(chunk, 1, "", "Previous reasoning ", [], set())
         
         accumulated_content, accumulated_reasoning, tool_calls, seq, message = result
@@ -336,7 +336,7 @@ class TestLiteLLMConverter:
         chunk = MockModelResponseStream("test_tools", [choice])
         tool_ids = set()
         
-        with patch('pyagenity.state.message.generate_id', return_value="tool_chunk_id"):
+        with patch('taf.state.message.generate_id', return_value="tool_chunk_id"):
             result = converter._process_chunk(chunk, 1, "", "", [], tool_ids)
         
         accumulated_content, accumulated_reasoning, tool_calls_result, seq, message = result
@@ -372,7 +372,7 @@ class TestLiteLLMConverter:
         choice = MockChoice(delta)
         chunk = MockModelResponseStream("combined_test", [choice])
         
-        with patch('pyagenity.state.message.generate_id', return_value="combined_id"):
+        with patch('taf.state.message.generate_id', return_value="combined_id"):
             result = converter._process_chunk(chunk, 1, "", "", [], set())
         
         accumulated_content, accumulated_reasoning, tool_calls_result, seq, message = result
@@ -402,7 +402,7 @@ class TestLiteLLMConverterStreaming:
         config = {"thread_id": "test_thread"}
         
         messages = []
-        with patch('pyagenity.state.message.generate_id', side_effect=["msg1", "msg2", "final"]):
+        with patch('taf.state.message.generate_id', side_effect=["msg1", "msg2", "final"]):
             async for message in converter._handle_stream(config, "test_node", stream):
                 messages.append(message)
         
@@ -423,7 +423,7 @@ class TestLiteLLMConverterStreaming:
         stream = MockCustomStreamWrapper(chunks)
         
         messages = []
-        with patch('pyagenity.state.message.generate_id', side_effect=["r1", "r2", "final"]):
+        with patch('taf.state.message.generate_id', side_effect=["r1", "r2", "final"]):
             async for message in converter._handle_stream({}, "reasoning_node", stream):
                 messages.append(message)
         
@@ -441,7 +441,7 @@ class TestLiteLLMConverterStreaming:
         stream = MockCustomStreamWrapper(chunks)
         
         messages = []
-        with patch('pyagenity.state.message.generate_id', side_effect=["t1", "t2", "final"]):
+        with patch('taf.state.message.generate_id', side_effect=["t1", "t2", "final"]):
             async for message in converter._handle_stream({}, "tool_node", stream):
                 messages.append(message)
         
@@ -452,7 +452,7 @@ class TestLiteLLMConverterStreaming:
         assert isinstance(final_message.content[1], ToolCallBlock)
         assert final_message.content[1].name == "stream_function"
     
-    @patch('pyagenity.adapters.llm.litellm_converter.HAS_LITELLM', False)
+    @patch('taf.adapters.llm.litellm_converter.HAS_LITELLM', False)
     @pytest.mark.asyncio
     async def test_convert_streaming_response_no_litellm(self, converter):
         """Test convert_streaming_response raises ImportError when LiteLLM unavailable."""
@@ -462,8 +462,8 @@ class TestLiteLLMConverterStreaming:
             async for _ in converter.convert_streaming_response({}, "test", response):
                 pass
     
-    @patch('pyagenity.adapters.llm.litellm_converter.HAS_LITELLM', True)
-    @patch('pyagenity.adapters.llm.litellm_converter.CustomStreamWrapper', MockCustomStreamWrapper)
+    @patch('taf.adapters.llm.litellm_converter.HAS_LITELLM', True)
+    @patch('taf.adapters.llm.litellm_converter.CustomStreamWrapper', MockCustomStreamWrapper)
     @pytest.mark.asyncio
     async def test_convert_streaming_response_with_stream(self, converter):
         """Test convert_streaming_response with CustomStreamWrapper."""
@@ -474,15 +474,15 @@ class TestLiteLLMConverterStreaming:
         stream = MockCustomStreamWrapper(chunks)
         
         messages = []
-        with patch('pyagenity.state.message.generate_id', side_effect=["s1", "s2", "final"]):
+        with patch('taf.state.message.generate_id', side_effect=["s1", "s2", "final"]):
             async for message in converter.convert_streaming_response({}, "stream_node", stream):
                 messages.append(message)
         
         assert len(messages) == 3
         assert messages[2].content[0].text == "Streaming test"
     
-    # @patch('pyagenity.adapters.llm.litellm_converter.HAS_LITELLM', True)
-    # @patch('pyagenity.adapters.llm.litellm_converter.ModelResponse', MockModelResponse)
+    # @patch('taf.adapters.llm.litellm_converter.HAS_LITELLM', True)
+    # @patch('taf.adapters.llm.litellm_converter.ModelResponse', MockModelResponse)
     # @pytest.mark.asyncio
     # async def test_convert_streaming_response_with_model_response(self, converter):
     #     """Test convert_streaming_response with ModelResponse."""
@@ -494,14 +494,14 @@ class TestLiteLLMConverterStreaming:
     #     response = MockModelResponse(response_data)
         
     #     messages = []
-    #     with patch('pyagenity.state.message.generate_id', return_value="non_stream_id"):
+    #     with patch('taf.state.message.generate_id', return_value="non_stream_id"):
     #         async for message in converter.convert_streaming_response({}, "model_node", response):
     #             messages.append(message)
         
     #     assert len(messages) == 1
     #     assert messages[0].content[0].text == "Non-streaming response"
     
-    # @patch('pyagenity.adapters.llm.litellm_converter.HAS_LITELLM', True)
+    # @patch('taf.adapters.llm.litellm_converter.HAS_LITELLM', True)
     # @pytest.mark.asyncio
     # async def test_convert_streaming_response_unsupported_type(self, converter):
     #     """Test convert_streaming_response with unsupported response type."""
@@ -520,7 +520,7 @@ class TestLiteLLMConverterEdgeCases:
         """Create a LiteLLM converter instance."""
         return LiteLLMConverter()
     
-    @patch('pyagenity.adapters.llm.litellm_converter.HAS_LITELLM', True)
+    @patch('taf.adapters.llm.litellm_converter.HAS_LITELLM', True)
     @pytest.mark.asyncio
     async def test_convert_response_invalid_tool_call_data(self, converter):
         """Test response conversion with invalid tool call data."""
@@ -542,7 +542,7 @@ class TestLiteLLMConverterEdgeCases:
         
         response = MockModelResponse(response_data)
         
-        with patch('pyagenity.state.message.generate_id', return_value="invalid_id"):
+        with patch('taf.state.message.generate_id', return_value="invalid_id"):
             message = await converter.convert_response(response)
         
         # Should skip all invalid tool calls
@@ -574,7 +574,7 @@ class TestLiteLLMConverterEdgeCases:
         stream = SyncOnlyStream(chunks)
         
         messages = []
-        with patch('pyagenity.state.message.generate_id', side_effect=["sync1", "sync2", "final"]):
+        with patch('taf.state.message.generate_id', side_effect=["sync1", "sync2", "final"]):
             async for message in converter._handle_stream({}, "sync_node", stream):
                 messages.append(message)
         
@@ -592,7 +592,7 @@ class TestLiteLLMConverterEdgeCases:
             return MockCustomStreamWrapper(chunks)
         
         messages = []
-        with patch('pyagenity.state.message.generate_id', side_effect=["await1", "final"]):
+        with patch('taf.state.message.generate_id', side_effect=["await1", "final"]):
             async for message in converter._handle_stream({}, "await_node", awaitable_stream()):
                 messages.append(message)
         
@@ -618,7 +618,7 @@ class TestLiteLLMConverterEdgeCases:
         stream = FailingStream()
         
         messages = []
-        with patch('pyagenity.state.message.generate_id', return_value="final"):
+        with patch('taf.state.message.generate_id', return_value="final"):
             async for message in converter._handle_stream({}, "fail_node", stream):
                 messages.append(message)
         
@@ -637,7 +637,7 @@ class TestLiteLLMConverterEdgeCases:
         accumulated_content, accumulated_reasoning, tool_calls, seq, message = result
         assert len(tool_calls) == 0  # Should skip None tool calls
     
-    @patch('pyagenity.adapters.llm.litellm_converter.HAS_LITELLM', True)
+    @patch('taf.adapters.llm.litellm_converter.HAS_LITELLM', True)
     @pytest.mark.asyncio
     async def test_convert_response_with_dict_tool_calls(self, converter):
         """Test response conversion with tool calls as plain dicts."""

@@ -1,1 +1,1 @@
-::: pyagenity.store.embedding.openai_embedding
+::: taf.store.embedding.openai_embedding

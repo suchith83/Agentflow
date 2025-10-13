@@ -11,9 +11,9 @@ from io import StringIO
 from unittest.mock import patch, Mock, call
 from typing import Any
 
-from pyagenity.publisher.console_publisher import ConsolePublisher
-from pyagenity.publisher.base_publisher import BasePublisher
-from pyagenity.publisher.events import EventModel, Event, EventType, ContentType
+from taf.publisher.console_publisher import ConsolePublisher
+from taf.publisher.base_publisher import BasePublisher
+from taf.publisher.events import EventModel, Event, EventType, ContentType
 
 
 class TestConsolePublisherInheritance:
@@ -351,7 +351,7 @@ class TestConsolePublisherCloseMethod:
     """Test ConsolePublisher close method."""
     
     @pytest.mark.asyncio
-    @patch('pyagenity.publisher.console_publisher.logger')
+    @patch('taf.publisher.console_publisher.logger')
     async def test_close_method(self, mock_logger):
         """Test async close method."""
         publisher = ConsolePublisher()
@@ -362,7 +362,7 @@ class TestConsolePublisherCloseMethod:
         mock_logger.debug.assert_called_once_with("ConsolePublisher closed")
     
     @pytest.mark.asyncio
-    @patch('pyagenity.publisher.console_publisher.logger')
+    @patch('taf.publisher.console_publisher.logger')
     async def test_close_method_multiple_calls(self, mock_logger):
         """Test calling close multiple times."""
         publisher = ConsolePublisher()
@@ -380,7 +380,7 @@ class TestConsolePublisherCloseMethod:
         ])
     
     @pytest.mark.asyncio
-    @patch('pyagenity.publisher.console_publisher.logger')
+    @patch('taf.publisher.console_publisher.logger')
     async def test_close_method_no_exceptions(self, mock_logger):
         """Test that close method doesn't raise exceptions."""
         publisher = ConsolePublisher()
@@ -397,7 +397,7 @@ class TestConsolePublisherCloseMethod:
 class TestConsolePublisherSyncCloseMethod:
     """Test ConsolePublisher sync_close method."""
     
-    @patch('pyagenity.publisher.console_publisher.logger')
+    @patch('taf.publisher.console_publisher.logger')
     def test_sync_close_method(self, mock_logger):
         """Test sync close method."""
         publisher = ConsolePublisher()
@@ -407,7 +407,7 @@ class TestConsolePublisherSyncCloseMethod:
         # Should log debug message
         mock_logger.debug.assert_called_once_with("ConsolePublisher sync closed")
     
-    @patch('pyagenity.publisher.console_publisher.logger')
+    @patch('taf.publisher.console_publisher.logger')
     def test_sync_close_method_multiple_calls(self, mock_logger):
         """Test calling sync_close multiple times."""
         publisher = ConsolePublisher()
@@ -424,7 +424,7 @@ class TestConsolePublisherSyncCloseMethod:
             call("ConsolePublisher sync closed")
         ])
     
-    @patch('pyagenity.publisher.console_publisher.logger')
+    @patch('taf.publisher.console_publisher.logger')
     def test_sync_close_method_no_exceptions(self, mock_logger):
         """Test that sync_close method doesn't raise exceptions."""
         publisher = ConsolePublisher()
@@ -482,7 +482,7 @@ class TestConsolePublisherIntegration:
         assert mock_print.call_count == 3
         
         # Close publisher
-        with patch('pyagenity.publisher.console_publisher.logger') as mock_logger:
+        with patch('taf.publisher.console_publisher.logger') as mock_logger:
             await publisher.close()
             mock_logger.debug.assert_called_once_with("ConsolePublisher closed")
     

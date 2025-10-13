@@ -1,12 +1,12 @@
 
-# PyAgenity
+# 10xScale Agentflow
 
-![PyPI](https://img.shields.io/pypi/v/pyagenity?color=blue)
-![License](https://img.shields.io/github/license/10xhub/pyagenity)
-![Python](https://img.shields.io/pypi/pyversions/pyagenity)
-[![Coverage](https://img.shields.io/badge/coverage-73%25-yellow.svg)](#)
+![PyPI](https://img.shields.io/pypi/v/taf?color=blue)
+![License](https://img.shields.io/github/license/10xhub/taf)
+![Python](https://img.shields.io/pypi/pyversions/taf)
+[![Coverage](https://img.shields.io/badge/coverage-74%25-yellow.svg)](#)
 
-**PyAgenity** is a lightweight Python framework for building intelligent agents and orchestrating multi-agent workflows. It's an **LLM-agnostic orchestration tool** that works with any LLM provider—use LiteLLM, native SDKs from OpenAI, Google Gemini, Anthropic Claude, or any other provider. You choose your LLM library; PyAgenity provides the workflow orchestration.
+**10xScale Agentflow** is a lightweight Python framework for building intelligent agents and orchestrating multi-agent workflows. It's an **LLM-agnostic orchestration tool** that works with any LLM provider—use LiteLLM, native SDKs from OpenAI, Google Gemini, Anthropic Claude, or any other provider. You choose your LLM library; 10xScale Agentflow provides the workflow orchestration.
 
 ---
 
@@ -31,39 +31,39 @@
 **Basic installation with [uv](https://github.com/astral-sh/uv) (recommended):**
 
 ```bash
-uv pip install pyagenity
+uv pip install taf
 ```
 
 Or with pip:
 
 ```bash
-pip install pyagenity
+pip install taf
 ```
 
 **Optional Dependencies:**
 
-PyAgenity supports optional dependencies for specific functionality:
+10xScale Agentflow supports optional dependencies for specific functionality:
 
 ```bash
 # PostgreSQL + Redis checkpointing
-pip install pyagenity[pg_checkpoint]
+pip install taf[pg_checkpoint]
 
 # MCP (Model Context Protocol) support
-pip install pyagenity[mcp]
+pip install taf[mcp]
 
 # Composio tools (adapter)
-pip install pyagenity[composio]
+pip install taf[composio]
 
 # LangChain tools (registry-based adapter)
-pip install pyagenity[langchain]
+pip install taf[langchain]
 
 # Individual publishers
-pip install pyagenity[redis]     # Redis publisher
-pip install pyagenity[kafka]     # Kafka publisher
-pip install pyagenity[rabbitmq]  # RabbitMQ publisher
+pip install taf[redis]     # Redis publisher
+pip install taf[kafka]     # Kafka publisher
+pip install taf[rabbitmq]  # RabbitMQ publisher
 
 # Multiple extras
-pip install pyagenity[pg_checkpoint,mcp,composio,langchain]
+pip install taf[pg_checkpoint,mcp,composio,langchain]
 ```
 
 ### Environment Setup
@@ -88,12 +88,12 @@ Here's a minimal React agent with tool calling:
 from dotenv import load_dotenv
 from litellm import acompletion
 
-from pyagenity.checkpointer import InMemoryCheckpointer
-from pyagenity.graph import StateGraph, ToolNode
-from pyagenity.state.agent_state import AgentState
-from pyagenity.utils import Message
-from pyagenity.utils.constants import END
-from pyagenity.utils.converter import convert_messages
+from taf.checkpointer import InMemoryCheckpointer
+from taf.graph import StateGraph, ToolNode
+from taf.state.agent_state import AgentState
+from taf.utils import Message
+from taf.utils.constants import END
+from taf.utils.converter import convert_messages
 
 load_dotenv()
 
@@ -216,7 +216,7 @@ Notes:
 
 ## Example: MCP Integration
 
-PyAgenity supports integration with Model Context Protocol (MCP) servers, allowing you to connect external tools and services. The example in `examples/react-mcp/` demonstrates how to integrate MCP tools with your agent.
+10xScale Agentflow supports integration with Model Context Protocol (MCP) servers, allowing you to connect external tools and services. The example in `examples/react-mcp/` demonstrates how to integrate MCP tools with your agent.
 
 First, create an MCP server (see `examples/react-mcp/server.py`):
 
@@ -248,12 +248,12 @@ from dotenv import load_dotenv
 from fastmcp import Client
 from litellm import acompletion
 
-from pyagenity.checkpointer import InMemoryCheckpointer
-from pyagenity.graph import StateGraph, ToolNode
-from pyagenity.state.agent_state import AgentState
-from pyagenity.utils import Message
-from pyagenity.utils.constants import END
-from pyagenity.utils.converter import convert_messages
+from taf.checkpointer import InMemoryCheckpointer
+from taf.graph import StateGraph, ToolNode
+from taf.state.agent_state import AgentState
+from taf.utils import Message
+from taf.utils.constants import END
+from taf.utils.converter import convert_messages
 
 load_dotenv()
 
@@ -339,9 +339,9 @@ How to run the MCP example:
 
 1. Install MCP dependencies:
 ```bash
-pip install pyagenity[mcp]
+pip install taf[mcp]
 # or
-uv pip install pyagenity[mcp]
+uv pip install taf[mcp]
 ```
 
 2. Start the MCP server in one terminal:
@@ -359,7 +359,7 @@ python examples/react-mcp/react-mcp.py
 
 ## Example: Streaming Agent
 
-PyAgenity supports streaming responses for real-time interaction. The example in `examples/react_stream/stream_react_agent.py` demonstrates different streaming modes and configurations.
+10xScale Agentflow supports streaming responses for real-time interaction. The example in `examples/react_stream/stream_react_agent.py` demonstrates different streaming modes and configurations.
 
 ```python
 import asyncio
@@ -368,12 +368,12 @@ import logging
 from dotenv import load_dotenv
 from litellm import acompletion
 
-from pyagenity.checkpointer import InMemoryCheckpointer
-from pyagenity.graph import StateGraph, ToolNode
-from pyagenity.state.agent_state import AgentState
-from pyagenity.utils import Message, ResponseGranularity
-from pyagenity.utils.constants import END
-from pyagenity.utils.converter import convert_messages
+from taf.checkpointer import InMemoryCheckpointer
+from taf.graph import StateGraph, ToolNode
+from taf.state.agent_state import AgentState
+from taf.utils import Message, ResponseGranularity
+from taf.utils.constants import END
+from taf.utils.converter import convert_messages
 
 load_dotenv()
 checkpointer = InMemoryCheckpointer()
@@ -482,7 +482,7 @@ python examples/react_stream/stream_react_agent.py
 
 ## ⚡ Parallel Tool Execution
 
-PyAgenity automatically executes multiple tool calls **in parallel** when an LLM requests multiple tools simultaneously. This dramatically improves performance for I/O-bound operations.
+10xScale Agentflow automatically executes multiple tool calls **in parallel** when an LLM requests multiple tools simultaneously. This dramatically improves performance for I/O-bound operations.
 
 ### Benefits
 
@@ -502,13 +502,13 @@ PyAgenity automatically executes multiple tool calls **in parallel** when an LLM
 # Parallel execution:   max(1.0, 1.5, 0.8) = 1.5 seconds ⚡
 ```
 
-See the [parallel tool execution documentation](https://10xhub.github.io/PyAgenity/Concept/graph/tools/#parallel-tool-execution) for more details.
+See the [parallel tool execution documentation](https://10xhub.github.io/10xScale Agentflow/Concept/graph/tools/#parallel-tool-execution) for more details.
 
 ---
 
 ## 🎯 Use Cases & Patterns
 
-PyAgenity includes prebuilt agent patterns for common scenarios:
+10xScale Agentflow includes prebuilt agent patterns for common scenarios:
 
 ### 🤖 Agent Types
 
@@ -531,7 +531,7 @@ PyAgenity includes prebuilt agent patterns for common scenarios:
 - **Deep Research** - Multi-level research and synthesis
 - **Network** - Complex agent networks
 
-See the [documentation](https://10xhub.github.io/PyAgenity/) for complete examples.
+See the [documentation](https://10xhub.github.io/10xScale Agentflow/) for complete examples.
 
 ---
 
@@ -539,14 +539,14 @@ See the [documentation](https://10xhub.github.io/PyAgenity/) for complete exampl
 
 ### For Library Users
 
-Install PyAgenity as shown above. The `pyproject.toml` contains all runtime dependencies.
+Install 10xScale Agentflow as shown above. The `pyproject.toml` contains all runtime dependencies.
 
 ### For Contributors
 
 ```bash
 # Clone the repository
-git clone https://github.com/10xhub/PyAgenity.git
-cd PyAgenity
+git clone https://github.com/10xhub/10xScale Agentflow.git
+cd 10xScale Agentflow
 
 # Create virtual environment
 python -m venv .venv
@@ -603,22 +603,22 @@ See `pyproject.dev.toml` for complete tool configurations.
 
 ## 📄 License
 
-MIT License - see [LICENSE](https://github.com/10xhub/PyAgenity/blob/main/LICENSE) for details.
+MIT License - see [LICENSE](https://github.com/10xhub/10xScale Agentflow/blob/main/LICENSE) for details.
 
 ---
 
 ## 🔗 Links & Resources
 
-- **[Documentation](https://10xhub.github.io/PyAgenity/)** - Full documentation with tutorials and API reference
-- **[GitHub Repository](https://github.com/10xhub/PyAgenity)** - Source code and issues
-- **[PyPI Project](https://pypi.org/project/pyagenity/)** - Package releases
-- **[Examples Directory](https://github.com/10xhub/PyAgenity/tree/main/examples)** - Runnable code samples
+- **[Documentation](https://10xhub.github.io/10xScale Agentflow/)** - Full documentation with tutorials and API reference
+- **[GitHub Repository](https://github.com/10xhub/10xScale Agentflow)** - Source code and issues
+- **[PyPI Project](https://pypi.org/project/taf/)** - Package releases
+- **[Examples Directory](https://github.com/10xhub/10xScale Agentflow/tree/main/examples)** - Runnable code samples
 
 ---
 
 ## 🙏 Contributing
 
-Contributions are welcome! Please see our [GitHub repository](https://github.com/10xhub/PyAgenity) for:
+Contributions are welcome! Please see our [GitHub repository](https://github.com/10xhub/10xScale Agentflow) for:
 
 - Issue reporting and feature requests
 - Pull request guidelines
@@ -629,11 +629,11 @@ Contributions are welcome! Please see our [GitHub repository](https://github.com
 
 ## 💬 Support
 
-- **Documentation**: [https://10xhub.github.io/PyAgenity/](https://10xhub.github.io/PyAgenity/)
-- **Examples**: Check the [examples directory](https://github.com/10xhub/PyAgenity/tree/main/examples)
-- **Issues**: Report bugs on [GitHub Issues](https://github.com/10xhub/PyAgenity/issues)
-- **Discussions**: Ask questions in [GitHub Discussions](https://github.com/10xhub/PyAgenity/discussions)
+- **Documentation**: [https://10xhub.github.io/10xScale Agentflow/](https://10xhub.github.io/10xScale Agentflow/)
+- **Examples**: Check the [examples directory](https://github.com/10xhub/10xScale Agentflow/tree/main/examples)
+- **Issues**: Report bugs on [GitHub Issues](https://github.com/10xhub/10xScale Agentflow/issues)
+- **Discussions**: Ask questions in [GitHub Discussions](https://github.com/10xhub/10xScale Agentflow/discussions)
 
 ---
 
-**Ready to build intelligent agents?** Check out the [documentation](https://10xhub.github.io/PyAgenity/) to get started!
+**Ready to build intelligent agents?** Check out the [documentation](https://10xhub.github.io/10xScale Agentflow/) to get started!

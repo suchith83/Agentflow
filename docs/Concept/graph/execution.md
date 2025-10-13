@@ -53,7 +53,7 @@ Pattern:
 
 ```python
 from injectq import Inject
-from pyagenity.utils.background_task_manager import BackgroundTaskManager
+from taf.utils.background_task_manager import BackgroundTaskManager
 
 async def summarizer(state): ...
 
@@ -68,7 +68,7 @@ Ensure background tasks are idempotent or reference stable state snapshots to av
 
 ## Stop & Interrupt Control
 
-PyAgenity provides flexible execution control for human-in-the-loop workflows:
+10xScale Agentflow provides flexible execution control for human-in-the-loop workflows:
 
 | Mechanism | When Applied | Purpose | Response Time |
 |-----------|--------------|---------|---------------|
@@ -81,7 +81,7 @@ PyAgenity provides flexible execution control for human-in-the-loop workflows:
 The `AgentState.execution_meta` tracks pause/resume state:
 
 ```python
-from pyagenity.state import ExecutionStatus
+from taf.state import ExecutionStatus
 
 # Check interrupt status
 if state.execution_meta.is_interrupted():
@@ -113,10 +113,10 @@ config = {"thread_id": "interactive-session"}
 async for chunk in app.astream(input_data, config=config):
     if chunk.event_type == "interrupted":
         print(f"⏸️ Paused: {chunk.metadata.get('status')}")
-        
+
         # Handle interrupt (e.g., get user approval)
         approval = await get_user_approval()
-        
+
         if approval:
             # Resume streaming
             async for resume_chunk in app.astream({

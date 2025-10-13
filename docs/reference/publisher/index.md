@@ -1,1 +1,1 @@
-::: pyagenity.publisher
+::: taf.publisher

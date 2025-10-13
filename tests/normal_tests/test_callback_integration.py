@@ -9,10 +9,10 @@ import sys
 from typing import Any
 
 
-# Add the project root to the path so we can import pyagenity
+# Add the project root to the path so we can import taf
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from pyagenity.utils import (
+from taf.utils import (
     AfterInvokeCallback,
     BeforeInvokeCallback,
     CallbackContext,
@@ -63,7 +63,7 @@ class TestErrorCallback(OnErrorCallback):
 
 async def test_callback_system():
     """Test the callback system functionality."""
-    print("🧪 Testing PyAgenity Callback System")
+    print("🧪 Testing TAF Callback System")
     print("=" * 40)
 
     # Create callback manager

@@ -1,8 +1,8 @@
 """
-Simple Personalized Agent Example using PyAgenity + Mem0 + Cloud Qdrant
+Simple Personalized Agent Example using TAF + Mem0 + Cloud Qdrant
 
 A streamlined example showing basic integration between:
-- PyAgenity for agent framework
+- TAF for agent framework
 - Mem0 for memory management
 - Cloud Qdrant for vector storage
 - LiteLLM for model calls
@@ -17,11 +17,11 @@ from dotenv import load_dotenv
 from litellm import acompletion
 from mem0 import Memory
 
-from pyagenity.adapters.llm.model_response_converter import ModelResponseConverter
-from pyagenity.graph import StateGraph
-from pyagenity.state import AgentState, Message
-from pyagenity.utils.constants import END
-from pyagenity.utils.converter import convert_messages
+from taf.adapters.llm.model_response_converter import ModelResponseConverter
+from taf.graph import StateGraph
+from taf.state import AgentState, Message
+from taf.utils.constants import END
+from taf.utils.converter import convert_messages
 
 
 # Load environment variables
@@ -65,7 +65,7 @@ class SimplePersonalizedAgent:
         self._build_graph()
 
     def _build_graph(self):
-        """Build PyAgenity graph."""
+        """Build TAF graph."""
         graph = StateGraph[MemoryAgentState](MemoryAgentState())
 
         graph.add_node("chat", self._chat_with_memory)

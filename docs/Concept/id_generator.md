@@ -1,6 +1,6 @@
-## ID Generation in PyAgenity
+## ID Generation in 10xScale Agentflow
 
-ID generators produce stable, traceable identifiers for runs, messages, tool calls, and background tasks. PyAgenity ships multiple strategies and lets you inject or override them to match infrastructure needs (UUIDs, integers, sortable timestamps, short IDs, async factories, etc.).
+ID generators produce stable, traceable identifiers for runs, messages, tool calls, and background tasks. 10xScale Agentflow ships multiple strategies and lets you inject or override them to match infrastructure needs (UUIDs, integers, sortable timestamps, short IDs, async factories, etc.).
 
 ### Why It Matters
 
@@ -46,7 +46,7 @@ If the active generator returns an empty string (the `DefaultIDGenerator` case),
 
 ```python
 from injectq import Inject
-from pyagenity.utils.id_generator import BigIntIDGenerator, BaseIDGenerator
+from taf.utils.id_generator import BigIntIDGenerator, BaseIDGenerator
 
 async def node(state, config, id_gen: BaseIDGenerator = Inject[BaseIDGenerator]):
 	run_local_id = id_gen.generate()
@@ -58,8 +58,8 @@ To supply a custom generator:
 
 ```python
 from injectq import InjectQ
-from pyagenity.graph import StateGraph
-from pyagenity.utils.id_generator import BaseIDGenerator, IDType
+from taf.graph import StateGraph
+from taf.utils.id_generator import BaseIDGenerator, IDType
 
 class PrefixedUUIDGenerator(BaseIDGenerator):
 	@property

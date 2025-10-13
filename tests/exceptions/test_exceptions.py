@@ -2,7 +2,7 @@
 
 import pytest
 
-from pyagenity.exceptions import (
+from taf.exceptions import (
     GraphError,
     GraphRecursionError,
     NodeError,

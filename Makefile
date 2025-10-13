@@ -1,4 +1,4 @@
-# Makefile for PyAgenity packaging and publishing
+# Makefile for 10xScale Agentflow packaging and publishing
 
 .PHONY: build publish testpublish clean test test-cov docs-serve docs-build docs-deploy
 
@@ -21,7 +21,7 @@ test:
 	uv run pytest -v
 
 test-cov:
-	uv run pytest --cov=pyagenity --cov-report=html --cov-report=term-missing --cov-report=xml -v
+	uv run pytest --cov=taf --cov-report=html --cov-report=term-missing --cov-report=xml -v
 
 
 

@@ -1,1 +1,1 @@
-::: pyagenity.utils.thread_name_generator
+::: taf.utils.thread_name_generator

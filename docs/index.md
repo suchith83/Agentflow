@@ -1,11 +1,11 @@
-# PyAgenity
+# 10xScale Agentflow
 
-![PyPI](https://img.shields.io/pypi/v/pyagenity?color=blue)
-![License](https://img.shields.io/github/license/10xhub/pyagenity)
-![Python](https://img.shields.io/pypi/pyversions/pyagenity)
+![PyPI](https://img.shields.io/pypi/v/taf?color=blue)
+![License](https://img.shields.io/github/license/10xhub/taf)
+![Python](https://img.shields.io/pypi/pyversions/taf)
 [![Coverage](https://img.shields.io/badge/coverage-73%25-yellow.svg)](#)
 
-**PyAgenity** is a lightweight Python framework for building intelligent agents and orchestrating multi-agent workflows. It's an **LLM-agnostic orchestration tool** that works with any LLM provider—use LiteLLM, native SDKs from OpenAI, Google Gemini, Anthropic Claude, or any other provider. You choose your LLM library; PyAgenity provides the workflow orchestration.
+**10xScale Agentflow** is a lightweight Python framework for building intelligent agents and orchestrating multi-agent workflows. It's an **LLM-agnostic orchestration tool** that works with any LLM provider—use LiteLLM, native SDKs from OpenAI, Google Gemini, Anthropic Claude, or any other provider. You choose your LLM library; 10xScale Agentflow provides the workflow orchestration.
 
 ---
 
@@ -32,39 +32,39 @@
 **Basic installation with [uv](https://github.com/astral-sh/uv) (recommended):**
 
 ```bash
-uv pip install pyagenity
+uv pip install taf
 ```
 
 Or with pip:
 
 ```bash
-pip install pyagenity
+pip install taf
 ```
 
 **Optional Dependencies:**
 
-PyAgenity supports optional dependencies for specific functionality:
+10xScale Agentflow supports optional dependencies for specific functionality:
 
 ```bash
 # PostgreSQL + Redis checkpointing
-pip install pyagenity[pg_checkpoint]
+pip install taf[pg_checkpoint]
 
 # MCP (Model Context Protocol) support
-pip install pyagenity[mcp]
+pip install taf[mcp]
 
 # Composio tools (adapter)
-pip install pyagenity[composio]
+pip install taf[composio]
 
 # LangChain tools (registry-based adapter)
-pip install pyagenity[langchain]
+pip install taf[langchain]
 
 # Individual publishers
-pip install pyagenity[redis]     # Redis publisher
-pip install pyagenity[kafka]     # Kafka publisher
-pip install pyagenity[rabbitmq]  # RabbitMQ publisher
+pip install taf[redis]     # Redis publisher
+pip install taf[kafka]     # Kafka publisher
+pip install taf[rabbitmq]  # RabbitMQ publisher
 
 # Multiple extras
-pip install pyagenity[pg_checkpoint,mcp,composio,langchain]
+pip install taf[pg_checkpoint,mcp,composio,langchain]
 ```
 
 ### Environment Setup
@@ -86,7 +86,7 @@ If you have a `.env` file, it will be auto-loaded (via `python-dotenv`).
 ## 📚 Documentation Structure
 
 ### [🎓 Tutorials](Tutorial/index.md)
-Learn PyAgenity step-by-step with practical examples:
+Learn 10xScale Agentflow step-by-step with practical examples:
 
 - **[Graph Fundamentals](Tutorial/index.md)** - Build your first agent with StateGraph, nodes, and edges
 - **[React Agent Patterns](Tutorial/react/)** - Complete guide: basic patterns, DI, MCP, streaming
@@ -97,7 +97,7 @@ Learn PyAgenity step-by-step with practical examples:
 - **[Plan-Act-Reflect](Tutorial/plan_act_reflect.md)** - Advanced reasoning patterns
 
 ### [📖 Concepts](Concept/index.md)
-Deep dives into PyAgenity's architecture:
+Deep dives into 10xScale Agentflow's architecture:
 
 - **[Graph Architecture](Concept/graph/)** - StateGraph, nodes, edges, compiled execution
 - **[State Management](Concept/context/)** - AgentState, checkpointers, stores
@@ -130,12 +130,12 @@ Here's a minimal React agent with tool calling:
 from dotenv import load_dotenv
 from litellm import acompletion
 
-from pyagenity.checkpointer import InMemoryCheckpointer
-from pyagenity.graph import StateGraph, ToolNode
-from pyagenity.state.agent_state import AgentState
-from pyagenity.utils import Message
-from pyagenity.utils.constants import END
-from pyagenity.utils.converter import convert_messages
+from taf.checkpointer import InMemoryCheckpointer
+from taf.graph import StateGraph, ToolNode
+from taf.state.agent_state import AgentState
+from taf.utils import Message
+from taf.utils.constants import END
+from taf.utils.converter import convert_messages
 
 load_dotenv()
 
@@ -158,12 +158,12 @@ tool_node = ToolNode([get_weather])
 # Define main agent node
 async def main_agent(state: AgentState):
     prompts = "You are a helpful assistant. Use tools when needed."
-    
+
     messages = convert_messages(
         system_prompts=[{"role": "system", "content": prompts}],
         state=state,
     )
-    
+
     # Check if we need tools
     if (
         state.context
@@ -181,7 +181,7 @@ async def main_agent(state: AgentState):
             messages=messages,
             tools=tools,
         )
-    
+
     return response
 
 # Define routing logic
@@ -189,16 +189,16 @@ def should_use_tools(state: AgentState) -> str:
     """Determine if we should use tools or end."""
     if not state.context or len(state.context) == 0:
         return "TOOL"
-    
+
     last_message = state.context[-1]
-    
+
     if (
         hasattr(last_message, "tools_calls")
         and last_message.tools_calls
         and len(last_message.tools_calls) > 0
     ):
         return "TOOL"
-    
+
     return END
 
 # Build the graph
@@ -231,7 +231,7 @@ for msg in res["messages"]:
 
 ## 🎯 Use Cases & Patterns
 
-PyAgenity includes prebuilt agent patterns for common scenarios:
+10xScale Agentflow includes prebuilt agent patterns for common scenarios:
 
 ### 🤖 Agent Types
 
@@ -262,14 +262,14 @@ See the [Prebuilt Agents Reference](reference/prebuilt/agent/) for complete docu
 
 ### For Library Users
 
-Install PyAgenity as shown above. The `pyproject.toml` contains all runtime dependencies.
+Install 10xScale Agentflow as shown above. The `pyproject.toml` contains all runtime dependencies.
 
 ### For Contributors
 
 ```bash
 # Clone the repository
-git clone https://github.com/10xhub/PyAgenity.git
-cd PyAgenity
+git clone https://github.com/10xhub/taf.git
+cd taf
 
 # Create virtual environment
 python -m venv .venv
@@ -326,15 +326,15 @@ See `pyproject.dev.toml` for complete tool configurations.
 
 ## 📄 License
 
-MIT License - see [LICENSE](https://github.com/10xhub/PyAgenity/blob/main/LICENSE) for details.
+MIT License - see [LICENSE](https://github.com/10xhub/taf/blob/main/LICENSE) for details.
 
 ---
 
 ## 🔗 Links & Resources
 
-- **[GitHub Repository](https://github.com/10xhub/PyAgenity)** - Source code and issues
-- **[PyPI Project](https://pypi.org/project/pyagenity/)** - Package releases
-- **[Examples Directory](https://github.com/10xhub/PyAgenity/tree/main/examples)** - Runnable code samples
+- **[GitHub Repository](https://github.com/10xhub/taf)** - Source code and issues
+- **[PyPI Project](https://pypi.org/project/taf/)** - Package releases
+- **[Examples Directory](https://github.com/10xhub/taf/tree/main/examples)** - Runnable code samples
 - **[API Reference](reference/)** - Complete documentation
 - **[Tutorials](Tutorial/)** - Step-by-step guides
 
@@ -342,7 +342,7 @@ MIT License - see [LICENSE](https://github.com/10xhub/PyAgenity/blob/main/LICENS
 
 ## 🙏 Contributing
 
-Contributions are welcome! Please see our [GitHub repository](https://github.com/10xhub/PyAgenity) for:
+Contributions are welcome! Please see our [GitHub repository](https://github.com/10xhub/taf) for:
 
 - Issue reporting and feature requests
 - Pull request guidelines
@@ -354,9 +354,9 @@ Contributions are welcome! Please see our [GitHub repository](https://github.com
 ## 💬 Support
 
 - **Documentation**: You're reading it! See [Tutorials](Tutorial/) and [Concepts](Concept/)
-- **Examples**: Check the [examples directory](https://github.com/10xhub/PyAgenity/tree/main/examples)
-- **Issues**: Report bugs on [GitHub Issues](https://github.com/10xhub/PyAgenity/issues)
-- **Discussions**: Ask questions in [GitHub Discussions](https://github.com/10xhub/PyAgenity/discussions)
+- **Examples**: Check the [examples directory](https://github.com/10xhub/taf/tree/main/examples)
+- **Issues**: Report bugs on [GitHub Issues](https://github.com/10xhub/taf/issues)
+- **Discussions**: Ask questions in [GitHub Discussions](https://github.com/10xhub/taf/discussions)
 
 ---
 

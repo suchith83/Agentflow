@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 
-from pyagenity.state.agent_state import AgentState
-from pyagenity.state.execution_state import ExecutionState
-from pyagenity.utils import START
+from taf.state.agent_state import AgentState
+from taf.state.execution_state import ExecutionState
+from taf.utils import START
 
 
 def test_execution_state():

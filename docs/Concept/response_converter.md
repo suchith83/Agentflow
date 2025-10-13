@@ -1,8 +1,8 @@
 ## Response Conversion Architecture
 
-LLM SDKs return provider-specific objects (LiteLLM model responses, streaming wrappers, raw dicts). PyAgenity normalises these into its internal `Message` structure so downstream nodes, tool routing, publishers, and checkpointers operate over a consistent schema.
+LLM SDKs return provider-specific objects (LiteLLM model responses, streaming wrappers, raw dicts). 10xScale Agentflow normalises these into its internal `Message` structure so downstream nodes, tool routing, publishers, and checkpointers operate over a consistent schema.
 
-Core pieces live in `pyagenity/adapters/llm/`:
+Core pieces live in `taf/adapters/llm/`:
 
 | File | Purpose |
 |------|---------|
@@ -41,7 +41,7 @@ And a `converter` argument: either an instance of `BaseConverter` or a shortcut 
 Usage inside a node (see `examples/react/react_sync.py`):
 
 ```python
-from pyagenity.adapters.llm.model_response_converter import ModelResponseConverter
+from taf.adapters.llm.model_response_converter import ModelResponseConverter
 
 def main_agent(state):
 	response = completion(model="gemini/gemini-2.5-flash", messages=...)
@@ -54,7 +54,7 @@ The invoke handler detects the wrapper, calls `invoke()` (or `stream()` in strea
 
 `LiteLLMConverter` extracts and maps:
 
-| Source (LiteLLM) | Target (PyAgenity Message) |
+| Source (LiteLLM) | Target (10xScale Agentflow Message) |
 |------------------|-----------------------------|
 | `choices[0].message.content` | `TextBlock` in `content[]` |
 | `choices[0].message.reasoning_content` | `ReasoningBlock` (if present) |
@@ -84,8 +84,8 @@ During streaming, each new tool call ID is tracked in a set to avoid duplicates.
 Implement a subclass:
 
 ```python
-from pyagenity.adapters.llm.base_converter import BaseConverter
-from pyagenity.utils import Message, TextBlock
+from taf.adapters.llm.base_converter import BaseConverter
+from taf.utils import Message, TextBlock
 
 class MyProviderConverter(BaseConverter):
 	async def convert_response(self, response):

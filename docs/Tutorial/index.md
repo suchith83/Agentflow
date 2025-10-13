@@ -1,10 +1,10 @@
-# PyAgenity Tutorials
+# 10xScale Agentflow Tutorials
 
-Welcome to PyAgenity! This tutorial series will guide you through building intelligent agents and multi-agent workflows, from basic graph construction to advanced patterns like streaming, persistence, and tool integration.
+Welcome to 10xScale Agentflow! This tutorial series will guide you through building intelligent agents and multi-agent workflows, from basic graph construction to advanced patterns like streaming, persistence, and tool integration.
 
 ## 🎯 What You'll Learn
 
-PyAgenity is a lightweight Python framework for building agent graphs on top of LiteLLM. By the end of these tutorials, you'll understand how to:
+10xScale Agentflow is a lightweight Python framework for building agent graphs on top of LiteLLM. By the end of these tutorials, you'll understand how to:
 
 - Build and execute agent workflows using `StateGraph` and nodes
 - Manage conversation state and message flow with `AgentState`
@@ -24,11 +24,11 @@ Before diving in, ensure you have:
 
 ### Quick Setup
 
-1. **Install PyAgenity** with your preferred LLM provider:
+1. **Install 10xScale Agentflow** with your preferred LLM provider:
    ```bash
-   pip install pyagenity[litellm]
+   pip install taf[litellm]
    # Optional: add persistence and tools
-   pip install pyagenity[pg_checkpoint,mcp]
+   pip install taf[pg_checkpoint,mcp]
    ```
 
 2. **Set up environment variables** in `.env`:
@@ -41,8 +41,8 @@ Before diving in, ensure you have:
 
 3. **Clone examples** to experiment:
    ```bash
-   git clone https://github.com/Iamsdt/PyAgenity.git
-   cd PyAgenity/examples/react
+   git clone https://github.com/10xHub/taf.git
+   cd taf/examples/react
    python react_sync.py  # Your first agent!
    ```
 
@@ -52,11 +52,11 @@ Follow these tutorials in order for the best learning experience:
 
 ### 🏗️ Foundation
 1. **[Graph Fundamentals](graph.md)** - Build your first agent with `StateGraph`, nodes, and edges
-2. **[State & Messages](state.md)** - Master conversation state and message schemas  
+2. **[State & Messages](state.md)** - Master conversation state and message schemas
 3. **[Tools & Dependency Injection](adapter.md)** - Create tool-calling agents with `ToolNode`
 4. **[React Agent Patterns](react/)** - Complete guide to ReAct agents: basic patterns, DI, MCP, streaming
 
-### 🔀 Control & Flow  
+### 🔀 Control & Flow
 4. **[Control Flow & Routing](graph.md#control-flow)** - Conditional edges, interrupts, and error handling
 5. **[Persistence & Memory](checkpointer.md)** - Save state with checkpointers and stores
 6. **[Streaming & Events](publisher.md)** - Real-time responses and observability
@@ -82,13 +82,13 @@ Follow these tutorials in order for the best learning experience:
 | Tutorial | Focus | Key Files |
 |----------|-------|-----------|
 | [Graph Fundamentals](graph.md) | StateGraph, nodes, compilation | `examples/react/react_sync.py` |
-| [State & Messages](state.md) | AgentState, message handling | `pyagenity/state/`, `pyagenity/utils/message.py` |
+| [State & Messages](state.md) | AgentState, message handling | `taf/state/`, `taf/utils/message.py` |
 | [Tools & DI](adapter.md) | ToolNode, dependency injection | `examples/react-injection/`, `examples/react-mcp/` |
 | [React Agents](react/) | Complete ReAct guide: basic, DI, MCP, streaming | `examples/react*/` |
 | [Control Flow](graph.md#control-flow) | Conditional routing, interrupts | `examples/react/react_weather_agent.py` |
-| [Persistence](checkpointer.md) | Checkpointers, stores | `pyagenity/checkpointer/`, `pyagenity/store/` |
+| [Persistence](checkpointer.md) | Checkpointers, stores | `taf/checkpointer/`, `taf/store/` |
 | [Streaming](publisher.md) | Real-time responses, events | `examples/react_stream/` |
-| [Advanced](misc/advanced_patterns.md) | Prebuilt agents, orchestration | `pyagenity/prebuilt/agent/` |
+| [Advanced](misc/advanced_patterns.md) | Prebuilt agents, orchestration | `taf/prebuilt/agent/` |
 
 ---
 

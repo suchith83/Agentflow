@@ -1,4 +1,4 @@
-"""Comprehensive multiagent test suite for PyAgenity."""
+"""Comprehensive multiagent test suite for TAF."""
 
 import asyncio
 
@@ -6,11 +6,11 @@ import pytest
 from injectq import Inject, InjectQ, inject
 from pydantic import Field
 
-from pyagenity.exceptions import NodeError
-from pyagenity.graph import CompiledGraph, StateGraph
-from pyagenity.publisher import ConsolePublisher
-from pyagenity.state import AgentState, Message
-from pyagenity.utils import END
+from taf.exceptions import NodeError
+from taf.graph import CompiledGraph, StateGraph
+from taf.publisher import ConsolePublisher
+from taf.state import AgentState, Message
+from taf.utils import END
 
 
 class TestMultiAgentSuite:

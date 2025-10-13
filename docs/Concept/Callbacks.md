@@ -1,13 +1,13 @@
 # Callbacks: Interception and Flow Control
 
-Callbacks in PyAgenity provide a powerful interception mechanism that allows you to hook into the execution flow of your agent graphs at critical decision points. Rather than simply observing events, callbacks enable you to actively participate in, modify, and control the execution process as it unfolds.
+Callbacks in 10xScale Agentflow provide a powerful interception mechanism that allows you to hook into the execution flow of your agent graphs at critical decision points. Rather than simply observing events, callbacks enable you to actively participate in, modify, and control the execution process as it unfolds.
 
 ## Understanding the Interception Pattern
 
-Think of callbacks as strategic checkpoints placed throughout your agent's thinking process. When your agent is about to call a tool, query an AI model, or execute any external operation, PyAgenity pauses and gives your callback system the opportunity to:
+Think of callbacks as strategic checkpoints placed throughout your agent's thinking process. When your agent is about to call a tool, query an AI model, or execute any external operation, 10xScale Agentflow pauses and gives your callback system the opportunity to:
 
 - **Validate inputs** before they're processed
-- **Transform or enrich data** as it flows through the system  
+- **Transform or enrich data** as it flows through the system
 - **Implement custom logic** for error recovery and handling
 - **Modify outputs** before they're returned to the agent
 - **Apply security policies** and business rules consistently
@@ -20,7 +20,7 @@ The callback system operates around three fundamental moments in any operation:
 
 ### Before Invoke: The Preparation Phase
 ```python
-from pyagenity.utils.callbacks import register_before_invoke, InvocationType, CallbackContext
+from taf.utils.callbacks import register_before_invoke, InvocationType, CallbackContext
 
 async def validate_tool_input(context: CallbackContext, input_data: dict) -> dict:
     """Validate and potentially modify tool inputs before execution."""
@@ -28,18 +28,18 @@ async def validate_tool_input(context: CallbackContext, input_data: dict) -> dic
         # Apply security validations
         if "DROP" in input_data.get("query", "").upper():
             raise ValueError("Dangerous SQL operations not allowed")
-        
+
         # Add audit context
         input_data["audit_user"] = context.metadata.get("user_id", "unknown")
         input_data["timestamp"] = datetime.utcnow().isoformat()
-    
+
     return input_data
 
 # Register for tool invocations
 register_before_invoke(InvocationType.TOOL, validate_tool_input)
 ```
 
-Before any tool, AI model, or MCP function is called, PyAgenity executes all registered `before_invoke` callbacks. This is your opportunity to:
+Before any tool, AI model, or MCP function is called, 10xScale Agentflow executes all registered `before_invoke` callbacks. This is your opportunity to:
 - Validate inputs according to business rules
 - Add contextual information or metadata
 - Transform data formats or apply normalization
@@ -48,7 +48,7 @@ Before any tool, AI model, or MCP function is called, PyAgenity executes all reg
 
 ### After Invoke: The Processing Phase
 ```python
-from pyagenity.utils.callbacks import register_after_invoke
+from taf.utils.callbacks import register_after_invoke
 
 async def enrich_ai_response(context: CallbackContext, input_data: dict, output_data: any) -> any:
     """Enrich AI responses with additional context and formatting."""
@@ -56,12 +56,12 @@ async def enrich_ai_response(context: CallbackContext, input_data: dict, output_
         # Add confidence scoring based on response characteristics
         response_text = str(output_data)
         confidence_score = calculate_confidence(response_text)
-        
+
         # Transform the response if needed
         if confidence_score < 0.7:
             enhanced_response = await get_clarification_prompt(response_text, input_data)
             return enhanced_response
-            
+
     return output_data
 
 register_after_invoke(InvocationType.AI, enrich_ai_response)
@@ -76,8 +76,8 @@ After successful execution, `after_invoke` callbacks process the results. This p
 
 ### On Error: The Recovery Phase
 ```python
-from pyagenity.utils.callbacks import register_on_error
-from pyagenity.utils.message import Message
+from taf.utils.callbacks import register_on_error
+from taf.utils.message import Message
 
 async def handle_tool_errors(context: CallbackContext, input_data: dict, error: Exception) -> Message | None:
     """Implement intelligent error recovery for tool failures."""
@@ -85,7 +85,7 @@ async def handle_tool_errors(context: CallbackContext, input_data: dict, error: 
         if isinstance(error, TimeoutError):
             # Implement retry logic with backoff
             return await retry_with_backoff(context, input_data, max_retries=3)
-        
+
         elif isinstance(error, AuthenticationError):
             # Generate helpful error message for the agent
             return Message.from_text(
@@ -93,7 +93,7 @@ async def handle_tool_errors(context: CallbackContext, input_data: dict, error: 
                 "Please check the API credentials and try again.",
                 role="tool"
             )
-    
+
     # Return None to propagate the error normally
     return None
 
@@ -108,7 +108,7 @@ When operations fail, `on_error` callbacks provide sophisticated error handling:
 
 ## Invocation Types and Context
 
-PyAgenity distinguishes between three types of operations that can trigger callbacks:
+10xScale Agentflow distinguishes between three types of operations that can trigger callbacks:
 
 ### AI Invocations
 These occur when your agent calls language models for reasoning, planning, or text generation:
@@ -120,14 +120,14 @@ async def monitor_ai_usage(context: CallbackContext, input_data: dict) -> dict:
         # Log token usage and costs
         estimated_tokens = estimate_tokens(input_data.get("messages", []))
         log_ai_usage(context.node_name, estimated_tokens)
-        
+
         # Add usage tracking to metadata
         input_data["usage_tracking"] = {
             "node": context.node_name,
             "estimated_tokens": estimated_tokens,
             "timestamp": time.time()
         }
-    
+
     return input_data
 ```
 
@@ -138,18 +138,18 @@ These trigger when your agent executes functions, APIs, or external services:
 async def secure_tool_access(context: CallbackContext, input_data: dict) -> dict:
     """Apply security policies to tool invocations."""
     user_permissions = context.metadata.get("user_permissions", [])
-    
+
     # Check if user has permission for this tool
     if context.function_name not in user_permissions:
         raise PermissionError(f"User not authorized to use {context.function_name}")
-    
+
     # Add security context
     input_data["security_context"] = {
         "user_id": context.metadata.get("user_id"),
         "permissions": user_permissions,
         "access_time": datetime.utcnow().isoformat()
     }
-    
+
     return input_data
 ```
 
@@ -163,11 +163,11 @@ async def optimize_mcp_calls(context: CallbackContext, input_data: dict) -> dict
         # Check cache first
         cache_key = generate_cache_key(context.function_name, input_data)
         cached_result = await get_from_cache(cache_key)
-        
+
         if cached_result:
             # Return cached result wrapped as appropriate response
             return create_cached_response(cached_result)
-    
+
     return input_data
 ```
 
@@ -189,22 +189,22 @@ This context enables callbacks to make intelligent decisions about how to handle
 ```python
 async def adaptive_callback(context: CallbackContext, input_data: dict) -> dict:
     """Apply different logic based on context."""
-    
+
     # Different handling based on node type
     if context.node_name == "research_node":
         input_data = await apply_research_policies(input_data)
     elif context.node_name == "decision_node":
         input_data = await add_decision_context(input_data)
-    
+
     # Function-specific logic
     if context.function_name == "web_search":
         input_data = await sanitize_search_query(input_data)
-    
+
     # Access custom metadata
     user_context = context.metadata.get("user_context", {})
     if user_context.get("debug_mode"):
         input_data["debug"] = True
-    
+
     return input_data
 ```
 
@@ -241,32 +241,32 @@ register_before_invoke(InvocationType.TOOL, transform_format)
 ```python
 async def context_aware_processor(context: CallbackContext, input_data: dict) -> dict:
     """Apply different processing based on runtime context."""
-    
+
     # Environment-based logic
     if os.getenv("ENVIRONMENT") == "production":
         input_data = await apply_production_safeguards(input_data)
     else:
         input_data = await add_debug_information(input_data)
-    
+
     # User role-based logic
     user_role = context.metadata.get("user_role", "guest")
     if user_role == "admin":
         input_data["admin_privileges"] = True
     elif user_role == "guest":
         input_data = await apply_guest_restrictions(input_data)
-    
+
     return input_data
 ```
 
 ### Error Recovery Strategies
 ```python
 async def intelligent_error_recovery(
-    context: CallbackContext, 
-    input_data: dict, 
+    context: CallbackContext,
+    input_data: dict,
     error: Exception
 ) -> Message | None:
     """Implement sophisticated error recovery patterns."""
-    
+
     # Network-related errors
     if isinstance(error, (ConnectionError, TimeoutError)):
         retry_count = context.metadata.get("retry_count", 0)
@@ -275,14 +275,14 @@ async def intelligent_error_recovery(
             context.metadata["retry_count"] = retry_count + 1
             await asyncio.sleep(2 ** retry_count)  # Exponential backoff
             return await retry_operation(context, input_data)
-    
+
     # Data validation errors
     elif isinstance(error, ValidationError):
         # Try to fix common issues automatically
         fixed_data = await attempt_data_repair(input_data, error)
         if fixed_data:
             return await execute_with_fixed_data(context, fixed_data)
-    
+
     # Service-specific errors
     elif context.function_name == "external_api":
         # Generate informative error message for the agent
@@ -291,7 +291,7 @@ async def intelligent_error_recovery(
             "Consider using alternative data sources or simplified queries.",
             role="tool"
         )
-    
+
     return None  # Let the error propagate
 ```
 
@@ -300,8 +300,8 @@ async def intelligent_error_recovery(
 Callbacks integrate seamlessly with your graph construction, providing consistent behavior across all nodes:
 
 ```python
-from pyagenity.utils.callbacks import CallbackManager, default_callback_manager
-from pyagenity.graph import StateGraph
+from taf.utils.callbacks import CallbackManager, default_callback_manager
+from taf.graph import StateGraph
 
 # Set up callbacks
 register_before_invoke(InvocationType.TOOL, security_validator)
@@ -332,20 +332,20 @@ result = await compiled_graph.invoke(
 Callbacks can significantly impact your agent's behavior, making testing crucial:
 
 ```python
-from pyagenity.utils.callbacks import CallbackManager, InvocationType
+from taf.utils.callbacks import CallbackManager, InvocationType
 
 async def test_callback_behavior():
     """Test callback system with controlled inputs."""
-    
+
     # Create isolated callback manager for testing
     test_callback_manager = CallbackManager()
-    
+
     # Register test callbacks
     test_callback_manager.register_before_invoke(
-        InvocationType.TOOL, 
+        InvocationType.TOOL,
         test_input_validator
     )
-    
+
     # Create test context
     test_context = CallbackContext(
         invocation_type=InvocationType.TOOL,
@@ -353,14 +353,14 @@ async def test_callback_behavior():
         function_name="test_function",
         metadata={"test": True}
     )
-    
+
     # Test the callback
     test_input = {"query": "test query"}
     result = await test_callback_manager.execute_before_invoke(
-        test_context, 
+        test_context,
         test_input
     )
-    
+
     assert result["query"] == "test query"
     assert "processed_by_callback" in result
 
@@ -373,4 +373,4 @@ async def debug_callback(context: CallbackContext, input_data: dict) -> dict:
     return input_data
 ```
 
-The callback system transforms PyAgenity from a simple execution engine into a sophisticated, controllable platform where every operation can be monitored, modified, and managed according to your specific requirements. By strategically placing callbacks throughout your agent workflows, you create robust, secure, and maintainable AI systems that adapt to complex real-world requirements.
+The callback system transforms 10xScale Agentflow from a simple execution engine into a sophisticated, controllable platform where every operation can be monitored, modified, and managed according to your specific requirements. By strategically placing callbacks throughout your agent workflows, you create robust, secure, and maintainable AI systems that adapt to complex real-world requirements.

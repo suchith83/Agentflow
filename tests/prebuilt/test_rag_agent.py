@@ -2,12 +2,12 @@
 
 import pytest
 
-from pyagenity.checkpointer import InMemoryCheckpointer
-from pyagenity.graph import ToolNode, CompiledGraph
-from pyagenity.prebuilt.agent.rag import RAGAgent
-from pyagenity.state.agent_state import AgentState
-from pyagenity.state import Message
-from pyagenity.utils import END
+from taf.checkpointer import InMemoryCheckpointer
+from taf.graph import ToolNode, CompiledGraph
+from taf.prebuilt.agent.rag import RAGAgent
+from taf.state.agent_state import AgentState
+from taf.state import Message
+from taf.utils import END
 
 
 class TestRAGAgent:
