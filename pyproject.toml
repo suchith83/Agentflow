@@ -13,6 +13,9 @@ dependencies = [
 authors = [
     {name = "10xScale", email = "contact@10xscale.ai"}
 ]
+maintainers = [
+    {name = "Shudipto Trafder", email = "shudiptotrafder@gmail.com"},
+]
 classifiers = [
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.8",
