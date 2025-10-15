@@ -392,6 +392,7 @@ class StateGraph[StateT: AgentState]:
         interrupt_before: list[str] | None = None,
         interrupt_after: list[str] | None = None,
         callback_manager: CallbackManager = CallbackManager(),
+        shutdown_timeout: float = 30.0,
     ) -> "CompiledGraph[StateT]":
         """Compile the graph for execution.
 
@@ -402,6 +403,7 @@ class StateGraph[StateT: AgentState]:
             interrupt_before: List of node names to interrupt before execution
             interrupt_after: List of node names to interrupt after execution
             callback_manager: Callback manager for executing hooks
+            shutdown_timeout: Timeout in seconds for graceful shutdown (default: 30.0)
         """
         logger.info(
             "Compiling graph with %d nodes, %d edges, entry_point='%s'",
@@ -490,6 +492,7 @@ class StateGraph[StateT: AgentState]:
             publisher=self._publisher,
             store=store,
             task_manager=self._task_manager,
+            shutdown_timeout=shutdown_timeout,
         )
 
         self._container.bind(CompiledGraph, app)

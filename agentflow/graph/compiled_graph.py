@@ -99,6 +99,7 @@ class CompiledGraph[StateT: AgentState]:
         interrupt_before: list[str],
         interrupt_after: list[str],
         task_manager: BackgroundTaskManager,
+        shutdown_timeout: float = 30.0,
     ):
         logger.info(
             f"Initializing CompiledGraph with nodes: {list(state_graph.nodes.keys())}",
@@ -106,6 +107,7 @@ class CompiledGraph[StateT: AgentState]:
 
         # Save initial state
         self._state = state
+        self._shutdown_timeout = shutdown_timeout
 
         # create handlers
         self._invoke_handler: InvokeHandler[StateT] = InvokeHandler[StateT](
@@ -384,50 +386,101 @@ class CompiledGraph[StateT: AgentState]:
         ):
             yield chunk
 
-    async def aclose(self) -> dict[str, str]:
-        """Close the graph and release any resources."""
-        # close checkpointer
-        stats = {}
-        try:
-            if self._checkpointer:
-                await self._checkpointer.arelease()
-                logger.info("Checkpointer closed successfully")
-                stats["checkpointer"] = "closed"
-        except Exception as e:
-            stats["checkpointer"] = f"error: {e}"
-            logger.error(f"Error closing graph: {e}")
+    async def aclose(self) -> dict[str, Any]:
+        """
+        Close the graph and release all resources gracefully.
 
-        # Close Publisher
-        try:
-            if self._publisher:
-                await self._publisher.close()
-                logger.info("Publisher closed successfully")
-                stats["publisher"] = "closed"
-        except Exception as e:
-            stats["publisher"] = f"error: {e}"
-            logger.error(f"Error closing publisher: {e}")
+        This method ensures proper cleanup of all components with timeout handling.
+        It follows a structured shutdown sequence:
+        1. Background task manager (running tasks)
+        2. Checkpointer (state persistence)
+        3. Publisher (event publishing)
+        4. Store (data storage)
 
-        # Close Store
-        try:
-            if self._store:
-                await self._store.arelease()
-                logger.info("Store closed successfully")
-                stats["store"] = "closed"
-        except Exception as e:
-            stats["store"] = f"error: {e}"
-            logger.error(f"Error closing store: {e}")
+        Returns:
+            Dictionary with detailed shutdown statistics for each component.
 
-        # Gracefully shutdown background task manager
+        Example:
+            ```python
+            async def main():
+                graph = await build_and_compile_graph()
+                try:
+                    await graph.ainvoke(input_data)
+                finally:
+                    stats = await graph.aclose()
+                    print(f"Shutdown completed: {stats}")
+            ```
+        """
+        from agentflow.utils.shutdown import shutdown_with_timeout
+
+        logger.info("Initiating graceful shutdown of CompiledGraph")
+        stats: dict[str, Any] = {}
+        start_time = asyncio.get_event_loop().time()
+
+        # 1. Shutdown background task manager first (most critical)
         try:
-            shutdown_stats = await self._task_manager.shutdown(timeout=30.0)
+            logger.debug("Shutting down background task manager...")
+            shutdown_stats = await self._task_manager.shutdown(timeout=self._shutdown_timeout)
             logger.info("Background task manager shutdown completed")
             stats["background_tasks"] = shutdown_stats
         except Exception as e:
-            stats["background_tasks"] = f"error: {e}"
-            logger.error(f"Error shutting down background tasks: {e}")
+            stats["background_tasks"] = {"status": "error", "error": str(e)}
+            logger.exception("Error shutting down background tasks: %s", e)
 
-        logger.info(f"Graph close stats: {stats}")
-        # You can also return or process the stats as needed
+        # 2. Close checkpointer (may have pending writes)
+        if self._checkpointer:
+            try:
+                logger.debug("Releasing checkpointer...")
+                result = await shutdown_with_timeout(
+                    self._checkpointer.arelease(),
+                    timeout=self._shutdown_timeout / 3,  # Give 1/3 of total timeout
+                    task_name="checkpointer",
+                )
+                logger.info("Checkpointer closed successfully")
+                stats["checkpointer"] = result
+            except Exception as e:
+                stats["checkpointer"] = {"status": "error", "error": str(e)}
+                logger.exception("Error closing checkpointer: %s", e)
+        else:
+            stats["checkpointer"] = {"status": "skipped", "reason": "no checkpointer"}
+
+        # 3. Close publisher (event delivery)
+        if self._publisher:
+            try:
+                logger.debug("Closing publisher...")
+                result = await shutdown_with_timeout(
+                    self._publisher.close(),
+                    timeout=self._shutdown_timeout / 3,
+                    task_name="publisher",
+                )
+                logger.info("Publisher closed successfully")
+                stats["publisher"] = result
+            except Exception as e:
+                stats["publisher"] = {"status": "error", "error": str(e)}
+                logger.exception("Error closing publisher: %s", e)
+        else:
+            stats["publisher"] = {"status": "skipped", "reason": "no publisher"}
+
+        # 4. Close store (data persistence)
+        if self._store:
+            try:
+                logger.debug("Releasing store...")
+                result = await shutdown_with_timeout(
+                    self._store.arelease(),
+                    timeout=self._shutdown_timeout / 3,
+                    task_name="store",
+                )
+                logger.info("Store closed successfully")
+                stats["store"] = result
+            except Exception as e:
+                stats["store"] = {"status": "error", "error": str(e)}
+                logger.exception("Error closing store: %s", e)
+        else:
+            stats["store"] = {"status": "skipped", "reason": "no store"}
+
+        total_duration = asyncio.get_event_loop().time() - start_time
+        stats["total_duration"] = total_duration
+        logger.info(f"CompiledGraph shutdown completed in {total_duration:.2f}s. Stats: {stats}")
         return stats
 
     def generate_graph(self) -> dict[str, Any]:
