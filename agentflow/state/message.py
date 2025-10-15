@@ -19,6 +19,7 @@ Functions:
 """
 
 import asyncio
+import json
 import logging
 from collections.abc import Awaitable
 from datetime import datetime
@@ -233,8 +234,12 @@ class Message(BaseModel):
         for block in self.content:
             if isinstance(block, TextBlock):
                 parts.append(block.text)
-            elif isinstance(block, ToolResultBlock) and isinstance(block.output, str):
-                parts.append(block.output)
+            elif isinstance(block, ToolResultBlock):
+                if isinstance(block.output, str):
+                    parts.append(str(block.output))
+                else:
+                    parts.append(json.dumps(block.output))
+
         return "".join(parts)
 
     def attach_media(
