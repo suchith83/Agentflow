@@ -151,7 +151,11 @@ class InvokeNodeHandler(BaseLoggingMixin):
         else:
             # No tool calls to execute, return available tools
             logger.exception("Node '%s': No tool calls to execute", self.name)
-            raise NodeError("No tool calls to execute")
+            raise NodeError(
+                message="No tool calls to execute",
+                error_code="NODE_002",
+                context={"node_name": self.name},
+            )
 
         return result
 
@@ -384,7 +388,11 @@ class InvokeNodeHandler(BaseLoggingMixin):
                     # No context, return available tools
                     error_msg = "No context available for tool execution"
                     logger.error("Node '%s': %s", self.name, error_msg)
-                    raise NodeError(error_msg)
+                    raise NodeError(
+                        message=error_msg,
+                        error_code="NODE_003",
+                        context={"node_name": self.name},
+                    )
 
             else:
                 result = await self._call_normal_node(
@@ -398,4 +406,11 @@ class InvokeNodeHandler(BaseLoggingMixin):
         except Exception as e:
             # This is the final catch-all for node execution errors
             logger.exception("Node '%s' execution failed: %s", self.name, e)
-            raise NodeError(f"Error in node '{self.name}': {e!s}") from e
+            raise NodeError(
+                message=f"Error in node '{self.name}': {e!s}",
+                error_code="NODE_001",
+                context={
+                    "node_name": self.name,
+                    "error_type": type(e).__name__,
+                },
+            ) from e

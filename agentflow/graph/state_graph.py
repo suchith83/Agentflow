@@ -418,7 +418,11 @@ class StateGraph[StateT: AgentState]:
         if not self.entry_point:
             error_msg = "No entry point set. Use set_entry_point() or add an edge from START."
             logger.error(error_msg)
-            raise GraphError(error_msg)
+            raise GraphError(
+                message=error_msg,
+                error_code="GRAPH_002",
+                context={"nodes": list(self.nodes.keys())},
+            )
 
         # Validate graph structure
         logger.debug("Validating graph structure")
@@ -434,7 +438,14 @@ class StateGraph[StateT: AgentState]:
         if invalid_nodes:
             error_msg = f"Invalid interrupt nodes: {invalid_nodes}. Must be existing node names."
             logger.error(error_msg)
-            raise GraphError(error_msg)
+            raise GraphError(
+                message=error_msg,
+                error_code="GRAPH_004",
+                context={
+                    "invalid_nodes": list(invalid_nodes),
+                    "valid_nodes": list(self.nodes.keys()),
+                },
+            )
 
         self.compiled = True
         logger.info("Graph compilation completed successfully")
@@ -498,10 +509,26 @@ class StateGraph[StateT: AgentState]:
         orphaned = all_nodes - connected_nodes
         if orphaned - {START, END}:  # START and END can be orphaned
             logger.error("Orphaned nodes detected: %s", orphaned - {START, END})
-            raise GraphError(f"Orphaned nodes detected: {orphaned - {START, END}}")
+            raise GraphError(
+                message=f"Orphaned nodes detected: {orphaned - {START, END}}",
+                error_code="GRAPH_003",
+                context={
+                    "orphaned_nodes": list(orphaned - {START, END}),
+                    "all_nodes": list(all_nodes),
+                    "connected_nodes": list(connected_nodes),
+                },
+            )
 
         # Check that all edge targets exist
         for edge in self.edges:
             if edge.to_node and edge.to_node not in self.nodes:
                 logger.error("Edge '%s' targets non-existent node: %s", edge, edge.to_node)
-                raise GraphError(f"Edge targets non-existent node: {edge.to_node}")
+                raise GraphError(
+                    message=f"Edge targets non-existent node: {edge.to_node}",
+                    error_code="GRAPH_004",
+                    context={
+                        "edge": str(edge),
+                        "target_node": edge.to_node,
+                        "available_nodes": list(self.nodes.keys()),
+                    },
+                )

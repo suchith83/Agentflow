@@ -406,7 +406,13 @@ class InvokeHandler[StateT: AgentState](
 
                     publish_event(event)
                     raise GraphRecursionError(
-                        f"Graph execution exceeded recursion limit: {max_steps}"
+                        message=f"Graph execution exceeded recursion limit: {max_steps}",
+                        error_code="RECURSION_001",
+                        context={
+                            "max_steps": max_steps,
+                            "current_step": step,
+                            "current_node": current_node,
+                        },
                     )
 
             # Execution completed successfully

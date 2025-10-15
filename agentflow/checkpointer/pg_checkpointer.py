@@ -728,8 +728,22 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
                         asyncpg.InterfaceError,
                     )
                     if isinstance(e, connection_errors):
-                        raise TransientStorageError(f"Connection issue storing state: {e}") from e
-                raise StorageError(f"Failed to store state: {e}") from e
+                        raise TransientStorageError(
+                            message=f"Connection issue storing state: {e}",
+                            error_code="STORAGE_TRANSIENT_001",
+                            context={
+                                "thread_id": thread_id,
+                                "error_type": type(e).__name__,
+                            },
+                        ) from e
+                raise StorageError(
+                    message=f"Failed to store state: {e}",
+                    error_code="STORAGE_001",
+                    context={
+                        "thread_id": thread_id,
+                        "error_type": type(e).__name__,
+                    },
+                ) from e
 
     async def aget_state(self, config: dict[str, Any]) -> StateT | None:
         """
