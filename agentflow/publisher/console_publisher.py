@@ -48,7 +48,13 @@ class ConsolePublisher(BasePublisher):
 
         Returns:
             None
+
+        Raises:
+            RuntimeError: If publisher is closed.
         """
+        if self._is_closed:
+            raise RuntimeError("Cannot publish to closed ConsolePublisher")
+
         msg = f"{event.timestamp} -> Source: {event.node_name}.{event.event_type}:"
         msg += f"-> Payload: {event.data}"
         msg += f" -> {event.metadata}"
@@ -58,14 +64,18 @@ class ConsolePublisher(BasePublisher):
         """Close the publisher and release any resources.
 
         ConsolePublisher does not require cleanup, but this method is provided for
-        interface compatibility.
+        interface compatibility. This method is idempotent.
         """
-        logger.debug("ConsolePublisher closed")
+        if not self._is_closed:
+            self._is_closed = True
+            logger.debug("ConsolePublisher closed")
 
     def sync_close(self):
         """Synchronously close the publisher and release any resources.
 
         ConsolePublisher does not require cleanup, but this method is provided for
-        interface compatibility.
+        interface compatibility. This method is idempotent.
         """
-        logger.debug("ConsolePublisher sync closed")
+        if not self._is_closed:
+            self._is_closed = True
+            logger.debug("ConsolePublisher sync closed")

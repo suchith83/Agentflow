@@ -29,10 +29,10 @@
 - [ ] Identify and refactor other files exceeding 300 lines
 
 ## Task 5: Memory Management
-- [ ] Add cleanup guarantees to BackgroundTaskManager
-- [ ] Implement proper resource disposal in event publishers
-- [ ] Add connection limits and pooling for async operations
-- [ ] Create memory profiling tests
+- [x] Add cleanup guarantees to BackgroundTaskManager
+- [x] Implement proper resource disposal in event publishers
+- [x] Add connection limits and pooling for async operations
+- [x] Create memory profiling tests
 
 ## Task 6: Streaming Improvements
 - [ ] Implement backpressure handling in stream handlers

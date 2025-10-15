@@ -417,14 +417,14 @@ class CompiledGraph[StateT: AgentState]:
             stats["store"] = f"error: {e}"
             logger.error(f"Error closing store: {e}")
 
-        # Wait for all background tasks to complete
+        # Gracefully shutdown background task manager
         try:
-            await self._task_manager.wait_for_all()
-            logger.info("All background tasks completed successfully")
-            stats["background_tasks"] = "completed"
+            shutdown_stats = await self._task_manager.shutdown(timeout=30.0)
+            logger.info("Background task manager shutdown completed")
+            stats["background_tasks"] = shutdown_stats
         except Exception as e:
             stats["background_tasks"] = f"error: {e}"
-            logger.error(f"Error waiting for background tasks: {e}")
+            logger.error(f"Error shutting down background tasks: {e}")
 
         logger.info(f"Graph close stats: {stats}")
         # You can also return or process the stats as needed

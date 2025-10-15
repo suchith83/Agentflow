@@ -10,6 +10,11 @@ class BasePublisher(ABC):
     This class defines the interface for publishing events. Subclasses should implement
     the publish, close, and sync_close methods to provide specific publishing logic.
 
+    Supports async context manager for automatic resource cleanup:
+        async with publisher:
+            await publisher.publish(event)
+        # Resources automatically cleaned up on exit
+
     Attributes:
         config: Configuration dictionary for the publisher.
     """
@@ -21,6 +26,7 @@ class BasePublisher(ABC):
             config: Configuration dictionary for the publisher.
         """
         self.config = config
+        self._is_closed = False
 
     @abstractmethod
     async def publish(self, event: EventModel) -> Any:
@@ -31,6 +37,9 @@ class BasePublisher(ABC):
 
         Returns:
             The result of the publish operation.
+
+        Raises:
+            RuntimeError: If the publisher is closed.
         """
         raise NotImplementedError
 
@@ -39,7 +48,7 @@ class BasePublisher(ABC):
         """Close the publisher and release any resources.
 
         This method should be overridden by subclasses to provide specific cleanup logic.
-        It will be called externally.
+        It will be called externally and should be idempotent.
         """
         raise NotImplementedError
 
@@ -48,6 +57,15 @@ class BasePublisher(ABC):
         """Close the publisher and release any resources (synchronous version).
 
         This method should be overridden by subclasses to provide specific cleanup logic.
-        It will be called externally.
+        It will be called externally and should be idempotent.
         """
         raise NotImplementedError
+
+    async def __aenter__(self):
+        """Enter async context manager."""
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        """Exit async context manager, ensuring cleanup."""
+        await self.close()
+        return False  # Don't suppress exceptions

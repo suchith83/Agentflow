@@ -199,6 +199,7 @@ addopts = [
 markers = [
     "asyncio: mark test as async test",
     "integration: mark test as integration test requiring real databases",
+    "slow: mark test as slow test that takes longer to run",
 ]
 
 [tool.coverage.run]
