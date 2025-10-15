@@ -23,7 +23,7 @@ from agentflow.publisher.publish import publish_event
 from agentflow.state import AgentState, ExecutionStatus, Message, ErrorBlock
 from agentflow.state.message_block import RemoteToolCallBlock
 from agentflow.state.stream_chunks import StreamChunk, StreamEvent
-from agentflow.utils import END, ResponseGranularity, add_messages
+from agentflow.utils import END, START, ResponseGranularity, add_messages
 
 from .handler_mixins import (
     BaseLoggingMixin,
@@ -103,7 +103,22 @@ class StreamHandler[StateT: AgentState](
             error_msg = "Input data must contain 'messages' for new execution."
             logger.error(error_msg)
             raise ValueError(error_msg)
+        elif state.execution_meta.status == ExecutionStatus.COMPLETED:
+            # Previous execution completed - reset to entry point for new execution
+            logger.info(
+                "Previous execution completed. Resetting to entry point for new execution "
+                "with %d messages",
+                len(input_data.get("messages", [])),
+            )
+            # Reset execution metadata for fresh start
+            state.execution_meta.current_node = START
+            state.execution_meta.step = 0
+            state.execution_meta.status = ExecutionStatus.RUNNING
+            state.execution_meta.interrupted_node = None
+            state.execution_meta.interrupt_reason = None
+            state.execution_meta.interrupt_data = None
         else:
+            # Fresh execution, state is already at START
             logger.info(
                 "Starting fresh execution with %d messages", len(input_data.get("messages", []))
             )
