@@ -1,14 +1,14 @@
 [project]
 name = "10xscale-agentflow"
-version = "0.4.1"
+version = "0.4.2"
 description = "10xScale Agentflow is a Python framework for building, orchestrating, and managing multi-agent systems. Designed for flexibility and scalability, 10xScale Agentflow enables developers to create intelligent agents that collaborate, communicate, and solve complex tasks together."
 readme = "README.md"
 license = {file = "LICENSE"}
 requires-python = ">=3.12"
 dependencies = [
     "injectq>=0.3.0",
-    "pydantic>=2.12.0",
-    "python-dotenv>=1.1.0",
+    "pydantic",
+    "python-dotenv",
 ]
 authors = [
     {name = "10xScale", email = "contact@10xscale.ai"}
