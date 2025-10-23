@@ -479,9 +479,11 @@ class StateGraph[StateT: AgentState]:
             callback_manager,
             allow_concrete=True,
         )  # not null as we set default
-        self._container.bind("interrupt_before", interrupt_before)
-        self._container.bind("interrupt_after", interrupt_after)
         self._container.bind_instance(StateGraph, self)
+
+        # Bind Nodes
+        self._container.bind_factory("get_node", lambda x: self.nodes[x])
+        self._container.bind_factory("get_entry_point_node", lambda: self.nodes[self.entry_point])  # type: ignore
 
         app = CompiledGraph(
             state=self._state,

@@ -111,12 +111,16 @@ class CompiledGraph[StateT: AgentState]:
 
         # create handlers
         self._invoke_handler: InvokeHandler[StateT] = InvokeHandler[StateT](
-            nodes=state_graph.nodes,  # type: ignore
-            edges=state_graph.edges,  # type: ignore
+            nodes=state_graph.nodes,
+            edges=state_graph.edges,
+            interrupt_after=interrupt_after,
+            interrupt_before=interrupt_before,
         )
         self._stream_handler: StreamHandler[StateT] = StreamHandler[StateT](
-            nodes=state_graph.nodes,  # type: ignore
-            edges=state_graph.edges,  # type: ignore
+            nodes=state_graph.nodes,
+            edges=state_graph.edges,
+            interrupt_after=interrupt_after,
+            interrupt_before=interrupt_before,
         )
 
         self._checkpointer: BaseCheckpointer[StateT] | None = checkpointer
@@ -272,6 +276,9 @@ class CompiledGraph[StateT: AgentState]:
             return {"ok": False, "reason": "no-checkpointer"}
 
         # Load state to see if this thread is running
+        # Lets load from the cache, incase if not available lets load from the db
+        # In prebuilt implement like pgsql, there its called internally, no need this call
+        # Still lets do that incase user use their own
         state = await self._checkpointer.aget_state_cache(
             cfg
         ) or await self._checkpointer.aget_state(cfg)

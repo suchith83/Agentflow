@@ -1,6 +1,6 @@
 # Task Plan: 10xScale Agentflow Improvements
 
-## Task 1: Python Version & Dependencies
+<!-- ## Task 1: Python Version & Dependencies
 - [x] Update `pyproject.toml` classifiers to match `requires-python = ">=3.12"`
 - [x] Remove Python 3.8-3.11 from classifiers
 - [x] Verify all dependencies are compatible with Python 3.12+
@@ -9,7 +9,7 @@
 - [x] Audit all error handling patterns across codebase
 - [x] Create consistent error handling guidelines
 - [x] Ensure all exceptions are properly logged with context
-- [x] Add structured error responses with error codes
+- [x] Add structured error responses with error codes -->
 
 ## Task 3: Input Validation
 - [ ] Implement input validation for user messages in Invoke and Stream methods, when we accept user input
@@ -28,23 +28,23 @@
   - [ ] Extract cleanup logic
 - [ ] Identify and refactor other files exceeding 300 lines
 
-## Task 5: Memory Management
+<!-- ## Task 5: Memory Management
 - [x] Add cleanup guarantees to BackgroundTaskManager
 - [x] Implement proper resource disposal in event publishers
 - [x] Add connection limits and pooling for async operations
-- [x] Create memory profiling tests
+- [x] Create memory profiling tests -->
 
-## Task 6: Streaming Improvements
+<!-- ## Task 6: Streaming Improvements
 - [ ] Implement backpressure handling in stream handlers
 - [ ] Add buffer size limits with configurable thresholds
 - [ ] Implement flow control mechanisms
-- [ ] Add streaming performance tests
+- [ ] Add streaming performance tests -->
 
-## Task 7: Checkpointer Improvements
+<!-- ## Task 7: Checkpointer Improvements
 - [ ] Add warning logs when using InMemoryCheckpointer in production
 - [ ] Update documentation to recommend PgCheckpointer for production
 - [ ] Add automatic cleanup for old checkpoints
-- [ ] Implement checkpoint compression for large states
+- [ ] Implement checkpoint compression for large states -->
 
 ## Task 8: Testing & Coverage
 - [ ] Increase test coverage from 74% to 85%+
@@ -61,11 +61,11 @@
 - [ ] Create audit log export functionality
 
 
-## Task 10: Graceful Shutdown
+<!-- ## Task 10: Graceful Shutdown
 - [ ] Implement proper cleanup in CompiledGraph.aclose()
 - [ ] Add signal handlers for SIGTERM/SIGINT
 - [ ] Ensure all background tasks complete or timeout
-- [ ] Add shutdown timeout configuration
+- [ ] Add shutdown timeout configuration -->
 
 ## Task 11: Code Complexity Reduction
 - [ ] Identify methods with high cyclomatic complexity
