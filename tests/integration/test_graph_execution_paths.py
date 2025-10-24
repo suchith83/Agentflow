@@ -597,6 +597,7 @@ class TestStreamingVsNonStreaming:
         invoke_result = await compiled.ainvoke(
             input_data,
             {"thread_id": "test_invoke"},
+            response_granularity=ResponseGranularity.FULL,
         )
         
         # Stream
@@ -604,9 +605,10 @@ class TestStreamingVsNonStreaming:
         async for chunk in compiled.astream(
             input_data,
             {"thread_id": "test_stream"},
+            response_granularity=ResponseGranularity.FULL,
         ):
             stream_chunks.append(chunk)
         
         # Both should have completed successfully
-        assert len(invoke_result["messages"]) >= 2
+        assert len(invoke_result["state"].context) >= 3
         assert len(stream_chunks) > 0

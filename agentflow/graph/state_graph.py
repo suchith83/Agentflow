@@ -385,6 +385,50 @@ class StateGraph[StateT: AgentState]:
         logger.info("Set entry point to '%s'", node_name)
         return self
 
+    def attach_remote_tools(
+        self,
+        tools: list[dict],
+        node_name: str,
+    ):
+        """Attach remote tools to a ToolNode in the graph.
+
+        Args:
+            tools: List of tool configurations to attach.
+            node_name: Name of the ToolNode to attach tools to.
+
+        Raises:
+            GraphError: If the specified node is not a ToolNode.
+
+        Example:
+            >>> tool_configs = [
+            ...     {"name": "search", "type": "SearchTool", "config": {...}},
+            ...     {"name": "calculator", "type": "CalculatorTool", "config": {...}},
+            ... ]
+            >>> graph.attach_remote_tools(tool_configs, "tool_node")
+        """
+        logger.debug(
+            "Attaching remote tools to node '%s': %s",
+            node_name,
+            tools,
+        )
+        node: Node | None = self.nodes.get(node_name)
+        if not node or not isinstance(node.func, ToolNode):
+            error_msg = f"Node '{node_name}' is not a ToolNode"
+            logger.error(error_msg)
+            raise GraphError(
+                message=error_msg,
+                error_code="GRAPH_005",
+                context={"node_name": node_name},
+            )
+
+        tool_node: ToolNode = node.func
+        tool_node.set_remote_tool(tools)
+        logger.info(
+            "Attached %d remote tools to ToolNode '%s'",
+            len(tools),
+            node_name,
+        )
+
     def compile(
         self,
         checkpointer: BaseCheckpointer[StateT] | None = None,
@@ -454,13 +498,13 @@ class StateGraph[StateT: AgentState]:
         # Import here to avoid circular import at module import time
         # Now update Checkpointer
         if checkpointer is None:
-            from agentflow.checkpointer import InMemoryCheckpointer
+            from agentflow.checkpointer import InMemoryCheckpointer  # noqa: PLC0415
 
             checkpointer = InMemoryCheckpointer[StateT]()
             logger.debug("No checkpointer provided, using InMemoryCheckpointer")
 
         # Import the CompiledGraph class
-        from .compiled_graph import CompiledGraph
+        from .compiled_graph import CompiledGraph  # noqa: PLC0415
 
         # Setup dependencies
         self._container.bind_instance(

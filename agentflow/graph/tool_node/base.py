@@ -99,7 +99,7 @@ class ToolNode(
 
     def __init__(
         self,
-        functions: t.Iterable[t.Callable],
+        tools: t.Iterable[t.Callable],
         client: deps.Client | None = None,  # type: ignore
         composio_adapter: ComposioAdapter | None = None,
         langchain_adapter: t.Any | None = None,
@@ -124,7 +124,7 @@ class ToolNode(
             When using MCP client functionality, ensure you have installed the required
             dependencies with: `pip install 10xscale-agentflow[mcp]`
         """
-        logger.info("Initializing ToolNode with %d functions", len(list(functions)))
+        logger.info("Initializing ToolNode with %d tools", len(list(tools)))
 
         if client is not None:
             # Read flags dynamically so tests can patch agentflow.graph.tool_node.HAS_*
@@ -144,29 +144,29 @@ class ToolNode(
         self._composio: ComposioAdapter | None = composio_adapter
         self._langchain: t.Any | None = langchain_adapter
 
-        for fn in functions:
-            if not callable(fn):
+        for tool in tools:
+            if not callable(tool):
                 raise TypeError("ToolNode only accepts callables")
-            self._funcs[fn.__name__] = fn
+            self._funcs[tool.__name__] = tool
 
         self.mcp_tools: list[str] = []
         self.composio_tools: list[str] = []
         self.langchain_tools: list[str] = []
-        self.frontend_tools: list[dict] = []
-        self.frontend_tool_names: list[str] = []
+        self.remote_tools: list[dict] = []
+        self.remote_tool_names: list[str] = []
 
     async def _all_tools_async(self) -> list[dict]:
         tools: list[dict] = self.get_local_tool()
         tools.extend(await self._get_mcp_tool())
         tools.extend(await self._get_composio_tools())
         tools.extend(await self._get_langchain_tools())
-        tools.extend(self.frontend_tools)
+        tools.extend(self.remote_tools)
         return tools
 
-    def set_local_tool(self, tool_names: list[dict]) -> None:
+    def set_remote_tool(self, tool_names: list[dict]) -> None:
         # already validated tool names
-        self.frontend_tools = tool_names
-        self.frontend_tool_names = [tool.get("function", {}).get("name") for tool in tool_names]
+        self.remote_tools = tool_names
+        self.remote_tool_names = [tool.get("function", {}).get("name") for tool in tool_names]
 
     async def all_tools(self) -> list[dict]:
         """Get all available tools from all configured providers.
@@ -297,18 +297,18 @@ class ToolNode(
         # Attach structured tool call block
         event.content_blocks = [ToolCallBlock(id=tool_call_id, name=name, args=args)]
         publish_event(event)
-        # Check this is available in frontend tools
-        if name in self.frontend_tool_names:
-            event.metadata["is_frontend"] = True
+        # Check this is available in remote tools
+        if name in self.remote_tool_names:
+            event.metadata["is_remote"] = True
             publish_event(event)
-            # This tool in frontend tools, so we can not execute it locally
+            # This tool in remote tools, so we can not execute it locally
             # so we will return a message
             # And the graph will be interrupted here
             return Message(
                 content=[RemoteToolCallBlock(id=tool_call_id, name=name, args=args)],
                 role="tool",
                 metadata={
-                    "is_frontend": True,
+                    "is_remote": True,
                 },
             )
 
@@ -456,17 +456,17 @@ class ToolNode(
         event.node_name = "ToolNode"
         event.content_blocks = [ToolCallBlock(id=tool_call_id, name=name, args=args)]
 
-        if name in self.frontend_tool_names:
-            event.metadata["is_frontend"] = True
+        if name in self.remote_tool_names:
+            event.metadata["is_remote"] = True
             publish_event(event)
-            # This tool in frontend tools, so we can not execute it locally
+            # This tool in remote tools, so we can not execute it locally
             # so we will return a message
             # And the graph will be interrupted here
             yield Message(
                 content=[RemoteToolCallBlock(id=tool_call_id, name=name, args=args)],
                 role="tool",
                 metadata={
-                    "is_frontend": True,
+                    "is_remote": True,
                 },
             )
             return
