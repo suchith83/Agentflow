@@ -62,6 +62,7 @@ Error codes follow a hierarchical pattern: `CATEGORY_SUBCATEGORY_NNN`
 - `STORAGE_TRANSIENT_000`: Transient storage error (retryable)
 - `STORAGE_SERIALIZATION_000`: Serialization/deserialization error
 - `STORAGE_SCHEMA_000`: Schema version mismatch
+- `STORAGE_NOT_FOUND_000`: Data not found in storage
 
 ### Metrics Errors (METRICS_XXX)
 - `METRICS_000`: Generic metrics error

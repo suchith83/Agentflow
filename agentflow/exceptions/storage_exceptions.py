@@ -168,6 +168,35 @@ class SchemaVersionError(StorageError):
         super().__init__(message, error_code, context)
 
 
+class ResourceNotFoundError(StorageError):
+    """Raised when a requested resource is not found in storage.
+
+    This exception indicates that the specified resource does not exist.
+    """
+
+    def __init__(
+        self,
+        message: str,
+        error_code: str = "STORAGE_NOT_FOUND_000",
+        context: dict[str, Any] | None = None,
+    ):
+        """Initialize a ResourceNotFoundError.
+
+        Args:
+            message (str): Description of the not found error.
+            error_code (str): Unique error code (default: "STORAGE_NOT_FOUND_000")
+            context (dict): Additional contextual information (default: None)
+        """
+        logger.error(
+            "ResourceNotFoundError [%s]: %s | Context: %s",
+            error_code,
+            message,
+            context or {},
+            exc_info=True,
+        )
+        super().__init__(message, error_code, context)
+
+
 class MetricsError(Exception):
     """Raised when metrics emission fails (should normally be swallowed/logged).
 
