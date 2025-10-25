@@ -17,6 +17,7 @@ from .node_error import NodeError
 from .recursion_error import GraphRecursionError
 from .storage_exceptions import (
     MetricsError,
+    ResourceNotFoundError,
     SchemaVersionError,
     SerializationError,
     StorageError,
@@ -29,6 +30,7 @@ __all__ = [
     "GraphRecursionError",
     "MetricsError",
     "NodeError",
+    "ResourceNotFoundError",
     "SchemaVersionError",
     "SerializationError",
     "StorageError",
