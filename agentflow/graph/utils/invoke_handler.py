@@ -20,7 +20,7 @@ from agentflow.publisher.events import ContentType, Event, EventModel, EventType
 from agentflow.publisher.publish import publish_event
 from agentflow.state import AgentState, ExecutionStatus, Message
 from agentflow.state.message_block import RemoteToolCallBlock
-from agentflow.utils import END, ResponseGranularity
+from agentflow.utils import END, START, ResponseGranularity
 from agentflow.state.reducers import add_messages
 
 from .handler_mixins import (
@@ -74,7 +74,22 @@ class InvokeHandler[StateT: AgentState](
             error_msg = "Input data must contain 'messages' for new execution."
             logger.error(error_msg)
             raise ValueError(error_msg)
+        elif state.execution_meta.status == ExecutionStatus.COMPLETED:
+            # Previous execution completed - reset to entry point for new execution
+            logger.info(
+                "Previous execution completed. Resetting to entry point for new execution "
+                "with %d messages",
+                len(input_data.get("messages", [])),
+            )
+            # Reset execution metadata for fresh start
+            state.execution_meta.current_node = START
+            state.execution_meta.step = 0
+            state.execution_meta.status = ExecutionStatus.RUNNING
+            state.execution_meta.interrupted_node = None
+            state.execution_meta.interrupt_reason = None
+            state.execution_meta.interrupt_data = None
         else:
+            # Fresh execution, state is already at START
             logger.info(
                 "Starting fresh execution with %d messages", len(input_data.get("messages", []))
             )
@@ -406,7 +421,13 @@ class InvokeHandler[StateT: AgentState](
 
                     publish_event(event)
                     raise GraphRecursionError(
-                        f"Graph execution exceeded recursion limit: {max_steps}"
+                        message=f"Graph execution exceeded recursion limit: {max_steps}",
+                        error_code="RECURSION_001",
+                        context={
+                            "max_steps": max_steps,
+                            "current_step": step,
+                            "current_node": current_node,
+                        },
                     )
 
             # Execution completed successfully

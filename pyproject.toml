@@ -1,6 +1,6 @@
 [project]
 name = "10xscale-agentflow"
-version = "0.4.3"
+version = "0.4.4"
 description = "10xScale Agentflow is a Python framework for building, orchestrating, and managing multi-agent systems. Designed for flexibility and scalability, 10xScale Agentflow enables developers to create intelligent agents that collaborate, communicate, and solve complex tasks together."
 readme = "README.md"
 license = {file = "LICENSE"}
@@ -18,10 +18,6 @@ maintainers = [
 ]
 classifiers = [
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.8",
-    "Programming Language :: Python :: 3.9",
-    "Programming Language :: Python :: 3.10",
-    "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
     "License :: OSI Approved :: MIT License",
@@ -203,6 +199,7 @@ addopts = [
 markers = [
     "asyncio: mark test as async test",
     "integration: mark test as integration test requiring real databases",
+    "slow: mark test as slow test that takes longer to run",
 ]
 
 [tool.coverage.run]
@@ -236,6 +233,8 @@ dev = [
     "pytest-cov>=7.0.0",
     "pytest-env>=1.1.5",
     "pytest-xdist>=3.8.0",
+    "pytest-benchmark>=5.1.0",
+    "hypothesis>=6.100.0",
     "pre-commit>=3.8.0",
     "asyncpg>=0.30.0",
     "redis>=6.4.0",

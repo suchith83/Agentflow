@@ -50,9 +50,9 @@ class ComposioAdapter:
     def __init__(
         self,
         *,
-        api_key: str | None = None,
-        provider: t.Any | None = None,
-        file_download_dir: str | None = None,
+        api_key: str,
+        provider: t.Any,
+        file_download_dir: str,
         toolkit_versions: t.Any | None = None,
     ) -> None:
         """
