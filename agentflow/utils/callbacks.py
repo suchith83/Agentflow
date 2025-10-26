@@ -25,12 +25,53 @@ from agentflow.state.message import Message
 logger = logging.getLogger(__name__)
 
 
+class BaseValidator(ABC):
+    """Abstract base class for message validators.
+
+    Validators are used to validate message content before processing.
+    They provide a simpler interface than callbacks, focused specifically
+    on message validation.
+
+    Example:
+        ```python
+        class MyValidator(BaseValidator):
+            async def validate(self, messages: list[Message]) -> bool:
+                for msg in messages:
+                    if "bad_word" in msg.text():
+                        raise ValidationError("Bad word detected", "content_policy")
+                return True
+
+
+        # Register with callback manager
+        from agentflow.utils import default_callback_manager
+
+        default_callback_manager.register_validator(MyValidator())
+        ```
+    """
+
+    @abstractmethod
+    async def validate(self, messages: list[Message]) -> bool:
+        """Validate a list of messages.
+
+        Args:
+            messages: List of Message objects to validate
+
+        Returns:
+            True if validation passes
+
+        Raises:
+            ValidationError: If validation fails
+        """
+        ...
+
+
 class InvocationType(Enum):
     """Types of invocations that can trigger callbacks."""
 
     AI = "ai"
     TOOL = "tool"
     MCP = "mcp"
+    INPUT_VALIDATION = "input_validation"
 
 
 @dataclass
@@ -149,17 +190,22 @@ class CallbackManager:
             InvocationType.AI: [],
             InvocationType.TOOL: [],
             InvocationType.MCP: [],
+            InvocationType.INPUT_VALIDATION: [],
         }
         self._after_callbacks: dict[InvocationType, list[AfterInvokeCallbackType]] = {
             InvocationType.AI: [],
             InvocationType.TOOL: [],
             InvocationType.MCP: [],
+            InvocationType.INPUT_VALIDATION: [],
         }
         self._error_callbacks: dict[InvocationType, list[OnErrorCallbackType]] = {
             InvocationType.AI: [],
             InvocationType.TOOL: [],
             InvocationType.MCP: [],
+            InvocationType.INPUT_VALIDATION: [],
         }
+        # Validator registry
+        self._validators: list[BaseValidator] = []
 
     def register_before_invoke(
         self, invocation_type: InvocationType, callback: BeforeInvokeCallbackType
@@ -230,7 +276,10 @@ class CallbackManager:
         return current_data
 
     async def execute_after_invoke(
-        self, context: CallbackContext, input_data: Any, output_data: Any
+        self,
+        context: CallbackContext,
+        input_data: Any,
+        output_data: Any,
     ) -> Any:
         """
         Execute all after_invoke callbacks for the given context.
@@ -297,6 +346,52 @@ class CallbackManager:
                 continue
 
         return recovery_value
+
+    def register_validator(self, validator: BaseValidator) -> None:
+        """
+        Register a message validator.
+
+        Validators provide a simpler interface for message validation
+        compared to callbacks. They only need to implement validate(messages).
+
+        Args:
+            validator: BaseValidator instance to register
+
+        Example:
+            ```python
+            from agentflow.utils.validators import PromptInjectionValidator
+
+            validator = PromptInjectionValidator()
+            callback_manager.register_validator(validator)
+            ```
+        """
+        self._validators.append(validator)
+        logger.debug("Registered validator: %s", validator.__class__.__name__)
+
+    async def execute_validators(self, messages: list[Message]) -> bool:
+        """
+        Execute all registered validators on the given messages.
+
+        Args:
+            messages: List of Message objects to validate
+
+        Returns:
+            True if all validators pass
+
+        Raises:
+            ValidationError: If any validator fails
+        """
+        if not self._validators:
+            logger.debug("No validators registered, skipping validation")
+            return True
+
+        logger.debug("Running %d validators on %d messages", len(self._validators), len(messages))
+
+        for validator in self._validators:
+            await validator.validate(messages)
+
+        logger.debug("All validators passed")
+        return True
 
     def clear_callbacks(self, invocation_type: InvocationType | None = None) -> None:
         """
@@ -372,3 +467,22 @@ def register_on_error(invocation_type: InvocationType, callback: OnErrorCallback
         callback (OnErrorCallbackType): The callback to register.
     """
     default_callback_manager.register_on_error(invocation_type, callback)
+
+
+def register_validator(validator: BaseValidator) -> None:
+    """
+    Register a message validator on the global callback manager.
+
+    Args:
+        validator: BaseValidator instance to register
+
+    Example:
+        ```python
+        from agentflow.utils import register_validator
+        from agentflow.utils.validators import PromptInjectionValidator
+
+        validator = PromptInjectionValidator()
+        register_validator(validator)
+        ```
+    """
+    default_callback_manager.register_validator(validator)

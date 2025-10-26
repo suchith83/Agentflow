@@ -8,6 +8,7 @@ surface of agent utilities.
 Main Exports:
     - Message and content blocks (Message, TextBlock, ToolCallBlock, etc.)
     - Callback management (CallbackManager, register_before_invoke, etc.)
+    - Validators (PromptInjectionValidator, MessageContentValidator, etc.)
     - Command and callable utilities (Command, call_sync_or_async)
     - Reducers (add_messages, replace_messages, append_items, replace_value)
     - Constants (START, END, ExecutionState, etc.)
@@ -22,6 +23,7 @@ from .callable_utils import call_sync_or_async, run_coroutine
 # Export from callbacks.py
 from .callbacks import (
     AfterInvokeCallback,
+    BaseValidator,
     BeforeInvokeCallback,
     CallbackContext,
     CallbackManager,
@@ -31,6 +33,7 @@ from .callbacks import (
     register_after_invoke,
     register_before_invoke,
     register_on_error,
+    register_validator,
 )
 from .command import Command
 
@@ -53,6 +56,14 @@ from .logging import configure_logging
 from .thread_info import ThreadInfo
 from .thread_name_generator import generate_dummy_thread_name
 
+# Export validators
+from .validators import (
+    MessageContentValidator,
+    PromptInjectionValidator,
+    ValidationError,
+    register_default_validators,
+)
+
 
 __all__ = [
     "END",
@@ -61,6 +72,7 @@ __all__ = [
     "AsyncIDGenerator",
     "BackgroundTaskManager",
     "BaseIDGenerator",
+    "BaseValidator",
     "BeforeInvokeCallback",
     "BigIntIDGenerator",
     "CallbackContext",
@@ -72,7 +84,9 @@ __all__ = [
     "IDType",
     "IntIDGenerator",
     "InvocationType",
+    "MessageContentValidator",
     "OnErrorCallback",
+    "PromptInjectionValidator",
     "ResponseGranularity",
     "ShortIDGenerator",
     "StorageLevel",
@@ -80,6 +94,7 @@ __all__ = [
     "ThreadInfo",
     "TimestampIDGenerator",
     "UUIDGenerator",
+    "ValidationError",
     "add_messages",
     "append_items",
     "call_sync_or_async",
@@ -89,7 +104,9 @@ __all__ = [
     "generate_dummy_thread_name",
     "register_after_invoke",
     "register_before_invoke",
+    "register_default_validators",
     "register_on_error",
+    "register_validator",
     "replace_messages",
     "replace_value",
     "run_coroutine",

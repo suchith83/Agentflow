@@ -115,9 +115,228 @@ When operations fail, `on_error` callbacks provide sophisticated error handling:
 - Logging failures for monitoring and debugging
 - Providing fallback responses or alternative data sources
 
+## Input Validation System
+
+Beyond the standard callback lifecycle, 10xScale Agentflow provides a dedicated input validation system that works alongside callbacks to ensure data quality and security before messages are processed by your agent.
+
+### Understanding Validators
+
+Validators are specialized components that examine messages for security threats, content policy violations, or structural issues. Unlike callbacks that intercept specific operations, validators run at the message level to provide a security and quality gate:
+
+```python
+from agentflow.utils.callbacks import BaseValidator, ValidationError, CallbackManager
+from agentflow.state.message import Message
+
+
+class CustomSecurityValidator(BaseValidator):
+    """Custom validator to enforce domain-specific security policies."""
+    
+    async def validate(self, messages: list[Message]) -> bool:
+        """Validate messages according to security policies.
+        
+        Args:
+            messages: List of messages to validate
+            
+        Returns:
+            True if validation passes, False otherwise
+            
+        Raises:
+            ValidationError: If strict mode and validation fails
+        """
+        for message in messages:
+            content = str(message.content)
+            
+            # Check for sensitive data patterns
+            if self._contains_pii(content):
+                self._handle_violation(
+                    "pii_detected",
+                    f"Message contains personal identifiable information",
+                    message
+                )
+                
+            # Check for malicious patterns
+            if self._contains_malicious_code(content):
+                self._handle_violation(
+                    "malicious_code",
+                    f"Message contains potentially malicious code",
+                    message
+                )
+                
+        return True
+    
+    def _contains_pii(self, content: str) -> bool:
+        """Check if content contains PII patterns."""
+        import re
+        # Example: Check for SSN, credit card patterns
+        patterns = [
+            r'\b\d{3}-\d{2}-\d{4}\b',  # SSN
+            r'\b\d{4}[\s-]?\d{4}[\s-]?\d{4}[\s-]?\d{4}\b'  # Credit card
+        ]
+        return any(re.search(pattern, content) for pattern in patterns)
+    
+    def _contains_malicious_code(self, content: str) -> bool:
+        """Check for malicious code patterns."""
+        dangerous_keywords = ['eval(', 'exec(', '__import__', 'subprocess']
+        return any(keyword in content.lower() for keyword in dangerous_keywords)
+
+
+# Register the validator
+callback_manager = CallbackManager()
+callback_manager.register_validator(CustomSecurityValidator(strict=True))
+```
+
+### Built-in Validators
+
+10xScale Agentflow includes two powerful built-in validators:
+
+**PromptInjectionValidator**: Protects against OWASP LLM01:2025 prompt injection attacks by detecting:
+- System prompt leakage attempts
+- Instruction override patterns
+- Role confusion attacks
+- Encoding-based obfuscation (Base64, Unicode, hex)
+- Payload splitting techniques
+- Suspicious keyword clustering
+
+**MessageContentValidator**: Ensures message structure integrity by validating:
+- Proper role assignments (user, assistant, system, tool)
+- Content block structure and types
+- Required fields and formats
+
+```python
+from agentflow.utils.validators import register_default_validators
+
+# Register built-in validators
+callback_manager = CallbackManager()
+register_default_validators(callback_manager)
+
+# Now compile your graph with the validator-enabled manager
+compiled_graph = graph.compile(callback_manager=callback_manager)
+```
+
+### Validator Modes: Strict vs Lenient
+
+Validators support two operational modes:
+
+**Strict Mode** (default): Raises `ValidationError` immediately when validation fails, blocking the operation:
+```python
+validator = PromptInjectionValidator(strict=True)
+callback_manager.register_validator(validator)
+
+# This will raise ValidationError if injection detected
+await compiled_graph.invoke({"messages": [suspicious_message]})
+```
+
+**Lenient Mode**: Logs violations but allows execution to continue, useful for monitoring and gradual rollout:
+```python
+validator = PromptInjectionValidator(strict=False)
+callback_manager.register_validator(validator)
+
+# This will log warnings but continue execution
+result = await compiled_graph.invoke({"messages": [suspicious_message]})
+```
+
+### Global Validator Registration
+
+For convenience, you can use the global default callback manager:
+
+```python
+from agentflow.utils.callbacks import register_validator, default_callback_manager
+from agentflow.utils.validators import PromptInjectionValidator
+
+# Register to global manager
+register_validator(PromptInjectionValidator(strict=True))
+
+# Compile without explicit callback_manager to use defaults
+compiled_graph = graph.compile()  # Uses default_callback_manager
+```
+
+### Validation in Practice
+
+Validators integrate seamlessly into your graph execution flow:
+
+```python
+from agentflow.utils.callbacks import CallbackManager
+from agentflow.utils.validators import register_default_validators
+from agentflow.graph import StateGraph
+from agentflow.state.message import Message
+
+# Set up callback manager with validators
+callback_manager = CallbackManager()
+register_default_validators(callback_manager)
+
+# Add custom validators
+callback_manager.register_validator(CustomSecurityValidator(strict=True))
+
+# Build your graph
+graph = StateGraph(AgentState)
+graph.add_node("assistant", assistant_node)
+graph.add_node("tools", ToolNode([search_tool]))
+graph.set_entry_point("assistant")
+
+# Compile with validator-enabled manager
+compiled_graph = graph.compile(callback_manager=callback_manager)
+
+# Safe execution - validators run automatically
+try:
+    result = await compiled_graph.invoke({
+        "messages": [
+            Message.from_text("What is the weather?", role="user")
+        ]
+    })
+except ValidationError as e:
+    print(f"Validation failed: {e}")
+    # Handle validation failure appropriately
+```
+
+### Testing Validators
+
+Test your custom validators in isolation:
+
+```python
+import pytest
+from agentflow.utils.callbacks import ValidationError
+from agentflow.state.message import Message
+
+
+async def test_custom_validator():
+    """Test custom validator behavior."""
+    validator = CustomSecurityValidator(strict=True)
+    
+    # Test normal message
+    safe_message = Message.from_text("Hello, how are you?", role="user")
+    assert await validator.validate([safe_message])
+    
+    # Test PII detection
+    pii_message = Message.from_text(
+        "My SSN is 123-45-6789",
+        role="user"
+    )
+    with pytest.raises(ValidationError):
+        await validator.validate([pii_message])
+    
+    # Test lenient mode
+    lenient_validator = CustomSecurityValidator(strict=False)
+    result = await lenient_validator.validate([pii_message])
+    assert not result  # Returns False but doesn't raise
+
+
+async def test_validator_integration():
+    """Test validator integration with callback manager."""
+    callback_manager = CallbackManager()
+    validator = CustomSecurityValidator(strict=True)
+    callback_manager.register_validator(validator)
+    
+    # Create test messages
+    messages = [Message.from_text("Safe content", role="user")]
+    
+    # Execute validators through manager
+    result = await callback_manager.execute_validators(messages)
+    assert result  # Validation passed
+```
+
 ## Invocation Types and Context
 
-10xScale Agentflow distinguishes between three types of operations that can trigger callbacks:
+10xScale Agentflow distinguishes between four types of operations that can trigger callbacks:
 
 ### AI Invocations
 These occur when your agent calls language models for reasoning, planning, or text generation:
@@ -177,6 +396,33 @@ async def optimize_mcp_calls(context: CallbackContext, input_data: dict) -> dict
             # Return cached result wrapped as appropriate response
             return create_cached_response(cached_result)
 
+    return input_data
+```
+
+### Input Validation Invocations
+These are triggered when validators examine messages for security and quality issues:
+
+```python
+async def log_validation_attempts(context: CallbackContext, input_data: dict) -> dict:
+    """Monitor validation attempts for security analysis."""
+    if context.invocation_type == InvocationType.INPUT_VALIDATION:
+        # Log validation events for security monitoring
+        security_logger.info(
+            "Validation check",
+            extra={
+                "validator": context.function_name,
+                "node": context.node_name,
+                "message_count": len(input_data.get("messages", [])),
+                "timestamp": datetime.utcnow().isoformat()
+            }
+        )
+        
+        # Track validation patterns
+        await track_validation_patterns(
+            validator_name=context.function_name,
+            messages=input_data.get("messages", [])
+        )
+    
     return input_data
 ```
 
@@ -306,10 +552,11 @@ async def intelligent_error_recovery(
 
 ## Integration with Agent Graphs
 
-Callbacks integrate seamlessly with your graph construction, providing consistent behavior across all nodes:
+Callbacks and validators integrate seamlessly with your graph construction, providing consistent behavior across all nodes:
 
 ```python
 from agentflow.utils.callbacks import CallbackManager, default_callback_manager
+from agentflow.utils.validators import register_default_validators
 from agentflow.graph import StateGraph
 
 # Set up callbacks
@@ -317,19 +564,26 @@ register_before_invoke(InvocationType.TOOL, security_validator)
 register_after_invoke(InvocationType.AI, response_enhancer)
 register_on_error(InvocationType.MCP, error_recovery_handler)
 
+# Set up validators
+callback_manager = CallbackManager()
+register_default_validators(callback_manager)
+
+# Or use default manager with convenience functions
+# register_validator(PromptInjectionValidator(strict=True))
+
 # Create graph with callback integration
 graph = StateGraph(AgentState)
 graph.add_node("researcher", research_node)
 graph.add_node("analyzer", analysis_node)
 graph.add_node("tools", ToolNode([web_search, data_processor]))
 
-# Compile with callback manager
+# Compile with callback manager (includes validators)
 compiled_graph = graph.compile(
     checkpointer=checkpointer,
-    callback_manager=default_callback_manager  # Uses registered callbacks
+    callback_manager=callback_manager  # Uses registered callbacks and validators
 )
 
-# All tool calls, AI invocations, and MCP calls will now use your callbacks
+# All operations will now use your callbacks and validators
 result = await compiled_graph.invoke(
     {"messages": [user_message]},
     config={"user_id": "user123", "permissions": ["web_search", "data_processor"]}
@@ -384,4 +638,62 @@ async def debug_callback(context: CallbackContext, input_data: dict) -> dict:
     return input_data
 ```
 
-The callback system transforms 10xScale Agentflow from a simple execution engine into a sophisticated, controllable platform where every operation can be monitored, modified, and managed according to your specific requirements. By strategically placing callbacks throughout your agent workflows, you create robust, secure, and maintainable AI systems that adapt to complex real-world requirements.
+## Best Practices and Recommendations
+
+### Organizing Callbacks and Validators
+
+Structure your callback and validator code for maintainability:
+
+```python
+# callbacks/security.py
+from agentflow.utils.callbacks import CallbackManager
+from agentflow.utils.validators import PromptInjectionValidator, MessageContentValidator
+
+def setup_security_callbacks(manager: CallbackManager):
+    """Set up all security-related callbacks and validators."""
+    # Register validators
+    manager.register_validator(PromptInjectionValidator(strict=True))
+    manager.register_validator(MessageContentValidator(strict=True))
+    
+    # Register callbacks
+    manager.register_before_invoke(InvocationType.TOOL, validate_tool_permissions)
+    manager.register_on_error(InvocationType.AI, handle_security_errors)
+
+
+# callbacks/monitoring.py
+def setup_monitoring_callbacks(manager: CallbackManager):
+    """Set up monitoring and logging callbacks."""
+    manager.register_before_invoke(InvocationType.AI, log_ai_usage)
+    manager.register_after_invoke(InvocationType.TOOL, track_tool_performance)
+    manager.register_on_error(InvocationType.MCP, alert_on_mcp_failures)
+
+
+# main.py
+from callbacks.security import setup_security_callbacks
+from callbacks.monitoring import setup_monitoring_callbacks
+
+callback_manager = CallbackManager()
+setup_security_callbacks(callback_manager)
+setup_monitoring_callbacks(callback_manager)
+
+compiled_graph = graph.compile(callback_manager=callback_manager)
+```
+
+### Validator Development Guidelines
+
+When creating custom validators:
+1. **Extend BaseValidator** for consistency and proper integration
+2. **Handle both strict and lenient modes** appropriately
+3. **Provide clear violation messages** that help diagnose issues
+4. **Test thoroughly** with edge cases and attack patterns
+5. **Document detection logic** for security audits
+
+### Performance Considerations
+
+Callbacks and validators add overhead to each operation:
+- Keep validation logic efficient (cache compiled regex patterns, reuse expensive operations)
+- Use lenient mode in development, strict mode in production
+- Consider async operations for I/O-bound validation (external API checks)
+- Profile callback chains if latency becomes an issue
+
+The callback and validation systems transform 10xScale Agentflow from a simple execution engine into a sophisticated, controllable platform where every operation can be monitored, modified, and managed according to your specific requirements. By strategically placing callbacks and validators throughout your agent workflows, you create robust, secure, and maintainable AI systems that adapt to complex real-world requirements.

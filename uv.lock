@@ -1,9 +1,137 @@
 version = 1
-revision = 3
+revision = 2
 requires-python = ">=3.12"
 resolution-markers = [
     "python_full_version >= '3.13'",
     "python_full_version < '3.13'",
+]
+
+[[package]]
+name = "10xscale-agentflow"
+version = "0.4.3"
+source = { editable = "." }
+dependencies = [
+    { name = "injectq" },
+    { name = "pydantic" },
+    { name = "python-dotenv" },
+]
+
+[package.optional-dependencies]
+all-publishers = [
+    { name = "aio-pika" },
+    { name = "aiokafka" },
+    { name = "redis" },
+]
+composio = [
+    { name = "composio" },
+]
+kafka = [
+    { name = "aiokafka" },
+]
+langchain = [
+    { name = "langchain-community" },
+    { name = "langchain-core" },
+]
+litellm = [
+    { name = "litellm" },
+]
+mcp = [
+    { name = "fastmcp" },
+    { name = "mcp" },
+]
+mem0 = [
+    { name = "mem0ai" },
+]
+pg-checkpoint = [
+    { name = "asyncpg" },
+    { name = "redis" },
+]
+qdrant = [
+    { name = "qdrant-client" },
+]
+rabbitmq = [
+    { name = "aio-pika" },
+]
+redis = [
+    { name = "redis" },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "asyncpg" },
+    { name = "composio" },
+    { name = "fastmcp" },
+    { name = "langchain-community" },
+    { name = "langchain-core" },
+    { name = "mcp" },
+    { name = "mem0ai" },
+    { name = "mkdocs" },
+    { name = "mkdocs-autorefs" },
+    { name = "mkdocs-gen-files" },
+    { name = "mkdocs-literate-nav" },
+    { name = "mkdocs-material" },
+    { name = "mkdocs-material-extensions" },
+    { name = "mkdocs-section-index" },
+    { name = "mkdocstrings", extra = ["python"] },
+    { name = "pre-commit" },
+    { name = "pymdown-extensions" },
+    { name = "pytest" },
+    { name = "pytest-asyncio" },
+    { name = "pytest-cov" },
+    { name = "pytest-env" },
+    { name = "pytest-xdist" },
+    { name = "redis" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "aio-pika", marker = "extra == 'all-publishers'", specifier = ">=9.0.0" },
+    { name = "aio-pika", marker = "extra == 'rabbitmq'", specifier = ">=9.0.0" },
+    { name = "aiokafka", marker = "extra == 'all-publishers'", specifier = ">=0.8.0" },
+    { name = "aiokafka", marker = "extra == 'kafka'", specifier = ">=0.8.0" },
+    { name = "asyncpg", marker = "extra == 'pg-checkpoint'", specifier = ">=0.29.0" },
+    { name = "composio", marker = "extra == 'composio'", specifier = ">=0.8.0" },
+    { name = "fastmcp", marker = "extra == 'mcp'", specifier = ">=2.11.3" },
+    { name = "injectq", specifier = ">=0.3.0" },
+    { name = "langchain-community", marker = "extra == 'langchain'", specifier = ">=0.3.0" },
+    { name = "langchain-core", marker = "extra == 'langchain'", specifier = ">=0.3.0" },
+    { name = "litellm", marker = "extra == 'litellm'", specifier = ">=1.77.0" },
+    { name = "mcp", marker = "extra == 'mcp'", specifier = ">=1.13.0" },
+    { name = "mem0ai", marker = "extra == 'mem0'", specifier = ">=0.1.117" },
+    { name = "pydantic" },
+    { name = "python-dotenv" },
+    { name = "qdrant-client", marker = "extra == 'qdrant'", specifier = ">=1.7.0" },
+    { name = "redis", marker = "extra == 'all-publishers'", specifier = ">=4.2" },
+    { name = "redis", marker = "extra == 'pg-checkpoint'", specifier = ">=4.2" },
+    { name = "redis", marker = "extra == 'redis'", specifier = ">=4.2" },
+]
+provides-extras = ["litellm", "pg-checkpoint", "mcp", "composio", "langchain", "redis", "kafka", "rabbitmq", "qdrant", "mem0", "all-publishers"]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "asyncpg", specifier = ">=0.30.0" },
+    { name = "composio", specifier = ">=0.8.15" },
+    { name = "fastmcp", specifier = ">=2.12.3" },
+    { name = "langchain-community", specifier = ">=0.3.29" },
+    { name = "langchain-core", specifier = ">=0.3.76" },
+    { name = "mcp", specifier = ">=1.14.1" },
+    { name = "mem0ai", specifier = ">=0.1.117" },
+    { name = "mkdocs", specifier = ">=1.5.3" },
+    { name = "mkdocs-autorefs" },
+    { name = "mkdocs-gen-files" },
+    { name = "mkdocs-literate-nav", specifier = ">=0.4.1" },
+    { name = "mkdocs-material", specifier = ">=9.1.15" },
+    { name = "mkdocs-material-extensions", specifier = ">=1.0.3" },
+    { name = "mkdocs-section-index" },
+    { name = "mkdocstrings", extras = ["python"] },
+    { name = "pre-commit", specifier = ">=3.8.0" },
+    { name = "pymdown-extensions" },
+    { name = "pytest", specifier = ">=8.4.2" },
+    { name = "pytest-asyncio", specifier = ">=1.2.0" },
+    { name = "pytest-cov", specifier = ">=7.0.0" },
+    { name = "pytest-env", specifier = ">=1.1.5" },
+    { name = "pytest-xdist", specifier = ">=3.8.0" },
+    { name = "redis", specifier = ">=6.4.0" },
 ]
 
 [[package]]
@@ -2092,134 +2220,6 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/6c/04/98f6f8cf5b07ab1294c13f34b4e69b3722bb609c5b701d6c169828f9f8aa/protobuf-5.29.5-cp38-abi3-manylinux2014_aarch64.whl", hash = "sha256:fa18533a299d7ab6c55a238bf8629311439995f2e7eca5caaff08663606e9015", size = 319824, upload-time = "2025-05-28T23:51:47.545Z" },
     { url = "https://files.pythonhosted.org/packages/85/e4/07c80521879c2d15f321465ac24c70efe2381378c00bf5e56a0f4fbac8cd/protobuf-5.29.5-cp38-abi3-manylinux2014_x86_64.whl", hash = "sha256:63848923da3325e1bf7e9003d680ce6e14b07e55d0473253a690c3a8b8fd6e61", size = 319942, upload-time = "2025-05-28T23:51:49.11Z" },
     { url = "https://files.pythonhosted.org/packages/7e/cc/7e77861000a0691aeea8f4566e5d3aa716f2b1dece4a24439437e41d3d25/protobuf-5.29.5-py3-none-any.whl", hash = "sha256:6cf42630262c59b2d8de33954443d94b746c952b01434fc58a417fdbd2e84bd5", size = 172823, upload-time = "2025-05-28T23:51:58.157Z" },
-]
-
-[[package]]
-name = "10xscale-agentflow"
-version = "0.3.5"
-source = { editable = "." }
-dependencies = [
-    { name = "injectq" },
-    { name = "pydantic" },
-    { name = "python-dotenv" },
-]
-
-[package.optional-dependencies]
-all-publishers = [
-    { name = "aio-pika" },
-    { name = "aiokafka" },
-    { name = "redis" },
-]
-composio = [
-    { name = "composio" },
-]
-kafka = [
-    { name = "aiokafka" },
-]
-langchain = [
-    { name = "langchain-community" },
-    { name = "langchain-core" },
-]
-litellm = [
-    { name = "litellm" },
-]
-mcp = [
-    { name = "fastmcp" },
-    { name = "mcp" },
-]
-mem0 = [
-    { name = "mem0ai" },
-]
-pg-checkpoint = [
-    { name = "asyncpg" },
-    { name = "redis" },
-]
-qdrant = [
-    { name = "qdrant-client" },
-]
-rabbitmq = [
-    { name = "aio-pika" },
-]
-redis = [
-    { name = "redis" },
-]
-
-[package.dev-dependencies]
-dev = [
-    { name = "asyncpg" },
-    { name = "composio" },
-    { name = "fastmcp" },
-    { name = "langchain-community" },
-    { name = "langchain-core" },
-    { name = "mcp" },
-    { name = "mem0ai" },
-    { name = "mkdocs" },
-    { name = "mkdocs-autorefs" },
-    { name = "mkdocs-gen-files" },
-    { name = "mkdocs-literate-nav" },
-    { name = "mkdocs-material" },
-    { name = "mkdocs-material-extensions" },
-    { name = "mkdocs-section-index" },
-    { name = "mkdocstrings", extra = ["python"] },
-    { name = "pre-commit" },
-    { name = "pymdown-extensions" },
-    { name = "pytest" },
-    { name = "pytest-asyncio" },
-    { name = "pytest-cov" },
-    { name = "pytest-env" },
-    { name = "pytest-xdist" },
-    { name = "redis" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "aio-pika", marker = "extra == 'all-publishers'", specifier = ">=9.0.0" },
-    { name = "aio-pika", marker = "extra == 'rabbitmq'", specifier = ">=9.0.0" },
-    { name = "aiokafka", marker = "extra == 'all-publishers'", specifier = ">=0.8.0" },
-    { name = "aiokafka", marker = "extra == 'kafka'", specifier = ">=0.8.0" },
-    { name = "asyncpg", marker = "extra == 'pg-checkpoint'", specifier = ">=0.29.0" },
-    { name = "composio", marker = "extra == 'composio'", specifier = ">=0.8.0" },
-    { name = "fastmcp", marker = "extra == 'mcp'", specifier = ">=2.11.3" },
-    { name = "injectq", specifier = ">=0.3.0" },
-    { name = "langchain-community", marker = "extra == 'langchain'", specifier = ">=0.3.0" },
-    { name = "langchain-core", marker = "extra == 'langchain'", specifier = ">=0.3.0" },
-    { name = "litellm", marker = "extra == 'litellm'", specifier = ">=1.77.0" },
-    { name = "mcp", marker = "extra == 'mcp'", specifier = ">=1.13.0" },
-    { name = "mem0ai", marker = "extra == 'mem0'", specifier = ">=0.1.117" },
-    { name = "pydantic", specifier = ">=2.0.0" },
-    { name = "python-dotenv", specifier = ">=1.1.0" },
-    { name = "qdrant-client", marker = "extra == 'qdrant'", specifier = ">=1.7.0" },
-    { name = "redis", marker = "extra == 'all-publishers'", specifier = ">=4.2" },
-    { name = "redis", marker = "extra == 'pg-checkpoint'", specifier = ">=4.2" },
-    { name = "redis", marker = "extra == 'redis'", specifier = ">=4.2" },
-]
-provides-extras = ["litellm", "pg-checkpoint", "mcp", "composio", "langchain", "redis", "kafka", "rabbitmq", "qdrant", "mem0", "all-publishers"]
-
-[package.metadata.requires-dev]
-dev = [
-    { name = "asyncpg", specifier = ">=0.30.0" },
-    { name = "composio", specifier = ">=0.8.15" },
-    { name = "fastmcp", specifier = ">=2.12.3" },
-    { name = "langchain-community", specifier = ">=0.3.29" },
-    { name = "langchain-core", specifier = ">=0.3.76" },
-    { name = "mcp", specifier = ">=1.14.1" },
-    { name = "mem0ai", specifier = ">=0.1.117" },
-    { name = "mkdocs", specifier = ">=1.5.3" },
-    { name = "mkdocs-autorefs" },
-    { name = "mkdocs-gen-files" },
-    { name = "mkdocs-literate-nav", specifier = ">=0.4.1" },
-    { name = "mkdocs-material", specifier = ">=9.1.15" },
-    { name = "mkdocs-material-extensions", specifier = ">=1.0.3" },
-    { name = "mkdocs-section-index" },
-    { name = "mkdocstrings", extras = ["python"] },
-    { name = "pre-commit", specifier = ">=3.8.0" },
-    { name = "pymdown-extensions" },
-    { name = "pytest", specifier = ">=8.4.2" },
-    { name = "pytest-asyncio", specifier = ">=1.2.0" },
-    { name = "pytest-cov", specifier = ">=7.0.0" },
-    { name = "pytest-env", specifier = ">=1.1.5" },
-    { name = "pytest-xdist", specifier = ">=3.8.0" },
-    { name = "redis", specifier = ">=6.4.0" },
 ]
 
 [[package]]

@@ -37,6 +37,7 @@ from agentflow.utils import (
     ResponseGranularity,
     add_messages,
 )
+from agentflow.utils.callbacks import CallbackManager
 
 
 StateT = TypeVar("StateT", bound=AgentState)
@@ -107,6 +108,37 @@ def _update_state_fields(state, partial: dict):
             setattr(state, k, v)
 
 
+async def validate_message_content(
+    message: list[Message],
+    callback_mgr: CallbackManager = Inject[CallbackManager],  # will be auto-injected
+) -> bool:
+    """Validate message content using registered validators in callback manager.
+
+    Executes all validators registered in the callback manager.
+    This allows for flexible, configurable validation strategies.
+
+    Args:
+        message: List of Message objects to validate.
+        callback_manager: CallbackManager instance (uses default_callback_manager if None).
+
+    Returns:
+        True if all validators pass.
+
+    Raises:
+        ValidationError: If any validator fails.
+    """
+    from agentflow.utils.callbacks import default_callback_manager  # noqa: PLC0415
+
+    # Use default callback manager if none provided
+    manager = callback_mgr or default_callback_manager
+
+    # Execute validation
+    await manager.execute_validators(message)
+
+    logger.debug("All validators passed")
+    return True
+
+
 async def load_or_create_state[StateT: AgentState](  # noqa: PLR0912, PLR0915
     input_data: dict[str, Any],
     config: dict[str, Any],
@@ -157,6 +189,8 @@ async def load_or_create_state[StateT: AgentState](  # noqa: PLR0912, PLR0915
             new_messages = input_data.get("messages", [])
             if new_messages:
                 logger.debug("Merging %d new messages with existing context", len(new_messages))
+                # Validate message content before adding
+                await validate_message_content(new_messages)
                 existing_state.context = add_messages(existing_state.context, new_messages)
             # Merge partial state fields if provided
             partial_state = input_data.get("state", {})
@@ -195,6 +229,8 @@ async def load_or_create_state[StateT: AgentState](  # noqa: PLR0912, PLR0915
     new_messages = input_data.get("messages", [])
     if new_messages:
         logger.debug("Adding %d new messages to fresh state", len(new_messages))
+        # Validate message content before adding
+        await validate_message_content(new_messages)
         state.context = add_messages(state.context, new_messages)
     # Merge partial state fields if provided
     partial_state = input_data.get("state", {})

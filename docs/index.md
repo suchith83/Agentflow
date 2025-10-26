@@ -365,4 +365,4 @@ Contributions are welcome! Please see our [GitHub repository](https://github.com
 
 ---
 
-**Ready to build intelligent agents?** Start with the [Tutorials](Tutorial/index.md) or dive into a [Quick Example](#-simple-example)!
+**Ready to build intelligent agents?** Start with the [Tutorials](Tutorial/index.md) or dive into a [Quick Example](#simple-example)!
