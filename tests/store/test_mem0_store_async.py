@@ -48,7 +48,7 @@ class MockAsyncMem0:
                 # Apply score threshold if provided
                 if threshold is None or it["score"] >= threshold:
                     res.append(it)
-        return {"original_results": res[:limit]}
+        return {"results": res[:limit]}
 
     async def get_all(self, user_id, agent_id=None, limit=100, **kwargs):
         """Mock AsyncMemory.get_all method"""
