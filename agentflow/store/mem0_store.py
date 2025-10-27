@@ -202,7 +202,7 @@ class Mem0Store(BaseStore):
             **(metadata or {}),
         }
 
-        infer = kwargs.get("infer", True) 
+        infer = kwargs.get("infer", True)
 
         client = await self._get_client()
         result = await client.add(  # type: ignore
