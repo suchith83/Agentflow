@@ -43,9 +43,10 @@ class BaseValidator(ABC):
 
 
         # Register with callback manager
-        from agentflow.utils import default_callback_manager
+        from agentflow.utils.callbacks import CallbackManager
 
-        default_callback_manager.register_validator(MyValidator())
+        callback_manager = CallbackManager()
+        callback_manager.register_input_validator(MyValidator())
         ```
     """
 
@@ -347,9 +348,9 @@ class CallbackManager:
 
         return recovery_value
 
-    def register_validator(self, validator: BaseValidator) -> None:
+    def register_input_validator(self, validator: BaseValidator) -> None:
         """
-        Register a message validator.
+        Register a message validator for input validation.
 
         Validators provide a simpler interface for message validation
         compared to callbacks. They only need to implement validate(messages).
@@ -361,12 +362,13 @@ class CallbackManager:
             ```python
             from agentflow.utils.validators import PromptInjectionValidator
 
+            callback_manager = CallbackManager()
             validator = PromptInjectionValidator()
-            callback_manager.register_validator(validator)
+            callback_manager.register_input_validator(validator)
             ```
         """
         self._validators.append(validator)
-        logger.debug("Registered validator: %s", validator.__class__.__name__)
+        logger.debug("Registered input validator: %s", validator.__class__.__name__)
 
     async def execute_validators(self, messages: list[Message]) -> bool:
         """
@@ -425,64 +427,3 @@ class CallbackManager:
             }
             for inv_type in InvocationType
         }
-
-
-# Global default callback manager instance
-default_callback_manager = CallbackManager()
-
-
-# Convenience functions for the global callback manager
-def register_before_invoke(
-    invocation_type: InvocationType, callback: BeforeInvokeCallbackType
-) -> None:
-    """
-    Register a before_invoke callback on the global callback manager.
-
-    Args:
-        invocation_type (InvocationType): The type of invocation (AI, TOOL, MCP).
-        callback (BeforeInvokeCallbackType): The callback to register.
-    """
-    default_callback_manager.register_before_invoke(invocation_type, callback)
-
-
-def register_after_invoke(
-    invocation_type: InvocationType, callback: AfterInvokeCallbackType
-) -> None:
-    """
-    Register an after_invoke callback on the global callback manager.
-
-    Args:
-        invocation_type (InvocationType): The type of invocation (AI, TOOL, MCP).
-        callback (AfterInvokeCallbackType): The callback to register.
-    """
-    default_callback_manager.register_after_invoke(invocation_type, callback)
-
-
-def register_on_error(invocation_type: InvocationType, callback: OnErrorCallbackType) -> None:
-    """
-    Register an on_error callback on the global callback manager.
-
-    Args:
-        invocation_type (InvocationType): The type of invocation (AI, TOOL, MCP).
-        callback (OnErrorCallbackType): The callback to register.
-    """
-    default_callback_manager.register_on_error(invocation_type, callback)
-
-
-def register_validator(validator: BaseValidator) -> None:
-    """
-    Register a message validator on the global callback manager.
-
-    Args:
-        validator: BaseValidator instance to register
-
-    Example:
-        ```python
-        from agentflow.utils import register_validator
-        from agentflow.utils.validators import PromptInjectionValidator
-
-        validator = PromptInjectionValidator()
-        register_validator(validator)
-        ```
-    """
-    default_callback_manager.register_validator(validator)

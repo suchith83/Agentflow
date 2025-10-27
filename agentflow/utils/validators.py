@@ -25,11 +25,12 @@ Functions:
 
 Example:
     ```python
-    from agentflow.utils import register_default_validators, register_validator
-    from agentflow.utils.validators import PromptInjectionValidator
+    from agentflow.utils.callbacks import CallbackManager
+    from agentflow.utils.validators import PromptInjectionValidator, register_default_validators
 
-    # Register default validators on the global callback manager
-    register_default_validators()
+    # Create callback manager and register default validators
+    callback_manager = CallbackManager()
+    register_default_validators(callback_manager)
 
 
     # Or register custom validator
@@ -43,7 +44,7 @@ Example:
             return True
 
 
-    register_validator(MyValidator())
+    callback_manager.register_input_validator(MyValidator())
     ```
 """
 
@@ -100,12 +101,13 @@ class PromptInjectionValidator(BaseValidator):
 
     Example:
         ```python
-        from agentflow.utils import register_validator
+        from agentflow.utils.callbacks import CallbackManager
         from agentflow.utils.validators import PromptInjectionValidator
 
-        # Register with default callback manager
+        # Create callback manager and register validator
+        callback_manager = CallbackManager()
         validator = PromptInjectionValidator(strict_mode=True)
-        register_validator(validator)
+        callback_manager.register_input_validator(validator)
         ```
     """
 
@@ -385,11 +387,12 @@ class MessageContentValidator(BaseValidator):
 
     Example:
         ```python
-        from agentflow.utils import register_validator
+        from agentflow.utils.callbacks import CallbackManager
         from agentflow.utils.validators import MessageContentValidator
 
+        callback_manager = CallbackManager()
         validator = MessageContentValidator(allowed_roles=["user", "assistant", "system"])
-        register_validator(validator)
+        callback_manager.register_input_validator(validator)
         ```
     """
 
@@ -444,37 +447,30 @@ class MessageContentValidator(BaseValidator):
         return True
 
 
-def register_default_validators(callback_manager: Any = None, strict_mode: bool = True) -> None:
+def register_default_validators(callback_manager: Any, strict_mode: bool = True) -> None:
     """
     Register all default validators with the callback manager.
 
     Args:
-        callback_manager: CallbackManager instance (uses default_callback_manager if None)
+        callback_manager: CallbackManager instance (required)
         strict_mode: Whether to use strict mode for prompt injection validator
 
     Example:
         ```python
         from agentflow.utils.validators import register_default_validators
-        from agentflow.utils.callbacks import default_callback_manager, CallbackManager
+        from agentflow.utils.callbacks import CallbackManager
 
-        # Register with global default callback manager
-        register_default_validators()
-
-        # Or register with custom callback manager for specific graph
+        # Register with custom callback manager
         my_manager = CallbackManager()
         register_default_validators(callback_manager=my_manager, strict_mode=False)
         ```
     """
-    from agentflow.utils.callbacks import default_callback_manager
-
-    manager = callback_manager or default_callback_manager
-
     # Register prompt injection validator
     prompt_validator = PromptInjectionValidator(strict_mode=strict_mode)
-    manager.register_validator(prompt_validator)
+    callback_manager.register_input_validator(prompt_validator)
 
     # Register message content validator
     message_validator = MessageContentValidator()
-    manager.register_validator(message_validator)
+    callback_manager.register_input_validator(message_validator)
 
     logger.info("Registered default validators (strict_mode=%s)", strict_mode)

@@ -202,7 +202,7 @@ callback_manager = CallbackManager()
 register_default_validators(callback_manager)
 
 # Register custom validator
-callback_manager.register_validator(BusinessPolicyValidator(strict_mode=True))
+callback_manager.register_input_validator(BusinessPolicyValidator(strict_mode=True))
 
 print("✓ Registered validators:")
 print("  - PromptInjectionValidator (detects injection attacks)")
@@ -367,7 +367,7 @@ def demonstrate_lenient_mode():
 
     # Create manager with lenient validators
     lenient_manager = CallbackManager()
-    lenient_manager.register_validator(
+    lenient_manager.register_input_validator(
         BusinessPolicyValidator(strict_mode=False, max_message_length=10000)
     )
 

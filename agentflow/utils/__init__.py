@@ -29,11 +29,6 @@ from .callbacks import (
     CallbackManager,
     InvocationType,
     OnErrorCallback,
-    default_callback_manager,
-    register_after_invoke,
-    register_before_invoke,
-    register_on_error,
-    register_validator,
 )
 from .command import Command
 
@@ -109,14 +104,9 @@ __all__ = [
     "call_sync_or_async",
     "configure_logging",
     "convert_messages",
-    "default_callback_manager",
     "delayed_keyboard_interrupt",
     "generate_dummy_thread_name",
-    "register_after_invoke",
-    "register_before_invoke",
     "register_default_validators",
-    "register_on_error",
-    "register_validator",
     "replace_messages",
     "replace_value",
     "run_coroutine",

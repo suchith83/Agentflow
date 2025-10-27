@@ -119,7 +119,7 @@ async def validate_message_content(
 
     Args:
         message: List of Message objects to validate.
-        callback_manager: CallbackManager instance (uses default_callback_manager if None).
+        callback_manager: CallbackManager instance (required).
 
     Returns:
         True if all validators pass.
@@ -127,13 +127,13 @@ async def validate_message_content(
     Raises:
         ValidationError: If any validator fails.
     """
-    from agentflow.utils.callbacks import default_callback_manager  # noqa: PLC0415
-
-    # Use default callback manager if none provided
-    manager = callback_mgr or default_callback_manager
+    # Require callback manager to be provided
+    if not callback_mgr:
+        logger.debug("No callback manager provided, skipping validation")
+        return True
 
     # Execute validation
-    await manager.execute_validators(message)
+    await callback_mgr.execute_validators(message)
 
     logger.debug("All validators passed")
     return True
