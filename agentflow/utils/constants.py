@@ -5,7 +5,7 @@ This module defines special node names, message storage levels, execution states
 and response granularity options for agent workflows.
 """
 
-from enum import StrEnum
+from enum import Enum
 from typing import Literal
 
 
@@ -29,7 +29,7 @@ class StorageLevel:
     LOW = "low"
 
 
-class ExecutionState(StrEnum):
+class ExecutionState(str, Enum):
     """
     Graph execution states for agent workflows.
 
@@ -52,7 +52,7 @@ class ExecutionState(StrEnum):
     IDLE = "idle"
 
 
-class ResponseGranularity(StrEnum):
+class ResponseGranularity(str, Enum):
     """
     Response granularity options for agent graph outputs.
 

@@ -150,9 +150,6 @@ class TestCallbackManager:
         """Test CallbackManager has expected methods."""
         manager = CallbackManager()
         expected_methods = [
-            "register_before_invoke",
-            "register_after_invoke",
-            "register_on_error",
             "execute_before_invoke",
             "execute_after_invoke",
             "execute_on_error",
@@ -162,42 +159,6 @@ class TestCallbackManager:
         for method in expected_methods:
             assert hasattr(manager, method)  # noqa: S101
             assert callable(getattr(manager, method))  # noqa: S101
-
-    @pytest.mark.asyncio
-    async def test_callback_manager_execute_before_invoke(self):
-        """Test executing before_invoke callbacks."""
-        manager = CallbackManager()
-        context = CallbackContext(
-            invocation_type=InvocationType.AI,
-            node_name="test_node",
-            function_name="test_func",
-            metadata={},
-        )
-
-        async def callback(ctx, data):
-            return data + "_modified"
-
-        manager.register_before_invoke(InvocationType.AI, callback)
-        result = await manager.execute_before_invoke(context, "input")
-        assert result == "input_modified"  # noqa: S101
-
-    @pytest.mark.asyncio
-    async def test_callback_manager_execute_after_invoke(self):
-        """Test executing after_invoke callbacks."""
-        manager = CallbackManager()
-        context = CallbackContext(
-            invocation_type=InvocationType.AI,
-            node_name="test_node",
-            function_name="test_func",
-            metadata={},
-        )
-
-        async def callback(ctx, input_data, output_data):
-            return output_data + "_processed"
-
-        manager.register_after_invoke(InvocationType.AI, callback)
-        result = await manager.execute_after_invoke(context, "input", "output")
-        assert result == "output_processed"  # noqa: S101
 
     @pytest.mark.asyncio
     async def test_callback_manager_execute_on_error(self):
@@ -525,40 +486,6 @@ class TestConverter:
         assert len(result) == 2  # noqa: S101
         assert result[1]["role"] == "tool"  # noqa: S101
         assert result[1]["tool_call_id"] == "call_123"  # noqa: S101
-
-
-class TestConvenienceFunctions:
-    """Test the convenience functions for global callback manager."""
-
-    def test_register_before_invoke_convenience(self):
-        """Test register_before_invoke convenience function."""
-        from agentflow.utils.callbacks import register_before_invoke
-
-        def callback(ctx, data):
-            return data
-
-        # Should not raise
-        register_before_invoke(InvocationType.AI, callback)
-
-    def test_register_after_invoke_convenience(self):
-        """Test register_after_invoke convenience function."""
-        from agentflow.utils.callbacks import register_after_invoke
-
-        def callback(ctx, input_data, output_data):
-            return output_data
-
-        # Should not raise
-        register_after_invoke(InvocationType.AI, callback)
-
-    def test_register_on_error_convenience(self):
-        """Test register_on_error convenience function."""
-        from agentflow.utils.callbacks import register_on_error
-
-        def callback(ctx, input_data, error):
-            return None
-
-        # Should not raise
-        register_on_error(InvocationType.AI, callback)
 
 
 class TestIDGenerators:

@@ -66,7 +66,7 @@ class BaseValidator(ABC):
         ...
 
 
-class InvocationType(Enum):
+class InvocationType(str, Enum):
     """Types of invocations that can trigger callbacks."""
 
     AI = "ai"

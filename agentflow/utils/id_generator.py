@@ -5,16 +5,16 @@ Each generator implements the BaseIDGenerator interface and specifies
 the type and size of IDs it produces.
 """
 
-import enum
 import secrets
 import string
 import time
 import uuid
 from abc import ABC, abstractmethod
 from collections.abc import Awaitable
+from enum import Enum
 
 
-class IDType(enum.StrEnum):
+class IDType(str, Enum):
     """Enumeration of supported ID types."""
 
     STRING = "string"  # String-based IDs

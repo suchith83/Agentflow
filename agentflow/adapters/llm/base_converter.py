@@ -7,7 +7,7 @@ from agentflow.publisher.events import EventModel
 from agentflow.state import AgentState, Message
 
 
-class ConverterType(Enum):
+class ConverterType(str, Enum):
     """Enumeration of supported converter types for LLM responses."""
 
     OPENAI = "openai"
