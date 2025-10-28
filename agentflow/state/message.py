@@ -18,6 +18,8 @@ Functions:
     generate_id: Generates a message or tool call ID based on DI context and type.
 """
 
+from __future__ import annotations
+
 import asyncio
 import json
 import logging
@@ -165,7 +167,7 @@ class Message(BaseModel):
         content: str,
         role: Literal["user", "assistant", "system", "tool"] = "user",
         message_id: str | None = None,
-    ) -> "Message":
+    ) -> Message:
         """
         Create a Message instance from plain text.
 
@@ -194,7 +196,7 @@ class Message(BaseModel):
         content: list[ContentBlock],
         message_id: str | None = None,
         meta: dict[str, Any] | None = None,
-    ) -> "Message":
+    ) -> Message:
         """
         Create a tool message, optionally marking it as an error.
 

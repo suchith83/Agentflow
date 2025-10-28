@@ -93,10 +93,17 @@ class TestRedisPublisher:
     @pytest.mark.asyncio
     @patch('importlib.import_module')
     async def test_redis_publisher_get_client_success(self, mock_import):
-        """Test successful Redis client creation."""
+        """Test successful Redis client creation with connection pooling."""
         mock_redis_asyncio = Mock()
+        mock_pool = Mock()
         mock_client = AsyncMock()
-        mock_redis_asyncio.from_url.return_value = mock_client
+        mock_client.ping = AsyncMock()
+        
+        # Mock ConnectionPool
+        mock_redis_asyncio.ConnectionPool = Mock()
+        mock_redis_asyncio.ConnectionPool.from_url = Mock(return_value=mock_pool)
+        mock_redis_asyncio.Redis = Mock(return_value=mock_client)
+        
         mock_import.return_value = mock_redis_asyncio
         
         with patch.dict('sys.modules', {'redis.asyncio': mock_redis_asyncio}):
@@ -108,9 +115,10 @@ class TestRedisPublisher:
             
             assert client == mock_client
             assert publisher._redis == mock_client
-            mock_redis_asyncio.from_url.assert_called_once_with(
-                "redis://test:6379", encoding="utf-8", decode_responses=False
-            )
+            # Verify ConnectionPool was created with proper parameters
+            mock_redis_asyncio.ConnectionPool.from_url.assert_called_once()
+            # Verify ping was called to test connection
+            mock_client.ping.assert_called_once()
     
     @pytest.mark.asyncio
     async def test_redis_publisher_get_client_import_error(self):
@@ -131,7 +139,15 @@ class TestRedisPublisher:
     async def test_redis_publisher_get_client_connection_error(self, mock_import):
         """Test Redis client creation with connection failure."""
         mock_redis_asyncio = Mock()
-        mock_redis_asyncio.from_url.side_effect = Exception("Connection failed")
+        mock_pool = Mock()
+        mock_client = AsyncMock()
+        mock_client.ping = AsyncMock(side_effect=Exception("Connection failed"))
+        
+        # Mock ConnectionPool
+        mock_redis_asyncio.ConnectionPool = Mock()
+        mock_redis_asyncio.ConnectionPool.from_url = Mock(return_value=mock_pool)
+        mock_redis_asyncio.Redis = Mock(return_value=mock_client)
+        
         mock_import.return_value = mock_redis_asyncio
         
         with patch.dict('sys.modules', {'redis.asyncio': mock_redis_asyncio}):
@@ -147,9 +163,16 @@ class TestRedisPublisher:
     async def test_redis_publisher_publish_pubsub_mode(self, mock_import):
         """Test publishing in pub/sub mode."""
         mock_redis_asyncio = Mock()
+        mock_pool = Mock()
         mock_client = AsyncMock()
+        mock_client.ping = AsyncMock()
         mock_client.publish.return_value = 1  # 1 subscriber received
-        mock_redis_asyncio.from_url.return_value = mock_client
+        
+        # Mock ConnectionPool
+        mock_redis_asyncio.ConnectionPool = Mock()
+        mock_redis_asyncio.ConnectionPool.from_url = Mock(return_value=mock_pool)
+        mock_redis_asyncio.Redis = Mock(return_value=mock_client)
+        
         mock_import.return_value = mock_redis_asyncio
         
         with patch.dict('sys.modules', {'redis.asyncio': mock_redis_asyncio}):
@@ -189,9 +212,16 @@ class TestRedisPublisher:
     async def test_redis_publisher_publish_stream_mode(self, mock_import):
         """Test publishing in stream mode."""
         mock_redis_asyncio = Mock()
+        mock_pool = Mock()
         mock_client = AsyncMock()
+        mock_client.ping = AsyncMock()
         mock_client.xadd.return_value = b"1234567890-0"  # Stream entry ID
-        mock_redis_asyncio.from_url.return_value = mock_client
+        
+        # Mock ConnectionPool
+        mock_redis_asyncio.ConnectionPool = Mock()
+        mock_redis_asyncio.ConnectionPool.from_url = Mock(return_value=mock_pool)
+        mock_redis_asyncio.Redis = Mock(return_value=mock_client)
+        
         mock_import.return_value = mock_redis_asyncio
         
         with patch.dict('sys.modules', {'redis.asyncio': mock_redis_asyncio}):
@@ -233,9 +263,16 @@ class TestRedisPublisher:
     async def test_redis_publisher_publish_error(self, mock_import):
         """Test publish error handling."""
         mock_redis_asyncio = Mock()
+        mock_pool = Mock()
         mock_client = AsyncMock()
+        mock_client.ping = AsyncMock()
         mock_client.publish.side_effect = Exception("Redis error")
-        mock_redis_asyncio.from_url.return_value = mock_client
+        
+        # Mock ConnectionPool
+        mock_redis_asyncio.ConnectionPool = Mock()
+        mock_redis_asyncio.ConnectionPool.from_url = Mock(return_value=mock_pool)
+        mock_redis_asyncio.Redis = Mock(return_value=mock_client)
+        
         mock_import.return_value = mock_redis_asyncio
         
         with patch.dict('sys.modules', {'redis.asyncio': mock_redis_asyncio}):
@@ -256,8 +293,16 @@ class TestRedisPublisher:
     async def test_redis_publisher_close(self, mock_import):
         """Test Redis publisher close method."""
         mock_redis_asyncio = Mock()
+        mock_pool = Mock()
         mock_client = AsyncMock()
-        mock_redis_asyncio.from_url.return_value = mock_client
+        mock_client.ping = AsyncMock()
+        mock_client.aclose = AsyncMock()
+        
+        # Mock ConnectionPool
+        mock_redis_asyncio.ConnectionPool = Mock()
+        mock_redis_asyncio.ConnectionPool.from_url = Mock(return_value=mock_pool)
+        mock_redis_asyncio.Redis = Mock(return_value=mock_client)
+        
         mock_import.return_value = mock_redis_asyncio
         
         with patch.dict('sys.modules', {'redis.asyncio': mock_redis_asyncio}):
@@ -272,8 +317,9 @@ class TestRedisPublisher:
             # Close
             await publisher.close()
             
-            mock_client.close.assert_called_once()
+            mock_client.aclose.assert_called_once()
             assert publisher._redis is None
+            assert publisher._is_closed is True
 
 
 class TestKafkaPublisher:
@@ -634,9 +680,17 @@ class TestOptionalPublisherIntegration:
     async def test_redis_publisher_full_lifecycle(self, mock_import):
         """Test complete Redis publisher lifecycle."""
         mock_redis_asyncio = Mock()
+        mock_pool = Mock()
         mock_client = AsyncMock()
-        mock_redis_asyncio.from_url.return_value = mock_client
+        mock_client.ping = AsyncMock()
         mock_client.publish.return_value = 2  # 2 subscribers
+        mock_client.aclose = AsyncMock()
+        
+        # Mock ConnectionPool
+        mock_redis_asyncio.ConnectionPool = Mock()
+        mock_redis_asyncio.ConnectionPool.from_url = Mock(return_value=mock_pool)
+        mock_redis_asyncio.Redis = Mock(return_value=mock_client)
+        
         mock_import.return_value = mock_redis_asyncio
         
         with patch.dict('sys.modules', {'redis.asyncio': mock_redis_asyncio}):
@@ -664,7 +718,7 @@ class TestOptionalPublisherIntegration:
             
             # Close publisher
             await publisher.close()
-            mock_client.close.assert_called_once()
+            mock_client.aclose.assert_called_once()
     
     @pytest.mark.asyncio
     async def test_multiple_publisher_types_concurrent(self):

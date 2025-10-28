@@ -32,16 +32,27 @@ class BackgroundTaskManager:
     """
     Manages asyncio background tasks for agent operations.
 
-    Tracks created tasks, ensures cleanup, and logs errors from background execution.
-    Enhanced with cancellation, timeouts, and metadata tracking.
+    Tracks created tasks, ensures proper cleanup, and logs errors from background execution.
+    Enhanced with cancellation, timeouts, metadata tracking, and graceful shutdown.
+
+    Supports async context manager for automatic cleanup:
+        async with BackgroundTaskManager() as manager:
+            manager.create_task(some_coroutine())
+        # All tasks automatically cleaned up on exit
     """
 
-    def __init__(self):
+    def __init__(self, default_shutdown_timeout: float = 30.0):
         """
         Initialize the BackgroundTaskManager.
+
+        Args:
+            default_shutdown_timeout: Default timeout for graceful shutdown in seconds.
         """
         self._tasks: set[asyncio.Task] = set()
         self._task_metadata: dict[asyncio.Task, TaskMetadata] = {}
+        self._shutdown_timeout = default_shutdown_timeout
+        self._is_shutdown = False
+        self._shutdown_lock = asyncio.Lock()
 
     def create_task(
         self,
@@ -213,3 +224,93 @@ class BackgroundTaskManager:
             }
             for task, metadata in self._task_metadata.items()
         ]
+
+    async def shutdown(self, timeout: float | None = None) -> dict[str, Any]:
+        """
+        Gracefully shutdown the task manager.
+
+        This method cancels all tasks and waits for them to complete with a timeout.
+        It ensures proper cleanup and prevents memory leaks.
+
+        Args:
+            timeout: Maximum time to wait for tasks to complete.
+                     Uses default_shutdown_timeout if None.
+
+        Returns:
+            Dictionary with shutdown statistics.
+        """
+        async with self._shutdown_lock:
+            if self._is_shutdown:
+                logger.debug("BackgroundTaskManager already shut down")
+                return {"status": "already_shutdown", "tasks_remaining": 0}
+
+            self._is_shutdown = True
+            shutdown_timeout = timeout if timeout is not None else self._shutdown_timeout
+            start_time = time.time()
+
+            initial_count = len(self._tasks)
+            logger.info(
+                "Initiating graceful shutdown of BackgroundTaskManager (%d tasks, timeout=%ss)",
+                initial_count,
+                shutdown_timeout,
+            )
+
+            # Cancel all tasks
+            await self.cancel_all()
+
+            # Wait for tasks to complete with timeout
+            try:
+                await asyncio.wait_for(
+                    asyncio.gather(*list(self._tasks), return_exceptions=True),
+                    timeout=shutdown_timeout,
+                )
+                completed_count = initial_count - len(self._tasks)
+                duration = time.time() - start_time
+
+                logger.info(
+                    "BackgroundTaskManager shutdown completed: %d/%d tasks finished (%.2fs)",
+                    completed_count,
+                    initial_count,
+                    duration,
+                )
+                metrics.counter("background_task_manager.shutdown_completed").inc()
+
+                return {
+                    "status": "completed",
+                    "initial_tasks": initial_count,
+                    "completed_tasks": completed_count,
+                    "remaining_tasks": len(self._tasks),
+                    "duration_seconds": duration,
+                }
+            except TimeoutError:
+                remaining_count = len(self._tasks)
+                duration = time.time() - start_time
+
+                logger.warning(
+                    "BackgroundTaskManager shutdown timed out: %d tasks still running after %.2fs",
+                    remaining_count,
+                    duration,
+                )
+                metrics.counter("background_task_manager.shutdown_timeout").inc()
+
+                # Force cancel remaining tasks
+                for task in list(self._tasks):
+                    if not task.done():
+                        task.cancel()
+
+                return {
+                    "status": "timeout",
+                    "initial_tasks": initial_count,
+                    "completed_tasks": initial_count - remaining_count,
+                    "remaining_tasks": remaining_count,
+                    "duration_seconds": duration,
+                }
+
+    async def __aenter__(self):
+        """Enter async context manager."""
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        """Exit async context manager, ensuring cleanup."""
+        await self.shutdown()
+        return False  # Don't suppress exceptions

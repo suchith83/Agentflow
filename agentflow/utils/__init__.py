@@ -8,6 +8,7 @@ surface of agent utilities.
 Main Exports:
     - Message and content blocks (Message, TextBlock, ToolCallBlock, etc.)
     - Callback management (CallbackManager, register_before_invoke, etc.)
+    - Validators (PromptInjectionValidator, MessageContentValidator, etc.)
     - Command and callable utilities (Command, call_sync_or_async)
     - Reducers (add_messages, replace_messages, append_items, replace_value)
     - Constants (START, END, ExecutionState, etc.)
@@ -22,15 +23,12 @@ from .callable_utils import call_sync_or_async, run_coroutine
 # Export from callbacks.py
 from .callbacks import (
     AfterInvokeCallback,
+    BaseValidator,
     BeforeInvokeCallback,
     CallbackContext,
     CallbackManager,
     InvocationType,
     OnErrorCallback,
-    default_callback_manager,
-    register_after_invoke,
-    register_before_invoke,
-    register_on_error,
 )
 from .command import Command
 
@@ -50,8 +48,23 @@ from .id_generator import (
     UUIDGenerator,
 )
 from .logging import configure_logging
+from .shutdown import (
+    DelayedKeyboardInterrupt,
+    GracefulShutdownManager,
+    delayed_keyboard_interrupt,
+    setup_exception_handler,
+    shutdown_with_timeout,
+)
 from .thread_info import ThreadInfo
 from .thread_name_generator import generate_dummy_thread_name
+
+# Export validators
+from .validators import (
+    MessageContentValidator,
+    PromptInjectionValidator,
+    ValidationError,
+    register_default_validators,
+)
 
 
 __all__ = [
@@ -61,18 +74,23 @@ __all__ = [
     "AsyncIDGenerator",
     "BackgroundTaskManager",
     "BaseIDGenerator",
+    "BaseValidator",
     "BeforeInvokeCallback",
     "BigIntIDGenerator",
     "CallbackContext",
     "CallbackManager",
     "Command",
     "DefaultIDGenerator",
+    "DelayedKeyboardInterrupt",
     "ExecutionState",
+    "GracefulShutdownManager",
     "HexIDGenerator",
     "IDType",
     "IntIDGenerator",
     "InvocationType",
+    "MessageContentValidator",
     "OnErrorCallback",
+    "PromptInjectionValidator",
     "ResponseGranularity",
     "ShortIDGenerator",
     "StorageLevel",
@@ -80,17 +98,18 @@ __all__ = [
     "ThreadInfo",
     "TimestampIDGenerator",
     "UUIDGenerator",
+    "ValidationError",
     "add_messages",
     "append_items",
     "call_sync_or_async",
     "configure_logging",
     "convert_messages",
-    "default_callback_manager",
+    "delayed_keyboard_interrupt",
     "generate_dummy_thread_name",
-    "register_after_invoke",
-    "register_before_invoke",
-    "register_on_error",
+    "register_default_validators",
     "replace_messages",
     "replace_value",
     "run_coroutine",
+    "setup_exception_handler",
+    "shutdown_with_timeout",
 ]

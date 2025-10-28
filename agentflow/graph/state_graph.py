@@ -385,6 +385,50 @@ class StateGraph[StateT: AgentState]:
         logger.info("Set entry point to '%s'", node_name)
         return self
 
+    def attach_remote_tools(
+        self,
+        tools: list[dict],
+        node_name: str,
+    ):
+        """Attach remote tools to a ToolNode in the graph.
+
+        Args:
+            tools: List of tool configurations to attach.
+            node_name: Name of the ToolNode to attach tools to.
+
+        Raises:
+            GraphError: If the specified node is not a ToolNode.
+
+        Example:
+            >>> tool_configs = [
+            ...     {"name": "search", "type": "SearchTool", "config": {...}},
+            ...     {"name": "calculator", "type": "CalculatorTool", "config": {...}},
+            ... ]
+            >>> graph.attach_remote_tools(tool_configs, "tool_node")
+        """
+        logger.debug(
+            "Attaching remote tools to node '%s': %s",
+            node_name,
+            tools,
+        )
+        node: Node | None = self.nodes.get(node_name)
+        if not node or not isinstance(node.func, ToolNode):
+            error_msg = f"Node '{node_name}' is not a ToolNode"
+            logger.error(error_msg)
+            raise GraphError(
+                message=error_msg,
+                error_code="GRAPH_005",
+                context={"node_name": node_name},
+            )
+
+        tool_node: ToolNode = node.func
+        tool_node.set_remote_tool(tools)
+        logger.info(
+            "Attached %d remote tools to ToolNode '%s'",
+            len(tools),
+            node_name,
+        )
+
     def compile(
         self,
         checkpointer: BaseCheckpointer[StateT] | None = None,
@@ -392,6 +436,7 @@ class StateGraph[StateT: AgentState]:
         interrupt_before: list[str] | None = None,
         interrupt_after: list[str] | None = None,
         callback_manager: CallbackManager = CallbackManager(),
+        shutdown_timeout: float = 30.0,
     ) -> "CompiledGraph[StateT]":
         """Compile the graph for execution.
 
@@ -402,6 +447,7 @@ class StateGraph[StateT: AgentState]:
             interrupt_before: List of node names to interrupt before execution
             interrupt_after: List of node names to interrupt after execution
             callback_manager: Callback manager for executing hooks
+            shutdown_timeout: Timeout in seconds for graceful shutdown (default: 30.0)
         """
         logger.info(
             "Compiling graph with %d nodes, %d edges, entry_point='%s'",
@@ -418,7 +464,11 @@ class StateGraph[StateT: AgentState]:
         if not self.entry_point:
             error_msg = "No entry point set. Use set_entry_point() or add an edge from START."
             logger.error(error_msg)
-            raise GraphError(error_msg)
+            raise GraphError(
+                message=error_msg,
+                error_code="GRAPH_002",
+                context={"nodes": list(self.nodes.keys())},
+            )
 
         # Validate graph structure
         logger.debug("Validating graph structure")
@@ -434,20 +484,27 @@ class StateGraph[StateT: AgentState]:
         if invalid_nodes:
             error_msg = f"Invalid interrupt nodes: {invalid_nodes}. Must be existing node names."
             logger.error(error_msg)
-            raise GraphError(error_msg)
+            raise GraphError(
+                message=error_msg,
+                error_code="GRAPH_004",
+                context={
+                    "invalid_nodes": list(invalid_nodes),
+                    "valid_nodes": list(self.nodes.keys()),
+                },
+            )
 
         self.compiled = True
         logger.info("Graph compilation completed successfully")
         # Import here to avoid circular import at module import time
         # Now update Checkpointer
         if checkpointer is None:
-            from agentflow.checkpointer import InMemoryCheckpointer
+            from agentflow.checkpointer import InMemoryCheckpointer  # noqa: PLC0415
 
             checkpointer = InMemoryCheckpointer[StateT]()
             logger.debug("No checkpointer provided, using InMemoryCheckpointer")
 
         # Import the CompiledGraph class
-        from .compiled_graph import CompiledGraph
+        from .compiled_graph import CompiledGraph  # noqa: PLC0415
 
         # Setup dependencies
         self._container.bind_instance(
@@ -466,9 +523,11 @@ class StateGraph[StateT: AgentState]:
             callback_manager,
             allow_concrete=True,
         )  # not null as we set default
-        self._container.bind("interrupt_before", interrupt_before)
-        self._container.bind("interrupt_after", interrupt_after)
         self._container.bind_instance(StateGraph, self)
+
+        # Bind Nodes
+        self._container.bind_factory("get_node", lambda x: self.nodes[x])
+        self._container.bind_factory("get_entry_point_node", lambda: self.nodes[self.entry_point])  # type: ignore
 
         app = CompiledGraph(
             state=self._state,
@@ -479,6 +538,7 @@ class StateGraph[StateT: AgentState]:
             publisher=self._publisher,
             store=store,
             task_manager=self._task_manager,
+            shutdown_timeout=shutdown_timeout,
         )
 
         self._container.bind(CompiledGraph, app)
@@ -498,10 +558,26 @@ class StateGraph[StateT: AgentState]:
         orphaned = all_nodes - connected_nodes
         if orphaned - {START, END}:  # START and END can be orphaned
             logger.error("Orphaned nodes detected: %s", orphaned - {START, END})
-            raise GraphError(f"Orphaned nodes detected: {orphaned - {START, END}}")
+            raise GraphError(
+                message=f"Orphaned nodes detected: {orphaned - {START, END}}",
+                error_code="GRAPH_003",
+                context={
+                    "orphaned_nodes": list(orphaned - {START, END}),
+                    "all_nodes": list(all_nodes),
+                    "connected_nodes": list(connected_nodes),
+                },
+            )
 
         # Check that all edge targets exist
         for edge in self.edges:
             if edge.to_node and edge.to_node not in self.nodes:
                 logger.error("Edge '%s' targets non-existent node: %s", edge, edge.to_node)
-                raise GraphError(f"Edge targets non-existent node: {edge.to_node}")
+                raise GraphError(
+                    message=f"Edge targets non-existent node: {edge.to_node}",
+                    error_code="GRAPH_004",
+                    context={
+                        "edge": str(edge),
+                        "target_node": edge.to_node,
+                        "available_nodes": list(self.nodes.keys()),
+                    },
+                )

@@ -104,7 +104,12 @@ class TestComposioAdapterInitialization:
         mock_composio_instance = Mock()
         mock_composio_class.return_value = mock_composio_instance
         
-        adapter = ComposioAdapter()
+        adapter = ComposioAdapter(
+            api_key="",
+            provider=None,
+            file_download_dir="",
+            toolkit_versions=None
+        )
         
         assert adapter._composio == mock_composio_instance
         mock_composio_class.assert_called_once_with(
@@ -140,7 +145,12 @@ class TestComposioAdapterInitialization:
     def test_init_raises_import_error_when_composio_unavailable(self):
         """Test initialization raises ImportError when composio is not available."""
         with pytest.raises(ImportError) as exc_info:
-            ComposioAdapter()
+            ComposioAdapter(
+                api_key="test-key",
+                provider="test-provider",
+                file_download_dir="/test/dir",
+                toolkit_versions=None
+            )
         
         assert "ComposioAdapter requires 'composio' package" in str(exc_info.value)
         assert "pip install 10xscale-agentflow[composio]" in str(exc_info.value)
@@ -160,7 +170,12 @@ class TestComposioAdapterToolListing:
         self.composio_patcher.start()
         self.class_patcher.start()
         
-        self.adapter = ComposioAdapter()
+        self.adapter = ComposioAdapter(
+            api_key="",
+            provider=None,
+            file_download_dir="",
+            toolkit_versions=None
+        )
     
     def teardown_method(self):
         """Clean up patches."""
@@ -303,9 +318,14 @@ class TestComposioAdapterExecution:
         
         self.composio_patcher.start()
         self.class_patcher.start()
-        
-        self.adapter = ComposioAdapter()
-    
+
+        self.adapter = ComposioAdapter(
+            api_key="",
+            provider=None,
+            file_download_dir="",
+            toolkit_versions=None
+        )
+
     def teardown_method(self):
         """Clean up patches."""
         self.composio_patcher.stop()
@@ -476,7 +496,11 @@ class TestComposioAdapterIntegration:
         self.composio_patcher.start()
         self.class_patcher.start()
         
-        self.adapter = ComposioAdapter(api_key="test-key")
+        self.adapter = ComposioAdapter(
+            api_key="test-key", provider="test-provider", 
+            file_download_dir="/test/dir", 
+            toolkit_versions=None
+        )
     
     def teardown_method(self):
         """Clean up patches."""
@@ -597,7 +621,12 @@ class TestComposioAdapterEdgeCases:
         self.composio_patcher.start()
         self.class_patcher.start()
         
-        self.adapter = ComposioAdapter()
+        self.adapter = ComposioAdapter(
+            api_key="",
+            provider=None,
+            file_download_dir="",
+            toolkit_versions=None
+        )
     
     def teardown_method(self):
         """Clean up patches."""
