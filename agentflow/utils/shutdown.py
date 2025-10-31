@@ -19,6 +19,7 @@ import signal
 from collections.abc import Callable
 from typing import Any
 
+
 logger = logging.getLogger(__name__)
 
 # Windows error code for invalid handle

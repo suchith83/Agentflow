@@ -7,7 +7,6 @@ from agentflow.state import AgentState, Message
 from agentflow.utils.thread_info import ThreadInfo
 
 from .base_checkpointer import BaseCheckpointer
-from agentflow.exceptions import ResourceNotFoundError
 
 
 if TYPE_CHECKING:
