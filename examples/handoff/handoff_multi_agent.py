@@ -117,7 +117,7 @@ def coordinator_agent(state: AgentState):
            - Use transfer_to_researcher for investigation and research tasks
            - Use transfer_to_writer for content creation and writing tasks
         3. You can also check weather using get_weather tool
-        
+
         Always explain your decision to delegate and why you're choosing a specific agent.
     """
 
@@ -161,7 +161,6 @@ def researcher_agent(state: AgentState):
         3. When research is complete, you can:
            - Transfer to writer agent if content needs to be created
            - Transfer back to coordinator if task is complete
-        
         Be thorough in your research and explain your findings clearly.
     """
 

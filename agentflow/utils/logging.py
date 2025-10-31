@@ -1,76 +1,54 @@
 """
-Centralized logging configuration for TAF.
+Logging utilities for Agentflow.
 
-This module provides logging configuration that can be imported and used
-throughout the project. Each module should use:
+This module provides logging support for the Agentflow library following Python
+logging best practices for library code.
 
-    import logging
-    logger = logging.getLogger(__name__)
+By default, Agentflow uses a NullHandler to prevent "No handlers could be found"
+warnings. Users can configure logging by getting the logger and adding their own
+handlers.
 
-This ensures proper hierarchical logging with module-specific loggers.
+Library Usage (within agentflow modules):
+    Each module should create its own logger:
 
-Typical usage example:
-    >>> from agentflow.utils.logging import configure_logging
-    >>> configure_logging(level=logging.DEBUG)
+    >>> import logging
+    >>> logger = logging.getLogger(__name__)
+    >>> logger.info("This is an info message")
 
-Functions:
-    configure_logging: Configures the root logger for the TAF project.
+User Configuration Example:
+    Users of the Agentflow library can configure logging like this::
+
+        import logging
+
+        # Configure the agentflow logger
+        logger = logging.getLogger("agentflow")
+        logger.setLevel(logging.DEBUG)
+
+        # Add a handler
+        handler = logging.StreamHandler()
+        handler.setFormatter(logging.Formatter("[%(asctime)s] %(levelname)s %(name)s: %(message)s"))
+        logger.addHandler(handler)
+
+Best Practices:
+    - Library code should NEVER configure the root logger
+    - Library code should NEVER add handlers except NullHandler
+    - Library code should use module-level loggers (logging.getLogger(__name__))
+    - Users control logging configuration in their applications
+
+References:
+    https://docs.python.org/3/howto/logging.html#configuring-logging-for-a-library
 """
 
 import logging
-import sys
 
 
-def configure_logging(
-    level: int = logging.INFO,
-    format_string: str | None = None,
-    handler: logging.Handler | None = None,
-) -> None:
-    """
-    Configures the root logger for the TAF project.
+# Create the main agentflow logger
+logger = logging.getLogger("agentflow")
 
-    This function sets up logging for all modules under the 'agentflow' namespace.
-    It ensures that logs are formatted consistently and sent to the appropriate handler.
+# Add NullHandler by default to prevent "No handlers found" warnings
+# Users can configure their own handlers as needed
+logger.addHandler(logging.NullHandler())
 
-    Args:
-        level (int, optional): Logging level (e.g., logging.INFO, logging.DEBUG).
-            Defaults to logging.INFO.
-        format_string (str, optional): Custom format string for log messages.
-            If None, uses a default format: "[%(asctime)s] %(levelname)-8s %(name)s: %(message)s".
-        handler (logging.Handler, optional): Custom logging handler. If None,
-            uses StreamHandler to stdout.
-
-    Returns:
-        None
-
-    Raises:
-        None
-
-    Example:
-        >>> configure_logging(level=logging.DEBUG)
-        >>> logger = logging.getLogger("agentflow.module")
-        >>> logger.info("This is an info message.")
-    """
-    if format_string is None:
-        format_string = "[%(asctime)s] %(levelname)-8s %(name)s: %(message)s"
-
-    if handler is None:
-        handler = logging.StreamHandler(sys.stdout)
-
-    formatter = logging.Formatter(format_string)
-    handler.setFormatter(formatter)
-
-    # Configure root logger for agentflow
-    root_logger = logging.getLogger("agentflow")
-    root_logger.setLevel(level)
-
-    # Only add handler if none exists to avoid duplicates
-    if not root_logger.handlers:
-        root_logger.addHandler(handler)
-
-    # Prevent propagation to avoid duplicate logs
-    root_logger.propagate = False
-
-
-# Initialize default logging configuration
-configure_logging()
+__all__ = [
+    "logger",
+]

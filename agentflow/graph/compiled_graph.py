@@ -31,7 +31,7 @@ if TYPE_CHECKING:
 
 StateT = TypeVar("StateT", bound=AgentState)
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("agentflow.graph")
 
 
 class CompiledGraph[StateT: AgentState]:

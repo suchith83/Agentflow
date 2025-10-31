@@ -18,7 +18,7 @@ from agentflow.utils import run_coroutine
 from .store_schema import DistanceMetric, MemorySearchResult, MemoryType, RetrievalStrategy
 
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("agentflow.store")
 
 
 class BaseStore(ABC):

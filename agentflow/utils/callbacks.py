@@ -22,7 +22,7 @@ from typing import Any, Union
 from agentflow.state.message import Message
 
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("agentflow.utils")
 
 
 class BaseValidator(ABC):

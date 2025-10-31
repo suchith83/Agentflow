@@ -17,7 +17,7 @@ from .base_context import BaseContextManager
 
 S = TypeVar("S", bound=AgentState)
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("agentflow.state")
 
 
 class MessageContextManager(BaseContextManager[S]):

@@ -251,6 +251,7 @@ Master advanced patterns like human-in-the-loop, interrupt handling, conditional
 
 Prepare your agents for production with monitoring, graceful shutdown, callbacks, and event publishing:
 
+- [Background task manager](./background-task-manager.md) — Managing async background tasks
 - [Callbacks and observability](./Callbacks.md) — Event tracking
 - [Publishers](./publisher.md) — Event routing to external systems
 - [Graceful shutdown](./graceful-shutdown.md) — Clean termination

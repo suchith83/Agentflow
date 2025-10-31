@@ -14,7 +14,7 @@ from .agent_state import AgentState
 
 S = TypeVar("S", bound=AgentState)
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("agentflow.state")
 
 
 class BaseContextManager[S](ABC):

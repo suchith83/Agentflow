@@ -60,7 +60,7 @@ except ImportError:
     MemoryConfig = None
     AsyncMemory = None
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("agentflow.store")
 
 
 class Mem0Store(BaseStore):

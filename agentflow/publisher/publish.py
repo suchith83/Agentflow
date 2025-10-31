@@ -7,7 +7,7 @@ from agentflow.publisher.events import EventModel
 from agentflow.utils.background_task_manager import BackgroundTaskManager
 
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("agentflow.publisher")
 
 
 async def _publish_event_task(

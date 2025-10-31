@@ -15,7 +15,7 @@ from agentflow.state.message_block import RemoteToolCallBlock, ToolResultBlock
 if TYPE_CHECKING:
     from agentflow.state import AgentState
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("agentflow.utils")
 
 
 def _convert_dict(message: Message) -> dict[str, Any] | None:

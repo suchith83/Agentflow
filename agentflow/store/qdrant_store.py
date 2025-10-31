@@ -33,7 +33,7 @@ try:
 except ImportError:
     pass
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("agentflow.store")
 
 
 class QdrantStore(BaseStore):

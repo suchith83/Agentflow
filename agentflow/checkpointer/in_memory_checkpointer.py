@@ -12,7 +12,7 @@ from .base_checkpointer import BaseCheckpointer
 if TYPE_CHECKING:
     from agentflow.state import AgentState, Message
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("agentflow.checkpointer")
 
 StateT = TypeVar("StateT", bound="AgentState")
 

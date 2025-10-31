@@ -32,7 +32,7 @@ import logging
 import typing as t
 
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("agentflow.adapters.langchain")
 
 
 try:

@@ -32,7 +32,7 @@ from agentflow.utils.id_generator import (
     TimestampIDGenerator,
     UUIDGenerator,
 )
-from agentflow.utils.logging import configure_logging
+from agentflow.utils.logging import logger as agentflow_logger
 from agentflow.state.message import Message, TokenUsages, generate_id
 from agentflow.state.message_block import TextBlock, ToolResultBlock
 
@@ -601,242 +601,262 @@ def test_utils_module_imports():
 class TestLogging:
     """Test the logging configuration module."""
 
-    def test_configure_logging_default(self):
-        """Test configure_logging with default parameters."""
-        # Clear any existing handlers
+    def test_agentflow_logger_exists(self):
+        """Test that agentflow logger is available."""
+        assert agentflow_logger is not None
+        assert agentflow_logger.name == "agentflow"
+
+    def test_agentflow_logger_has_nullhandler(self):
+        """Test that agentflow logger has NullHandler by default."""
+        # The agentflow logger should have at least one handler (NullHandler)
+        assert len(agentflow_logger.handlers) >= 1
+        # Check that at least one handler is a NullHandler
+        has_null_handler = any(
+            isinstance(h, logging.NullHandler) for h in agentflow_logger.handlers
+        )
+        assert has_null_handler
+
+    def test_user_can_configure_logging(self):
+        """Test that users can configure logging for agentflow."""
+        # Get the agentflow logger
         logger = logging.getLogger("agentflow")
-        logger.handlers.clear()
+        
+        # Save original state
+        original_level = logger.level
+        original_handlers = logger.handlers.copy()
+        
+        try:
+            # User configures logging
+            logger.setLevel(logging.DEBUG)
+            
+            # Add a custom handler
+            string_stream = StringIO()
+            handler = logging.StreamHandler(string_stream)
+            handler.setFormatter(
+                logging.Formatter('%(levelname)s - %(name)s: %(message)s')
+            )
+            logger.addHandler(handler)
+            
+            # Test that it works
+            test_logger = logging.getLogger("agentflow.test")
+            test_logger.debug("Test message")
+            
+            # Check output
+            output = string_stream.getvalue()
+            assert "DEBUG - agentflow.test: Test message" in output
+            
+        finally:
+            # Restore original state
+            logger.setLevel(original_level)
+            logger.handlers.clear()
+            for h in original_handlers:
+                logger.addHandler(h)
 
-        # Configure with defaults
-        configure_logging()
+    def test_module_loggers_work(self):
+        """Test that module-level loggers work correctly."""
+        # Create a module logger (as would be done in agentflow modules)
+        module_logger = logging.getLogger("agentflow.test_module")
+        
+        # It should inherit from agentflow logger
+        assert module_logger.parent.name == "agentflow"
+        
+        # Save state
+        agentflow_logger_handlers = agentflow_logger.handlers.copy()
+        
+        try:
+            # Add a handler to capture logs
+            string_stream = StringIO()
+            handler = logging.StreamHandler(string_stream)
+            handler.setFormatter(logging.Formatter('%(levelname)s: %(message)s'))
+            agentflow_logger.addHandler(handler)
+            agentflow_logger.setLevel(logging.INFO)
+            
+            # Log something
+            module_logger.info("Module test")
+            
+            # Check output
+            output = string_stream.getvalue()
+            assert "INFO: Module test" in output
+            
+        finally:
+            # Restore
+            agentflow_logger.handlers.clear()
+            for h in agentflow_logger_handlers:
+                agentflow_logger.addHandler(h)
 
-        # Verify logger configuration
-        assert logger.level == logging.INFO
-        assert len(logger.handlers) == 1
-        assert isinstance(logger.handlers[0], logging.StreamHandler)
-        assert logger.handlers[0].stream == sys.stdout
-        assert not logger.propagate
-
-        # Verify formatter
-        formatter = logger.handlers[0].formatter
-        assert formatter is not None
-        # Test that formatter works
-        record = logging.LogRecord("test", logging.INFO, "test.py", 1, "test message", (), None)
-        formatted = formatter.format(record)
-        assert "[20" in formatted  # Should contain timestamp
-        assert "INFO" in formatted
-        assert "test" in formatted
-        assert "test message" in formatted
-
-    def test_configure_logging_custom_level(self):
-        """Test configure_logging with custom log level."""
-        # Clear any existing handlers
-        logger = logging.getLogger("agentflow")
-        logger.handlers.clear()
-
-        # Configure with DEBUG level
-        configure_logging(level=logging.DEBUG)
-
-        # Verify logger configuration
-        assert logger.level == logging.DEBUG
-        assert len(logger.handlers) == 1
-
-    def test_configure_logging_custom_format(self):
-        """Test configure_logging with custom format string."""
-        # Clear any existing handlers
-        logger = logging.getLogger("agentflow")
-        logger.handlers.clear()
-
-        # Configure with custom format
-        custom_format = "%(levelname)s: %(message)s"
-        configure_logging(format_string=custom_format)
-
-        # Verify formatter
-        formatter = logger.handlers[0].formatter
-        record = logging.LogRecord("test", logging.INFO, "test.py", 1, "test message", (), None)
-        formatted = formatter.format(record)
-        assert formatted == "INFO: test message"
-
-    def test_configure_logging_custom_handler(self):
-        """Test configure_logging with custom handler."""
-        # Clear any existing handlers
-        logger = logging.getLogger("agentflow")
-        logger.handlers.clear()
-
-        # Create custom handler
-        string_stream = StringIO()
-        custom_handler = logging.StreamHandler(string_stream)
-
-        # Configure with custom handler
-        configure_logging(handler=custom_handler)
-
-        # Verify handler is used
-        assert len(logger.handlers) == 1
-        assert logger.handlers[0] is custom_handler
-        assert logger.handlers[0].stream == string_stream
-
-    def test_configure_logging_no_duplicate_handlers(self):
-        """Test that configure_logging doesn't add duplicate handlers."""
-        # Clear any existing handlers
-        logger = logging.getLogger("agentflow")
-        logger.handlers.clear()
-
-        # Configure logging twice
-        configure_logging()
-        initial_handler_count = len(logger.handlers)
-
-        configure_logging()
-        final_handler_count = len(logger.handlers)
-
-        # Should not add duplicate handlers
-        assert final_handler_count == initial_handler_count
-
-    def test_configure_logging_preserves_existing_handlers(self):
-        """Test that configure_logging replaces existing handlers."""
-        # Clear any existing handlers
-        logger = logging.getLogger("agentflow")
-        logger.handlers.clear()
-
-        # Add a custom handler manually
-        custom_handler = logging.StreamHandler(StringIO())
-        logger.addHandler(custom_handler)
-
-        # Configure logging - replaces existing handler
-        configure_logging()
-
-        # Should have only one handler (configure_logging replaces existing)
-        assert len(logger.handlers) == 1
+    def test_logging_with_no_user_configuration(self):
+        """Test that logging doesn't raise errors when user doesn't configure."""
+        # Create a logger
+        test_logger = logging.getLogger("agentflow.unconfigured")
+        
+        # This should not raise any errors or warnings
+        # (Thanks to NullHandler)
+        test_logger.debug("Debug message")
+        test_logger.info("Info message")
+        test_logger.warning("Warning message")
+        test_logger.error("Error message")
 
     def test_configure_logging_with_all_custom_params(self):
-        """Test configure_logging with all custom parameters."""
-        # Clear any existing handlers
+        """Test that users can configure logging with custom parameters."""
+        # Get the agentflow logger
         logger = logging.getLogger("agentflow")
-        logger.handlers.clear()
-
-        # Configure with all custom parameters
-        string_stream = StringIO()
-        custom_handler = logging.StreamHandler(string_stream)
-        custom_format = "%(name)s - %(levelname)s: %(message)s"
-
-        configure_logging(
-            level=logging.WARNING, format_string=custom_format, handler=custom_handler
-        )
-
-        # Verify all configurations
-        assert logger.level == logging.WARNING
-        assert len(logger.handlers) == 1
-        assert logger.handlers[0] is custom_handler
-        assert not logger.propagate
-
-        # Test custom formatter
-        formatter = logger.handlers[0].formatter
-        record = logging.LogRecord(
-            "test.logger", logging.WARNING, "test.py", 1, "warning message", (), None
-        )
-        formatted = formatter.format(record)
-        assert formatted == "test.logger - WARNING: warning message"
+        
+        # Save original state
+        original_level = logger.level
+        original_handlers = logger.handlers.copy()
+        
+        try:
+            # User configures with all custom parameters
+            string_stream = StringIO()
+            custom_handler = logging.StreamHandler(string_stream)
+            custom_format = "%(name)s - %(levelname)s: %(message)s"
+            formatter = logging.Formatter(custom_format)
+            custom_handler.setFormatter(formatter)
+            
+            logger.handlers.clear()
+            logger.addHandler(custom_handler)
+            logger.setLevel(logging.WARNING)
+            
+            # Test logging
+            test_logger = logging.getLogger("agentflow.test")
+            test_logger.warning("warning message")
+            
+            # Verify output
+            output = string_stream.getvalue()
+            assert "agentflow.test - WARNING: warning message" in output
+            
+        finally:
+            # Restore
+            logger.setLevel(original_level)
+            logger.handlers.clear()
+            for h in original_handlers:
+                logger.addHandler(h)
 
     def test_default_configuration_on_import(self):
         """Test that default configuration is applied on module import."""
-        # Get the logger
+        # The agentflow logger should exist and have a NullHandler
         logger = logging.getLogger("agentflow")
-
-        # Should have at least one handler (configured on import)
+        
+        # Should have at least one handler (NullHandler)
         assert len(logger.handlers) >= 1
-
-        # Should not propagate
-        assert not logger.propagate
+        
+        # Check for NullHandler
+        has_null_handler = any(
+            isinstance(h, logging.NullHandler) for h in logger.handlers
+        )
+        assert has_null_handler
 
     def test_logger_hierarchy(self):
         """Test that module-specific loggers work correctly."""
-        # Clear agentflow logger
-        agentflow_logger = logging.getLogger("agentflow")
-        agentflow_logger.handlers.clear()
-
-        # Configure agentflow logging
-        configure_logging()
-
         # Create module-specific logger
         module_logger = logging.getLogger("agentflow.test_module")
-
-        # Module logger should inherit configuration
-        assert module_logger.level == logging.NOTSET  # Inherits from parent
-        assert module_logger.propagate  # Should propagate to agentflow logger
-
-        # Test logging through module logger
-        import io
-
-        # Create a string handler to capture log output
-        log_output = io.StringIO()
-        handler = logging.StreamHandler(log_output)
-        formatter = logging.Formatter("[%(asctime)s] %(levelname)-8s %(name)s: %(message)s")
-        handler.setFormatter(formatter)
-        module_logger.addHandler(handler)
-        module_logger.setLevel(logging.INFO)
-
+        
+        # Module logger should propagate to agentflow logger
+        assert module_logger.propagate
+        
+        # Save state
+        agentflow_logger_handlers = agentflow_logger.handlers.copy()
+        
         try:
+            # Configure agentflow logger to capture output
+            log_output = StringIO()
+            handler = logging.StreamHandler(log_output)
+            formatter = logging.Formatter("[%(asctime)s] %(levelname)-8s %(name)s: %(message)s")
+            handler.setFormatter(formatter)
+            agentflow_logger.addHandler(handler)
+            agentflow_logger.setLevel(logging.INFO)
+            
+            # Log through module logger
             module_logger.info("Test message")
-
-            # Verify that the message was logged
+            
+            # Verify output
             output = log_output.getvalue()
             assert "Test message" in output
             assert "agentflow.test_module" in output
+            
         finally:
-            # Clean up the handler
-            module_logger.removeHandler(handler)
+            # Restore
+            agentflow_logger.handlers.clear()
+            for h in agentflow_logger_handlers:
+                agentflow_logger.addHandler(h)
 
     def test_logging_output_capture(self):
         """Test that logging actually outputs to the configured stream."""
-        # Clear any existing handlers
         logger = logging.getLogger("agentflow")
-        logger.handlers.clear()
-
-        # Configure with string stream
-        string_stream = StringIO()
-        handler = logging.StreamHandler(string_stream)
-        configure_logging(handler=handler)
-
-        # Log a message
-        logger.info("Test log message")
-
-        # Verify output
-        output = string_stream.getvalue()
-        assert "Test log message" in output
-        assert "INFO" in output
-        assert "agentflow" in output
+        
+        # Save original state
+        original_handlers = logger.handlers.copy()
+        original_level = logger.level
+        
+        try:
+            # Configure with string stream
+            string_stream = StringIO()
+            handler = logging.StreamHandler(string_stream)
+            handler.setFormatter(logging.Formatter('%(levelname)s - %(name)s: %(message)s'))
+            logger.handlers.clear()
+            logger.addHandler(handler)
+            logger.setLevel(logging.INFO)
+            
+            # Log a message
+            logger.info("Test log message")
+            
+            # Verify output
+            output = string_stream.getvalue()
+            assert "Test log message" in output
+            assert "INFO" in output
+            assert "agentflow" in output
+            
+        finally:
+            # Restore
+            logger.setLevel(original_level)
+            logger.handlers.clear()
+            for h in original_handlers:
+                logger.addHandler(h)
 
     def test_configure_logging_with_file_handler(self):
-        """Test configure_logging with a file handler."""
+        """Test that users can configure logging with a file handler."""
         import os
         import tempfile
-
-        # Clear any existing handlers
+        
         logger = logging.getLogger("agentflow")
-        logger.handlers.clear()
-
+        
+        # Save original state
+        original_handlers = logger.handlers.copy()
+        original_level = logger.level
+        
         # Create temporary file
         with tempfile.NamedTemporaryFile(mode="w+", delete=False) as temp_file:
             temp_filename = temp_file.name
-
+        
         try:
             # Create file handler
             file_handler = logging.FileHandler(temp_filename)
-
+            file_handler.setFormatter(logging.Formatter('%(levelname)s: %(message)s'))
+            
             # Configure logging
-            configure_logging(handler=file_handler)
-
+            logger.handlers.clear()
+            logger.addHandler(file_handler)
+            logger.setLevel(logging.INFO)
+            
             # Log a message
             logger.info("Test file log message")
-
+            
+            # Flush the handler
+            file_handler.flush()
+            
             # Read the file
             with open(temp_filename) as f:
                 content = f.read()
-
+            
             # Verify content
             assert "Test file log message" in content
             assert "INFO" in content
-
+            
         finally:
             # Clean up
+            logger.setLevel(original_level)
+            logger.handlers.clear()
+            for h in original_handlers:
+                logger.addHandler(h)
             if os.path.exists(temp_filename):
                 os.unlink(temp_filename)
