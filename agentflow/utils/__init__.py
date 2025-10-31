@@ -47,7 +47,7 @@ from .id_generator import (
     TimestampIDGenerator,
     UUIDGenerator,
 )
-from .logging import configure_logging
+from .logging import logger
 from .shutdown import (
     DelayedKeyboardInterrupt,
     GracefulShutdownManager,
@@ -92,7 +92,6 @@ __all__ = [
     "PromptInjectionValidator",
     "ResponseGranularity",
     "ShortIDGenerator",
-    "StorageLevel",
     "TaskMetadata",
     "ThreadInfo",
     "TimestampIDGenerator",
@@ -101,9 +100,9 @@ __all__ = [
     "add_messages",
     "append_items",
     "call_sync_or_async",
-    "configure_logging",
     "convert_messages",
     "delayed_keyboard_interrupt",
+    "logger",
     "register_default_validators",
     "replace_messages",
     "replace_value",
