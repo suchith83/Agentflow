@@ -13,6 +13,7 @@ Usage:
     result = await handler.invoke(config, state)
 """
 
+import asyncio
 import inspect
 import json
 import logging
@@ -119,7 +120,7 @@ class InvokeNodeHandler(BaseLoggingMixin):
         last_message: Message,
         state: "AgentState",
         config: dict[str, Any],
-    ) -> list[Message]:
+    ) -> list[Message] | Command:
         """
         Execute all tool calls present in the last message.
 
@@ -162,15 +163,20 @@ class InvokeNodeHandler(BaseLoggingMixin):
                     )
 
             # Continue with normal tool execution if no handoff detected
-            # Execute the first tool call for now
-            tool_call = last_message.tools_calls[0]
-            for tool_call in last_message.tools_calls:
-                res = await self._handle_single_tool(
-                    tool_call,
-                    state,
-                    config,
-                )
-                result.append(res)
+            # Execute tool calls in parallel (preserve order of the input list)
+            logger.info(
+                "Node '%s' executing %d tool calls in parallel",
+                self.name,
+                len(last_message.tools_calls),
+            )
+
+            tasks = [
+                self._handle_single_tool(tool_call, state, config)
+                for tool_call in last_message.tools_calls
+            ]
+
+            # asyncio.gather preserves the order corresponding to the tasks list
+            result = await asyncio.gather(*tasks)
         else:
             # No tool calls to execute, return available tools
             logger.exception("Node '%s': No tool calls to execute", self.name)
@@ -390,7 +396,7 @@ class InvokeNodeHandler(BaseLoggingMixin):
         config: dict[str, Any],
         state: AgentState,
         callback_mgr: CallbackManager = Inject[CallbackManager],
-    ) -> dict[str, Any] | list[Message]:
+    ) -> dict[str, Any] | list[Message] | Command:
         """
         Execute the node function or ToolNode with dependency injection and callback hooks.
 
@@ -400,7 +406,8 @@ class InvokeNodeHandler(BaseLoggingMixin):
             callback_mgr (CallbackManager, optional): Callback manager for hooks.
 
         Returns:
-            dict | list[Message]: Result of node execution (regular node or tool node).
+            dict | list[Message] | Command: Result of node execution (regular node,
+            tool node, or a Command for handoff).
 
         Raises:
             NodeError: If execution fails or context is missing for tool nodes.
