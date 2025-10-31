@@ -2,7 +2,7 @@
 Input validation utilities for 10xScale Agentflow.
 
 This module provides comprehensive input validation to protect against prompt injection attacks,
-jailbreaking attempts, and other security vulnerabilities as documented in OWASP LLM01:2025.
+jail-breaking attempts, and other security vulnerabilities as documented in OWASP LLM01:2025.
 
 Key Features:
 - Prompt injection detection (direct and indirect)
@@ -51,6 +51,7 @@ Example:
 import base64
 import logging
 import re
+from contextlib import suppress
 from typing import Any
 
 from agentflow.state.message import Message
@@ -291,8 +292,7 @@ class PromptInjectionValidator(BaseValidator):
         base64_matches = re.findall(base64_pattern, content)
 
         for match in base64_matches:
-            try:
-                # Try to decode and check if it contains suspicious content
+            with suppress(Exception):
                 decoded = base64.b64decode(match).decode("utf-8", errors="ignore")
                 if any(keyword in decoded.lower() for keyword in self._suspicious_keywords):
                     self._handle_violation(
@@ -300,9 +300,6 @@ class PromptInjectionValidator(BaseValidator):
                         "encoding_attack",
                         {"encoded": match[:50], "decoded_sample": decoded[:100]},
                     )
-            except Exception:
-                # Not valid base64, skip
-                pass
 
         # Excessive unicode/emoji detection
         unicode_count = len(re.findall(r"[^\x00-\x7F]", content))
@@ -335,7 +332,8 @@ class PromptInjectionValidator(BaseValidator):
         )
 
         # If multiple suspicious keywords appear, flag it
-        if keyword_count >= 3:
+        threshold = 3
+        if keyword_count >= threshold:
             matched_keywords = [
                 kw for kw in self._suspicious_keywords if kw.lower() in content_lower
             ]

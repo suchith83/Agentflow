@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field, field_validator
 from agentflow.state import Message
 
 
-class RetrievalStrategy(Enum):
+class RetrievalStrategy(str, Enum):
     """Memory retrieval strategies."""
 
     SIMILARITY = "similarity"  # Vector similarity search
@@ -18,7 +18,7 @@ class RetrievalStrategy(Enum):
     GRAPH_TRAVERSAL = "graph_traversal"  # Knowledge graph navigation
 
 
-class DistanceMetric(Enum):
+class DistanceMetric(str, Enum):
     """Supported distance metrics for vector similarity."""
 
     COSINE = "cosine"
@@ -27,7 +27,7 @@ class DistanceMetric(Enum):
     MANHATTAN = "manhattan"
 
 
-class MemoryType(Enum):
+class MemoryType(str, Enum):
     """Types of memories that can be stored."""
 
     EPISODIC = "episodic"  # Conversation memories

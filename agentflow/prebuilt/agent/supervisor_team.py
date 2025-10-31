@@ -52,7 +52,7 @@
 #             container=container,
 #         )
 
-#     def compile(  # noqa: PLR0912
+#     def compile(
 #         self,
 #         supervisor_node: Callable | tuple[Callable, str],
 #         workers: dict[str, Callable | ToolNode | tuple[Callable | ToolNode, str]],

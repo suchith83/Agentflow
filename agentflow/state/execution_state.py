@@ -15,7 +15,7 @@ from pydantic import BaseModel, Field
 logger = logging.getLogger(__name__)
 
 
-class ExecutionStatus(Enum):
+class ExecutionStatus(str, Enum):
     """Status of graph execution."""
 
     RUNNING = "running"
@@ -25,7 +25,7 @@ class ExecutionStatus(Enum):
     ERROR = "error"
 
 
-class StopRequestStatus(Enum):
+class StopRequestStatus(str, Enum):
     """Status of graph execution."""
 
     NONE = "none"

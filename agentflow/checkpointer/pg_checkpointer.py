@@ -1,4 +1,5 @@
 import asyncio
+import importlib
 import json
 import logging
 import os
@@ -535,7 +536,6 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
         Returns:
             str: JSON string.
         """
-        """Serialize state to JSON string for storage."""
 
         def enum_handler(obj):
             if isinstance(obj, Enum):
@@ -543,35 +543,6 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
             return str(obj)
 
         return json.dumps(state.model_dump(), default=enum_handler)
-
-    def _serialize_state_fast(self, state: StateT) -> str:
-        """
-        Serialize state using fast JSON serializer if available.
-
-        Args:
-            state (StateT): State object.
-
-        Returns:
-            str: JSON string.
-        """
-        serializer = self._get_json_serializer()
-
-        def enum_handler(obj):
-            if isinstance(obj, Enum):
-                return obj.value
-            return str(obj)
-
-        data = state.model_dump()
-
-        # Use fast serializer if available, otherwise fall back to json.dumps with enum handling
-        if serializer is json.dumps:
-            return json.dumps(data, default=enum_handler)
-
-        # Fast serializers (orjson, msgspec) may not support default handlers
-        # Pre-process enums to avoid issues
-        result = serializer(data)
-        # Ensure we return a string (orjson returns bytes)
-        return result.decode("utf-8") if isinstance(result, bytes) else str(result)
 
     def _deserialize_state(
         self,
@@ -663,6 +634,70 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
             raise last_exception
         return None
 
+    async def _ensure_thread_exists(
+        self,
+        thread_id: str | int,
+        user_id: str | int,
+        config: dict[str, Any],
+    ) -> None:
+        """
+        Ensure thread exists in database, create if not.
+
+        Args:
+            thread_id (str|int): Thread identifier.
+            user_id (str|int): User identifier.
+            config (dict): Configuration dictionary.
+
+        Returns:
+            None
+
+        Raises:
+            Exception: If creation fails.
+        """
+        # Ensure schema is initialized before accessing tables
+        try:
+
+            async def _check_and_create_thread():
+                async with (await self._get_pg_pool()).acquire() as conn:
+                    exists = await conn.fetchval(
+                        f"SELECT 1 FROM {self._get_table_name('threads')} "  # noqa: S608
+                        f"WHERE thread_id = $1 AND user_id = $2",
+                        thread_id,
+                        user_id,
+                    )
+
+                    if not exists:
+                        thread_name = config.get("thread_name", f"Thread {thread_id}")
+                        meta = json.dumps(config.get("thread_meta", {}))
+                        await conn.execute(
+                            f"""
+                            INSERT INTO {self._get_table_name("threads")}
+                                (thread_id, thread_name, user_id, meta)
+                            VALUES ($1, $2, $3, $4)
+                            ON CONFLICT DO NOTHING
+                            """,  # noqa: S608
+                            thread_id,
+                            thread_name,
+                            user_id,
+                            meta,
+                        )
+                        logger.debug("Created thread: thread_id=%s, user_id=%s", thread_id, user_id)
+
+            await self._retry_on_connection_error(_check_and_create_thread, max_retries=3)
+
+        except Exception as e:
+            logger.error("Failed to ensure thread exists: %s", e)
+            raise
+
+    def _get_full_class_path(self, obj: object) -> str:
+        cls = obj.__class__
+        return f"{cls.__module__}.{cls.__name__}"
+
+    def _import_class_from_path(self, path: str) -> type[AgentState]:
+        module_name, class_name = path.rsplit(".", 1)
+        module = importlib.import_module(module_name)
+        return getattr(module, class_name)
+
     ###########################
     #### STATE METHODS ########
     ###########################
@@ -686,7 +721,6 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
             StorageError: If storing fails.
         """
         # Ensure schema is initialized before accessing tables
-        await self._initialize_schema()
         thread_id, user_id = self._validate_config(config)
 
         logger.debug("Storing state for thread_id=%s, user_id=%s", thread_id, user_id)
@@ -698,7 +732,9 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
                 await self._ensure_thread_exists(thread_id, user_id, config)
 
                 # Store in PostgreSQL with retry logic
-                state_json = self._serialize_state_fast(state)
+                data = state.model_dump()
+                data["__class_path__"] = self._get_full_class_path(state)
+                state_json = json.dumps(data)
 
                 async def _store_state():
                     async with (await self._get_pg_pool()).acquire() as conn:
@@ -760,9 +796,7 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
         """
         """Retrieve state from PostgreSQL."""
         # Ensure schema is initialized before accessing tables
-        await self._initialize_schema()
         thread_id, user_id = self._validate_config(config)
-        state_class = config.get("state_class", AgentState)
 
         logger.debug("Retrieving state for thread_id=%s, user_id=%s", thread_id, user_id)
 
@@ -783,8 +817,14 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
             row = await self._retry_on_connection_error(_get_state, max_retries=3)
 
             if row:
+                data = json.loads(row["state_data"])
                 logger.debug("State found for thread_id=%s", thread_id)
-                return self._deserialize_state(row["state_data"], state_class)
+                class_path = data.pop("__class_path__", None)
+                if not class_path:
+                    raise ValueError("Missing '__class_path__' in JSON data")
+
+                cls = self._import_class_from_path(class_path)
+                return cls.model_validate(data)  # type: ignore
 
             logger.debug("No state found for thread_id=%s", thread_id)
             return None
@@ -808,7 +848,6 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
         """
         """Clear state from PostgreSQL and Redis cache."""
         # Ensure schema is initialized before accessing tables
-        await self._initialize_schema()
         thread_id, user_id = self._validate_config(config)
 
         logger.debug("Clearing state for thread_id=%s, user_id=%s", thread_id, user_id)
@@ -853,7 +892,9 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
 
         try:
             cache_key = self._get_thread_key(thread_id, user_id)
-            state_json = self._serialize_state(state)
+            data = state.model_dump()
+            data["__class_path__"] = self._get_full_class_path(state)
+            state_json = json.dumps(data)
             await self.redis.setex(cache_key, self.cache_ttl, state_json)
             logger.debug("State cached with key=%s, ttl=%d", cache_key, self.cache_ttl)
             return True
@@ -875,9 +916,7 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
         """
         """Get state from Redis cache, fallback to PostgreSQL if miss."""
         # Schema might be needed if we fall back to DB
-        await self._initialize_schema()
         thread_id, user_id = self._validate_config(config)
-        state_class = config.get("state_class", AgentState)
 
         logger.debug("Getting cached state for thread_id=%s, user_id=%s", thread_id, user_id)
 
@@ -887,8 +926,14 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
             cached_data = await self.redis.get(cache_key)
 
             if cached_data:
+                data = json.loads(cached_data)
                 logger.debug("Cache hit for thread_id=%s", thread_id)
-                return self._deserialize_state(cached_data.decode(), state_class)
+                class_path = data.pop("__class_path__", None)
+                if not class_path:
+                    raise ValueError("Missing '__class_path__' in JSON data")
+
+                cls = self._import_class_from_path(class_path)
+                return cls.model_validate(data)  # type: ignore
 
             # Cache miss - fallback to PostgreSQL
             logger.debug("Cache miss for thread_id=%s, falling back to PostgreSQL", thread_id)
@@ -904,62 +949,6 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
             logger.error("Failed to get cached state for thread_id=%s: %s", thread_id, e)
             # Fallback to PostgreSQL on error
             return await self.aget_state(config)
-
-    async def _ensure_thread_exists(
-        self,
-        thread_id: str | int,
-        user_id: str | int,
-        config: dict[str, Any],
-    ) -> None:
-        """
-        Ensure thread exists in database, create if not.
-
-        Args:
-            thread_id (str|int): Thread identifier.
-            user_id (str|int): User identifier.
-            config (dict): Configuration dictionary.
-
-        Returns:
-            None
-
-        Raises:
-            Exception: If creation fails.
-        """
-        # Ensure schema is initialized before accessing tables
-        await self._initialize_schema()
-        try:
-
-            async def _check_and_create_thread():
-                async with (await self._get_pg_pool()).acquire() as conn:
-                    exists = await conn.fetchval(
-                        f"SELECT 1 FROM {self._get_table_name('threads')} "  # noqa: S608
-                        f"WHERE thread_id = $1 AND user_id = $2",
-                        thread_id,
-                        user_id,
-                    )
-
-                    if not exists:
-                        thread_name = config.get("thread_name", f"Thread {thread_id}")
-                        meta = json.dumps(config.get("thread_meta", {}))
-                        await conn.execute(
-                            f"""
-                            INSERT INTO {self._get_table_name("threads")}
-                                (thread_id, thread_name, user_id, meta)
-                            VALUES ($1, $2, $3, $4)
-                            ON CONFLICT DO NOTHING
-                            """,  # noqa: S608
-                            thread_id,
-                            thread_name,
-                            user_id,
-                            meta,
-                        )
-                        logger.debug("Created thread: thread_id=%s, user_id=%s", thread_id, user_id)
-
-            await self._retry_on_connection_error(_check_and_create_thread, max_retries=3)
-
-        except Exception as e:
-            logger.error("Failed to ensure thread exists: %s", e)
-            raise
 
     ###########################
     #### MESSAGE METHODS ######
@@ -986,7 +975,6 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
             Exception: If storing fails.
         """
         # Ensure schema is initialized before accessing tables
-        await self._initialize_schema()
         thread_id, user_id = self._validate_config(config)
 
         if not messages:
@@ -1059,7 +1047,6 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
         """
         """Retrieve a single message by ID."""
         # Ensure schema is initialized before accessing tables
-        await self._initialize_schema()
         thread_id = config.get("thread_id")
 
         logger.debug("Retrieving message_id=%s for thread_id=%s", message_id, thread_id)
@@ -1114,7 +1101,6 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
             Exception: If listing fails.
         """
         # Ensure schema is initialized before accessing tables
-        await self._initialize_schema()
         thread_id = config.get("thread_id")
 
         if not thread_id:
@@ -1187,7 +1173,6 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
             Exception: If deletion fails.
         """
         # Ensure schema is initialized before accessing tables
-        await self._initialize_schema()
         thread_id = config.get("thread_id")
 
         logger.debug("Deleting message_id=%s for thread_id=%s", message_id, thread_id)
@@ -1342,7 +1327,6 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
             Exception: If storing fails.
         """
         # Ensure schema is initialized before accessing tables
-        await self._initialize_schema()
         thread_id, user_id = self._validate_config(config)
 
         logger.debug("Storing thread info for thread_id=%s, user_id=%s", thread_id, user_id)
@@ -1399,7 +1383,6 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
             Exception: If retrieval fails.
         """
         # Ensure schema is initialized before accessing tables
-        await self._initialize_schema()
         thread_id, user_id = self._validate_config(config)
 
         logger.debug("Retrieving thread info for thread_id=%s, user_id=%s", thread_id, user_id)
@@ -1464,7 +1447,6 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
             Exception: If listing fails.
         """
         # Ensure schema is initialized before accessing tables
-        await self._initialize_schema()
         user_id = config.get("user_id")
         user_id = user_id or "test-user"
 
@@ -1548,7 +1530,6 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
         """
         """Clean/delete a thread and all associated data."""
         # Ensure schema is initialized before accessing tables
-        await self._initialize_schema()
         thread_id, user_id = self._validate_config(config)
 
         logger.debug("Cleaning thread thread_id=%s, user_id=%s", thread_id, user_id)

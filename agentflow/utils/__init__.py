@@ -56,7 +56,6 @@ from .shutdown import (
     shutdown_with_timeout,
 )
 from .thread_info import ThreadInfo
-from .thread_name_generator import generate_dummy_thread_name
 
 # Export validators
 from .validators import (
@@ -105,7 +104,6 @@ __all__ = [
     "configure_logging",
     "convert_messages",
     "delayed_keyboard_interrupt",
-    "generate_dummy_thread_name",
     "register_default_validators",
     "replace_messages",
     "replace_value",

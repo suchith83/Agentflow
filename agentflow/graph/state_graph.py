@@ -12,7 +12,6 @@ from agentflow.store import BaseStore
 from agentflow.utils import END, START, CallbackManager
 from agentflow.utils.background_task_manager import BackgroundTaskManager
 from agentflow.utils.id_generator import BaseIDGenerator, DefaultIDGenerator
-from agentflow.utils.thread_name_generator import generate_dummy_thread_name
 
 from .edge import Edge
 from .node import Node
@@ -66,7 +65,6 @@ class StateGraph[StateT: AgentState]:
         publisher: BasePublisher | None = None,
         id_generator: BaseIDGenerator = DefaultIDGenerator(),
         container: InjectQ | None = None,
-        thread_name_generator: Callable[[], str] | None = None,
     ):
         """Initialize a new StateGraph instance.
 
@@ -115,7 +113,6 @@ class StateGraph[StateT: AgentState]:
         self._publisher: BasePublisher | None = publisher
         self._id_generator: BaseIDGenerator = id_generator
         self._context_manager: BaseContextManager[StateT] | None = context_manager
-        self.thread_name_generator = thread_name_generator
         # save container for dependency injection
         # if any container is passed then we will activate that
         # otherwise we can skip it and use the default one
@@ -175,17 +172,6 @@ class StateGraph[StateT: AgentState]:
         self._container.bind_factory(
             "generated_id",
             lambda: self._id_generator.generate(),
-        )
-
-        # Attach Thread name generator if provided
-        if self.thread_name_generator is None:
-            self.thread_name_generator = generate_dummy_thread_name
-
-        generator = self.thread_name_generator or generate_dummy_thread_name
-
-        self._container.bind_factory(
-            "generated_thread_name",
-            lambda: generator(),
         )
 
         # Save BackgroundTaskManager
@@ -498,13 +484,13 @@ class StateGraph[StateT: AgentState]:
         # Import here to avoid circular import at module import time
         # Now update Checkpointer
         if checkpointer is None:
-            from agentflow.checkpointer import InMemoryCheckpointer  # noqa: PLC0415
+            from agentflow.checkpointer import InMemoryCheckpointer
 
             checkpointer = InMemoryCheckpointer[StateT]()
             logger.debug("No checkpointer provided, using InMemoryCheckpointer")
 
         # Import the CompiledGraph class
-        from .compiled_graph import CompiledGraph  # noqa: PLC0415
+        from .compiled_graph import CompiledGraph
 
         # Setup dependencies
         self._container.bind_instance(

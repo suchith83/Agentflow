@@ -52,7 +52,7 @@
 #             container=container,
 #         )
 
-#     def compile(  # noqa: PLR0912
+#     def compile(
 #         self,
 #         map_node: Callable | ToolNode | tuple[Callable | ToolNode, str],
 #         reduce_node: Callable | tuple[Callable, str],

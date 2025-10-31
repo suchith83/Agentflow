@@ -1,0 +1,1 @@
+in agent state, Message raw should not be included

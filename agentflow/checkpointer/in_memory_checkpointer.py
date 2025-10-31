@@ -7,7 +7,6 @@ from agentflow.state import AgentState, Message
 from agentflow.utils.thread_info import ThreadInfo
 
 from .base_checkpointer import BaseCheckpointer
-from agentflow.exceptions import ResourceNotFoundError
 
 
 if TYPE_CHECKING:
@@ -400,8 +399,9 @@ class InMemoryCheckpointer[StateT: AgentState](BaseCheckpointer[StateT]):
             bool: True if stored.
         """
         key = self._get_config_key(config)
+        # Initialize the list if it doesn't exist
         if key not in self._messages:
-            raise ResourceNotFoundError(message=f"No messages found for config key: {key}")
+            self._messages[key] = []
         self._messages[key].extend(messages)
         if metadata:
             self._message_metadata[key] = metadata
