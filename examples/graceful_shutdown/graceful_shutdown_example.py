@@ -3,17 +3,24 @@ Example: Graceful Shutdown with Signal Handling
 
 This example demonstrates how to implement graceful shutdown in a long-running
 Agentflow application with proper signal handling for SIGTERM and SIGINT.
+
+This example uses a realistic React agent with tool calling to demonstrate
+graceful shutdown in a production-like scenario.
 """
 
 import asyncio
+import datetime
 import logging
 import sys
-from typing import Any
 
-from agentflow.graph import StateGraph
+from litellm import acompletion
+
+from agentflow.adapters.llm.model_response_converter import ModelResponseConverter
+from agentflow.graph import StateGraph, ToolNode
 from agentflow.state import AgentState, Message
 from agentflow.utils import END
-from agentflow.utils import GracefulShutdownManager
+from agentflow.utils.converter import convert_messages
+from agentflow.utils.shutdown import GracefulShutdownManager
 
 # Configure logging
 logging.basicConfig(
@@ -22,28 +29,103 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-# Define a simple agent node
-async def process_node(state: AgentState, config: dict[str, Any]) -> AgentState:
-    """Process messages - simulates some work."""
-    logger.info("Processing node executing...")
-    await asyncio.sleep(1)  # Simulate processing time
+# Define tools for the agent
+def get_current_time(tool_call_id: str | None = None) -> str:
+    """Get the current time."""
+    return f"Current time is {datetime.datetime.now().strftime('%H:%M:%S')}"
 
-    messages = state.context
-    last_message = messages[-1] if messages else None
 
-    if last_message and last_message.role == "user":
-        response = Message.text_message(f"Processed: {last_message.content}", role="assistant")
-        state.context.append(response)
+def get_system_status(tool_call_id: str | None = None) -> str:
+    """Get the system status."""
+    return "System status: All services operational"
 
-    return state
+
+def calculate(expression: str, tool_call_id: str | None = None) -> str:
+    """Safely evaluate a mathematical expression."""
+    try:
+        # Only allow basic math operations for safety
+        # Note: In production, use a proper math parser instead of eval
+        allowed_names = {"__builtins__": {}}
+        result = eval(expression, allowed_names, {})  # noqa: S307
+        return f"Result: {result}"
+    except Exception as e:
+        return f"Error calculating: {e}"
+
+
+# Create tool node with available tools
+tool_node = ToolNode([get_current_time, get_system_status, calculate])
+
+
+# Define the main agent node
+async def main_agent(state: AgentState) -> ModelResponseConverter:
+    """Main agent that reasons and decides when to use tools."""
+    system_prompt = """You are a helpful assistant with access to tools.
+You can check the time, system status, and perform calculations.
+Use tools when appropriate to help answer user questions."""
+
+    messages = convert_messages(
+        system_prompts=[{"role": "system", "content": system_prompt}],
+        state=state,
+    )
+
+    # Check if last message is a tool result
+    needs_tools = not (state.context and state.context[-1].role == "tool")
+
+    if needs_tools:
+        # Include tools in the request
+        tools = await tool_node.all_tools()
+        response = await acompletion(
+            model="gemini/gemini-2.0-flash-exp",
+            messages=messages,
+            tools=tools,
+        )
+    else:
+        # Final response without tools
+        response = await acompletion(
+            model="gemini/gemini-2.0-flash-exp",
+            messages=messages,
+        )
+
+    return ModelResponseConverter(response, converter="litellm")
+
+
+def route_decision(state: AgentState) -> str:
+    """Route to tool execution or end based on agent output."""
+    if not state.context:
+        return "TOOL"
+
+    last_message = state.context[-1]
+
+    # Check if assistant made tool calls
+    if (
+        hasattr(last_message, "tools_calls")
+        and last_message.tools_calls
+        and len(last_message.tools_calls) > 0
+        and last_message.role == "assistant"
+    ):
+        return "TOOL"
+
+    # If last message is tool result, go back to agent
+    if last_message.role == "tool":
+        return "MAIN"
+
+    # Otherwise, we're done
+    return END
 
 
 def build_graph() -> StateGraph:
-    """Build a simple graph for demonstration."""
+    """Build a React agent graph with tool calling."""
     graph = StateGraph()
-    graph.add_node("process", process_node)
-    graph.set_entry_point("process")
-    graph.add_edge("process", END)
+    graph.add_node("MAIN", main_agent)
+    graph.add_node("TOOL", tool_node)
+
+    # Conditional routing from main agent
+    graph.add_conditional_edges("MAIN", route_decision, {"TOOL": "TOOL", END: END, "MAIN": "MAIN"})
+
+    # Always return to main after tool execution
+    graph.add_edge("TOOL", "MAIN")
+
+    graph.set_entry_point("MAIN")
     return graph
 
 
@@ -56,6 +138,7 @@ async def long_running_service():
     - Protected initialization and cleanup
     - Proper resource management
     - Shutdown statistics logging
+    - React agent with real tool calling
     """
     # Configuration
     SHUTDOWN_TIMEOUT = 30.0
@@ -70,6 +153,7 @@ async def long_running_service():
     shutdown_manager.register_signal_handlers()
     logger.info("Signal handlers registered (Ctrl+C to stop)")
 
+    task_count = 0  # Initialize task counter before try block
     try:
         # Protected initialization
         logger.info("Starting initialization (protected from interruption)...")
@@ -79,7 +163,14 @@ async def long_running_service():
 
         # Main processing loop
         logger.info("Entering main loop. Press Ctrl+C to shutdown gracefully...")
-        task_count = 0
+
+        # Define sample queries for the agent
+        sample_queries = [
+            "What time is it?",
+            "Can you calculate 15 + 27?",
+            "What's the system status?",
+            "Calculate 100 * 5 and tell me the time",
+        ]
 
         while not shutdown_manager.shutdown_requested:
             try:
@@ -88,13 +179,21 @@ async def long_running_service():
 
                 # Process a task
                 task_count += 1
-                logger.info(f"Processing task #{task_count}")
+                query = sample_queries[(task_count - 1) % len(sample_queries)]
+                logger.info(f"Processing task #{task_count}: {query}")
 
                 result = await graph.ainvoke(
-                    {"messages": [Message.text_message(f"Task #{task_count}", role="user")]}
+                    {"messages": [Message.text_message(query, role="user")]},
+                    config={"thread_id": f"thread_{task_count}"},
                 )
 
-                logger.info(f"Task #{task_count} completed: {result}")
+                # Log the final response
+                if result.get("messages"):
+                    last_msg = result["messages"][-1]
+                    if last_msg.role == "assistant":
+                        logger.info(f"Agent response: {last_msg.content[:100]}...")
+
+                logger.info(f"Task #{task_count} completed")
 
                 # Simulate some delay between tasks
                 await asyncio.sleep(2)
@@ -152,5 +251,5 @@ if __name__ == "__main__":
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
-        print("\nShutdown complete")
+        logger.info("Shutdown complete")
         sys.exit(0)

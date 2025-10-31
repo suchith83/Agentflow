@@ -6,21 +6,28 @@ Unique things in this library:
 4. Remote toolcalls with our typescript sdk
 6. Emit internal events, can connect with any publisher like kafka, rabitmq, open telemetry
 7. First hand experience with Dependency injection, InjectQ library
-8. Tool Ecosystem: Local Tools, Remote Tools, Agent Handoff Tools, MCP, Langchain Tools, Composio Tools
-9. Separate Context Manager to control the context size, Call at the end of iteration, so no control losing
-during the iteration, can be extended with own implementation.
+8. Tool Ecosystem: Local Tools, Remote Tools, Agent Handoff Tools, MCP, Langchain Tools, 
+Composio Tools
+9. Separate Context Manager to control the context size, Call at the end of iteration, 
+so no context losing during the iteration, can be extended with own implementation.
 10. Built in background task manager to run tasks in background like prefetching, memory saving etc.
 11. Ready to use prebuilt agents...
 12. Human in the loop with interrupt capability
+13. Navigation between agents with condition based or Command to jump to another agent, 
+and handoff tools
 
 API/Deployment Side:
-3. Single command to run with api, production ready api (Fastapi) (Playground coming soon)
+3. Single command to run with api, production ready api (Fastapi), async first api design, 
+uvicorn based  with proper logger, health checks, swagger/redocs docs ready, 
+prometheus metrics ready, using best practices. Using env for control
 5. Single command to generate docker image, can be deployable 
-anywhere, no vendor lockedin, no platform cost, deploy where you
-want.
+anywhere, no vendor locked-in, no platform cost, deploy where you
+want
 7. Easy to connect Authentication with the platform settings, JWT by default,
 Can be extend with any auth provider, just provide the class path we will setup.
 8. Control Over generated ID, UUID are 128 bit, but if you can control and use
 smaller ids, you can save a lot of space in DBs and indexes.
 9. All the class like state, message, tool calls are Pydantic models, easily 
 json serializable, easy to debug, log and store.
+10. Sentry Integration ready, just provide the DSN in the settings, all the exceptions
+will be sent to sentry with proper context.
