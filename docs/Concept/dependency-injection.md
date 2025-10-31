@@ -1,6 +1,6 @@
-# Dependency Injection in 10xScale Agentflow
+# Dependency Injection in  Agentflow
 
-Dependency injection (DI) is a fundamental design pattern that 10xScale Agentflow embraces to build flexible, testable, and maintainable agent applications. By integrating with InjectQ, 10xScale Agentflow provides a powerful dependency injection system that makes your agents more modular and easier to configure.
+Dependency injection (DI) is a fundamental design pattern that  Agentflow embraces to build flexible, testable, and maintainable agent applications. By integrating with InjectQ,  Agentflow provides a powerful dependency injection system that makes your agents more modular and easier to configure.
 
 ## What is Dependency Injection?
 
@@ -12,18 +12,18 @@ This approach offers several advantages:
 - **Flexibility**: Different implementations can be swapped without code changes
 - **Configuration**: Dependencies can be configured externally
 
-## 10xScale Agentflow's DI Integration
+##  Agentflow's DI Integration
 
-10xScale Agentflow integrates seamlessly with [InjectQ](https://iamsdt.github.io/injectq/), a lightweight, type-friendly dependency injection library. This integration allows you to inject dependencies into:
+ Agentflow integrates seamlessly with [InjectQ](https://iamsdt.github.io/injectq/), a lightweight, type-friendly dependency injection library. This integration allows you to inject dependencies into:
 
 - **Node functions** in your state graphs
 - **Tool functions** in your tool nodes
 - **Prebuilt agents** and their components
 - **Custom services** and utilities
 
-## Available Injectable Objects, that packed with 10xScale Agentflow
+## Available Injectable Objects, that packed with  Agentflow
 
-When you compile a 10xScale Agentflow graph, several core services are automatically registered in the dependency injection container:
+When you compile a  Agentflow graph, several core services are automatically registered in the dependency injection container:
 
 | Name | Details | Usages |
 |------|---------|--------|
@@ -39,12 +39,12 @@ When you compile a 10xScale Agentflow graph, several core services are automatic
 | `BackgroundTaskManager` | Manages background tasks for agents, allowing long-running work to be offloaded. | Use to schedule async work, retries, or background side-effects without blocking the main run. |
 | `StateGraph` | The current `StateGraph` instance representing the compiled graph. | Access the graph structure, read node metadata, or perform runtime introspection and dynamic wiring. |
 
-Note: For `BaseStore`, `BaseContextManager`, and `BasePublisher`, 10xScale Agentflow provides default implementations, but you can bind your own implementations to the container if needed.
+Note: For `BaseStore`, `BaseContextManager`, and `BasePublisher`,  Agentflow provides default implementations, but you can bind your own implementations to the container if needed.
 
 
 ## The Container Pattern
 
-At the heart of 10xScale Agentflow's dependency injection is the **container** - a centralized registry that manages how dependencies are created and provided. Think of it as a smart factory that knows how to build and deliver the right objects when needed.
+At the heart of  Agentflow's dependency injection is the **container** - a centralized registry that manages how dependencies are created and provided. Think of it as a smart factory that knows how to build and deliver the right objects when needed.
 
 ### Basic Container Usage
 
@@ -63,7 +63,7 @@ database = DatabaseConnection()
 container.bind_instance(DatabaseConnection, database)
 ```
 
-When you compile a 10xScale Agentflow graph, you can pass this container, and it becomes available throughout your agent execution:
+When you compile a  Agentflow graph, you can pass this container, and it becomes available throughout your agent execution:
 
 ```python
 graph = StateGraph(container=container)
@@ -72,7 +72,7 @@ app = graph.compile(checkpointer=checkpointer)
 
 ## Injection Patterns
 
-10xScale Agentflow supports several ways to declare and receive dependencies in your functions.
+ Agentflow supports several ways to declare and receive dependencies in your functions.
 
 ### Type-Based Injection with Inject[]
 
@@ -100,7 +100,7 @@ async def my_agent_node(
 
 ### Tool Parameter Injection
 
-Tool functions can receive special injectable parameters that 10xScale Agentflow provides automatically:
+Tool functions can receive special injectable parameters that  Agentflow provides automatically:
 
 ```python
 def get_weather(
@@ -183,17 +183,17 @@ class RequestContext:
         self.start_time = time.time()
 ```
 
-## Common 10xScale Agentflow Dependency Patterns
+## Common  Agentflow Dependency Patterns
 
 ### Injecting Core Services
 
-10xScale Agentflow automatically registers several core services in the container:
+ Agentflow automatically registers several core services in the container:
 
 ```python
 async def my_node(
     state: AgentState,
     config: dict,
-    # Core 10xScale Agentflow services
+    # Core  Agentflow services
     checkpointer: InMemoryCheckpointer = Inject[InMemoryCheckpointer],
     callback: CallbackManager = Inject[CallbackManager],
     store: BaseStore = Inject[BaseStore],
@@ -449,11 +449,11 @@ print("Registered dependencies:", container.get_dependency_graph())
 container.validate()  # Throws if circular dependencies exist
 ```
 
-## Integration with 10xScale Agentflow Features
+## Integration with  Agentflow Features
 
 ### Prebuilt Agents
 
-10xScale Agentflow's prebuilt agents automatically work with dependency injection:
+ Agentflow's prebuilt agents automatically work with dependency injection:
 
 ```python
 from agentflow.prebuilt.agent import ReactAgent
@@ -564,4 +564,4 @@ The dependency injection container has minimal overhead, but be aware of:
 - Transient dependencies are garbage collected when no longer referenced
 - Request-scoped dependencies are cleaned up at request end
 
-Dependency injection in 10xScale Agentflow transforms your agent applications from rigid, tightly-coupled systems into flexible, testable, and maintainable architectures. By embracing these patterns, you'll build agents that are easier to develop, test, and deploy in production environments.
+Dependency injection in  Agentflow transforms your agent applications from rigid, tightly-coupled systems into flexible, testable, and maintainable architectures. By embracing these patterns, you'll build agents that are easier to develop, test, and deploy in production environments.

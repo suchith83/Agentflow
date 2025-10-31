@@ -31,7 +31,8 @@ Exception
 │   ├── TransientStorageError (STORAGE_TRANSIENT_XXX)
 │   ├── SerializationError (STORAGE_SERIALIZATION_XXX)
 │   └── SchemaVersionError (STORAGE_SCHEMA_XXX)
-└── MetricsError (METRICS_XXX)
+├── MetricsError (METRICS_XXX)
+└── ValidationError (VALIDATION_XXX)
 ```
 
 ## Error Codes
@@ -66,6 +67,12 @@ Error codes follow a hierarchical pattern: `CATEGORY_SUBCATEGORY_NNN`
 ### Metrics Errors (METRICS_XXX)
 - `METRICS_000`: Generic metrics error
 - `METRICS_001`: Failed to emit metrics
+
+### Validation Errors (VALIDATION_XXX)
+- `VALIDATION_000`: Generic validation error
+- `VALIDATION_001`: Prompt injection detected
+- `VALIDATION_002`: Message content validation failed
+- `VALIDATION_003`: Content policy violation
 
 ## Structured Error Responses
 
@@ -198,6 +205,49 @@ except Exception as e:
     )
 ```
 
+### Input Validation Error
+
+```python
+from typing import Any
+from agentflow.utils.validators import ValidationError
+from agentflow.state.message import Message
+
+class ValidationError(Exception):
+    """Custom exception raised when input validation fails."""
+
+    def __init__(self, message: str, violation_type: str, details: dict[str, Any] | None = None):
+        """
+        Initialize ValidationError.
+
+        Args:
+            message: Human-readable error message
+            violation_type: Type of validation violation
+            details: Additional details about the validation failure
+        """
+        super().__init__(message)
+        self.violation_type = violation_type
+        self.details = details or {}
+
+
+# Usage example
+try:
+    if "DROP" in user_input.upper():
+        raise ValidationError(
+            message="Potential SQL injection detected",
+            violation_type="injection_pattern",
+            details={"content_sample": user_input[:100]}
+        )
+except ValidationError as e:
+    logger.error(
+        f"Validation failed: {e.violation_type}",
+        extra={
+            "violation_type": e.violation_type,
+            "details": e.details
+        }
+    )
+    raise
+```
+
 ## Migration Guide
 
 ### Updating Existing Code
@@ -220,15 +270,6 @@ raise GraphError(
     error_code="GRAPH_001",
     context={"node_count": 5, "edge_count": 3}
 )
-```
-
-### Backward Compatibility
-
-The new exception classes maintain backward compatibility with the old single-parameter constructor:
-
-```python
-# This still works (uses default error_code and empty context)
-raise GraphError("Invalid graph structure")
 ```
 
 However, we recommend migrating to the new structured format for better observability and debugging.

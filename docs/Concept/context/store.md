@@ -1,6 +1,6 @@
 # Store: The Agent's Knowledge Memory
 
-The Store system in 10xScale Agentflow represents the highest level of your agent's memory architecture—the **knowledge memory** that accumulates wisdom, learns patterns, and provides contextual intelligence across conversation boundaries. While working memory handles immediate thinking and session memory preserves interaction history, the Store enables agents to develop **persistent understanding** and **evolving intelligence**.
+The Store system in  Agentflow represents the highest level of your agent's memory architecture—the **knowledge memory** that accumulates wisdom, learns patterns, and provides contextual intelligence across conversation boundaries. While working memory handles immediate thinking and session memory preserves interaction history, the Store enables agents to develop **persistent understanding** and **evolving intelligence**.
 
 ## The Knowledge Memory Paradigm
 
@@ -35,7 +35,7 @@ The Store doesn't just save data—it creates **intelligent retrieval** mechanis
 
 ## Memory Types: Organizing Knowledge by Purpose
 
-10xScale Agentflow's Store system organizes knowledge using a sophisticated **memory type taxonomy** that mirrors cognitive science research:
+ Agentflow's Store system organizes knowledge using a sophisticated **memory type taxonomy** that mirrors cognitive science research:
 
 ### **Episodic Memory**: Experience-Based Knowledge
 
@@ -117,7 +117,7 @@ await store.astore(
 
 ## Retrieval Strategies: Finding the Right Knowledge
 
-The power of knowledge memory lies not just in storage but in **intelligent retrieval**—finding the most relevant information at precisely the right moment. 10xScale Agentflow provides multiple retrieval strategies:
+The power of knowledge memory lies not just in storage but in **intelligent retrieval**—finding the most relevant information at precisely the right moment.  Agentflow provides multiple retrieval strategies:
 
 ### **Similarity Search**: Semantic Relevance
 
@@ -303,7 +303,7 @@ await store.astore(
 
 ## Conclusion: Building Learning Agents
 
-The Store system in 10xScale Agentflow transforms agents from reactive responders into **proactive, learning intelligences** that grow wiser with each interaction. By providing:
+The Store system in  Agentflow transforms agents from reactive responders into **proactive, learning intelligences** that grow wiser with each interaction. By providing:
 
 - **Sophisticated memory organization** through memory types and categories
 - **Intelligent retrieval strategies** for contextually relevant knowledge access

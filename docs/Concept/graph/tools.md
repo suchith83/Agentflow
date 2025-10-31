@@ -1,7 +1,7 @@
 # Tools & Integrations
 
 Tools extend an agent beyond pure language reasoning—letting it call functions, external APIs, local system utilities,
-MCP servers, or third‑party registries like Composio or LangChain toolkits. 10xScale Agentflow unifies these via `ToolNode`.
+MCP servers, or third‑party registries like Composio or LangChain toolkits. Agentflow unifies these via `ToolNode`.
 
 ---
 
@@ -71,7 +71,7 @@ The LiteLLM converter then observes any resulting `tool_calls` in the response a
 
 ## MCP (Model Context Protocol) Tools
 
-10xScale Agentflow can integrate MCP tool providers (e.g. filesystem, Git, HTTP). MCP clients enumerate capabilities which the
+Agentflow can integrate MCP tool providers (e.g. filesystem, Git, HTTP). MCP clients enumerate capabilities which the
 ToolNode merges with local tools.
 
 Conceptual steps:
@@ -99,7 +99,7 @@ Benefits:
 ## LangChain Tools
 
 For teams already using LangChain, you can register LangChain tool objects via the LangChain adapter. It converts
-LangChain tool metadata into a shape 10xScale Agentflow expects (name, description, parameters). Mixed usage with local tools is
+LangChain tool metadata into a shape  Agentflow expects (name, description, parameters). Mixed usage with local tools is
 supported.
 
 ---
@@ -122,7 +122,7 @@ Return tool messages → appended to state.context → next node
 
 ## Parallel Tool Execution
 
-**New in 10xScale Agentflow**: When an LLM returns multiple tool calls in a single response, 10xScale Agentflow executes them **in parallel**
+**New in  Agentflow**: When an LLM returns multiple tool calls in a single response,  Agentflow executes them **in parallel**
 using `asyncio.gather`. This significantly improves performance when:
 
 - Multiple independent API calls are needed
@@ -146,7 +146,7 @@ tool_calls = [
     {"function": {"name": "get_stock", "arguments": '{"symbol": "AAPL"}'}}
 ]
 
-# 10xScale Agentflow executes all three tools concurrently
+#  Agentflow executes all three tools concurrently
 # Total time ≈ max(weather_time, news_time, stock_time)
 # Instead of: weather_time + news_time + stock_time
 ```

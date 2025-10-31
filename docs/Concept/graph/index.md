@@ -1,6 +1,6 @@
 # Graph Architecture
 
-10xScale Agentflow's graph system orchestrates agent reasoning, tool execution, and stateful message flow. It is intentionally
+Agentflow's graph system orchestrates agent reasoning, tool execution, and stateful message flow. It is intentionally
 minimal, composable, and DI-friendly. This section is your conceptual map.
 
 ---

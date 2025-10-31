@@ -1,13 +1,13 @@
 # React Agents with Model Context Protocol (MCP)
 
-The **Model Context Protocol (MCP)** is a standardized way to connect LLMs with external data sources and tools. 10xScale Agentflow provides seamless MCP integration, allowing your React agents to interact with databases, APIs, file systems, and custom services through a unified protocol.
+The **Model Context Protocol (MCP)** is a standardized way to connect LLMs with external data sources and tools.  Agentflow provides seamless MCP integration, allowing your React agents to interact with databases, APIs, file systems, and custom services through a unified protocol.
 
 ## 🎯 Learning Objectives
 
 By the end of this tutorial, you'll understand:
 
 - What MCP is and why it's important for agent development
-- How to integrate MCP servers with 10xScale Agentflow React agents
+- How to integrate MCP servers with  Agentflow React agents
 - Building and consuming MCP tools in agent workflows
 - Creating custom MCP servers for domain-specific functionality
 - Debugging and monitoring MCP-enabled agents
@@ -26,7 +26,7 @@ MCP is an open protocol that enables secure, standardized communication between 
 ### MCP Architecture
 
 ```
-React Agent ←→ 10xScale Agentflow ←→ MCP Client ←→ MCP Server ←→ External System
+React Agent ←→  Agentflow ←→ MCP Client ←→ MCP Server ←→ External System
                                 ↑              ↑
                           Protocol Layer   Data Source
 ```
@@ -39,7 +39,7 @@ React Agent ←→ 10xScale Agentflow ←→ MCP Client ←→ MCP Server ←→
 - **Maintainability**: Centralized tool management through MCP servers
 - **Interoperability**: Works with any MCP-compliant system
 
-## 🏗️ MCP Components in 10xScale Agentflow
+## 🏗️ MCP Components in  Agentflow
 
 ### 1. MCP Client Setup
 
@@ -72,7 +72,7 @@ from agentflow.graph import ToolNode
 # ToolNode with MCP client (no custom functions needed)
 tool_node = ToolNode(functions=[], client=mcp_client)
 
-# 10xScale Agentflow automatically discovers and registers MCP tools
+#  Agentflow automatically discovers and registers MCP tools
 ```
 
 ### 3. MCP-Enabled React Agent
@@ -1126,7 +1126,7 @@ async def create_resilient_mcp_agent() -> StateGraph:
 
 ## 🚀 Next Steps
 
-Excellent! You now understand how to integrate MCP with 10xScale Agentflow React agents. Here's what to explore next:
+Excellent! You now understand how to integrate MCP with  Agentflow React agents. Here's what to explore next:
 
 1. **[Streaming Responses](04-streaming.md)** - Real-time agent responses with event streaming
 2. **Advanced MCP Servers** - Building production-grade MCP services
@@ -1143,7 +1143,7 @@ Excellent! You now understand how to integrate MCP with 10xScale Agentflow React
 
 Study these MCP examples:
 
-- `examples/react-mcp/react-mcp.py` - Basic MCP integration with 10xScale Agentflow
+- `examples/react-mcp/react-mcp.py` - Basic MCP integration with  Agentflow
 - `examples/react-mcp/server.py` - Simple MCP server implementation
 - `examples/react-mcp/client.py` - Standalone MCP client testing
 

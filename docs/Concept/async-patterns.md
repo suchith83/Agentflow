@@ -1,6 +1,6 @@
 # Async Pattern Standardization
 
-This guide explains when and how to use synchronous and asynchronous patterns in 10xScale Agentflow, following Python asyncio best practices.
+This guide explains when and how to use synchronous and asynchronous patterns in Agentflow, following Python asyncio best practices.
 
 ## Table of Contents
 - [Overview](#overview)

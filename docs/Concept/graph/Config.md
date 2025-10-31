@@ -1,6 +1,6 @@
 # Graph Configuration
 
-The configuration object (`config`) is a Python dictionary that controls various aspects of graph execution in 10xScale Agentflow. It serves as the control panel for how your agent graph behaves during runtime, affecting everything from execution limits to state persistence and authentication.
+The configuration object (`config`) is a Python dictionary that controls various aspects of graph execution in  Agentflow. It serves as the control panel for how your agent graph behaves during runtime, affecting everything from execution limits to state persistence and authentication.
 
 ## Core Configuration Fields
 
@@ -262,7 +262,7 @@ for chunk in app.stream(input_data, config=config):
 
 ### With Authentication Systems
 
-When deployed using 10xScale Agentflow CLI or similar deployment systems, the authentication system can populate the config with user information:
+When deployed using  Agentflow CLI or similar deployment systems, the authentication system can populate the config with user information:
 
 ```python
 # Authentication system provides user context

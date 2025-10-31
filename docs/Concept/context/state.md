@@ -1,6 +1,6 @@
 # Agent State: The Mind of Your Agent
 
-In 10xScale Agentflow, the `AgentState` is far more than just a data container—it's the **cognitive foundation** that gives your agent the ability to think, remember, and reason across interactions. Understanding how state works is crucial for building agents that can maintain coherent, contextual conversations.
+In Agentflow, the `AgentState` is far more than just a data container—it's the **cognitive foundation** that gives your agent the ability to think, remember, and reason across interactions. Understanding how state works is crucial for building agents that can maintain coherent, contextual conversations.
 
 ## The State as Living Memory
 
@@ -85,7 +85,7 @@ This is where **context management** becomes essential—the art of maintaining 
 
 ## Context Management: The Art of Forgetting
 
-Context management in 10xScale Agentflow is a sophisticated process that mirrors how humans manage their working memory—keeping what's relevant, summarizing what's important, and gracefully forgetting what's no longer needed.
+Context management in  Agentflow is a sophisticated process that mirrors how humans manage their working memory—keeping what's relevant, summarizing what's important, and gracefully forgetting what's no longer needed.
 
 ### The BaseContextManager Philosophy
 
@@ -177,7 +177,7 @@ result = await compiled_graph.ainvoke(input_data, config)
 
 ## State Extension: Building Specialized Agents
 
-One of 10xScale Agentflow's most powerful features is **state extensibility**—the ability to create custom state classes that capture domain-specific information while maintaining compatibility with the framework.
+One of  Agentflow's most powerful features is **state extensibility**—the ability to create custom state classes that capture domain-specific information while maintaining compatibility with the framework.
 
 ### Custom State Classes
 

@@ -24,7 +24,7 @@ The validation system is built around the `BaseValidator` abstract class, which 
 All validators must extend the `BaseValidator` abstract class and implement the `validate` method:
 
 ```python
-from agentflow.utils import BaseValidator
+from agentflow.utils.callbacks import BaseValidator
 from agentflow.state.message import Message
 
 class MyValidator(BaseValidator):
@@ -52,15 +52,12 @@ class MyValidator(BaseValidator):
 Validators are registered with the `CallbackManager`, which executes them when validation is needed:
 
 ```python
-from agentflow.utils import CallbackManager, register_validator
+from agentflow.utils.callbacks import CallbackManager
 from agentflow.utils.validators import PromptInjectionValidator
 
-# Option 1: Register with default callback manager
-register_validator(PromptInjectionValidator())
-
-# Option 2: Register with custom callback manager
+# Create callback manager and register validator
 manager = CallbackManager()
-manager.register_validator(PromptInjectionValidator())
+manager.register_input_validator(PromptInjectionValidator())
 ```
 
 ## Default Validators
@@ -72,7 +69,7 @@ Detects and prevents prompt injection attacks and jailbreaking attempts.
 **Example:**
 
 ```python
-from agentflow.utils import register_validator
+from agentflow.utils.callbacks import CallbackManager
 from agentflow.utils.validators import PromptInjectionValidator
 
 # Create validator with custom settings
@@ -87,7 +84,9 @@ validator = PromptInjectionValidator(
     ]
 )
 
-register_validator(validator)
+# Register with callback manager
+callback_manager = CallbackManager()
+callback_manager.register_input_validator(validator)
 ```
 
 **Detects:**
@@ -110,7 +109,7 @@ Validates message structure and content integrity.
 **Example:**
 
 ```python
-from agentflow.utils import register_validator
+from agentflow.utils.callbacks import CallbackManager
 from agentflow.utils.validators import MessageContentValidator
 
 validator = MessageContentValidator(
@@ -118,7 +117,9 @@ validator = MessageContentValidator(
     max_content_blocks=50
 )
 
-register_validator(validator)
+# Register with callback manager
+callback_manager = CallbackManager()
+callback_manager.register_input_validator(validator)
 ```
 
 **Validates:**
@@ -132,12 +133,14 @@ register_validator(validator)
 ### Basic Usage
 
 ```python
-from agentflow.utils import register_default_validators
+from agentflow.utils.callbacks import CallbackManager
+from agentflow.utils.validators import register_default_validators
 from agentflow.graph.utils.utils import validate_message_content
 from agentflow.state.message import Message
 
-# Step 1: Register default validators
-register_default_validators(strict_mode=True)
+# Step 1: Register default validators with a callback manager
+callback_manager = CallbackManager()
+register_default_validators(callback_manager, strict_mode=True)
 
 # Step 2: Validate messages
 message = Message.text_message("Hello!", role="user")
@@ -151,15 +154,17 @@ except ValidationError as e:
 
 ### Automatic Validation in Graphs
 
-When using validators within a graph, the `validate_message_content` function automatically uses the callback manager from the graph's dependency injection context:
+When using validators within a graph, register them with the callback manager and pass it to the graph during compilation:
 
 ```python
 from agentflow import StateGraph, AgentState
-from agentflow.utils import register_default_validators
+from agentflow.utils.callbacks import CallbackManager
+from agentflow.utils.validators import register_default_validators
 from agentflow.graph.utils.utils import validate_message_content
 
-# Register validators
-register_default_validators()
+# Register validators with callback manager
+callback_manager = CallbackManager()
+register_default_validators(callback_manager)
 
 # Define a node that validates messages
 async def process_input(state: AgentState, config: dict):
@@ -169,13 +174,13 @@ async def process_input(state: AgentState, config: dict):
     # Your processing logic here
     return state
 
-# Build graph
+# Build graph with callback manager
 graph = StateGraph(AgentState)
 graph.add_node("process", process_input)
 graph.set_entry_point("process")
 graph.add_edge("process", END)
 
-app = graph.compile()
+app = graph.compile(callback_manager=callback_manager)
 ```
 
 ## Creating Custom Validators
@@ -183,7 +188,7 @@ app = graph.compile()
 ### Simple Custom Validator
 
 ```python
-from agentflow.utils import BaseValidator, register_validator
+from agentflow.utils.callbacks import BaseValidator, CallbackManager
 from agentflow.utils.validators import ValidationError
 from agentflow.state.message import Message
 
@@ -205,14 +210,15 @@ class ProfanityValidator(BaseValidator):
 
 # Register the custom validator
 validator = ProfanityValidator(["badword1", "badword2"])
-register_validator(validator)
+callback_manager = CallbackManager()
+callback_manager.register_input_validator(validator)
 ```
 
 ### Advanced Custom Validator
 
 ```python
 import re
-from agentflow.utils import BaseValidator, register_validator
+from agentflow.utils.callbacks import BaseValidator, CallbackManager
 from agentflow.utils.validators import ValidationError
 from agentflow.state.message import Message
 
@@ -245,7 +251,8 @@ class BusinessRuleValidator(BaseValidator):
         return True
 
 # Register
-register_validator(BusinessRuleValidator(max_questions=5))
+callback_manager = CallbackManager()
+callback_manager.register_input_validator(BusinessRuleValidator(max_questions=5))
 ```
 
 ## Per-Graph Validators
@@ -254,13 +261,13 @@ For different graphs that need different validation rules, create separate callb
 
 ```python
 from agentflow import StateGraph, AgentState
-from agentflow.utils import CallbackManager
+from agentflow.utils.callbacks import CallbackManager
 from agentflow.utils.validators import PromptInjectionValidator, MessageContentValidator
 
 # Create graph-specific callback manager
 strict_manager = CallbackManager()
-strict_manager.register_validator(PromptInjectionValidator(strict_mode=True))
-strict_manager.register_validator(MessageContentValidator())
+strict_manager.register_input_validator(PromptInjectionValidator(strict_mode=True))
+strict_manager.register_input_validator(MessageContentValidator())
 
 # Build graph with custom callback manager
 graph = StateGraph(AgentState)
@@ -269,7 +276,7 @@ app = graph.compile(callback_manager=strict_manager)
 
 # Another graph with different validation rules
 lenient_manager = CallbackManager()
-lenient_manager.register_validator(PromptInjectionValidator(strict_mode=False))
+lenient_manager.register_input_validator(PromptInjectionValidator(strict_mode=False))
 
 graph2 = StateGraph(AgentState)
 # ... add nodes and edges ...
@@ -283,9 +290,11 @@ app2 = graph2.compile(callback_manager=lenient_manager)
 In strict mode, validators raise `ValidationError` when validation fails:
 
 ```python
-from agentflow.utils import register_default_validators
+from agentflow.utils.callbacks import CallbackManager
+from agentflow.utils.validators import register_default_validators
 
-register_default_validators(strict_mode=True)
+callback_manager = CallbackManager()
+register_default_validators(callback_manager, strict_mode=True)
 
 # Validation failures will raise ValidationError
 ```
@@ -295,9 +304,11 @@ register_default_validators(strict_mode=True)
 In lenient mode, validators log warnings but don't raise exceptions:
 
 ```python
-from agentflow.utils import register_default_validators
+from agentflow.utils.callbacks import CallbackManager
+from agentflow.utils.validators import register_default_validators
 
-register_default_validators(strict_mode=False)
+callback_manager = CallbackManager()
+register_default_validators(callback_manager, strict_mode=False)
 
 # Validation failures will be logged as warnings
 ```
@@ -324,7 +335,7 @@ except ValidationError as e:
 
 ## Best Practices
 
-1. **Register validators early**: Call `register_default_validators()` at application startup
+1. **Register validators with callback manager**: Create a `CallbackManager` and register validators, then pass it to your graph during compilation
 2. **Use strict mode in production**: Prefer `strict_mode=True` to catch security issues
 3. **Log validation failures**: Even in strict mode, log the failure details for monitoring
 4. **Test your validators**: Write tests for custom validators to ensure they work correctly
@@ -464,14 +475,11 @@ class ValidationError(Exception):
 ### Functions
 
 ```python
-def register_validator(validator: BaseValidator) -> None:
-    """Register validator with default callback manager."""
-
 def register_default_validators(
-    callback_manager: CallbackManager | None = None,
+    callback_manager: CallbackManager,
     strict_mode: bool = True
 ) -> None:
-    """Register all default validators."""
+    """Register all default validators with the provided callback manager."""
 
 async def validate_message_content(
     message: list[Message],
@@ -486,9 +494,9 @@ async def validate_message_content(
 
 If validators aren't being called:
 
-1. Ensure you've called `register_default_validators()` or registered validators manually
-2. Verify you're calling `validate_message_content()` in your code
-3. Check that the callback manager is properly configured
+1. Ensure you've created a `CallbackManager`, called `register_default_validators(callback_manager)` or registered validators manually with `callback_manager.register_input_validator()`
+2. Verify you're passing the callback manager to `graph.compile(callback_manager=callback_manager)`
+3. Check that you're calling `validate_message_content()` in your node functions
 
 ### False Positives
 
@@ -511,4 +519,3 @@ If validation is slow:
 
 - [OWASP LLM01:2025 - Prompt Injection](https://owasp.org/www-project-top-10-for-large-language-model-applications/)
 - [Callback System Documentation](../Concept/callbacks.md)
-- [Security Best Practices](../Concept/security.md)

@@ -1,6 +1,6 @@
 # Long-Term Memory with Mem0
 
-10xScale Agentflow separates **short-term memory** (the evolving `AgentState` inside a graph
+Agentflow separates **short-term memory** (the evolving `AgentState` inside a graph
 invocation) from **long-term memory** (durable memories persisted across runs).
 This document shows how to enable long-term memory using the optional
 [`mem0`](https://github.com/mem0ai/mem0) library.

@@ -1,4 +1,4 @@
-## MessageContextManager: Professional Context Trimming in 10xScale Agentflow
+## MessageContextManager: Professional Context Trimming in Agentflow
 
 `MessageContextManager` is responsible for managing and trimming the message history (context) in agent interactions. It ensures efficient use of the context window, preserves conversation continuity, and supports robust edge case handling for production-grade agent workflows.
 

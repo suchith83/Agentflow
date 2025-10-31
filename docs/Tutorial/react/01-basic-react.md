@@ -1,6 +1,6 @@
 # Basic React Patterns
 
-The **ReAct (Reasoning and Acting)** pattern is the cornerstone of intelligent agent design. This tutorial covers the fundamental concepts and implementation patterns using 10xScale Agentflow's core components.
+The **ReAct (Reasoning and Acting)** pattern is the cornerstone of intelligent agent design. This tutorial covers the fundamental concepts and implementation patterns using  Agentflow's core components.
 
 ## 🎯 Learning Objectives
 
@@ -41,7 +41,7 @@ React agents solve these problems:
 
 ## 🏗️ Basic Architecture Components
 
-A React agent requires these 10xScale Agentflow components:
+A React agent requires these  Agentflow components:
 
 ### 1. Tools (Action Layer)
 
@@ -361,7 +361,7 @@ if __name__ == "__main__":
 
 ## 🔄 Synchronous vs Asynchronous Patterns
 
-10xScale Agentflow supports both synchronous and asynchronous React patterns:
+ Agentflow supports both synchronous and asynchronous React patterns:
 
 ### Asynchronous (Recommended)
 

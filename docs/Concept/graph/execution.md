@@ -70,7 +70,7 @@ Ensure background tasks are idempotent or reference stable state snapshots to av
 
 ## Stop & Interrupt Control
 
-10xScale Agentflow provides flexible execution control for human-in-the-loop workflows:
+Agentflow provides flexible execution control for human-in-the-loop workflows:
 
 | Mechanism | When Applied | Purpose | Response Time |
 |-----------|--------------|---------|---------------|

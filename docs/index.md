@@ -5,7 +5,7 @@
 ![Python](https://img.shields.io/pypi/pyversions/agentflow)
 [![Coverage](https://img.shields.io/badge/coverage-73%25-yellow.svg)](#)
 
-**10xScale Agentflow** is a lightweight Python framework for building intelligent agents and orchestrating multi-agent workflows. It's an **LLM-agnostic orchestration tool** that works with any LLM provider—use LiteLLM, native SDKs from OpenAI, Google Gemini, Anthropic Claude, or any other provider. You choose your LLM library; 10xScale Agentflow provides the workflow orchestration.
+**Agentflow** is a lightweight Python framework for building intelligent agents and orchestrating multi-agent workflows. It's an **LLM-agnostic orchestration tool** that works with any LLM provider—use LiteLLM, native SDKs from OpenAI, Google Gemini, Anthropic Claude, or any other provider. You choose your LLM library; Agentflow provides the workflow orchestration.
 
 ---
 
@@ -43,7 +43,7 @@ pip install 10xscale-agentflow
 
 **Optional Dependencies:**
 
-10xScale Agentflow supports optional dependencies for specific functionality:
+Agentflow supports optional dependencies for specific functionality:
 
 ```bash
 # PostgreSQL + Redis checkpointing
@@ -86,7 +86,7 @@ If you have a `.env` file, it will be auto-loaded (via `python-dotenv`).
 ## 📚 Documentation Structure
 
 ### [🎓 Tutorials](Tutorial/index.md)
-Learn 10xScale Agentflow step-by-step with practical examples:
+Learn Agentflow step-by-step with practical examples:
 
 - **[Graph Fundamentals](Tutorial/index.md)** - Build your first agent with StateGraph, nodes, and edges
 - **[React Agent Patterns](Tutorial/react/)** - Complete guide: basic patterns, DI, MCP, streaming
@@ -97,7 +97,7 @@ Learn 10xScale Agentflow step-by-step with practical examples:
 - **[Plan-Act-Reflect](Tutorial/plan_act_reflect.md)** - Advanced reasoning patterns
 
 ### [📖 Concepts](Concept/index.md)
-Deep dives into 10xScale Agentflow's architecture:
+Deep dives into Agentflow's architecture:
 
 - **[Graph Architecture](Concept/graph/)** - StateGraph, nodes, edges, compiled execution
 - **[State Management](Concept/context/)** - AgentState, checkpointers, stores
@@ -236,7 +236,7 @@ for msg in res["messages"]:
 
 ## 🎯 Use Cases & Patterns
 
-10xScale Agentflow includes prebuilt agent patterns for common scenarios:
+Agentflow includes prebuilt agent patterns for common scenarios:
 
 ### 🤖 Agent Types
 
@@ -267,7 +267,7 @@ See the [Prebuilt Agents Reference](reference/prebuilt/agent/) for complete docu
 
 ### For Library Users
 
-Install 10xScale Agentflow as shown above. The `pyproject.toml` contains all runtime dependencies.
+Install Agentflow as shown above. The `pyproject.toml` contains all runtime dependencies.
 
 ### For Contributors
 

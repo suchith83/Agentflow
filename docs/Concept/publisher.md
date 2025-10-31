@@ -1,16 +1,16 @@
 # Publisher: Real-time Agent Observability
 
-The publisher system in 10xScale Agentflow provides real-time visibility into your agent's execution, transforming what was once a black box into a transparent, observable process. Rather than simply logging events after the fact, the publisher system creates live streams of execution data that enable monitoring, debugging, analytics, and real-time decision making.
+The publisher system in  Agentflow provides real-time visibility into your agent's execution, transforming what was once a black box into a transparent, observable process. Rather than simply logging events after the fact, the publisher system creates live streams of execution data that enable monitoring, debugging, analytics, and real-time decision making.
 
 ## Understanding Event-Driven Observability
 
-Traditional logging systems capture what happened after it's over. 10xScale Agentflow's publisher system captures what's happening as it happens, creating a continuous stream of execution events that flow from your agent graphs to whatever destination you choose—console output, message queues, databases, monitoring systems, or custom analytics platforms.
+Traditional logging systems capture what happened after it's over.  Agentflow's publisher system captures what's happening as it happens, creating a continuous stream of execution events that flow from your agent graphs to whatever destination you choose—console output, message queues, databases, monitoring systems, or custom analytics platforms.
 
 Think of it as the nervous system of your AI application: every decision, every tool call, every state change, every error generates events that flow through the publisher pipeline, giving you unprecedented insight into your agent's behavior and performance.
 
 ## Event Model: The Foundation of Observability
 
-Every observable action in 10xScale Agentflow is captured as a structured `EventModel` that contains rich metadata about what's happening:
+Every observable action in  Agentflow is captured as a structured `EventModel` that contains rich metadata about what's happening:
 
 ```python
 from agentflow.publisher.events import EventModel, Event, EventType, ContentType
@@ -38,7 +38,7 @@ This rich event model enables sophisticated analysis, filtering, and routing bas
 
 ## Event Sources and Types
 
-10xScale Agentflow generates events from four primary sources, each providing different levels of granularity:
+ Agentflow generates events from four primary sources, each providing different levels of granularity:
 
 ### Graph Execution Events
 These provide the highest-level view of your agent's operation:
@@ -128,7 +128,7 @@ This semantic typing enables sophisticated event processing, such as routing err
 
 ## Publisher Implementations
 
-10xScale Agentflow provides multiple publisher implementations for different use cases:
+ Agentflow provides multiple publisher implementations for different use cases:
 
 ### Console Publisher: Development and Debugging
 
@@ -571,4 +571,4 @@ class ProductionMonitoring:
             await asyncio.sleep(60)  # Check every minute
 ```
 
-The publisher system transforms 10xScale Agentflow agents from opaque processes into fully observable, monitorable, and analytically rich systems. By providing real-time insight into every aspect of agent execution—from high-level conversation flows to individual tool calls—publishers enable you to build production-ready AI systems with the observability and control needed for enterprise deployment.
+The publisher system transforms  Agentflow agents from opaque processes into fully observable, monitorable, and analytically rich systems. By providing real-time insight into every aspect of agent execution—from high-level conversation flows to individual tool calls—publishers enable you to build production-ready AI systems with the observability and control needed for enterprise deployment.

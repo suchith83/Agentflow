@@ -1,6 +1,6 @@
-# RAG (Retrieval-Augmented Generation) with 10xScale Agentflow
+# RAG (Retrieval-Augmented Generation) with  Agentflow
 
-Retrieval-Augmented Generation pairs document (or memory) retrieval with LLM synthesis. 10xScale Agentflow provides a concise prebuilt [`rag.py`](agentflow/prebuilt/agent/rag.py) RAG agent plus composable building blocks to extend from “single fetch + answer” to multi-stage hybrid pipelines.
+Retrieval-Augmented Generation pairs document (or memory) retrieval with LLM synthesis.  Agentflow provides a concise prebuilt [`rag.py`](agentflow/prebuilt/agent/rag.py) RAG agent plus composable building blocks to extend from “single fetch + answer” to multi-stage hybrid pipelines.
 
 ## 🎯 Goals
 
@@ -249,7 +249,7 @@ Explore:
 - `long_term_memory.md` for Mem0-based persistence
 - Advanced orchestration patterns in `misc/advanced_patterns.md`
 
-RAG scalability depends on disciplined stage isolation—10xScale Agentflow’s node + conditional edge model keeps each concern explicit and testable.
+RAG scalability depends on disciplined stage isolation— Agentflow’s node + conditional edge model keeps each concern explicit and testable.
 
 ---
 

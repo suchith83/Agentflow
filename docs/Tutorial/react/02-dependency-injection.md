@@ -1,12 +1,12 @@
 # React Agents with Dependency Injection
 
-Dependency Injection (DI) is a powerful pattern that makes your React agents more modular, testable, and maintainable. 10xScale Agentflow uses **InjectQ** for sophisticated dependency management, enabling clean separation of concerns and easy testing.
+Dependency Injection (DI) is a powerful pattern that makes your React agents more modular, testable, and maintainable.  Agentflow uses **InjectQ** for sophisticated dependency management, enabling clean separation of concerns and easy testing.
 
 ## 🎯 Learning Objectives
 
 By the end of this tutorial, you'll understand:
 
-- How dependency injection works in 10xScale Agentflow React agents
+- How dependency injection works in  Agentflow React agents
 - Using InjectQ for service management and parameter injection
 - Building modular, testable agent architectures
 - Advanced DI patterns for enterprise applications
@@ -49,7 +49,7 @@ def weather_tool(
 
 ## 🏗️ InjectQ Fundamentals
 
-10xScale Agentflow uses **InjectQ** for dependency injection. Here's how it works:
+ Agentflow uses **InjectQ** for dependency injection. Here's how it works:
 
 ### 1. Container Setup
 
@@ -183,7 +183,7 @@ container.bind_instance(WeatherService, MockWeatherService())
 container.bind_instance(CacheService, InMemoryCache())
 container.bind_instance(Logger, ConsoleLogger())
 
-# Register 10xScale Agentflow services
+# Register  Agentflow services
 container.bind_instance(InMemoryCheckpointer, InMemoryCheckpointer())
 container.bind_instance(CallbackManager, CallbackManager())
 

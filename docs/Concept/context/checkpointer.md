@@ -1,6 +1,6 @@
 # Checkpointer: The Agent's Session Memory
 
-The checkpointer in 10xScale Agentflow serves as your agent's **session memory**—a sophisticated persistence layer that maintains the complete record of interactions, state transitions, and execution history. Unlike working memory (AgentState), which focuses on immediate context, checkpointers preserve the **full conversational narrative** for different purposes entirely.
+The checkpointer in  Agentflow serves as your agent's **session memory**—a sophisticated persistence layer that maintains the complete record of interactions, state transitions, and execution history. Unlike working memory (AgentState), which focuses on immediate context, checkpointers preserve the **full conversational narrative** for different purposes entirely.
 
 ## The Session Memory Philosophy
 
@@ -15,7 +15,7 @@ The key insight is that **session memory is not for the agent's immediate thinki
 
 ## The Dual-Storage Architecture
 
-10xScale Agentflow implements a sophisticated **dual-storage strategy** that balances speed with durability:
+ Agentflow implements a sophisticated **dual-storage strategy** that balances speed with durability:
 
 ```
 ┌─────────────────┐    Fast Access    ┌─────────────────┐
@@ -108,7 +108,7 @@ Thread persistence captures **conversation-level metadata**—titles, tags, part
 
 ## The Caching Strategy: Speed Meets Durability
 
-The brilliance of 10xScale Agentflow's checkpointer design lies in its **intelligent caching strategy** that optimizes for both performance and reliability.
+The brilliance of  Agentflow's checkpointer design lies in its **intelligent caching strategy** that optimizes for both performance and reliability.
 
 ### Hot Path: Active Conversation Flow
 
@@ -153,7 +153,7 @@ checkpointer = PgCheckpointer(
 
 ## Checkpointer Implementations: Choosing the Right Strategy
 
-10xScale Agentflow provides different checkpointer implementations optimized for different deployment scenarios:
+ Agentflow provides different checkpointer implementations optimized for different deployment scenarios:
 
 ### InMemoryCheckpointer: Development and Testing
 
@@ -240,7 +240,7 @@ await checkpointer.asetup()  # Creates appropriate column types
 
 ## Dependency Injection and Framework Integration
 
-One of 10xScale Agentflow's most elegant features is **automatic checkpointer injection**, making persistence seamless for node functions:
+One of  Agentflow's most elegant features is **automatic checkpointer injection**, making persistence seamless for node functions:
 
 ### Automatic Injection in Node Functions
 
@@ -526,7 +526,7 @@ checkpointer = PgCheckpointer(
 
 ## Conclusion: Session Memory as a Strategic Asset
 
-The checkpointer system in 10xScale Agentflow transforms conversation persistence from a technical necessity into a **strategic asset**. By providing:
+The checkpointer system in  Agentflow transforms conversation persistence from a technical necessity into a **strategic asset**. By providing:
 
 - **Dual-storage architecture** for optimal performance and durability
 - **Automatic dependency injection** for seamless integration
