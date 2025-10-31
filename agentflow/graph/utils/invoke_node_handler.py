@@ -24,6 +24,7 @@ from injectq import Inject
 from agentflow.exceptions import NodeError
 from agentflow.graph.tool_node import ToolNode
 from agentflow.graph.utils.utils import process_node_result
+from agentflow.prebuilt.tools.handoff import is_handoff_tool
 from agentflow.publisher import BasePublisher
 from agentflow.publisher.events import ContentType, Event, EventModel, EventType
 from agentflow.publisher.publish import publish_event
@@ -34,6 +35,7 @@ from agentflow.utils import (
     InvocationType,
     call_sync_or_async,
 )
+from agentflow.utils.command import Command
 
 from .handler_mixins import BaseLoggingMixin
 
@@ -139,6 +141,27 @@ class InvokeNodeHandler(BaseLoggingMixin):
             and last_message.tools_calls
             and len(last_message.tools_calls) > 0
         ):
+            # NEW: Check for handoff BEFORE executing any tools
+            for tool_call in last_message.tools_calls:
+                tool_name = tool_call.get("function", {}).get("name", "")
+                is_handoff, target_agent = is_handoff_tool(tool_name)
+
+                if is_handoff:
+                    logger.info(
+                        "Handoff detected in node '%s': tool '%s' -> agent '%s'",
+                        self.name,
+                        tool_name,
+                        target_agent,
+                    )
+
+                    # Return Command to navigate directly to target agent
+                    # This will be handled by the graph execution layer
+                    return Command(  # type: ignore
+                        update=None,
+                        goto=target_agent,
+                    )
+
+            # Continue with normal tool execution if no handoff detected
             # Execute the first tool call for now
             tool_call = last_message.tools_calls[0]
             for tool_call in last_message.tools_calls:

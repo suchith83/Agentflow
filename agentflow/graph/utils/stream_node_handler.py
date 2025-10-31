@@ -23,6 +23,7 @@ from agentflow.exceptions import NodeError
 from agentflow.graph.tool_node import ToolNode
 from agentflow.graph.utils.stream_utils import check_non_streaming
 from agentflow.graph.utils.utils import process_node_result
+from agentflow.prebuilt.tools.handoff import is_handoff_tool
 from agentflow.publisher.events import ContentType, Event, EventModel, EventType
 from agentflow.publisher.publish import publish_event
 from agentflow.state import AgentState, Message
@@ -176,6 +177,27 @@ class StreamNodeHandler(BaseLoggingMixin):
             and last_message.tools_calls
             and len(last_message.tools_calls) > 0
         ):
+            # NEW: Check for handoff BEFORE executing any tools
+            for tool_call in last_message.tools_calls:
+                tool_name = tool_call.get("function", {}).get("name", "")
+                is_handoff, target_agent = is_handoff_tool(tool_name)
+
+                if is_handoff:
+                    logger.info(
+                        "Handoff detected in node '%s': tool '%s' -> agent '%s'",
+                        self.name,
+                        tool_name,
+                        target_agent,
+                    )
+
+                    # Yield Command for streaming context
+                    yield Command(  # type: ignore
+                        update=None,
+                        goto=target_agent,
+                    )
+                    return  # Stop processing
+
+            # Continue with normal tool execution if no handoff detected
             # Execute tool calls in parallel
             logger.info(
                 "Node '%s' executing %d tool calls in parallel",
