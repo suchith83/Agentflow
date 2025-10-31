@@ -1,6 +1,6 @@
-## ID Generation in 10xScale Agentflow
+## ID Generation in Agentflow
 
-ID generators produce stable, traceable identifiers for runs, messages, tool calls, and background tasks. 10xScale Agentflow ships multiple strategies and lets you inject or override them to match infrastructure needs (UUIDs, integers, sortable timestamps, short IDs, async factories, etc.).
+ID generators produce stable, traceable identifiers for runs, messages, tool calls, and background tasks.  Agentflow ships multiple strategies and lets you inject or override them to match infrastructure needs (UUIDs, integers, sortable timestamps, short IDs, async factories, etc.).
 
 ### Why It Matters
 
@@ -21,6 +21,7 @@ ID generators produce stable, traceable identifiers for runs, messages, tool cal
 | `TimestampIDGenerator` | `integer` | ~16–17 digit microsecond | Ordered events, temporal indexing |
 | `AsyncIDGenerator` | `string` | UUID4 (async) | Async pipelines needing awaitable generation |
 | `DefaultIDGenerator` | `string` (empty) | "" sentinel | Lets framework fall back to default UUID strategy |
+| `SnowflakeIDGenerator` | `bigint` | 64-bit snowflake | Distributed unique IDs with shard/time encoding (use agentflow cli package) |
 
 All implement `BaseIDGenerator`:
 

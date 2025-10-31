@@ -1,12 +1,12 @@
 # React Agents with Streaming Responses
 
-Streaming enables **real-time, progressive responses** from your React agents, providing immediate feedback to users as the agent thinks, acts, and generates responses. 10xScale Agentflow's streaming architecture delivers low-latency, interactive experiences perfect for chat interfaces and live applications.
+Streaming enables **real-time, progressive responses** from your React agents, providing immediate feedback to users as the agent thinks, acts, and generates responses.  Agentflow's streaming architecture delivers low-latency, interactive experiences perfect for chat interfaces and live applications.
 
 ## 🎯 Learning Objectives
 
 By the end of this tutorial, you'll understand:
 
-- How streaming works in 10xScale Agentflow React agents
+- How streaming works in  Agentflow React agents
 - Building responsive agents with real-time feedback
 - Handling streaming with tool calls and LLM responses
 - Event-driven architectures for agent monitoring
@@ -30,7 +30,7 @@ User Input → Agent Reasoning → Tool Calls → LLM Streaming → Real-time UI
    Event         Event         Event       Event              Event Stream
 ```
 
-### Types of Streaming in 10xScale Agentflow
+### Types of Streaming in  Agentflow
 
 1. **Response Streaming**: Progressive LLM text generation
 2. **Event Streaming**: Real-time agent state and execution events
@@ -420,9 +420,9 @@ if __name__ == "__main__":
 
 ## 📊 Event-Driven Streaming
 
-### Understanding 10xScale Agentflow Events
+### Understanding  Agentflow Events
 
-10xScale Agentflow streams events that represent different stages of agent execution:
+ Agentflow streams events that represent different stages of agent execution:
 
 ```python
 from agentflow.utils.streaming import EventModel

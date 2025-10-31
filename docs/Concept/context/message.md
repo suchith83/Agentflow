@@ -1,6 +1,6 @@
 # Messages: The Lifeblood of Agent Communication
 
-Messages in 10xScale Agentflow are far more than simple text containers—they are the **fundamental units of communication** that flow through your agent graphs, carrying not just content but rich context, metadata, and semantic information that enables sophisticated agent interactions. Understanding messages deeply is crucial for building agents that can engage in complex, multimodal conversations.
+Messages in  Agentflow are far more than simple text containers—they are the **fundamental units of communication** that flow through your agent graphs, carrying not just content but rich context, metadata, and semantic information that enables sophisticated agent interactions. Understanding messages deeply is crucial for building agents that can engage in complex, multimodal conversations.
 
 ## The Message as a Living Entity
 
@@ -22,7 +22,7 @@ message = Message(
 
 ### The Anatomy of Intelligence: Message Components
 
-Every message in 10xScale Agentflow contains multiple layers of information that collectively enable intelligent communication:
+Every message in  Agentflow contains multiple layers of information that collectively enable intelligent communication:
 
 #### **Core Identity**
 - **Message ID**: Unique identifier for tracking and reference
@@ -122,7 +122,7 @@ tool_message = Message.tool_message(
 
 ## Content Blocks: Multimodal Communication
 
-10xScale Agentflow's content block system enables **rich, multimodal communication** that goes far beyond simple text:
+ Agentflow's content block system enables **rich, multimodal communication** that goes far beyond simple text:
 
 ### **Text Blocks**: Fundamental Communication
 
@@ -596,7 +596,7 @@ robust_message = Message(
 
 ## Conclusion: Messages as the Foundation of Intelligence
 
-Messages in 10xScale Agentflow are the **fundamental building blocks** of agent intelligence. They are:
+Messages in  Agentflow are the **fundamental building blocks** of agent intelligence. They are:
 
 - **Rich communication artifacts** that carry content, context, and metadata
 - **Flexible containers** supporting multimodal communication patterns

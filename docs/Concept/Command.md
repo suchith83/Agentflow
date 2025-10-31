@@ -1,10 +1,10 @@
 # Commands: Combining State Updates with Control Flow
 
-Commands in 10xScale Agentflow represent a powerful pattern that allows your agent nodes to simultaneously update the agent state and direct the graph's execution flow. Inspired by LangGraph's Command API, this approach enables more dynamic and expressive agent behaviors where a single node can both modify data and make routing decisions.
+Commands in  Agentflow represent a powerful pattern that allows your agent nodes to simultaneously update the agent state and direct the graph's execution flow. Inspired by LangGraph's Command API, this approach enables more dynamic and expressive agent behaviors where a single node can both modify data and make routing decisions.
 
 ## The Command Pattern
 
-Traditional graph nodes in 10xScale Agentflow return either updated state or a simple value that gets passed to the next node. Commands break this limitation by allowing nodes to return a `Command` object that encapsulates both:
+Traditional graph nodes in  Agentflow return either updated state or a simple value that gets passed to the next node. Commands break this limitation by allowing nodes to return a `Command` object that encapsulates both:
 
 - **State updates**: Modifications to the agent state
 - **Control flow**: Instructions on where the graph should execute next
@@ -169,7 +169,7 @@ def adaptive_planner(state: PlanningState, config: dict) -> Command[PlanningStat
 
 ## Integration with State Graphs
 
-Commands integrate seamlessly with 10xScale Agentflow's state graph system. When a node returns a `Command`, the graph execution engine:
+Commands integrate seamlessly with Agentflow's state graph system. When a node returns a `Command`, the graph execution engine:
 
 1. **Applies the state update** if `update` is provided
 2. **Updates the execution pointer** based on `goto`
@@ -237,4 +237,4 @@ app = graph.compile()
 | Limited to current graph | Cross-graph navigation support |
 | Simple conditional logic | Complex multi-factor routing |
 
-Commands represent a significant enhancement to 10xScale Agentflow's expressiveness, enabling agents that can adapt their behavior dynamically while maintaining clean, maintainable code architecture.
+Commands represent a significant enhancement to  Agentflow's expressiveness, enabling agents that can adapt their behavior dynamically while maintaining clean, maintainable code architecture.

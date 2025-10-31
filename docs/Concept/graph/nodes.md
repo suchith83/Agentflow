@@ -1,6 +1,6 @@
 # Nodes & Return Types
 
-Nodes are the executable units of a 10xScale Agentflow graph. Each node is a Python function (sync or async) that receives
+Nodes are the executable units of a Agentflow graph. Each node is a Python function (sync or async) that receives
 state, optional config, and any number of injected dependencies. Its return value determines how the graph proceeds.
 
 ---

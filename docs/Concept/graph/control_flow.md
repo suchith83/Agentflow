@@ -1,6 +1,6 @@
 # Control Flow & Edges
 
-Control flow in 10xScale Agentflow is explicit: you wire deterministic edges when constructing the graph or emit a `Command` at
+Control flow in Agentflow is explicit: you wire deterministic edges when constructing the graph or emit a `Command` at
 runtime to jump. This page explains edges, conditional routing, recursion limits, interrupts, and stop requests.
 
 ---
@@ -101,7 +101,7 @@ Best practices:
 
 ## Interrupts & Stop Requests
 
-10xScale Agentflow supports robust human-in-the-loop (HITL) patterns through interrupt and stop mechanisms:
+Agentflow supports robust human-in-the-loop (HITL) patterns through interrupt and stop mechanisms:
 
 | Mechanism | Trigger | Effect | Use Case |
 |-----------|---------|--------|----------|

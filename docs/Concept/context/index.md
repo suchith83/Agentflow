@@ -1,6 +1,6 @@
-# The Three Layers of Memory in 10xScale Agentflow
+# The Three Layers of Memory in  Agentflow
 
-10xScale Agentflow implements a sophisticated three-tier memory architecture that mirrors how humans process and retain information. Understanding this layered approach is crucial for building effective agents that can maintain context, learn from interactions, and provide personalized experiences.
+ Agentflow implements a sophisticated three-tier memory architecture that mirrors how humans process and retain information. Understanding this layered approach is crucial for building effective agents that can maintain context, learn from interactions, and provide personalized experiences.
 
 ## The Memory Hierarchy: A Conceptual Foundation
 
@@ -27,7 +27,7 @@ Let's explore how each layer works in practice.
 
 ## Layer 1: Working Memory - The Agent's Active Thoughts
 
-Working memory in 10xScale Agentflow is embodied by the `AgentState`, which holds the current conversation context as a living, breathing entity.
+Working memory in  Agentflow is embodied by the `AgentState`, which holds the current conversation context as a living, breathing entity.
 
 ```python
 from agentflow.state import AgentState
@@ -102,7 +102,7 @@ await checkpointer.aput_state(config, final_state)
 
 ### The Dual Storage Strategy
 
-Here's a key insight: 10xScale Agentflow uses a **two-tier persistence strategy** within session memory itself:
+Here's a key insight:  Agentflow uses a **two-tier persistence strategy** within session memory itself:
 
 1. **Fast Cache (Redis)** - For active conversations and immediate retrieval
 2. **Durable Storage (PostgreSQL)** - For permanent record-keeping
@@ -252,7 +252,7 @@ The key insight is that these layers serve **different stakeholders** and **use 
 
 ## Conclusion: Building Memory-Aware Agents
 
-10xScale Agentflow's three-tier memory architecture provides a foundation for building truly intelligent agents that can:
+ Agentflow's three-tier memory architecture provides a foundation for building truly intelligent agents that can:
 
 - **Think clearly** with focused working memory
 - **Remember completely** with persistent session memory

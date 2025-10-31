@@ -1,6 +1,6 @@
-# React Agent Patterns (10xScale Agentflow)
+# React Agent Patterns ( Agentflow)
 
-This directory provides comprehensive tutorials for building **ReAct (Reasoning and Acting)** agents in 10xScale Agentflow, from basic patterns to advanced integrations. These tutorials demonstrate the most common and powerful agent architecture: the think → act → observe → repeat loop.
+This directory provides comprehensive tutorials for building **ReAct (Reasoning and Acting)** agents in  Agentflow, from basic patterns to advanced integrations. These tutorials demonstrate the most common and powerful agent architecture: the think → act → observe → repeat loop.
 
 ## 🎯 What Are React Agents?
 
@@ -36,11 +36,11 @@ Follow these tutorials in order for the best learning experience:
 ### Prerequisites
 
 ```bash
-# Install 10xScale Agentflow with dependencies
-pip install 10xscale-agentflow[litellm]
+# Install  Agentflow with dependencies
+pip install -agentflow[litellm]
 
 # For MCP examples
-pip install 10xscale-agentflow[mcp]
+pip install -agentflow[mcp]
 
 # Set up environment
 export OPENAI_API_KEY=your_key
@@ -71,7 +71,7 @@ python stream1.py
 
 ## 🏗️ Core React Architecture
 
-All React agents in 10xScale Agentflow follow this pattern:
+All React agents in  Agentflow follow this pattern:
 
 ```python
 from agentflow.graph import StateGraph, ToolNode
@@ -243,4 +243,4 @@ examples/
 
 ---
 
-**Ready to build intelligent agents?** Start with **[Basic React Patterns](01-basic-react.md)** to learn the fundamentals, then progress through each tutorial to master advanced React agent development in 10xScale Agentflow!
+**Ready to build intelligent agents?** Start with **[Basic React Patterns](01-basic-react.md)** to learn the fundamentals, then progress through each tutorial to master advanced React agent development in  Agentflow!

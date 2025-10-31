@@ -1,10 +1,10 @@
-# 10xScale Agentflow Tutorials
+# Agentflow Tutorials
 
-Welcome to 10xScale Agentflow! This tutorial series will guide you through building intelligent agents and multi-agent workflows, from basic graph construction to advanced patterns like streaming, persistence, and tool integration.
+Welcome to  Agentflow! This tutorial series will guide you through building intelligent agents and multi-agent workflows, from basic graph construction to advanced patterns like streaming, persistence, and tool integration.
 
 ## 🎯 What You'll Learn
 
-10xScale Agentflow is a lightweight Python framework for building agent graphs on top of LiteLLM. By the end of these tutorials, you'll understand how to:
+ Agentflow is a lightweight Python framework for building agent graphs on top of LiteLLM. By the end of these tutorials, you'll understand how to:
 
 - Build and execute agent workflows using `StateGraph` and nodes
 - Manage conversation state and message flow with `AgentState`
@@ -24,11 +24,11 @@ Before diving in, ensure you have:
 
 ### Quick Setup
 
-1. **Install 10xScale Agentflow** with your preferred LLM provider:
+1. **Install  Agentflow** with your preferred LLM provider:
    ```bash
-   pip install 10xscale-agentflow[litellm]
+   pip install -agentflow[litellm]
    # Optional: add persistence and tools
-   pip install 10xscale-agentflow[pg_checkpoint,mcp]
+   pip install -agentflow[pg_checkpoint,mcp]
    ```
 
 2. **Set up environment variables** in `.env`:

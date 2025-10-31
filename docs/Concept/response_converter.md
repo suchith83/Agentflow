@@ -1,6 +1,6 @@
 ## Response Conversion Architecture
 
-LLM SDKs return provider-specific objects (LiteLLM model responses, streaming wrappers, raw dicts). 10xScale Agentflow normalises these into its internal `Message` structure so downstream nodes, tool routing, publishers, and checkpointers operate over a consistent schema.
+LLM SDKs return provider-specific objects (LiteLLM model responses, streaming wrappers, raw dicts). Agentflow normalises these into its internal `Message` structure so downstream nodes, tool routing, publishers, and checkpointers operate over a consistent schema.
 
 Core pieces live in `agentflow/adapters/llm/`:
 
@@ -55,7 +55,7 @@ The invoke handler detects the wrapper, calls `invoke()` (or `stream()` in strea
 
 `LiteLLMConverter` extracts and maps:
 
-| Source (LiteLLM) | Target (10xScale Agentflow Message) |
+| Source (LiteLLM) | Target (Agentflow Message) |
 |------------------|-----------------------------|
 | `choices[0].message.content` | `TextBlock` in `content[]` |
 | `choices[0].message.reasoning_content` | `ReasoningBlock` (if present) |

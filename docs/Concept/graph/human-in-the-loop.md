@@ -1,6 +1,6 @@
 # Human-in-the-Loop (HITL) & Interrupts
 
-10xScale Agentflow provides robust human-in-the-loop capabilities through its interrupt and stop mechanisms. These features enable agents to pause execution for human approval, debugging, external intervention, and dynamic control flow management.
+Agentflow provides robust human-in-the-loop capabilities through its interrupt and stop mechanisms. These features enable agents to pause execution for human approval, debugging, external intervention, and dynamic control flow management.
 
 ---
 
@@ -14,7 +14,7 @@ Human-in-the-loop patterns are essential for:
 - **Safety gates** – Require human confirmation for high-risk actions
 - **Progressive automation** – Start manual, gradually automate as confidence grows
 
-10xScale Agentflow supports HITL through two complementary mechanisms:
+Agentflow supports HITL through two complementary mechanisms:
 
 | Mechanism | When Defined | Trigger | Use Case |
 |-----------|--------------|---------|----------|

@@ -2,7 +2,7 @@
 
 ## Overview
 
-`QdrantStore` is a modern, async-first vector store implementation for 10xScale Agentflow that uses [Qdrant](https://qdrant.tech/) as the backend vector database. It provides efficient vector similarity search, memory management, and supports both local and cloud Qdrant deployments.
+`QdrantStore` is a modern, async-first vector store implementation for  Agentflow that uses [Qdrant](https://qdrant.tech/) as the backend vector database. It provides efficient vector similarity search, memory management, and supports both local and cloud Qdrant deployments.
 
 ## Features
 
@@ -17,7 +17,7 @@
 
 ## Installation
 
-Install 10xScale Agentflow with Qdrant support:
+Install  Agentflow with Qdrant support:
 
 ```bash
 pip install 'agentflow[qdrant]'
@@ -326,13 +326,13 @@ See `tests/store/test_qdrant_store.py` for comprehensive test examples and `exam
 
 - `qdrant-client>=1.7.0` - Qdrant Python client
 - `openai` (optional) - For OpenAI embeddings
-- `agentflow` - Core 10xScale Agentflow framework
+- `agentflow` - Core  Agentflow framework
 
 ## Troubleshooting
 
 ### Common Issues
 
-1. **Import Error**: Install qdrant-client with `pip install '10xscale-agenflow[qdrant]'`
+1. **Import Error**: Install qdrant-client with `pip install '-agenflow[qdrant]'`
 2. **Connection Error**: Ensure Qdrant server is running and accessible
 3. **Embedding Dimension Mismatch**: Ensure all embeddings use the same dimension
 4. **API Key Issues**: Verify OpenAI API key is set correctly

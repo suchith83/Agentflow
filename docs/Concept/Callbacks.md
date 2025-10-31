@@ -43,7 +43,7 @@ callback_manager = CallbackManager()
 callback_manager.register_before_invoke(InvocationType.TOOL, validate_tool_input)
 ```
 
-Before any tool, AI model, or MCP function is called, 10xScale Agentflow executes all registered `before_invoke` callbacks. This is your opportunity to:
+Before any tool, AI model, or MCP function is called, Agentflow executes all registered `before_invoke` callbacks. This is your opportunity to:
 - Validate inputs according to business rules
 - Add contextual information or metadata
 - Transform data formats or apply normalization
@@ -120,7 +120,7 @@ When operations fail, `on_error` callbacks provide sophisticated error handling:
 
 ## Input Validation System
 
-Beyond the standard callback lifecycle, 10xScale Agentflow provides a dedicated input validation system that works alongside callbacks to ensure data quality and security before messages are processed by your agent.
+Beyond the standard callback lifecycle, Agentflow provides a dedicated input validation system that works alongside callbacks to ensure data quality and security before messages are processed by your agent.
 
 ### Understanding Validators
 
@@ -190,7 +190,7 @@ callback_manager.register_input_validator(CustomSecurityValidator(strict=True))
 
 ### Built-in Validators
 
-10xScale Agentflow includes two powerful built-in validators:
+Agentflow includes two powerful built-in validators:
 
 **PromptInjectionValidator**: Protects against OWASP LLM01:2025 prompt injection attacks by detecting:
 - System prompt leakage attempts
@@ -332,7 +332,7 @@ async def test_validator_integration():
 
 ## Invocation Types and Context
 
-10xScale Agentflow distinguishes between four types of operations that can trigger callbacks:
+Agentflow distinguishes between four types of operations that can trigger callbacks:
 
 ### AI Invocations
 These occur when your agent calls language models for reasoning, planning, or text generation:
@@ -694,4 +694,4 @@ Callbacks and validators add overhead to each operation:
 - Consider async operations for I/O-bound validation (external API checks)
 - Profile callback chains if latency becomes an issue
 
-The callback and validation systems transform 10xScale Agentflow from a simple execution engine into a sophisticated, controllable platform where every operation can be monitored, modified, and managed according to your specific requirements. By strategically placing callbacks and validators throughout your agent workflows, you create robust, secure, and maintainable AI systems that adapt to complex real-world requirements.
+The callback and validation systems transform Agentflow from a simple execution engine into a sophisticated, controllable platform where every operation can be monitored, modified, and managed according to your specific requirements. By strategically placing callbacks and validators throughout your agent workflows, you create robust, secure, and maintainable AI systems that adapt to complex real-world requirements.
