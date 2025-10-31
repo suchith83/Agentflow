@@ -20,7 +20,7 @@ from .reducers import add_messages
 
 # Generic type variable for state subclassing
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("agentflow.state")
 
 
 class AgentState(BaseModel):

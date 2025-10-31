@@ -17,7 +17,7 @@ from agentflow.state.message_block import ReasoningBlock, TextBlock, ToolCallBlo
 from .base_converter import BaseConverter
 
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("agentflow.adapters.litellm")
 
 
 try:

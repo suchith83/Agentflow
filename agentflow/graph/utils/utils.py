@@ -42,7 +42,7 @@ from agentflow.utils.callbacks import CallbackManager
 
 StateT = TypeVar("StateT", bound=AgentState)
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("agentflow.graph")
 
 
 async def parse_response(

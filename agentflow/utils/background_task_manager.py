@@ -15,7 +15,7 @@ from typing import Any
 from agentflow.utils import metrics
 
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("agentflow.utils")
 
 
 @dataclass

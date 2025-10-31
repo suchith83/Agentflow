@@ -16,7 +16,7 @@ from agentflow.utils import CallbackContext, CallbackManager, InvocationType, ca
 from .constants import INJECTABLE_PARAMS
 
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("agentflow.graph.tool_node")
 
 
 class ComposioMixin:

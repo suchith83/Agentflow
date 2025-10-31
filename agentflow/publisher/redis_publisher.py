@@ -21,7 +21,7 @@ from agentflow.publisher.events import EventModel
 from .base_publisher import BasePublisher
 
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("agentflow.publisher")
 
 
 class RedisPublisher(BasePublisher):

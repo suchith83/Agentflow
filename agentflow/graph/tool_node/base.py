@@ -40,7 +40,7 @@ from .executors import ComposioMixin, KwargsResolverMixin, LangChainMixin, Local
 from .schema import SchemaMixin
 
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("agentflow.graph.tool_node")
 
 
 class ToolNode(

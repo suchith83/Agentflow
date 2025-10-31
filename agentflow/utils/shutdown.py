@@ -20,7 +20,7 @@ from collections.abc import Callable
 from typing import Any
 
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("agentflow.utils")
 
 # Windows error code for invalid handle
 WINDOWS_INVALID_HANDLE_ERROR = 6

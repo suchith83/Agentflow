@@ -18,7 +18,7 @@ from .base_publisher import BasePublisher
 from .events import EventModel
 
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("agentflow.publisher")
 
 
 class RabbitMQPublisher(BasePublisher):

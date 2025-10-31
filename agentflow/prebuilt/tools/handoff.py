@@ -12,7 +12,7 @@ from agentflow.state.message import Message
 from agentflow.state.message_block import TextBlock
 
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("agentflow.prebuilt")
 
 
 def create_handoff_tool(
@@ -86,7 +86,7 @@ def create_handoff_tool(
         Returns:
             Message with handoff indication.
         """
-        logger.warning(
+        logger.info(
             "Handoff tool '%s' executed (should have been intercepted). "
             "Check that handoff detection is properly configured in "
             "invoke_node_handler and stream_node_handler.",

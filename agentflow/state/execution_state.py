@@ -12,7 +12,7 @@ from typing import Any
 from pydantic import BaseModel, Field
 
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("agentflow.state")
 
 
 class ExecutionStatus(str, Enum):

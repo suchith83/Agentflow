@@ -43,7 +43,7 @@ from agentflow.state.message_block import (
 )
 
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("agentflow.state")
 
 
 def generate_id(default_id: str | int | None) -> str | int:
@@ -93,9 +93,9 @@ def generate_id(default_id: str | int | None) -> str | int:
     )
 
     if id_type == "int":
-        return uuid4().int >> 32
+        return uuid4().int >> 96  # type: ignore
     if id_type == "bigint":
-        return uuid4().int >> 64
+        return uuid4().int >> 64  # type: ignore
     return str(uuid4())
 
 

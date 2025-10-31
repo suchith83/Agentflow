@@ -58,7 +58,7 @@ from agentflow.state.message import Message
 from agentflow.utils.callbacks import BaseValidator
 
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("agentflow.utils")
 
 
 class ValidationError(Exception):

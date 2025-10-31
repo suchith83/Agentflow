@@ -7,7 +7,7 @@ from agentflow.utils import run_coroutine
 from agentflow.utils.thread_info import ThreadInfo
 
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("agentflow.checkpointer")
 
 if TYPE_CHECKING:
     from agentflow.state import AgentState, Message

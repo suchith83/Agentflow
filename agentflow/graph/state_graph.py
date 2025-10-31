@@ -25,7 +25,7 @@ if TYPE_CHECKING:
 # Generic type variable bound to AgentState for state
 StateT = TypeVar("StateT", bound=AgentState)
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("agentflow.graph")
 
 
 class StateGraph[StateT: AgentState]:

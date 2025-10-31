@@ -4,7 +4,7 @@ from typing import Any
 from .graph_error import GraphError
 
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("agentflow.exceptions")
 
 
 class NodeError(GraphError):

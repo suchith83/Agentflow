@@ -25,11 +25,12 @@ from agentflow.state.stream_chunks import StreamChunk
 from agentflow.utils import (
     CallbackManager,
 )
+from agentflow.utils.command import Command
 
 from .tool_node import ToolNode
 
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("agentflow.graph")
 
 
 class Node:
@@ -103,7 +104,7 @@ class Node:
         config: dict[str, Any],
         state: AgentState,
         callback_mgr: CallbackManager = Inject[CallbackManager],
-    ) -> dict[str, Any] | list[Message]:
+    ) -> dict[str, Any] | list[Message] | Command:
         """Execute the node function with comprehensive context and callback support.
 
         Executes the node's function or ToolNode with full dependency injection,
