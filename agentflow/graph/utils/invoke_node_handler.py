@@ -13,6 +13,7 @@ Usage:
     result = await handler.invoke(config, state)
 """
 
+import asyncio
 import inspect
 import json
 import logging
@@ -24,6 +25,7 @@ from injectq import Inject
 from agentflow.exceptions import NodeError
 from agentflow.graph.tool_node import ToolNode
 from agentflow.graph.utils.utils import process_node_result
+from agentflow.prebuilt.tools.handoff import is_handoff_tool
 from agentflow.publisher import BasePublisher
 from agentflow.publisher.events import ContentType, Event, EventModel, EventType
 from agentflow.publisher.publish import publish_event
@@ -34,6 +36,7 @@ from agentflow.utils import (
     InvocationType,
     call_sync_or_async,
 )
+from agentflow.utils.command import Command
 
 from .handler_mixins import BaseLoggingMixin
 
@@ -117,7 +120,7 @@ class InvokeNodeHandler(BaseLoggingMixin):
         last_message: Message,
         state: "AgentState",
         config: dict[str, Any],
-    ) -> list[Message]:
+    ) -> list[Message] | Command:
         """
         Execute all tool calls present in the last message.
 
@@ -139,15 +142,41 @@ class InvokeNodeHandler(BaseLoggingMixin):
             and last_message.tools_calls
             and len(last_message.tools_calls) > 0
         ):
-            # Execute the first tool call for now
-            tool_call = last_message.tools_calls[0]
+            # NEW: Check for handoff BEFORE executing any tools
             for tool_call in last_message.tools_calls:
-                res = await self._handle_single_tool(
-                    tool_call,
-                    state,
-                    config,
-                )
-                result.append(res)
+                tool_name = tool_call.get("function", {}).get("name", "")
+                is_handoff, target_agent = is_handoff_tool(tool_name)
+
+                if is_handoff:
+                    logger.info(
+                        "Handoff detected in node '%s': tool '%s' -> agent '%s'",
+                        self.name,
+                        tool_name,
+                        target_agent,
+                    )
+
+                    # Return Command to navigate directly to target agent
+                    # This will be handled by the graph execution layer
+                    return Command(  # type: ignore
+                        update=None,
+                        goto=target_agent,
+                    )
+
+            # Continue with normal tool execution if no handoff detected
+            # Execute tool calls in parallel (preserve order of the input list)
+            logger.info(
+                "Node '%s' executing %d tool calls in parallel",
+                self.name,
+                len(last_message.tools_calls),
+            )
+
+            tasks = [
+                self._handle_single_tool(tool_call, state, config)
+                for tool_call in last_message.tools_calls
+            ]
+
+            # asyncio.gather preserves the order corresponding to the tasks list
+            result = await asyncio.gather(*tasks)
         else:
             # No tool calls to execute, return available tools
             logger.exception("Node '%s': No tool calls to execute", self.name)
@@ -367,7 +396,7 @@ class InvokeNodeHandler(BaseLoggingMixin):
         config: dict[str, Any],
         state: AgentState,
         callback_mgr: CallbackManager = Inject[CallbackManager],
-    ) -> dict[str, Any] | list[Message]:
+    ) -> dict[str, Any] | list[Message] | Command:
         """
         Execute the node function or ToolNode with dependency injection and callback hooks.
 
@@ -377,7 +406,8 @@ class InvokeNodeHandler(BaseLoggingMixin):
             callback_mgr (CallbackManager, optional): Callback manager for hooks.
 
         Returns:
-            dict | list[Message]: Result of node execution (regular node or tool node).
+            dict | list[Message] | Command: Result of node execution (regular node,
+            tool node, or a Command for handoff).
 
         Raises:
             NodeError: If execution fails or context is missing for tool nodes.
