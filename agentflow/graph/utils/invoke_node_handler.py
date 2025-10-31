@@ -192,8 +192,26 @@ class InvokeNodeHandler(BaseLoggingMixin):
             "config": config,
         }
 
-        # # Get injectable parameters to determine which ones to exclude from manual passing
-        # # Prepare function arguments (excluding injectable parameters)
+        # Collect all required parameters (excluding *args/**kwargs)
+        required_params = []
+        for param_name, param in sig.parameters.items():
+            if param.kind in (
+                inspect.Parameter.VAR_POSITIONAL,
+                inspect.Parameter.VAR_KEYWORD,
+            ):
+                continue
+            if param.default is inspect.Parameter.empty:
+                required_params.append((param_name, param))
+
+        # If function has exactly one required parameter and it's not 'state' or 'config',
+        # assume it should receive the state (common pattern for simple lambdas like lambda s: s)
+        if len(required_params) == 1:
+            param_name, param = required_params[0]
+            if param_name not in ["state", "config"]:
+                input_data[param_name] = state
+                return input_data
+
+        # Otherwise, handle standard named parameters
         for param_name, param in sig.parameters.items():
             # Skip *args/**kwargs
             if param.kind in (

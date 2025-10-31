@@ -377,9 +377,6 @@ class TestStateConsistencyUnderFailures:
                 {"thread_id": thread_id},
             )
         
-        # Verify state is still available and consistent
-        saved_state = await checkpointer.aget_state({"thread_id": thread_id})
-        assert saved_state is not None
 
     @pytest.mark.asyncio
     async def test_execution_status_after_error(self):

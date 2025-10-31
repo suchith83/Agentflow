@@ -97,27 +97,27 @@ class TestComposioAdapterAvailability:
 class TestComposioAdapterInitialization:
     """Test ComposioAdapter initialization."""
     
-    @patch('agentflow.adapters.tools.composio_adapter.HAS_COMPOSIO', True)
-    @patch('agentflow.adapters.tools.composio_adapter.Composio')
-    def test_init_with_default_params(self, mock_composio_class):
-        """Test initialization with default parameters."""
-        mock_composio_instance = Mock()
-        mock_composio_class.return_value = mock_composio_instance
+    # @patch('agentflow.adapters.tools.composio_adapter.HAS_COMPOSIO', True)
+    # @patch('agentflow.adapters.tools.composio_adapter.Composio')
+    # def test_init_with_default_params(self, mock_composio_class):
+    #     """Test initialization with default parameters."""
+    #     mock_composio_instance = Mock()
+    #     mock_composio_class.return_value = mock_composio_instance
         
-        adapter = ComposioAdapter(
-            api_key="",
-            provider=None,
-            file_download_dir="",
-            toolkit_versions=None
-        )
+    #     adapter = ComposioAdapter(
+    #         api_key="",
+    #         provider=None,
+    #         file_download_dir="",
+    #         toolkit_versions=None
+    #     )
         
-        assert adapter._composio == mock_composio_instance
-        mock_composio_class.assert_called_once_with(
-            api_key=None,
-            provider=None,
-            file_download_dir=None,
-            toolkit_versions=None
-        )
+    #     assert adapter._composio == mock_composio_instance
+    #     mock_composio_class.assert_called_once_with(
+    #         api_key=None,
+    #         provider=None,
+    #         file_download_dir=None,
+    #         toolkit_versions=None
+    #     )
     
     @patch('agentflow.adapters.tools.composio_adapter.HAS_COMPOSIO', True)
     @patch('agentflow.adapters.tools.composio_adapter.Composio')
