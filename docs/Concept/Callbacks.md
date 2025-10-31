@@ -1,10 +1,10 @@
 # Callbacks: Interception and Flow Control
 
-Callbacks in 10xScale Agentflow provide a powerful interception mechanism that allows you to hook into the execution flow of your agent graphs at critical decision points. Rather than simply observing events, callbacks enable you to actively participate in, modify, and control the execution process as it unfolds.
+Callbacks in Agentflow provide a powerful interception mechanism that allows you to hook into the execution flow of your agent graphs at critical decision points. Rather than simply observing events, callbacks enable you to actively participate in, modify, and control the execution process as it unfolds.
 
 ## Understanding the Interception Pattern
 
-Think of callbacks as strategic checkpoints placed throughout your agent's thinking process. When your agent is about to call a tool, query an AI model, or execute any external operation, 10xScale Agentflow pauses and gives your callback system the opportunity to:
+Think of callbacks as strategic checkpoints placed throughout your agent's thinking process. When your agent is about to call a tool, query an AI model, or execute any external operation, Agentflow pauses and gives your callback system the opportunity to:
 
 - **Validate inputs** before they're processed
 - **Transform or enrich data** as it flows through the system
@@ -21,7 +21,7 @@ The callback system operates around three fundamental moments in any operation:
 ### Before Invoke: The Preparation Phase
 
 ```python
-from agentflow.utils.callbacks import register_before_invoke, InvocationType, CallbackContext
+from agentflow.utils.callbacks import CallbackManager, InvocationType, CallbackContext
 
 
 async def validate_tool_input(context: CallbackContext, input_data: dict) -> dict:
@@ -38,8 +38,9 @@ async def validate_tool_input(context: CallbackContext, input_data: dict) -> dic
     return input_data
 
 
-# Register for tool invocations
-register_before_invoke(InvocationType.TOOL, validate_tool_input)
+# Register for tool invocations with a callback manager
+callback_manager = CallbackManager()
+callback_manager.register_before_invoke(InvocationType.TOOL, validate_tool_input)
 ```
 
 Before any tool, AI model, or MCP function is called, 10xScale Agentflow executes all registered `before_invoke` callbacks. This is your opportunity to:
@@ -52,7 +53,7 @@ Before any tool, AI model, or MCP function is called, 10xScale Agentflow execute
 ### After Invoke: The Processing Phase
 
 ```python
-from agentflow.utils.callbacks import register_after_invoke
+from agentflow.utils.callbacks import CallbackManager, InvocationType
 
 
 async def enrich_ai_response(context: CallbackContext, input_data: dict, output_data: any) -> any:
@@ -70,7 +71,8 @@ async def enrich_ai_response(context: CallbackContext, input_data: dict, output_
     return output_data
 
 
-register_after_invoke(InvocationType.AI, enrich_ai_response)
+callback_manager = CallbackManager()
+callback_manager.register_after_invoke(InvocationType.AI, enrich_ai_response)
 ```
 
 After successful execution, `after_invoke` callbacks process the results. This phase enables:
@@ -83,8 +85,8 @@ After successful execution, `after_invoke` callbacks process the results. This p
 ### On Error: The Recovery Phase
 
 ```python
-from agentflow.utils.callbacks import register_on_error
-from agentflow.utils.message import Message
+from agentflow.utils.callbacks import CallbackManager, InvocationType
+from agentflow.state.message import Message
 
 
 async def handle_tool_errors(context: CallbackContext, input_data: dict, error: Exception) -> Message | None:
@@ -106,7 +108,8 @@ async def handle_tool_errors(context: CallbackContext, input_data: dict, error: 
     return None
 
 
-register_on_error(InvocationType.TOOL, handle_tool_errors)
+callback_manager = CallbackManager()
+callback_manager.register_on_error(InvocationType.TOOL, handle_tool_errors)
 ```
 
 When operations fail, `on_error` callbacks provide sophisticated error handling:
@@ -182,7 +185,7 @@ class CustomSecurityValidator(BaseValidator):
 
 # Register the validator
 callback_manager = CallbackManager()
-callback_manager.register_validator(CustomSecurityValidator(strict=True))
+callback_manager.register_input_validator(CustomSecurityValidator(strict=True))
 ```
 
 ### Built-in Validators
@@ -219,8 +222,12 @@ Validators support two operational modes:
 
 **Strict Mode** (default): Raises `ValidationError` immediately when validation fails, blocking the operation:
 ```python
+from agentflow.utils.callbacks import CallbackManager
+from agentflow.utils.validators import PromptInjectionValidator
+
+callback_manager = CallbackManager()
 validator = PromptInjectionValidator(strict=True)
-callback_manager.register_validator(validator)
+callback_manager.register_input_validator(validator)
 
 # This will raise ValidationError if injection detected
 await compiled_graph.invoke({"messages": [suspicious_message]})
@@ -228,26 +235,15 @@ await compiled_graph.invoke({"messages": [suspicious_message]})
 
 **Lenient Mode**: Logs violations but allows execution to continue, useful for monitoring and gradual rollout:
 ```python
+from agentflow.utils.callbacks import CallbackManager
+from agentflow.utils.validators import PromptInjectionValidator
+
+callback_manager = CallbackManager()
 validator = PromptInjectionValidator(strict=False)
-callback_manager.register_validator(validator)
+callback_manager.register_input_validator(validator)
 
 # This will log warnings but continue execution
 result = await compiled_graph.invoke({"messages": [suspicious_message]})
-```
-
-### Global Validator Registration
-
-For convenience, you can use the global default callback manager:
-
-```python
-from agentflow.utils.callbacks import register_validator, default_callback_manager
-from agentflow.utils.validators import PromptInjectionValidator
-
-# Register to global manager
-register_validator(PromptInjectionValidator(strict=True))
-
-# Compile without explicit callback_manager to use defaults
-compiled_graph = graph.compile()  # Uses default_callback_manager
 ```
 
 ### Validation in Practice
@@ -265,7 +261,7 @@ callback_manager = CallbackManager()
 register_default_validators(callback_manager)
 
 # Add custom validators
-callback_manager.register_validator(CustomSecurityValidator(strict=True))
+callback_manager.register_input_validator(CustomSecurityValidator(strict=True))
 
 # Build your graph
 graph = StateGraph(AgentState)
@@ -324,7 +320,7 @@ async def test_validator_integration():
     """Test validator integration with callback manager."""
     callback_manager = CallbackManager()
     validator = CustomSecurityValidator(strict=True)
-    callback_manager.register_validator(validator)
+    callback_manager.register_input_validator(validator)
     
     # Create test messages
     messages = [Message.from_text("Safe content", role="user")]
@@ -469,6 +465,8 @@ async def adaptive_callback(context: CallbackContext, input_data: dict) -> dict:
 Multiple callbacks of the same type are executed in registration order, allowing for sophisticated data pipelines:
 
 ```python
+from agentflow.utils.callbacks import CallbackManager, InvocationType
+
 # First callback: Basic validation
 async def validate_input(context: CallbackContext, input_data: dict) -> dict:
     if not input_data.get("required_field"):
@@ -486,10 +484,11 @@ async def transform_format(context: CallbackContext, input_data: dict) -> dict:
     # Convert to expected format
     return transform_to_service_format(input_data)
 
-# Register in order
-register_before_invoke(InvocationType.TOOL, validate_input)
-register_before_invoke(InvocationType.TOOL, enrich_input)
-register_before_invoke(InvocationType.TOOL, transform_format)
+# Register in order with a callback manager
+callback_manager = CallbackManager()
+callback_manager.register_before_invoke(InvocationType.TOOL, validate_input)
+callback_manager.register_before_invoke(InvocationType.TOOL, enrich_input)
+callback_manager.register_before_invoke(InvocationType.TOOL, transform_format)
 ```
 
 ### Conditional Logic with Context Awareness
@@ -555,21 +554,20 @@ async def intelligent_error_recovery(
 Callbacks and validators integrate seamlessly with your graph construction, providing consistent behavior across all nodes:
 
 ```python
-from agentflow.utils.callbacks import CallbackManager, default_callback_manager
+from agentflow.utils.callbacks import CallbackManager, InvocationType
 from agentflow.utils.validators import register_default_validators
 from agentflow.graph import StateGraph
 
+# Create callback manager
+callback_manager = CallbackManager()
+
 # Set up callbacks
-register_before_invoke(InvocationType.TOOL, security_validator)
-register_after_invoke(InvocationType.AI, response_enhancer)
-register_on_error(InvocationType.MCP, error_recovery_handler)
+callback_manager.register_before_invoke(InvocationType.TOOL, security_validator)
+callback_manager.register_after_invoke(InvocationType.AI, response_enhancer)
+callback_manager.register_on_error(InvocationType.MCP, error_recovery_handler)
 
 # Set up validators
-callback_manager = CallbackManager()
 register_default_validators(callback_manager)
-
-# Or use default manager with convenience functions
-# register_validator(PromptInjectionValidator(strict=True))
 
 # Create graph with callback integration
 graph = StateGraph(AgentState)
@@ -652,8 +650,8 @@ from agentflow.utils.validators import PromptInjectionValidator, MessageContentV
 def setup_security_callbacks(manager: CallbackManager):
     """Set up all security-related callbacks and validators."""
     # Register validators
-    manager.register_validator(PromptInjectionValidator(strict=True))
-    manager.register_validator(MessageContentValidator(strict=True))
+    manager.register_input_validator(PromptInjectionValidator(strict=True))
+    manager.register_input_validator(MessageContentValidator(strict=True))
     
     # Register callbacks
     manager.register_before_invoke(InvocationType.TOOL, validate_tool_permissions)
