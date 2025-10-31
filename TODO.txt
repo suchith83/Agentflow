@@ -38,3 +38,10 @@ json serializable, easy to debug, log and store.
 10. Sentry Integration ready, just provide the DSN in the settings, all the exceptions
 will be sent to sentry with proper context.
 json serializable, easy to debug, log and store.
+
+
+
+# Plans
+1. add logfire support
+2. add opentelemetry support
+3. a2a communication
