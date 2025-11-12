@@ -1,10 +1,12 @@
 from dotenv import load_dotenv
+from injectq import Inject
 from litellm import completion
 
 from agentflow.adapters.llm.model_response_converter import ModelResponseConverter
 from agentflow.checkpointer import InMemoryCheckpointer
 from agentflow.graph import StateGraph, ToolNode
 from agentflow.state import AgentState, Message
+from agentflow.state.base_context import BaseContextManager
 from agentflow.utils.constants import END
 from agentflow.utils.converter import convert_messages
 
@@ -35,13 +37,13 @@ def get_weather(
 tool_node = ToolNode([get_weather])
 
 
-def main_agent(
-    state: AgentState,
-):
+def main_agent(state: AgentState, context_manager: BaseContextManager = Inject[BaseContextManager]):
     prompts = """
         You are a helpful assistant.
         Your task is to assist the user in finding information and answering questions.
     """
+
+    new_state = context_manager.trim_context(state)
 
     messages = convert_messages(
         system_prompts=[
@@ -55,7 +57,7 @@ def main_agent(
             },
             {"role": "user", "content": "Today Date is 2024-06-15"},
         ],
-        state=state,
+        state=new_state,
     )
 
     mcp_tools = []

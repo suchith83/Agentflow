@@ -1,5 +1,7 @@
 Features
 1. Added Handoff Tools
+2. Added Remote Tools
+
 
 Fixes
 1. Parallel tool calls for invoke methods

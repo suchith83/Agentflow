@@ -30,7 +30,11 @@ class MessageContextManager(BaseContextManager[S]):
     Generic over AgentState or its subclasses.
     """
 
-    def __init__(self, max_messages: int = 10, remove_tool_msgs: bool = False) -> None:
+    def __init__(
+        self,
+        max_messages: int = 10,
+        remove_tool_msgs: bool = False,
+    ) -> None:
         """
         Initialize the MessageContextManager.
 

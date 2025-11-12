@@ -11,6 +11,8 @@ from uuid import uuid4
 from injectq import InjectQ
 
 from agentflow.checkpointer.base_checkpointer import BaseCheckpointer
+from agentflow.exceptions.graph_error import GraphError
+from agentflow.graph.tool_node.base import ToolNode
 from agentflow.publisher.base_publisher import BasePublisher
 from agentflow.state import AgentState
 from agentflow.state.execution_state import StopRequestStatus
@@ -21,6 +23,7 @@ from agentflow.utils import (
 )
 from agentflow.utils.background_task_manager import BackgroundTaskManager
 
+from .node import Node
 from .utils.invoke_handler import InvokeHandler
 from .utils.stream_handler import StreamHandler
 
@@ -392,6 +395,57 @@ class CompiledGraph[StateT: AgentState]:
             response_granularity,
         ):
             yield chunk
+
+    def attach_remote_tools(
+        self,
+        tools: list[dict],
+        node_name: str,
+    ):
+        """Attach remote tools to a ToolNode in the graph.
+
+        Args:
+            tools: List of tool configurations to attach.
+            node_name: Name of the ToolNode to attach tools to.
+
+        Raises:
+            GraphError: If the specified node is not a ToolNode.
+
+        Example:
+            >>> tool_configs = [
+            ...     {"name": "search", "type": "SearchTool", "config": {...}},
+            ...     {"name": "calculator", "type": "CalculatorTool", "config": {...}},
+            ... ]
+            >>> graph.attach_remote_tools(tool_configs, "tool_node")
+        """
+        logger.debug(
+            "Attaching remote tools to node '%s': %s",
+            node_name,
+            tools,
+        )
+        node: Node | None = self._state_graph.nodes.get(node_name)
+        if not node:
+            raise GraphError(
+                message=f"Node '{node_name}' not found in graph",
+                error_code="GRAPH_004",
+                context={"node_name": node_name},
+            )
+
+        if not isinstance(node.func, ToolNode):
+            error_msg = f"Node '{node_name}' is not a ToolNode"
+            logger.error(error_msg)
+            raise GraphError(
+                message=error_msg,
+                error_code="GRAPH_005",
+                context={"node_name": node_name},
+            )
+
+        tool_node: ToolNode = node.func
+        tool_node.set_remote_tool(tools)
+        logger.info(
+            "Attached %d remote tools to ToolNode '%s'",
+            len(tools),
+            node_name,
+        )
 
     async def aclose(self) -> dict[str, Any]:
         """
