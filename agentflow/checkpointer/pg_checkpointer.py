@@ -1415,6 +1415,7 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
                     user_id=user_id,
                     metadata=meta_dict,
                     run_id=meta_dict.get("run_id"),
+                    updated_at=row["updated_at"] if row else None,
                 )
 
             logger.debug("Thread not found for thread_id=%s, user_id=%s", thread_id, user_id)

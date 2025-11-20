@@ -11,7 +11,7 @@ Classes:
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class ThreadInfo(BaseModel):
@@ -35,5 +35,5 @@ class ThreadInfo(BaseModel):
     thread_name: str | None = None
     user_id: int | str | None = None
     metadata: dict[str, Any] | None = None
-    updated_at: datetime | None = None
+    updated_at: datetime | None = Field(default_factory=datetime.now)
     run_id: str | None = None
