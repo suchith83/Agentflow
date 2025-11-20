@@ -1299,7 +1299,7 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
             content=content_value,
             tools_calls=tool_calls,
             reasoning=row["reasoning"],
-            timestamp=row["created_at"],
+            timestamp=row["created_at"].timestamp() if row["created_at"] else 0,
             metadata=metadata,
             usages=usages,
         )
