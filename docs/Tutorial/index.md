@@ -54,7 +54,8 @@ Follow these tutorials in order for the best learning experience:
 1. **[Graph Fundamentals](graph.md)** - Build your first agent with `StateGraph`, nodes, and edges
 2. **[State & Messages](state.md)** - Master conversation state and message schemas
 3. **[Tools & Dependency Injection](adapter.md)** - Create tool-calling agents with `ToolNode`
-4. **[React Agent Patterns](react/)** - Complete guide to ReAct agents: basic patterns, DI, MCP, streaming
+4. **[Tool Decorator](tool-decorator.md)** - Organize tools with rich metadata, tags, and filtering
+5. **[React Agent Patterns](react/)** - Complete guide to ReAct agents: basic patterns, DI, MCP, streaming
 
 ### 🔀 Control & Flow
 4. **[Control Flow & Routing](graph.md#control-flow)** - Conditional edges, interrupts, and error handling
@@ -84,6 +85,7 @@ Follow these tutorials in order for the best learning experience:
 | [Graph Fundamentals](graph.md) | StateGraph, nodes, compilation | `examples/react/react_sync.py` |
 | [State & Messages](state.md) | AgentState, message handling | `agentflow/state/`, `agentflow/utils/message.py` |
 | [Tools & DI](adapter.md) | ToolNode, dependency injection | `examples/react-injection/`, `examples/react-mcp/` |
+| [Tool Decorator](tool-decorator.md) | Metadata, tags, filtering | `examples/tool-decorator/` |
 | [React Agents](react/) | Complete ReAct guide: basic, DI, MCP, streaming | `examples/react*/` |
 | [Control Flow](graph.md#control-flow) | Conditional routing, interrupts | `examples/react/react_weather_agent.py` |
 | [Persistence](checkpointer.md) | Checkpointers, stores | `agentflow/checkpointer/`, `agentflow/store/` |

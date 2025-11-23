@@ -32,7 +32,7 @@ config = {
 
 client_http = Client(config)
 
-tool_node = ToolNode(functions=[], client=client_http)
+tool_node = ToolNode(tools=[], client=client_http)
 
 
 async def main_agent(

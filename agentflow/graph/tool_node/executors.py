@@ -673,7 +673,8 @@ class MCPMixin:
             )
         ]
 
-    async def _get_mcp_tool(self) -> list[dict]:
+    async def _get_mcp_tool(self, tags: set[str] | None = None) -> list[dict]:
+        """Fetch tools from the MCP client, optionally filtering by tags."""
         tools: list[dict] = []
         if self._client:
             async with self._client:
@@ -682,6 +683,12 @@ class MCPMixin:
                     return tools
                 mcp_tools: list[t.Any] = await self._client.list_tools()
                 for i in mcp_tools:
+                    if tags:
+                        # Logic: if tags are provided, filter tools by tags
+                        meta = i.meta or {}
+                        tool_tags = set(meta.get("_fastmcp", {}).get("tags", []))
+                        if not tool_tags.intersection(tags):
+                            continue
                     # attribute provided by concrete ToolNode
                     self.mcp_tools.append(i.name)  # type: ignore[attr-defined]
                     tools.append(

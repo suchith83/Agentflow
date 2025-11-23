@@ -6,6 +6,7 @@ mcp = FastMCP("My MCP Server")
 
 @mcp.tool(
     description="Get the weather for a specific location",
+    tags={"weather", "information"},
 )
 def get_weather(location: str) -> dict:
     return {

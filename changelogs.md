@@ -1,3 +1,12 @@
+Version: 0.5.2 later
+1. Added Tag-based Tool Filtering for MCP Tools and Local Tools
+2. Added Tag Decorator for Function Tools
+
+
+
+
+
+
 Features
 1. Added Handoff Tools
 2. Added Remote Tools
@@ -12,3 +21,4 @@ Fixes
 Version: 0.5.1 later
 1. Fixed timestamp handling in PgCheckpointer to avoid validation errors
 2. Added updated_at field when reconstructing threads in PgCheckpointer
+
