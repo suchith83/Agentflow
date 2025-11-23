@@ -92,10 +92,10 @@ Document where tools come from and what they can do:
     description="Get a completion from OpenAI",
     tags=["llm", "external"],
     provider="openai",
-    capabilities={
-        "streaming": True,
-        "async": True,
-        "rate_limited": True
+    capabilities=["streaming", "rate_limited"],
+    metadata={
+        "max_tokens": 4096,
+        "cost_per_1k_tokens": 0.002
     }
 )
 async def openai_complete(prompt: str) -> str:
@@ -318,7 +318,7 @@ import httpx
     name="fetch_url",
     description="Fetch content from a URL",
     tags=["network", "async"],
-    capabilities={"async": True}
+    capabilities=["async"]
 )
 async def fetch_url(url: str) -> str:
     """Asynchronously fetch URL content."""
@@ -363,7 +363,7 @@ def calculate(expression: str) -> float:
     description="Search for information on the web",
     tags=["web", "external"],
     provider="google",
-    capabilities={"rate_limited": True}
+    capabilities=["rate_limited"]
 )
 def search(query: str) -> str:
     """Search the web for information."""
@@ -534,11 +534,11 @@ def filter_by_permission(tools: list, user_role: str) -> list:
 
 ```python
 @tool(
-    capabilities={
-        "async": True,              # Can be called asynchronously
-        "streaming": False,         # Does not support streaming
+    name="api_tool",
+    description="Call an API with specific capabilities",
+    capabilities=["async", "streaming", "rate_limited"],
+    metadata={
         "idempotent": True,         # Safe to retry
-        "rate_limited": True,       # Has rate limits
         "requires_auth": True       # Needs authentication
     }
 )
@@ -548,11 +548,15 @@ def filter_by_permission(tools: list, user_role: str) -> list:
 
 ```python
 @tool(
+    name="paid_api_call",
+    description="Call a paid external API",
+    provider="external_api",
+    tags=["paid", "external"],
     metadata={
-        "cost_per_call": 0.001,    # Cost in USD
+        "cost_per_call": 0.001,     # Cost in USD
         "average_latency_ms": 250,  # Expected latency
-        "rate_limit": 100,          # Calls per minute
-        "timeout_seconds": 30       # Maximum execution time
+        "rate_limit": 100,           # Calls per minute
+        "timeout_seconds": 30        # Maximum execution time
     }
 )
 ```

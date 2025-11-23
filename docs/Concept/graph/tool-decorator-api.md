@@ -14,8 +14,8 @@ from agentflow.utils import tool
     description: str | None = None,
     tags: list[str] | set[str] | None = None,
     provider: str | None = None,
-    capabilities: dict | None = None,
-    metadata: dict | None = None
+    capabilities: list[str] | None = None,
+    metadata: dict[str, Any] | None = None
 )
 def my_function(...):
     """Function implementation."""

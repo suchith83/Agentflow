@@ -46,7 +46,7 @@ Attach comprehensive metadata to your tools:
     description="Search the web for information on any topic",
     tags=["web", "search", "external"],
     provider="google",
-    capabilities={"streaming": False, "async": True},
+    capabilities=["async", "rate_limited"],
     metadata={"rate_limit": 100, "cost_per_call": 0.001}
 )
 def search_web(query: str) -> dict:
@@ -59,12 +59,12 @@ def search_web(query: str) -> dict:
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `name` | `str` | Custom name for the tool (defaults to function name) |
-| `description` | `str` | Human-readable description of what the tool does |
-| `tags` | `list[str] \| set[str]` | Tags for filtering and categorization |
-| `provider` | `str` | Tool provider identifier (e.g., "openai", "google", "custom") |
-| `capabilities` | `dict` | Dictionary of tool capabilities (async, streaming, etc.) |
-| `metadata` | `dict` | Any additional custom metadata |
+| `name` | `str \| None` | Custom name for the tool (defaults to function name) |
+| `description` | `str \| None` | Human-readable description of what the tool does (defaults to docstring) |
+| `tags` | `list[str] \| set[str] \| None` | Tags for filtering and categorization |
+| `provider` | `str \| None` | Tool provider identifier (e.g., "openai", "google", "internal", "mcp") |
+| `capabilities` | `list[str] \| None` | List of tool capabilities (e.g., "async", "streaming", "rate_limited") |
+| `metadata` | `dict[str, Any] \| None` | Any additional custom metadata (cost, timeouts, etc.) |
 
 ### Tag-Based Filtering
 
@@ -177,18 +177,18 @@ schemas = await tools.all_tools()  # Uses "calculate_total" as the name
 4. **Document capabilities**: Help users understand tool limitations
    ```python
    @tool(
-       capabilities={
-           "async": True,
-           "streaming": False,
-           "rate_limited": True
-       }
+       name="api_tool",
+       capabilities=["async", "rate_limited"],
+       metadata={"max_requests_per_minute": 60}
    )
    ```
 
 5. **Include provider info**: Track where tools come from
    ```python
-   @tool(provider="internal")  # Internal tools
-   @tool(provider="openai")    # Third-party tools
+   @tool(name="db_query", provider="internal")    # Internal tools
+   @tool(name="gpt4_call", provider="openai")     # Third-party tools
+   @tool(name="mcp_tool", provider="mcp")         # MCP tools
+   @tool(name="composio_tool", provider="composio") # Composio tools
    ```
 
 ### Migration Guide
