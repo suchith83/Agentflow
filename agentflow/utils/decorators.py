@@ -25,6 +25,7 @@ def tool[F: Callable[..., Any]](
     name: str | None = None,
     description: str | None = None,
     tags: list[str] | set[str] | None = None,
+    provider: str | None = None,
     capabilities: list[str] | None = None,
     metadata: dict[str, Any] | None = None,
 ) -> Callable[[F], F] | F:
@@ -137,6 +138,10 @@ def tool[F: Callable[..., Any]](
             func._py_tool_tags = tool_tags  # type: ignore[attr-defined]
         else:
             func._py_tool_tags = set()  # type: ignore[attr-defined]
+
+        # Set provider if provided
+        if provider is not None:
+            func._py_tool_provider = provider  # type: ignore[attr-defined]
 
         # Set capabilities if provided
         if capabilities is not None:
