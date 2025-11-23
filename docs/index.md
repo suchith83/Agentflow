@@ -192,6 +192,7 @@ Learn Agentflow step-by-step with practical examples:
 - **[React Agent Patterns](Tutorial/react/)** - Complete guide: basic patterns, DI, MCP, streaming
 - **[State & Messages](Tutorial/index.md)** - Master conversation state and message handling
 - **[Tools & Dependency Injection](Tutorial/index.md)** - Create tool-calling agents with ToolNode
+- **[Tool Decorator](Tutorial/tool-decorator.md)** - Organize tools with metadata, tags, and filtering
 - **[Persistence & Memory](Tutorial/long_term_memory.md)** - Save state with checkpointers and stores
 - **[RAG Implementation](Tutorial/rag.md)** - Build retrieval-augmented generation systems
 - **[Plan-Act-Reflect](Tutorial/plan_act_reflect.md)** - Advanced reasoning patterns
@@ -201,7 +202,7 @@ Deep dives into Agentflow's architecture:
 
 - **[Graph Architecture](Concept/graph/)** - StateGraph, nodes, edges, compiled execution
 - **[State Management](Concept/context/)** - AgentState, checkpointers, stores
-- **[Tools & Integration](Concept/graph/tools.md)** - ToolNode, MCP, Composio, LangChain
+- **[Tools & Integration](Concept/graph/tools.md)** - ToolNode, @tool decorator, MCP, Composio, LangChain
 - **[Control Flow](Concept/graph/control_flow.md)** - Conditional routing, interrupts
 - **[Human-in-the-Loop](Concept/graph/human-in-the-loop.md)** - Approval workflows, pause/resume
 - **[Dependency Injection](Concept/dependency-injection.md)** - InjectQ container patterns
@@ -331,6 +332,47 @@ res = app.invoke(inp, config=config)
 for msg in res["messages"]:
     print(msg)
 ```
+
+### Enhanced Tools with @tool Decorator
+
+Organize and filter tools with rich metadata:
+
+```python
+from agentflow.utils import tool
+from agentflow.graph import ToolNode
+
+# Define tools with metadata
+@tool(
+    name="search_documents",
+    description="Search internal knowledge base",
+    tags=["search", "knowledge", "read"],
+    provider="internal"
+)
+def search_docs(query: str) -> str:
+    """Search for documents."""
+    return f"Found documents matching: {query}"
+
+@tool(
+    name="update_database",
+    description="Update database records",
+    tags=["database", "write", "dangerous"],
+    provider="internal"
+)
+def update_db(table: str, data: dict) -> bool:
+    """Update database."""
+    return True
+
+# Create tool node and filter by tags
+all_tools = [search_docs, update_db]
+tool_node = ToolNode(all_tools)
+
+# Get filtered tools by passing tags parameter
+safe_tools = await tool_node.all_tools(tags={"read"})  # Only returns search_docs schema
+# Or use sync version:
+safe_tools_sync = tool_node.all_tools_sync(tags={"read"})
+```
+
+See the **[Tool Decorator Tutorial](Tutorial/tool-decorator.md)** for more details.
 
 ---
 

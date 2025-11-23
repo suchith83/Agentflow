@@ -9,8 +9,6 @@ from mcp import Tool
 load_dotenv()
 
 
-print(os.getenv("GITHUB_TOKEN"))
-
 config = {
     "mcpServers": {
         "weather": {
@@ -33,21 +31,25 @@ async def call_tools():
     async with client_http:
         tools: list[Tool] = await client_http.list_tools()
         for i in tools:
+            meta = i.meta or {}
+            tags = meta.get("_fastmcp", {}).get("tags", [])
+            print(f"Tool: {i.name}, Tags: {tags}")
+
             print(i.model_dump())
 
 
-async def invoke():
-    async with client_http:
-        result = await client_http.call_tool(
-            "get_weather",
-            {"location": "New York", "tool_call_id": "12345", "config": {"units": "metric"}},
-        )
-        print(result)
+# async def invoke():
+#     async with client_http:
+#         result = await client_http.call_tool(
+#             "get_weather",
+#             {"location": "New York", "tool_call_id": "12345", "config": {"units": "metric"}},
+#         )
+#         print(result)
 
 
 async def main():
     await call_tools()
-    await invoke()
+    # await invoke()
 
 
 if __name__ == "__main__":

@@ -142,7 +142,10 @@ class SchemaMixin:
 
         return schema
 
-    def get_local_tool(self) -> list[dict]:
+    def get_local_tool(
+        self,
+        tags: set[str] | None = None,
+    ) -> list[dict]:
         """Generate OpenAI-compatible tool definitions for all registered local functions.
 
         Inspects all registered functions in _funcs and automatically generates
@@ -214,20 +217,28 @@ class SchemaMixin:
             if not params_schema["required"]:
                 params_schema.pop("required")
 
-            description = inspect.getdoc(fn) or "No description provided."
+            # Use decorator metadata if available, otherwise fall back to defaults
+            tool_name = getattr(fn, "_py_tool_name", name)
+            description = getattr(fn, "_py_tool_description", None)
+            if description is None:
+                description = inspect.getdoc(fn) or "No description provided."
 
             # provider = getattr(fn, "_py_tool_provider", None)
-            # tags = getattr(fn, "_py_tool_tags", None)
-            # capabilities = getattr(fn, "_py_tool_capabilities", None)
+            fun_tags = getattr(fn, "_py_tool_tags", None)
+            capabilities = getattr(fn, "_py_tool_capabilities", None)
+            if tags and fun_tags and tags.isdisjoint(fun_tags):
+                continue
 
             entry = {
                 "type": "function",
                 "function": {
-                    "name": name,
+                    "name": tool_name,
                     "description": description,
                     "parameters": params_schema,
                 },
             }
+            if capabilities is not None:
+                entry["function"]["x-function-capabilities"] = capabilities
             # meta: dict[str, t.Any] = {}
             # if provider:
             #     meta["provider"] = provider

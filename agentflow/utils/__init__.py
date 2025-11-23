@@ -35,6 +35,7 @@ from .command import Command
 # Export from constants.py
 from .constants import END, START, ExecutionState, ResponseGranularity
 from .converter import convert_messages
+from .decorators import get_tool_metadata, has_tool_decorator, tool
 from .id_generator import (
     AsyncIDGenerator,
     BaseIDGenerator,
@@ -102,6 +103,8 @@ __all__ = [
     "call_sync_or_async",
     "convert_messages",
     "delayed_keyboard_interrupt",
+    "get_tool_metadata",
+    "has_tool_decorator",
     "logger",
     "register_default_validators",
     "replace_messages",
@@ -109,4 +112,5 @@ __all__ = [
     "run_coroutine",
     "setup_exception_handler",
     "shutdown_with_timeout",
+    "tool",
 ]

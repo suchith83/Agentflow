@@ -155,9 +155,12 @@ class ToolNode(
         self.remote_tools: list[dict] = []
         self.remote_tool_names: list[str] = []
 
-    async def _all_tools_async(self) -> list[dict]:
-        tools: list[dict] = self.get_local_tool()
-        tools.extend(await self._get_mcp_tool())
+    async def _all_tools_async(
+        self,
+        tags: set[str] | None = None,
+    ) -> list[dict]:
+        tools: list[dict] = self.get_local_tool(tags=tags)
+        tools.extend(await self._get_mcp_tool(tags=tags))
         tools.extend(await self._get_composio_tools())
         tools.extend(await self._get_langchain_tools())
         tools.extend(self.remote_tools)
@@ -168,12 +171,16 @@ class ToolNode(
         self.remote_tools = tool_names
         self.remote_tool_names = [tool.get("function", {}).get("name") for tool in tool_names]
 
-    async def all_tools(self) -> list[dict]:
+    async def all_tools(self, tags: set[str] | None = None) -> list[dict]:
         """Get all available tools from all configured providers.
 
         Retrieves and combines tool definitions from local functions, MCP client,
         Composio adapter, and LangChain adapter. Each tool definition includes
         the function schema with parameters and descriptions.
+
+        Args:
+            tags: Optional set of tags to filter tools. Only tools matching
+                the specified tags will be included in the result.
 
         Returns:
             List of tool definitions in OpenAI function calling format. Each dict
@@ -182,7 +189,7 @@ class ToolNode(
 
         Example:
             ```python
-            tools = await tool_node.all_tools()
+            tools = await tool_node.all_tools(tags={"weather"})
             # Returns:
             # [
             #   {
@@ -202,9 +209,14 @@ class ToolNode(
             # ]
             ```
         """
-        return await self._all_tools_async()
+        return await self._all_tools_async(
+            tags=tags,
+        )
 
-    def all_tools_sync(self) -> list[dict]:
+    def all_tools_sync(
+        self,
+        tags: set[str] | None = None,
+    ) -> list[dict]:
         """Synchronously get all available tools from all configured providers.
 
         This is a synchronous wrapper around the async all_tools() method.
@@ -218,11 +230,13 @@ class ToolNode(
             Prefer using the async `all_tools()` method when possible, especially
             in async contexts, to avoid potential event loop issues.
         """
-        tools: list[dict] = self.get_local_tool()
+        tools: list[dict] = self.get_local_tool(tags=tags)
+
         if self._client:
-            result = asyncio.run(self._get_mcp_tool())
+            result = asyncio.run(self._get_mcp_tool(tags=tags))
             if result:
                 tools.extend(result)
+
         comp = asyncio.run(self._get_composio_tools())
         if comp:
             tools.extend(comp)
