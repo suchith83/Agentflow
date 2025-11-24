@@ -13,6 +13,7 @@ from agentflow.utils import END, START, CallbackManager
 from agentflow.utils.background_task_manager import BackgroundTaskManager
 from agentflow.utils.id_generator import BaseIDGenerator, DefaultIDGenerator
 
+from .agent import Agent
 from .edge import Edge
 from .node import Node
 from .tool_node import ToolNode
@@ -184,18 +185,19 @@ class StateGraph[StateT: AgentState]:
     def add_node(
         self,
         name_or_func: str | Callable,
-        func: Union[Callable, "ToolNode", None] = None,
+        func: Union[Callable, "ToolNode", "Agent", None] = None,
     ) -> "StateGraph":
         """Add a node to the graph.
 
-        This method supports two calling patterns:
+        This method supports multiple calling patterns:
         1. Pass a callable as the first argument (name inferred from function name)
-        2. Pass a name string and callable/ToolNode as separate arguments
+        2. Pass a name string and callable/ToolNode/Agent as separate arguments
+        3. Pass an Agent instance directly as the second argument
 
         Args:
             name_or_func: Either the node name (str) or a callable function.
                 If callable, the function name will be used as the node name.
-            func: The function or ToolNode to execute. Required if name_or_func
+            func: The function, ToolNode, or Agent to execute. Required if name_or_func
                 is a string, ignored if name_or_func is callable.
 
         Returns:
@@ -209,19 +211,30 @@ class StateGraph[StateT: AgentState]:
             >>> graph.add_node(my_function)
             >>> # Method 2: Explicit name and function
             >>> graph.add_node("process", my_function)
+            >>> # Method 3: Agent instance
+            >>> graph.add_node("agent", agent_instance)
         """
         if callable(name_or_func) and func is None:
             # Function passed as first argument
             name = name_or_func.__name__
             func = name_or_func
             logger.debug("Adding node '%s' with inferred name from function", name)
-        elif isinstance(name_or_func, str) and (callable(func) or isinstance(func, ToolNode)):
-            # Name and function passed separately
+        elif isinstance(name_or_func, str) and (
+            callable(func) or isinstance(func, (ToolNode, Agent))
+        ):
+            # Name and function/ToolNode/Agent passed separately
             name = name_or_func
+            node_type = (
+                "Agent"
+                if isinstance(func, Agent)
+                else "ToolNode"
+                if isinstance(func, ToolNode)
+                else "callable"
+            )
             logger.debug(
                 "Adding node '%s' with explicit name and %s",
                 name,
-                "ToolNode" if isinstance(func, ToolNode) else "callable",
+                node_type,
             )
         else:
             error_msg = "Invalid arguments for add_node"

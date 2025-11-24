@@ -44,6 +44,12 @@ class ModelResponseConverter:
 
             self.converter = LiteLLMConverter()
             logger.debug("Using LiteLLMConverter for response conversion")
+
+        elif isinstance(converter, str) and converter == "openai":
+            from .openai_converter import OpenAIConverter
+
+            self.converter = OpenAIConverter()
+            logger.debug("Using OpenAIConverter for response conversion")
         elif isinstance(converter, BaseConverter):
             self.converter = converter
             logger.debug(f"Using custom converter: {type(converter).__name__}")

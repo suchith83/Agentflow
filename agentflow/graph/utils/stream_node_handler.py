@@ -1,9 +1,9 @@
 """Streaming node handler for TAF graph workflows.
 
 This module provides the StreamNodeHandler class, which manages the execution of graph nodes
-that support streaming output. It handles both regular function nodes and ToolNode instances,
-enabling incremental result processing, dependency injection, callback management, and
-event publishing.
+that support streaming output. It handles regular function nodes, ToolNode instances,
+and Agent instances,enabling incremental result processing, dependency injection,
+callback management, and event publishing.
 
 StreamNodeHandler is a key component for enabling real-time, chunked, or incremental responses
 in agent workflows, supporting both synchronous and asynchronous execution patterns.
@@ -14,7 +14,7 @@ import inspect
 import json
 import logging
 from collections.abc import AsyncGenerator, AsyncIterable, Callable
-from typing import Any, Union
+from typing import TYPE_CHECKING, Any, Union
 
 from injectq import Inject
 
@@ -40,6 +40,10 @@ from agentflow.utils.command import Command
 from .handler_mixins import BaseLoggingMixin
 
 
+if TYPE_CHECKING:
+    from agentflow.graph.agent import Agent
+
+
 logger = logging.getLogger("agentflow.graph")
 
 
@@ -47,12 +51,12 @@ class StreamNodeHandler(BaseLoggingMixin):
     """Handles streaming execution for graph nodes in TAF workflows.
 
     StreamNodeHandler manages the execution of nodes that can produce streaming output,
-    including both regular function nodes and ToolNode instances. It supports dependency
-    injection, callback management, event publishing, and incremental result processing.
+    including regular function nodes, ToolNode instances, and Agent instances. It supports
+    dependency injection, callback management, event publishing, and incremental result processing.
 
     Attributes:
         name: Unique identifier for the node within the graph.
-        func: The function or ToolNode to execute. Determines streaming behavior.
+        func: The function, ToolNode, or Agent to execute. Determines streaming behavior.
 
     Example:
         ```python
@@ -65,13 +69,13 @@ class StreamNodeHandler(BaseLoggingMixin):
     def __init__(
         self,
         name: str,
-        func: Union[Callable, "ToolNode"],
+        func: Union[Callable, "ToolNode", "Agent"],
     ):
         """Initialize a new StreamNodeHandler instance.
 
         Args:
             name: Unique identifier for the node within the graph.
-            func: The function or ToolNode to execute. Determines streaming behavior.
+            func: The function, ToolNode, or Agent to execute. Determines streaming behavior.
         """
         self.name = name
         self.func = func
@@ -490,6 +494,63 @@ class StreamNodeHandler(BaseLoggingMixin):
                 publish_event(event)
                 raise
 
+    async def _call_agent_node(
+        self,
+        state: "AgentState",
+        config: dict[str, Any],
+    ) -> AsyncGenerator[StreamChunk | Message | dict[str, Any]]:
+        """Execute an Agent instance node with streaming support.
+
+        Args:
+            state (AgentState): Current agent state.
+            config (dict): Node configuration.
+
+        Yields:
+            StreamChunk | Message | dict: Streaming output from the agent.
+        """
+        logger.debug(
+            "Node '%s' is an Agent instance, executing agent logic with streaming", self.name
+        )
+
+        agent = self.func  # type: ignore - func is Agent instance here
+
+        converter = await agent.execute(state, config)  # type: ignore
+
+        # Collect all messages during streaming
+        messages = []
+
+        stream_event = StreamChunk(
+            event=StreamEvent.MESSAGE,
+            thread_id=config.get("thread_id"),
+            run_id=config.get("run_id"),
+            metadata={
+                "node": self.name,
+                "function_name": self.name,
+            },
+        )
+
+        stream_gen = converter.stream(
+            config,
+            node_name=self.name,
+            meta={
+                "function_name": self.name,
+            },
+        )
+        # this will return event_model or message
+
+        async for item in stream_gen:
+            if isinstance(item, Message) and not item.delta:
+                messages.append(item)
+            yield item
+            stream_event.message = item
+            yield stream_event
+
+        yield {
+            "state": state,
+            "messages": messages,
+            "next_node": None,
+        }
+
     async def stream(
         self,
         config: dict[str, Any],
@@ -498,7 +559,7 @@ class StreamNodeHandler(BaseLoggingMixin):
     ) -> AsyncGenerator[dict[str, Any] | Message | StreamChunk]:
         """Execute the node function with streaming output and callback support.
 
-        Handles both ToolNode and regular function nodes, yielding incremental results
+        Handles ToolNode, Agent, and regular function nodes, yielding incremental results
         as they become available. Supports dependency injection, callback management,
         and event publishing for monitoring and debugging.
 
@@ -536,7 +597,17 @@ class StreamNodeHandler(BaseLoggingMixin):
         # ToolNode will yield events from its own stream method
 
         try:
-            if isinstance(self.func, ToolNode):
+            from agentflow.graph.agent import Agent
+
+            if isinstance(self.func, Agent):
+                logger.debug("Node '%s' is an Agent instance, executing agent streaming", self.name)
+                result = self._call_agent_node(
+                    state,
+                    config,
+                )
+                async for item in result:
+                    yield item
+            elif isinstance(self.func, ToolNode):
                 logger.debug("Node '%s' is a ToolNode, executing tool calls", self.name)
                 # This is tool execution - handled separately in ToolNode
                 if state.context and len(state.context) > 0:

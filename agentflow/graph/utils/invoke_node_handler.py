@@ -1,12 +1,12 @@
 """
 InvokeNodeHandler utilities for TAF agent graph execution.
 
-This module provides the InvokeNodeHandler class, which manages the invocation of node functions
-and tool nodes within the agent graph. It supports dependency injection, callback hooks,
-event publishing, and error recovery for both regular and tool-based nodes.
+This module provides the InvokeNodeHandler class, which manages the invocation of node functions,
+tool nodes, and agent instances within the agent graph. It supports dependency injection,
+callback hooks, event publishing, and error recovery for regular, tool-based, and agent nodes.
 
 Classes:
-    InvokeNodeHandler: Handles execution of node functions and tool nodes with DI and callbacks.
+    InvokeNodeHandler: Handles execution of node functions, tool nodes, and agents with DI and callbacks.
 
 Usage:
     handler = InvokeNodeHandler(name, func, publisher)
@@ -18,7 +18,7 @@ import inspect
 import json
 import logging
 from collections.abc import Callable
-from typing import Any, Union
+from typing import TYPE_CHECKING, Any, Union
 
 from injectq import Inject
 
@@ -40,19 +40,22 @@ from agentflow.utils.command import Command
 
 from .handler_mixins import BaseLoggingMixin
 
+if TYPE_CHECKING:
+    from agentflow.graph.agent import Agent
+
 
 logger = logging.getLogger("agentflow.graph")
 
 
 class InvokeNodeHandler(BaseLoggingMixin):
     """
-    Handles invocation of node functions and tool nodes in the agent graph.
+    Handles invocation of node functions, tool nodes, and agent instances in the agent graph.
 
     Supports dependency injection, callback hooks, event publishing, and error recovery.
 
     Args:
         name (str): Name of the node.
-        func (Callable | ToolNode): The function or ToolNode to execute.
+        func (Callable | ToolNode | Agent): The function, ToolNode, or Agent to execute.
         publisher (BasePublisher, optional): Event publisher for execution events.
     """
 
@@ -67,7 +70,7 @@ class InvokeNodeHandler(BaseLoggingMixin):
     def __init__(
         self,
         name: str,
-        func: Union[Callable, "ToolNode"],
+        func: Union[Callable, "ToolNode", "Agent"],
         publisher: BasePublisher | None = Inject[BasePublisher],
     ):
         self.name = name
@@ -391,6 +394,40 @@ class InvokeNodeHandler(BaseLoggingMixin):
             publish_event(event)
             raise
 
+    async def _call_agent_node(
+        self,
+        state: "AgentState",
+        config: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Execute an Agent instance node.
+
+        Args:
+            state (AgentState): Current agent state.
+            config (dict): Node configuration.
+
+        Returns:
+            dict: Result containing new state, messages, and next node.
+        """
+        logger.debug("Node '%s' is an Agent instance, executing agent logic", self.name)
+
+        agent = self.func  # type: ignore - func is Agent instance here
+
+        # Execute the agent's logic
+        converter = await agent.execute(state, config)  # type: ignore
+
+        # Process the converter result (invoke for non-streaming)
+        message = await converter.invoke()
+
+        # Update state with new message
+        new_state = state.model_copy(deep=True)
+        new_state.context.append(message)
+
+        return {
+            "state": new_state,
+            "messages": [message],
+            "next_node": None,
+        }
+
     async def invoke(
         self,
         config: dict[str, Any],
@@ -421,7 +458,16 @@ class InvokeNodeHandler(BaseLoggingMixin):
         )
 
         try:
-            if isinstance(self.func, ToolNode):
+            # Import Agent here to avoid circular dependency
+            from agentflow.graph.agent import Agent
+
+            if isinstance(self.func, Agent):
+                logger.debug("Node '%s' is an Agent instance, executing agent", self.name)
+                result = await self._call_agent_node(
+                    state,
+                    config,
+                )
+            elif isinstance(self.func, ToolNode):
                 logger.debug("Node '%s' is a ToolNode, executing tool calls", self.name)
                 # This is tool execution - handled separately in ToolNode
                 if state.context and len(state.context) > 0:
