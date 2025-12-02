@@ -15,7 +15,10 @@ Exports:
 
 from .base_converter import BaseConverter, ConverterType
 from .litellm_converter import LiteLLMConverter
-from .openai_converter import OpenAIConverter
+
+
+# from .openai_converter import OpenAIConverter
+
 
 __all__ = [
     "BaseConverter",

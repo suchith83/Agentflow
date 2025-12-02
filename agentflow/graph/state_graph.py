@@ -220,7 +220,7 @@ class StateGraph[StateT: AgentState]:
             func = name_or_func
             logger.debug("Adding node '%s' with inferred name from function", name)
         elif isinstance(name_or_func, str) and (
-            callable(func) or isinstance(func, (ToolNode, Agent))
+            callable(func) or isinstance(func, ToolNode | Agent)
         ):
             # Name and function/ToolNode/Agent passed separately
             name = name_or_func

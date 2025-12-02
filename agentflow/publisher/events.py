@@ -147,6 +147,9 @@ class EventModel(BaseModel):
         default_factory=lambda: str(uuid.uuid4()), description="Unique ID for this stream/run"
     )
     thread_id: str | int = Field(default="", description="Thread ID for this execution")
+    user_id: str | int | None = Field(
+        default=None, description="User ID associated with this execution"
+    )
     timestamp: float = Field(
         default_factory=datetime.now().timestamp,
         description="UNIX timestamp of when chunk was created",
@@ -194,10 +197,10 @@ class EventModel(BaseModel):
         """
         thread_id = base_config.get("thread_id", "")
         run_id = base_config.get("run_id", "")
+        user_id = base_config.get("user_id")
 
         metadata = {
             "run_timestamp": base_config.get("timestamp", ""),
-            "user_id": base_config.get("user_id"),
             "is_stream": base_config.get("is_stream", False),
         }
         if extra:
@@ -210,6 +213,7 @@ class EventModel(BaseModel):
             thread_id=thread_id,
             node_name=node_name,
             run_id=run_id,
+            user_id=user_id,
             metadata=metadata,
         )
 
@@ -232,10 +236,10 @@ class EventModel(BaseModel):
         """
         thread_id = base_config.get("thread_id", "")
         run_id = base_config.get("run_id", "")
+        user_id = base_config.get("user_id")
 
         metadata = {
             "run_timestamp": base_config.get("timestamp", ""),
-            "user_id": base_config.get("user_id"),
             "is_stream": base_config.get("is_stream", False),
         }
         if extra:
@@ -246,6 +250,7 @@ class EventModel(BaseModel):
             content_type=[ContentType.TEXT, ContentType.REASONING],
             data={},
             thread_id=thread_id,
+            user_id=user_id,
             node_name=node_name,
             run_id=run_id,
             metadata=metadata,

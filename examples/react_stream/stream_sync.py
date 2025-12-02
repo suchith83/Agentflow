@@ -14,6 +14,11 @@ load_dotenv()
 checkpointer = InMemoryCheckpointer()
 
 
+class CustomAgentState(AgentState):
+    jd_text: str = ""
+    cv_text: str = ""
+
+
 def get_weather(
     location: str,
     tool_call_id: str | None = None,
@@ -105,7 +110,7 @@ def should_use_tools(state: AgentState) -> str:
     return END
 
 
-graph = StateGraph()
+graph = StateGraph(CustomAgentState())
 graph.add_node("MAIN", main_agent)
 graph.add_node("TOOL", tool_node)
 
@@ -127,7 +132,7 @@ app = graph.compile(
 
 
 # now run it
-inp = {"messages": [Message.text_message("Please call the get_weather function for New York City")]}
+inp = {"messages": [Message.text_message("HI")]}
 config = {"thread_id": "12345", "recursion_limit": 10, "is_stream": True}
 
 res = app.stream(inp, config=config)
@@ -136,6 +141,7 @@ print("Streaming response:")
 message_count = 0
 for i in res:
     message_count += 1
-    print(i)
+    print(i.model_dump())
+    print("\n\n")
 
 print(f"Total messages received: {message_count}")

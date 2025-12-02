@@ -6,7 +6,8 @@ tool nodes, and agent instances within the agent graph. It supports dependency i
 callback hooks, event publishing, and error recovery for regular, tool-based, and agent nodes.
 
 Classes:
-    InvokeNodeHandler: Handles execution of node functions, tool nodes, and agents with DI and callbacks.
+    InvokeNodeHandler: Handles execution of node functions, tool nodes, and agents with DI
+        and callbacks.
 
 Usage:
     handler = InvokeNodeHandler(name, func, publisher)
@@ -39,6 +40,7 @@ from agentflow.utils import (
 from agentflow.utils.command import Command
 
 from .handler_mixins import BaseLoggingMixin
+
 
 if TYPE_CHECKING:
     from agentflow.graph.agent import Agent

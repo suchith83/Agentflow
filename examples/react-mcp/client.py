@@ -1,5 +1,4 @@
 import asyncio
-import os
 
 from dotenv import load_dotenv
 from fastmcp import Client
@@ -20,7 +19,7 @@ config = {
         #     "headers": {"Authorization": f"Bearer {os.getenv('GITHUB_TOKEN')}"},
         #     "transport": "streamable-http",
         # },
-    }
+    },
 }
 
 
@@ -38,13 +37,13 @@ async def call_tools():
             print(i.model_dump())
 
 
-# async def invoke():
-#     async with client_http:
-#         result = await client_http.call_tool(
-#             "get_weather",
-#             {"location": "New York", "tool_call_id": "12345", "config": {"units": "metric"}},
-#         )
-#         print(result)
+async def invoke():
+    async with client_http:
+        result = await client_http.call_tool(
+            "get_weather",
+            {"location": "New York", "tool_call_id": "12345", "config": {"units": "metric"}},
+        )
+        print(result)
 
 
 async def main():
