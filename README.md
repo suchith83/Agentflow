@@ -181,7 +181,7 @@ export ANTHROPIC_API_KEY=...  # for Anthropic Claude
 
 If you have a `.env` file, it will be auto-loaded (via `python-dotenv`).
 
---- 
+---
 
 ## 🎯 Two Ways to Build Agents
 

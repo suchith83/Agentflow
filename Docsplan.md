@@ -233,6 +233,6 @@ result = app.invoke({"messages": [Message.text_message("What's the weather in NY
 ## Timeline Estimate
 
 - Phase 1 (Core): 2-3 hours
-- Phase 2 (React): 1-2 hours  
+- Phase 2 (React): 1-2 hours
 - Phase 3 (Concepts): 1-2 hours
 - Total: 4-7 hours
