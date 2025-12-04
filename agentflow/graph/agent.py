@@ -19,7 +19,8 @@ from agentflow.graph.tool_node import ToolNode
 from agentflow.state import AgentState
 from agentflow.state.base_context import BaseContextManager
 from agentflow.state.message import Message
-from agentflow.store.base_store import BaseStore
+
+# from agentflow.store.base_store import BaseStore
 from agentflow.utils.converter import convert_messages
 
 
@@ -86,7 +87,7 @@ class Agent:
         tools: list[Callable] | ToolNode | None = None,
         tool_node_name: str | None = None,
         extra_messages: list[Message] | None = None,
-        learning: bool = False,
+        # learning: bool = False,
         trim_context: bool = False,
         tools_tags: set[str] | None = None,
         **llm_kwargs,
@@ -124,14 +125,13 @@ class Agent:
                 system_prompt="You are a helpful assistant",
                 tools=[weather_tool, calculator],
                 learning=True,
-                store=my_store,
                 temperature=0.8,
                 max_tokens=1000,
                 top_p=0.9,
             )
             ```
         """
-        logger.debug(f"Initializing Agent with model={model}, learning={learning}")
+        # logger.debug(f"Initializing Agent with model={model}, learning={learning}")
 
         if not HAS_LITELLM:
             raise ImportError(
@@ -143,7 +143,7 @@ class Agent:
         self.system_prompt = system_prompt
         self.extra_messages = extra_messages
         self.tools = tools
-        self.learning = learning
+        # self.learning = learning
         self.llm_kwargs = llm_kwargs
         self.trim_context = trim_context
         self.tools_tags = tools_tags
@@ -154,7 +154,7 @@ class Agent:
 
         logger.info(
             f"Agent initialized: model={model}, has_tools={self._tool_node is not None}, "
-            f"learning={learning}"
+            # f"learning={learning}"
         )
 
     def _setup_tools(self) -> ToolNode | None:
@@ -208,13 +208,17 @@ class Agent:
         container = InjectQ.get_instance()
 
         # check store
-        store: BaseStore | None = container.try_get(BaseStore)
+        # store: BaseStore | None = container.try_get(BaseStore)
 
-        if self.learning and store is None:
-            logger.warning(
-                "Learning is enabled but no BaseStore instance found in InjectQ container."
-                " Ignoring learning."
-            )
+        # if self.learning and store is None:
+        #     logger.warning(
+        #         "Learning is enabled but no BaseStore instance found in InjectQ container."
+        #         " Ignoring learning."
+        #     )
+
+        # if store and self.learning:
+        #     # retrieve relevant past interactions
+        #     state = await store.asearch(state)
 
         # trim context if enabled
         state = await self._trim_context(state)
@@ -232,7 +236,7 @@ class Agent:
         # If tool results just came in, make final response without tools
         if state.context and len(state.context) > 0 and state.context[-1].role == "tool":
             # Make final response without tools since we just got tool results
-            response = acompletion(
+            response = await acompletion(
                 model=self.model,
                 messages=messages,
                 stream=is_stream,
@@ -247,17 +251,17 @@ class Agent:
             # check form tool node name
             if self.tool_node_name:
                 try:
-                    node = container.call_factory(self.tool_node_name)
+                    node = container.call_factory("get_node", self.tool_node_name)
                 except KeyError:
                     logger.warning(
                         f"ToolNode with name '{self.tool_node_name}' not found in InjectQ registry."
                     )
                     node = None
 
-                if node and isinstance(node, ToolNode):
-                    tools = await node.all_tools(tags=self.tools_tags)
+                if node and isinstance(node.func, ToolNode):
+                    tools = await node.func.all_tools(tags=self.tools_tags)
 
-            response = acompletion(
+            response = await acompletion(
                 model=self.model,
                 messages=messages,
                 stream=is_stream,

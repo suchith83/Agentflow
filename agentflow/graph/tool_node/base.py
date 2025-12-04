@@ -338,7 +338,12 @@ class ToolNode(
             )
             event.data["message"] = res.model_dump()
             # Attach tool result block mirroring the tool output
-            event.content_blocks = [ToolResultBlock(call_id=tool_call_id, output=res.model_dump())]
+            event.content_blocks = [
+                ToolResultBlock(
+                    call_id=tool_call_id,
+                    output=res.model_dump(),
+                )
+            ]
             event.event_type = EventType.END
             event.content_type = [ContentType.TOOL_RESULT, ContentType.MESSAGE]
             publish_event(event)

@@ -13,6 +13,7 @@ config = {
         "weather": {
             "url": "http://127.0.0.1:8000/mcp",
             "transport": "streamable-http",
+            "headers": {"Authorization": "Bearer TEST_WEATHER_API_KEY"},
         },
         # "github": {
         #     "url": "https://api.githubcopilot.com/mcp/",
@@ -41,14 +42,17 @@ async def invoke():
     async with client_http:
         result = await client_http.call_tool(
             "get_weather",
-            {"location": "New York", "tool_call_id": "12345", "config": {"units": "metric"}},
+            {
+                "location": "New York",
+                "user": {"user_id": "user_001"},
+            },
         )
         print(result)
 
 
 async def main():
     await call_tools()
-    # await invoke()
+    await invoke()
 
 
 if __name__ == "__main__":

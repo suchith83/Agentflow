@@ -45,3 +45,10 @@ json serializable, easy to debug, log and store.
 1. add logfire support
 2. add opentelemetry support
 3. a2a communication
+
+
+# Missing Features
+1. Playground UI
+2. Model Evaluator
+3. Summary Messages Context Manager
+4. 

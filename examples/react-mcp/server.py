@@ -7,8 +7,10 @@ mcp = FastMCP("My MCP Server")
 @mcp.tool(
     description="Get the weather for a specific location",
     tags={"weather", "information"},
+    exclude_args=["user_details"],
 )
-def get_weather(location: str) -> dict:
+def get_weather(location: str, user_details: dict | None = None) -> dict:
+    print(f"User Details: {user_details}")
     return {
         "location": location,
         "temperature": "22°C",
