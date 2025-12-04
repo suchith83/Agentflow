@@ -11,6 +11,7 @@
 
 ## ✨ Key Features
 
+- **⚡ Agent Class** - Build complete agents in 10-30 lines of code (new in v0.5.3!)
 - **🎯 LLM-Agnostic Orchestration** - Works with any LLM provider (LiteLLM, OpenAI, Gemini, Claude, native SDKs)
 - **🤖 Multi-Agent Workflows** - Build complex agent systems with your choice of orchestration patterns
 - **📊 Structured Responses** - Get `content`, optional `thinking`, and `usage` in a standardized format
@@ -188,7 +189,8 @@ If you have a `.env` file, it will be auto-loaded (via `python-dotenv`).
 ### [🎓 Tutorials](Tutorial/index.md)
 Learn Agentflow step-by-step with practical examples:
 
-- **[Graph Fundamentals](Tutorial/index.md)** - Build your first agent with StateGraph, nodes, and edges
+- **[Agent Class](Tutorial/agent-class.md)** ⭐ - The simple way to build agents (start here!)
+- **[Graph Fundamentals](Tutorial/index.md)** - Build agents with StateGraph, nodes, and edges
 - **[React Agent Patterns](Tutorial/react/)** - Complete guide: basic patterns, DI, MCP, streaming
 - **[State & Messages](Tutorial/index.md)** - Master conversation state and message handling
 - **[Tools & Dependency Injection](Tutorial/index.md)** - Create tool-calling agents with ToolNode
@@ -223,9 +225,76 @@ Complete API documentation for all modules:
 
 ---
 
-## 💡 Simple Example
+## 🎯 Two Ways to Build Agents
 
-Here's a minimal React agent with tool calling:
+Agentflow offers two approaches to building agents—choose based on your needs:
+
+| Approach | Best For | Lines of Code |
+|----------|----------|---------------|
+| **Agent Class** ⭐ | Most use cases, rapid development | 10-30 lines |
+| **Custom Functions** | Complex custom logic, non-LiteLLM providers | 50-150 lines |
+
+> **Recommendation:** Start with the Agent class. It handles 90% of use cases with minimal code. Switch to custom functions only when you need fine-grained control.
+
+---
+
+## 💡 Simple Example with Agent Class
+
+Here's a complete tool-calling agent in under 30 lines:
+
+```python
+from agentflow.graph import Agent, StateGraph, ToolNode
+from agentflow.state import AgentState, Message
+from agentflow.utils.constants import END
+
+
+# 1. Define your tool
+def get_weather(location: str) -> str:
+    """Get weather for a location."""
+    return f"The weather in {location} is sunny, 72°F"
+
+
+# 2. Build the graph with Agent class
+graph = StateGraph()
+graph.add_node("MAIN", Agent(
+    model="gemini/gemini-2.5-flash",
+    system_prompt=[{"role": "system", "content": "You are a helpful assistant."}],
+    tool_node_name="TOOL"
+))
+graph.add_node("TOOL", ToolNode([get_weather]))
+
+
+# 3. Define routing
+def route(state: AgentState) -> str:
+    if state.context and state.context[-1].tools_calls:
+        return "TOOL"
+    return END
+
+
+graph.add_conditional_edges("MAIN", route, {"TOOL": "TOOL", END: END})
+graph.add_edge("TOOL", "MAIN")
+graph.set_entry_point("MAIN")
+
+# 4. Run it!
+app = graph.compile()
+result = app.invoke({
+    "messages": [Message.text_message("What's the weather in NYC?")]
+}, config={"thread_id": "1"})
+
+for msg in result["messages"]:
+    print(f"{msg.role}: {msg.content}")
+```
+
+**That's it!** The Agent class handles message conversion, LLM calls, and tool integration automatically.
+
+📖 **Learn more:** [Agent Class Tutorial](Tutorial/agent-class.md)
+
+---
+
+<details>
+<summary><strong>🔧 Advanced: Custom Functions Approach</strong></summary>
+
+For maximum control, use custom functions instead of the Agent class:
 
 ```python
 from dotenv import load_dotenv
@@ -259,7 +328,7 @@ def get_weather(
 tool_node = ToolNode([get_weather])
 
 
-# Define main agent node
+# Define main agent node (manual message handling)
 async def main_agent(state: AgentState):
     prompts = "You are a helpful assistant. Use tools when needed."
 
@@ -332,6 +401,8 @@ res = app.invoke(inp, config=config)
 for msg in res["messages"]:
     print(msg)
 ```
+
+</details>
 
 ### Enhanced Tools with @tool Decorator
 
