@@ -1,5 +1,4 @@
 import asyncio
-import os
 
 from dotenv import load_dotenv
 from fastmcp import Client
@@ -14,13 +13,14 @@ config = {
         "weather": {
             "url": "http://127.0.0.1:8000/mcp",
             "transport": "streamable-http",
+            "headers": {"Authorization": "Bearer TEST_WEATHER_API_KEY"},
         },
         # "github": {
         #     "url": "https://api.githubcopilot.com/mcp/",
         #     "headers": {"Authorization": f"Bearer {os.getenv('GITHUB_TOKEN')}"},
         #     "transport": "streamable-http",
         # },
-    }
+    },
 }
 
 
@@ -38,18 +38,20 @@ async def call_tools():
             print(i.model_dump())
 
 
-# async def invoke():
-#     async with client_http:
-#         result = await client_http.call_tool(
-#             "get_weather",
-#             {"location": "New York", "tool_call_id": "12345", "config": {"units": "metric"}},
-#         )
-#         print(result)
+async def invoke():
+    async with client_http:
+        result = await client_http.call_tool(
+            "get_weather",
+            {
+                "location": "New York",
+            },
+        )
+        print(result)
 
 
 async def main():
     await call_tools()
-    # await invoke()
+    await invoke()
 
 
 if __name__ == "__main__":

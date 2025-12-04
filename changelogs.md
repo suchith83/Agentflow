@@ -1,10 +1,10 @@
+Version: 0.5.3 later
+1. Enhanced MCP Tool Execution to Include User Information in Input Data
+2. Created AgentClass for Simplified Agent Instantiation
+
 Version: 0.5.2 later
 1. Added Tag-based Tool Filtering for MCP Tools and Local Tools
 2. Added Tag Decorator for Function Tools
-
-
-
-
 
 
 Features

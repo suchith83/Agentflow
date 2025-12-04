@@ -12,7 +12,14 @@ from agentflow.state.message import (
     TokenUsages,
     generate_id,
 )
-from agentflow.state.message_block import ReasoningBlock, TextBlock, ToolCallBlock
+from agentflow.state.message_block import (
+    AudioBlock,
+    ImageBlock,
+    MediaRef,
+    ReasoningBlock,
+    TextBlock,
+    ToolCallBlock,
+)
 
 from .base_converter import BaseConverter
 
@@ -77,16 +84,29 @@ class LiteLLMConverter(BaseConverter):
         tools_calls = data.get("choices", [{}])[0].get("message", {}).get("tool_calls", []) or []
 
         logger.debug("Creating message from model response with id: %s", response.id)
-        content = data.get("choices", [{}])[0].get("message", {}).get("content", "") or ""
-        reasoning_content = (
-            data.get("choices", [{}])[0].get("message", {}).get("reasoning_content", "") or ""
-        )
+        message_data = data.get("choices", [{}])[0].get("message", {})
+        content = message_data.get("content", "") or ""
+        reasoning_content = message_data.get("reasoning_content", "") or ""
+        audio_data = message_data.get("audio", None)
+        images_data = message_data.get("images", None)
 
         blocks = []
         if content:
             blocks.append(TextBlock(text=content))
         if reasoning_content:
             blocks.append(ReasoningBlock(summary=reasoning_content))
+
+        # Extract audio if present
+        if audio_data:
+            audio_block = self._extract_audio_block(audio_data)
+            if audio_block:
+                blocks.append(audio_block)
+
+        # Extract images if present
+        if images_data:
+            image_blocks = self._extract_image_blocks(images_data)
+            blocks.extend(image_blocks)
+
         final_tool_calls = []
         for tool_call in tools_calls:
             tool_id = tool_call.get("id", None)
@@ -128,6 +148,127 @@ class LiteLLMConverter(BaseConverter):
             tools_calls=final_tool_calls if final_tool_calls else None,
         )
 
+    def _extract_audio_block(self, audio_data: dict) -> AudioBlock | None:
+        """Extract audio block from LiteLLM audio data.
+
+        Args:
+            audio_data (dict): Audio data from LiteLLM response.
+
+        Returns:
+            AudioBlock | None: Audio block or None if invalid.
+        """
+        try:
+            # audio_data has: id, data (base64), transcript, expires_at
+            data_base64 = audio_data.get("data")
+            transcript = audio_data.get("transcript")
+
+            if not data_base64:
+                return None
+
+            media = MediaRef(
+                kind="data",
+                data_base64=data_base64,
+                mime_type="audio/wav",  # LiteLLM default
+            )
+
+            return AudioBlock(
+                media=media,
+                transcript=transcript,
+            )
+        except Exception as e:
+            logger.warning("Failed to extract audio block: %s", e)
+            return None
+
+    def _extract_image_blocks(self, images_data: list) -> list[ImageBlock]:
+        """Extract image blocks from LiteLLM images data.
+
+        Args:
+            images_data (list): List of image data from LiteLLM response.
+
+        Returns:
+            list[ImageBlock]: List of image blocks.
+        """
+        blocks = []
+        try:
+            for img in images_data:
+                url = img.get("url")
+                if url:
+                    media = MediaRef(
+                        kind="url",
+                        url=url,
+                    )
+                    blocks.append(ImageBlock(media=media))
+        except Exception as e:
+            logger.warning("Failed to extract image blocks: %s", e)
+
+        return blocks
+
+    def _extract_delta_content_blocks(
+        self,
+        delta: Any,
+    ) -> tuple[str, str, list]:
+        """Extract content blocks from a streaming delta.
+
+        Args:
+            delta: Delta object from streaming response.
+
+        Returns:
+            tuple: (text_part, reasoning_part, content_blocks)
+        """
+        text_part = delta.content or ""
+        content_blocks = []
+        if text_part:
+            content_blocks.append(TextBlock(text=text_part))
+        reasoning_part = getattr(delta, "reasoning_content", "") or ""
+        if reasoning_part:
+            content_blocks.append(ReasoningBlock(summary=reasoning_part))
+
+        # Extract audio if present in delta
+        audio_data = getattr(delta, "audio", None)
+        if audio_data:
+            audio_block = self._extract_audio_block(audio_data)
+            if audio_block:
+                content_blocks.append(audio_block)
+
+        # Extract images if present in delta
+        images_data = getattr(delta, "images", None)
+        if images_data:
+            image_blocks = self._extract_image_blocks(images_data)
+            content_blocks.extend(image_blocks)
+
+        return text_part, reasoning_part, content_blocks
+
+    def _process_delta_tool_calls(
+        self,
+        delta: Any,
+        tool_calls: list,
+        tool_ids: set,
+        content_blocks: list,
+    ) -> None:
+        """Process tool calls from delta.
+
+        Args:
+            delta: Delta object from streaming response.
+            tool_calls: List to append tool calls to.
+            tool_ids: Set to track tool call IDs.
+            content_blocks: List to append tool call blocks to.
+        """
+        if not getattr(delta, "tool_calls", None):
+            return
+
+        for tc in delta.tool_calls:  # type: ignore[attr-defined]
+            if not tc or tc.id in tool_ids:
+                continue
+            tool_ids.add(tc.id)
+            tool_calls.append(tc.model_dump())
+            content_blocks.append(
+                ToolCallBlock(
+                    name=tc.function.name,  # type: ignore
+                    args=json.loads(tc.function.arguments),  # type: ignore
+                    id=tc.id,  # type: ignore
+                )
+            )
+
     def _process_chunk(
         self,
         chunk: ModelResponseStream | None,  # type: ignore
@@ -156,40 +297,20 @@ class LiteLLMConverter(BaseConverter):
             return accumulated_content, accumulated_reasoning_content, tool_calls, seq, None
 
         msg: ModelResponseStream = chunk  # type: ignore
-        if msg is None:
+        if msg is None or msg.choices is None or len(msg.choices) == 0:
             return accumulated_content, accumulated_reasoning_content, tool_calls, seq, None
-        if msg.choices is None or len(msg.choices) == 0:
-            return accumulated_content, accumulated_reasoning_content, tool_calls, seq, None
+
         delta = msg.choices[0].delta
         if delta is None:
             return accumulated_content, accumulated_reasoning_content, tool_calls, seq, None
 
-        # update text delta
-        text_part = delta.content or ""
-        content_blocks = []
-        if text_part:
-            content_blocks.append(TextBlock(text=text_part))
-        reasoning_part = getattr(delta, "reasoning_content", "") or ""
-        if reasoning_part:
-            content_blocks.append(ReasoningBlock(summary=reasoning_part))
+        # Extract content blocks
+        text_part, reasoning_part, content_blocks = self._extract_delta_content_blocks(delta)
         accumulated_content += text_part
         accumulated_reasoning_content += reasoning_part
-        # handle tool calls if present
-        if getattr(delta, "tool_calls", None):
-            for tc in delta.tool_calls:  # type: ignore[attr-defined]
-                if not tc:
-                    continue
-                if tc.id in tool_ids:
-                    continue
-                tool_ids.add(tc.id)
-                tool_calls.append(tc.model_dump())
-                content_blocks.append(
-                    ToolCallBlock(
-                        name=tc.function.name,  # type: ignore
-                        args=json.loads(tc.function.arguments),  # type: ignore
-                        id=tc.id,  # type: ignore
-                    )
-                )
+
+        # Handle tool calls if present
+        self._process_delta_tool_calls(delta, tool_calls, tool_ids, content_blocks)
 
         output_message = Message(
             message_id=generate_id(msg.id),
@@ -200,7 +321,13 @@ class LiteLLMConverter(BaseConverter):
             delta=True,
         )
 
-        return accumulated_content, accumulated_reasoning_content, tool_calls, seq, output_message
+        return (
+            accumulated_content,
+            accumulated_reasoning_content,
+            tool_calls,
+            seq,
+            output_message,
+        )
 
     async def _handle_stream(
         self,

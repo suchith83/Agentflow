@@ -1,7 +1,7 @@
 """Node execution and management for TAF graph workflows.
 
 This module defines the Node class, which represents executable units within
-a TAF graph workflow. Nodes encapsulate functions or ToolNode instances
+a TAF graph workflow. Nodes encapsulate functions, ToolNode instances, or Agent instances
 that perform specific tasks, handle dependency injection, manage execution context,
 and support both synchronous and streaming execution modes.
 
@@ -13,7 +13,7 @@ injection system and callback management framework.
 
 import logging
 from collections.abc import AsyncIterable, Callable
-from typing import Any, Union
+from typing import TYPE_CHECKING, Any, Union
 
 from injectq import Inject
 
@@ -28,6 +28,10 @@ from agentflow.utils import (
 from agentflow.utils.command import Command
 
 from .tool_node import ToolNode
+
+
+if TYPE_CHECKING:
+    from .agent import Agent
 
 
 logger = logging.getLogger("agentflow.graph")
@@ -58,7 +62,7 @@ class Node:
     def __init__(
         self,
         name: str,
-        func: Union[Callable, "ToolNode"],
+        func: Union[Callable, "ToolNode", "Agent"],
         publisher: BasePublisher | None = Inject[BasePublisher],
     ):
         """Initialize a new Node instance with function and dependencies.
@@ -67,10 +71,11 @@ class Node:
             name: Unique identifier for the node within the graph. This name
                 is used for routing, logging, and referencing the node in
                 graph configuration.
-            func: The function or ToolNode to execute when this node is called.
+            func: The function, ToolNode, or Agent to execute when this node is called.
                 Functions should accept at least 'state' and 'config' parameters.
                 ToolNode instances handle tool-based operations and provide
-                their own execution logic.
+                their own execution logic. Agent instances provide high-level
+                LLM interaction capabilities.
             publisher: Optional event publisher for execution monitoring.
                 Injected via dependency injection if not explicitly provided.
                 Used for publishing node execution events and status updates.

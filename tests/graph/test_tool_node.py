@@ -376,3 +376,237 @@ class TestToolNode:
             tool_names = [t["function"]["name"] for t in tools]
             assert "local_func" in tool_names
             assert "mcp_tool" in tool_names
+
+
+class TestToolNodeMCPUserInfo:
+    """Test the pass_user_info_to_mcp feature."""
+
+    def test_tool_node_init_with_pass_user_info_to_mcp_default(self):
+        """Test that pass_user_info_to_mcp defaults to False."""
+
+        def sample_func() -> str:
+            return "result"
+
+        tool_node = ToolNode([sample_func])
+        assert tool_node._pass_user_info_to_mcp is False
+
+    def test_tool_node_init_with_pass_user_info_to_mcp_true(self):
+        """Test ToolNode initialization with pass_user_info_to_mcp=True."""
+
+        def sample_func() -> str:
+            return "result"
+
+        tool_node = ToolNode([sample_func], pass_user_info_to_mcp=True)
+        assert tool_node._pass_user_info_to_mcp is True
+
+    def test_tool_node_init_with_pass_user_info_to_mcp_false(self):
+        """Test ToolNode initialization with pass_user_info_to_mcp=False."""
+
+        def sample_func() -> str:
+            return "result"
+
+        tool_node = ToolNode([sample_func], pass_user_info_to_mcp=False)
+        assert tool_node._pass_user_info_to_mcp is False
+
+    @pytest.mark.asyncio
+    async def test_mcp_execute_passes_user_info_when_enabled(self):
+        """Test that _mcp_execute passes user info as meta when pass_user_info_to_mcp=True."""
+
+        def sample_func() -> str:
+            return "result"
+
+        # Create mock MCP client
+        mock_client = MagicMock()
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=None)
+        mock_client.ping = AsyncMock(return_value=True)
+        mock_call_tool_result = MagicMock()
+        mock_call_tool_result.content = [MagicMock(text="mcp_result")]
+        mock_client.call_tool = AsyncMock(return_value=mock_call_tool_result)
+
+        # Patch dependencies to allow MCP client
+        with patch("agentflow.graph.tool_node.HAS_FASTMCP", True):
+            with patch("agentflow.graph.tool_node.HAS_MCP", True):
+                tool_node = ToolNode(
+                    [sample_func], client=mock_client, pass_user_info_to_mcp=True
+                )
+                # Register MCP tool
+                tool_node.mcp_tools = ["mcp_tool"]
+
+                callback_mgr = MagicMock(spec=CallbackManager)
+                callback_mgr.execute_before_invoke = AsyncMock(
+                    side_effect=lambda ctx, data: data
+                )
+                callback_mgr.execute_after_invoke = AsyncMock(
+                    side_effect=lambda ctx, input_data, result: result
+                )
+
+                user_info = {"id": "user123", "name": "John", "role": "admin"}
+                config = {"user": user_info, "other_config": "value"}
+
+                result = await tool_node._mcp_execute(
+                    name="mcp_tool",
+                    args={"param": "value"},
+                    tool_call_id="call_123",
+                    config=config,
+                    callback_mgr=callback_mgr,
+                )
+
+                # Verify call_tool was called with meta containing user info
+                mock_client.call_tool.assert_called_once()
+                call_args = mock_client.call_tool.call_args
+                assert call_args[0][0] == "mcp_tool"  # name
+                assert call_args[0][1]["user"] == user_info  # input_data contains user info
+
+    @pytest.mark.asyncio
+    async def test_mcp_execute_does_not_pass_user_info_when_disabled(self):
+        """Test that _mcp_execute does not pass user info when pass_user_info_to_mcp=False."""
+
+        def sample_func() -> str:
+            return "result"
+
+        # Create mock MCP client
+        mock_client = MagicMock()
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=None)
+        mock_client.ping = AsyncMock(return_value=True)
+        mock_call_tool_result = MagicMock()
+        mock_call_tool_result.content = [MagicMock(text="mcp_result")]
+        mock_client.call_tool = AsyncMock(return_value=mock_call_tool_result)
+
+        # Patch dependencies to allow MCP client
+        with patch("agentflow.graph.tool_node.HAS_FASTMCP", True):
+            with patch("agentflow.graph.tool_node.HAS_MCP", True):
+                tool_node = ToolNode(
+                    [sample_func], client=mock_client, pass_user_info_to_mcp=False
+                )
+                # Register MCP tool
+                tool_node.mcp_tools = ["mcp_tool"]
+
+                callback_mgr = MagicMock(spec=CallbackManager)
+                callback_mgr.execute_before_invoke = AsyncMock(
+                    side_effect=lambda ctx, data: data
+                )
+                callback_mgr.execute_after_invoke = AsyncMock(
+                    side_effect=lambda ctx, input_data, result: result
+                )
+
+                user_info = {"id": "user123", "name": "John", "role": "admin"}
+                config = {"user": user_info, "other_config": "value"}
+
+                result = await tool_node._mcp_execute(
+                    name="mcp_tool",
+                    args={"param": "value"},
+                    tool_call_id="call_123",
+                    config=config,
+                    callback_mgr=callback_mgr,
+                )
+
+                # Verify call_tool was called without meta
+                mock_client.call_tool.assert_called_once()
+                call_args = mock_client.call_tool.call_args
+                assert call_args[0][0] == "mcp_tool"  # name
+                assert call_args[0][1] == {"param": "value"}  # input_data
+                assert "meta" not in call_args[1]  # no meta kwarg
+
+    @pytest.mark.asyncio
+    async def test_mcp_execute_handles_missing_user_in_config(self):
+        """Test that _mcp_execute handles missing 'user' key in config gracefully."""
+
+        def sample_func() -> str:
+            return "result"
+
+        # Create mock MCP client
+        mock_client = MagicMock()
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=None)
+        mock_client.ping = AsyncMock(return_value=True)
+        mock_call_tool_result = MagicMock()
+        mock_call_tool_result.content = [MagicMock(text="mcp_result")]
+        mock_client.call_tool = AsyncMock(return_value=mock_call_tool_result)
+
+        # Patch dependencies to allow MCP client
+        with patch("agentflow.graph.tool_node.HAS_FASTMCP", True):
+            with patch("agentflow.graph.tool_node.HAS_MCP", True):
+                tool_node = ToolNode(
+                    [sample_func], client=mock_client, pass_user_info_to_mcp=True
+                )
+                # Register MCP tool
+                tool_node.mcp_tools = ["mcp_tool"]
+
+                callback_mgr = MagicMock(spec=CallbackManager)
+                callback_mgr.execute_before_invoke = AsyncMock(
+                    side_effect=lambda ctx, data: data
+                )
+                callback_mgr.execute_after_invoke = AsyncMock(
+                    side_effect=lambda ctx, input_data, result: result
+                )
+
+                # Config without 'user' key
+                config = {"other_config": "value"}
+
+                result = await tool_node._mcp_execute(
+                    name="mcp_tool",
+                    args={"param": "value"},
+                    tool_call_id="call_123",
+                    config=config,
+                    callback_mgr=callback_mgr,
+                )
+
+                # Verify call_tool was called without meta since user is missing
+                mock_client.call_tool.assert_called_once()
+                call_args = mock_client.call_tool.call_args
+                assert call_args[0][0] == "mcp_tool"  # name
+                assert call_args[0][1] == {"param": "value"}  # input_data
+                assert "meta" not in call_args[1]  # no meta kwarg
+
+    @pytest.mark.asyncio
+    async def test_mcp_execute_handles_non_dict_user(self):
+        """Test that _mcp_execute handles non-dict 'user' value gracefully."""
+
+        def sample_func() -> str:
+            return "result"
+
+        # Create mock MCP client
+        mock_client = MagicMock()
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=None)
+        mock_client.ping = AsyncMock(return_value=True)
+        mock_call_tool_result = MagicMock()
+        mock_call_tool_result.content = [MagicMock(text="mcp_result")]
+        mock_client.call_tool = AsyncMock(return_value=mock_call_tool_result)
+
+        # Patch dependencies to allow MCP client
+        with patch("agentflow.graph.tool_node.HAS_FASTMCP", True):
+            with patch("agentflow.graph.tool_node.HAS_MCP", True):
+                tool_node = ToolNode(
+                    [sample_func], client=mock_client, pass_user_info_to_mcp=True
+                )
+                # Register MCP tool
+                tool_node.mcp_tools = ["mcp_tool"]
+
+                callback_mgr = MagicMock(spec=CallbackManager)
+                callback_mgr.execute_before_invoke = AsyncMock(
+                    side_effect=lambda ctx, data: data
+                )
+                callback_mgr.execute_after_invoke = AsyncMock(
+                    side_effect=lambda ctx, input_data, result: result
+                )
+
+                # Config with non-dict 'user' value
+                config = {"user": "just_a_string", "other_config": "value"}
+
+                result = await tool_node._mcp_execute(
+                    name="mcp_tool",
+                    args={"param": "value"},
+                    tool_call_id="call_123",
+                    config=config,
+                    callback_mgr=callback_mgr,
+                )
+
+                # Verify call_tool was called without meta since user is not a dict
+                mock_client.call_tool.assert_called_once()
+                call_args = mock_client.call_tool.call_args
+                assert call_args[0][0] == "mcp_tool"  # name
+                assert call_args[0][1] == {"param": "value"}  # input_data
+                assert "meta" not in call_args[1]  # no meta kwarg

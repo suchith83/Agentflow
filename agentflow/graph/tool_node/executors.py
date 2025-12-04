@@ -611,8 +611,9 @@ class LocalExecMixin:
 
 class MCPMixin:
     _client: t.Any | None
-    # The concrete ToolNode defines this
+    # The concrete ToolNode defines these
     mcp_tools: list[str]  # type: ignore[assignment]
+    _pass_user_info_to_mcp: bool  # type: ignore[assignment]
 
     def _serialize_result(
         self,
@@ -793,6 +794,11 @@ class MCPMixin:
                     return await callback_mgr.execute_after_invoke(
                         context, input_data, error_result
                     )
+
+                if self._pass_user_info_to_mcp:
+                    mcp_user_info = config.get("user")
+                    if mcp_user_info and isinstance(mcp_user_info, dict):
+                        input_data["user"] = mcp_user_info
 
                 res: t.Any = await self._client.call_tool(name, input_data)
 

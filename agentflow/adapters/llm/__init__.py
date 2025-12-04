@@ -10,7 +10,7 @@ Exports:
     BaseConverter: Abstract base class for LLM response converters.
     ConverterType: Enum of supported converter types.
     LiteLLMConverter: Converter for LiteLLM responses and streams.
-    # OpenAIConverter: (commented, available if implemented)
+    OpenAIConverter: Converter for OpenAI responses and streams.
 """
 
 from .base_converter import BaseConverter, ConverterType
@@ -18,6 +18,7 @@ from .litellm_converter import LiteLLMConverter
 
 
 # from .openai_converter import OpenAIConverter
+
 
 __all__ = [
     "BaseConverter",

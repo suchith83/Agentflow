@@ -282,7 +282,7 @@ class TestEventModelDefaultFactory:
         assert event.content_type == content_type
         assert event.thread_id == "test_thread"
         assert event.metadata["run_timestamp"] == "2023-01-01T00:00:00Z"
-        assert event.metadata["user_id"] == "user_123"
+        assert event.user_id == "user_123"
         assert event.metadata["is_stream"] is False  # default
         assert event.node_name == ""  # default
     
@@ -333,7 +333,7 @@ class TestEventModelDefaultFactory:
         assert event.content_type == content_type
         assert event.thread_id == ""  # default from empty config
         assert event.metadata["run_timestamp"] == ""  # default from empty config
-        assert event.metadata["user_id"] is None  # default from empty config
+        assert event.user_id is None  # default from empty config
         assert event.metadata["is_stream"] is False  # default from empty config
 
 

@@ -122,7 +122,7 @@ This architecture provides a flexible, extensible foundation for building
 sophisticated agent workflows while maintaining simplicity for common use cases.
 """
 
-# from .agent import Agent  # Commented out - Agent class is currently disabled
+from .agent import Agent
 from .compiled_graph import CompiledGraph
 from .edge import Edge
 from .node import Node
@@ -131,7 +131,7 @@ from .tool_node import ToolNode
 
 
 __all__ = [
-    # "Agent",  # Commented out - Agent class is currently disabled
+    "Agent",
     "CompiledGraph",
     "Edge",
     "Node",
