@@ -796,10 +796,7 @@ class MCPMixin:
                     )
 
                 if self._pass_user_info_to_mcp:
-                    if config.get("user"):
-                        mcp_user_info = config.get("user")
-                    elif config.get("user_id"):
-                        mcp_user_info = {"user_id": config.get("user_id")}
+                    mcp_user_info = {"user_id": config.get("user_id")}
                     if mcp_user_info and isinstance(mcp_user_info, dict):
                         input_data["user"] = mcp_user_info
 
