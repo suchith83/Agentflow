@@ -44,7 +44,6 @@ async def invoke():
             "get_weather",
             {
                 "location": "New York",
-                "user": {"user_id": "user_001"},
             },
         )
         print(result)

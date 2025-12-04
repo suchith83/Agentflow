@@ -103,6 +103,7 @@ class ToolNode(
         client: deps.Client | None = None,  # type: ignore
         composio_adapter: ComposioAdapter | None = None,
         langchain_adapter: t.Any | None = None,
+        pass_user_info_to_mcp: bool = False,
     ) -> None:
         """Initialize ToolNode with functions and optional tool adapters.
 
@@ -115,6 +116,9 @@ class ToolNode(
                 third-party API access.
             langchain_adapter: Optional LangChain adapter for accessing LangChain tools
                 and integrations.
+            pass_user_info_to_mcp: If True, extracts the 'user' dictionary from the config
+                and passes it as metadata to MCP tool calls. The user info will be accessible
+                on the MCP server via `ctx.request_context.meta`. Defaults to False.
 
         Raises:
             ImportError: If MCP client is provided but required packages are not installed.
@@ -123,6 +127,22 @@ class ToolNode(
         Note:
             When using MCP client functionality, ensure you have installed the required
             dependencies with: `pip install 10xscale-agentflow[mcp]`
+
+        Example:
+            ```python
+            # Create ToolNode with user info passing enabled
+            tools = ToolNode([my_tool], client=mcp_client, pass_user_info_to_mcp=True)
+
+            # When invoking, the 'user' dict from config will be sent to MCP
+            result = await tools.invoke(
+                name="my_tool",
+                args={"param": "value"},
+                tool_call_id="call_123",
+                config={"user": {"id": "user1", "name": "John"}},
+                state=agent_state,
+            )
+            # On the MCP server, access via ctx.request_context.meta
+            ```
         """
         logger.info("Initializing ToolNode with %d tools", len(list(tools)))
 
@@ -143,6 +163,7 @@ class ToolNode(
         self._client: deps.Client | None = client  # type: ignore
         self._composio: ComposioAdapter | None = composio_adapter
         self._langchain: t.Any | None = langchain_adapter
+        self._pass_user_info_to_mcp: bool = pass_user_info_to_mcp
 
         for tool in tools:
             if not callable(tool):
