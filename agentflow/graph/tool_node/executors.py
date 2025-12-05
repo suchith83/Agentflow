@@ -799,6 +799,10 @@ class MCPMixin:
                     mcp_user_info = config.get("user")
                     if mcp_user_info and isinstance(mcp_user_info, dict):
                         input_data["user"] = mcp_user_info
+                    else:
+                        user_id = config.get("user_id")
+                        if user_id:
+                            input_data["user"] = {"user_id": user_id}
 
                 res: t.Any = await self._client.call_tool(name, input_data)
 
