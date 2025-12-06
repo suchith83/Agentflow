@@ -704,7 +704,7 @@ class MCPMixin:
                     )
         return tools
 
-    async def _mcp_execute(
+    async def _mcp_execute(  # noqa: PLR0915
         self,
         name: str,
         args: dict,
