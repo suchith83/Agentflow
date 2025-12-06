@@ -524,6 +524,8 @@ class StreamHandler[StateT: AgentState](
                 event.content_type = [ContentType.STATE, ContentType.MESSAGE]
                 publish_event(event)
 
+                is_interrupted_requested = False
+
                 # Check for interrupt_after
                 if await self._check_and_handle_interrupt(
                     current_node,
@@ -536,6 +538,8 @@ class StreamHandler[StateT: AgentState](
                     if next_node is None:
                         next_node = get_next_node(current_node, state, self.edges)
                     state.set_current_node(next_node)
+
+                    is_interrupted_requested = True
 
                     event.event_type = EventType.INTERRUPTED
                     event.data["interrupted"] = "After"
@@ -555,7 +559,6 @@ class StreamHandler[StateT: AgentState](
                         thread_id=config.get("thread_id"),
                         run_id=config.get("run_id"),
                     )
-                    return
 
                 # Get next node
                 if next_node is None:
@@ -587,6 +590,9 @@ class StreamHandler[StateT: AgentState](
                     thread_id=config.get("thread_id"),
                     run_id=config.get("run_id"),
                 )
+
+                if is_interrupted_requested:
+                    return
 
                 if step >= max_steps:
                     error_msg = "Graph execution exceeded maximum steps"

@@ -1,3 +1,6 @@
+Version: 0.5.4 - 0.5.5
+1. Fix minor bugs in MCP and Node execution with interrupt handling
+
 Version: 0.5.3 later
 1. Enhanced MCP Tool Execution to Include User Information in Input Data
 2. Created AgentClass for Simplified Agent Instantiation

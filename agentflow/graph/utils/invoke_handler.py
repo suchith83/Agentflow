@@ -387,6 +387,8 @@ class InvokeHandler[StateT: AgentState](
                 event.content_type = [ContentType.STATE, ContentType.MESSAGE]
                 publish_event(event)
 
+                is_interrupted_requested = False
+
                 # Check for interrupt_after
                 if await self._check_and_handle_interrupt(
                     current_node,
@@ -399,13 +401,13 @@ class InvokeHandler[StateT: AgentState](
                     if next_node is None:
                         next_node = get_next_node(current_node, state, self.edges)
                     state.set_current_node(next_node)
+                    is_interrupted_requested = True
 
                     event.event_type = EventType.INTERRUPTED
                     event.data["interrupted"] = "After"
                     event.metadata["interrupted"] = "After"
                     event.data["state"] = state.model_dump()
                     publish_event(event)
-                    return state, messages
 
                 # Get next node (only if no explicit navigation from Command)
                 if next_node is None:
@@ -414,12 +416,6 @@ class InvokeHandler[StateT: AgentState](
                 else:
                     current_node = next_node
                     logger.debug("Next node determined by command: '%s'", current_node)
-
-                # Check if we've reached the end after determining next node
-                logger.debug("Checking if current_node '%s' == END '%s'", current_node, END)
-                if current_node == END:
-                    logger.info("Graph execution reached END node, completing")
-                    break
 
                 # Advance step after successful node execution
                 step += 1
@@ -430,6 +426,10 @@ class InvokeHandler[StateT: AgentState](
                 event.metadata["State_Updated"] = "State Updated"
                 event.data["state"] = state.model_dump()
                 publish_event(event)
+
+                # If we interrupted after, exit now
+                if is_interrupted_requested:
+                    return state, messages
 
                 if step >= max_steps:
                     error_msg = "Graph execution exceeded maximum steps"
