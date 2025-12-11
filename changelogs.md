@@ -1,3 +1,7 @@
+Version: 0.5.6 later
+2. Improved Error Handling in PgCheckpointer Methods and if thread name is null during update
+then default to existing name and it will return is created or not
+
 Version: 0.5.4 - 0.5.5
 1. Fix minor bugs in MCP and Node execution with interrupt handling
 

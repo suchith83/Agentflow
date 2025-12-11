@@ -267,9 +267,31 @@ class TestPgCheckpointer:
 
         thread_info = ThreadInfo(thread_id="thread_123", thread_name="Test Thread", metadata={"test": "data"})
 
-        # Test put_thread
+        # Test put_thread (basic call)
         await checkpointer.aput_thread(sample_config, thread_info)
-        connection.execute.assert_called()
+        connection.fetchrow.assert_called()
+
+    @pytest.mark.asyncio
+    async def test_put_thread_returns_created_flag(self, checkpointer, sample_config, mock_pg_pool, mock_redis):
+        """aput_thread should return True when inserted, False on update."""
+        connection = mock_pg_pool.acquire.return_value.__aenter__.return_value
+        connection.fetchrow = AsyncMock(return_value={"thread_id": "thread_123"})
+
+        thread_info = ThreadInfo(thread_id="thread_123", thread_name="Test Thread")
+        created = await checkpointer.aput_thread(sample_config, thread_info)
+        assert created is True
+
+        # Now simulate conflict -> should perform update and return False
+        connection.fetchrow = AsyncMock(return_value=None)
+        connection.execute = AsyncMock()
+
+        thread_info2 = ThreadInfo(thread_id="thread_123", thread_name=None, metadata={"a": 1})
+        created2 = await checkpointer.aput_thread(sample_config, thread_info2)
+        assert created2 is False
+        # Ensure we executed the meta-only update path when thread_name is None
+        assert any(
+            "SET meta = $1, updated_at = NOW()" in str(call.args[0]) for call in connection.execute.mock_calls
+        )
 
         # Test get_thread
         connection.fetchrow.return_value = {

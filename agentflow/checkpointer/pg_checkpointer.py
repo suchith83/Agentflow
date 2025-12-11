@@ -1321,7 +1321,8 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
             thread_info (ThreadInfo): Thread information object.
 
         Returns:
-            Any | None: None
+            bool: True if thread was created (inserted).
+                  False if thread already existed and was updated.
 
         Raises:
             Exception: If storing fails.
@@ -1332,7 +1333,7 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
         logger.debug("Storing thread info for thread_id=%s, user_id=%s", thread_id, user_id)
 
         try:
-            thread_name = thread_info.thread_name or f"Thread {thread_id}"
+            thread_name = thread_info.thread_name
             meta = thread_info.metadata or {}
             user_id = thread_info.user_id or user_id
             meta.update(
@@ -1343,15 +1344,14 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
 
             async def _put_thread():
                 async with (await self._get_pg_pool()).acquire() as conn:
-                    await conn.execute(
+                    # Try to insert; if inserted, RETURNING will return the row
+                    row = await conn.fetchrow(
                         f"""
                         INSERT INTO {self._get_table_name("threads")}
                             (thread_id, thread_name, user_id, meta)
                         VALUES ($1, $2, $3, $4)
-                        ON CONFLICT (thread_id) DO UPDATE SET
-                            thread_name = EXCLUDED.thread_name,
-                            meta = EXCLUDED.meta,
-                            updated_at = NOW()
+                        ON CONFLICT (thread_id) DO NOTHING
+                        RETURNING thread_id
                         """,  # noqa: S608
                         thread_id,
                         thread_name,
@@ -1359,12 +1359,43 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
                         json.dumps(meta),
                     )
 
-            await self._retry_on_connection_error(_put_thread, max_retries=3)
-            logger.debug("Thread info stored for thread_id=%s", thread_id)
+                    if row:
+                        # Insert succeeded
+                        return True
+
+                    # Insert did nothing (conflict) -> update existing row
+                    # Only set thread_name when a non-None value is provided
+                    if thread_name is None:
+                        await conn.execute(
+                            f"""
+                            UPDATE {self._get_table_name("threads")}
+                            SET meta = $1, updated_at = NOW()
+                            WHERE thread_id = $2
+                            """,  # noqa: S608
+                            json.dumps(meta),
+                            thread_id,
+                        )
+                    else:
+                        await conn.execute(
+                            f"""
+                            UPDATE {self._get_table_name("threads")}
+                            SET thread_name = $1, meta = $2, updated_at = NOW()
+                            WHERE thread_id = $3
+                            """,  # noqa: S608
+                            thread_name,
+                            json.dumps(meta),
+                            thread_id,
+                        )
+
+                    return False
+
+            created = await self._retry_on_connection_error(_put_thread, max_retries=3)
+            logger.debug("Thread info stored for thread_id=%s (created=%s)", thread_id, created)
+            return bool(created)
 
         except Exception as e:
             logger.error("Failed to store thread info for thread_id=%s: %s", thread_id, e)
-            raise
+            raise e
 
     async def aget_thread(
         self,
@@ -1423,7 +1454,7 @@ class PgCheckpointer(BaseCheckpointer[StateT]):
 
         except Exception as e:
             logger.error("Failed to retrieve thread info for thread_id=%s: %s", thread_id, e)
-            raise
+            raise e
 
     async def alist_threads(
         self,
