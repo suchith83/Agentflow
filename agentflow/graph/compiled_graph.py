@@ -4,7 +4,7 @@ import asyncio
 import contextlib
 import datetime
 import logging
-from collections.abc import AsyncIterator, Generator
+from collections.abc import AsyncIterator, Callable, Generator
 from typing import TYPE_CHECKING, Any, TypeVar
 from uuid import uuid4
 
@@ -12,6 +12,7 @@ from injectq import InjectQ
 
 from agentflow.checkpointer.base_checkpointer import BaseCheckpointer
 from agentflow.exceptions.graph_error import GraphError
+from agentflow.graph.base_agent import BaseAgent
 from agentflow.graph.tool_node.base import ToolNode
 from agentflow.publisher.base_publisher import BasePublisher
 from agentflow.state import AgentState
@@ -308,6 +309,59 @@ class CompiledGraph[StateT: AgentState]:
             state.is_interrupted(),
         )
         return {"ok": True, "running": running, "reason": "not-running"}
+
+    def override_node(
+        self,
+        name: str,
+        func: Callable | ToolNode | BaseAgent,  # noqa: F821
+    ) -> "CompiledGraph[StateT]":
+        """Override a node in an already-compiled graph.
+
+        Useful for testing pre-built production graphs by swapping
+        nodes with test doubles after compilation.
+
+        Args:
+            name: Name of the existing node to override
+            func: New function, ToolNode, or Agent to use
+
+        Returns:
+            CompiledGraph: The graph instance for method chaining.
+
+        Raises:
+            KeyError: If the node doesn't exist
+
+        Example:
+            ```python
+            # Production factory
+            def create_production_workflow():
+                graph = StateGraph()
+                graph.add_node("MAIN", production_agent)
+                # ... complex setup
+                return graph.compile()
+
+
+            # Test
+            compiled = create_production_workflow()
+            compiled.override_node("MAIN", test_agent)  # Override after compile
+            result = await compiled.ainvoke(...)
+            ```
+        """
+        if name not in self._state_graph.nodes:
+            raise KeyError(f"Node '{name}' does not exist")
+
+        # Create new Node and update the graph's dict
+        new_node = Node(name, func, self._publisher)
+        self._state_graph.nodes[name] = new_node
+
+        # Re-register in container so handlers pick up the change
+        # The handlers read from container's "get_node" factory
+        self._state_graph._container.bind_factory(
+            "get_node",
+            lambda x: self._state_graph.nodes[x],
+        )
+
+        logger.debug("Overrode node '%s' in compiled graph", name)
+        return self
 
     def stream(
         self,

@@ -1,5 +1,6 @@
 from .base_store import BaseStore
 from .embedding import BaseEmbedding, OpenAIEmbedding
+from .in_memory_store import InMemoryStore
 from .mem0_store import (
     Mem0Store,
     create_mem0_store,
@@ -18,6 +19,7 @@ __all__ = [
     "BaseEmbedding",
     "BaseStore",
     "DistanceMetric",
+    "InMemoryStore",
     "Mem0Store",
     "MemoryRecord",
     "MemorySearchResult",

@@ -13,6 +13,8 @@ import time
 from collections.abc import AsyncGenerator, AsyncIterable
 from typing import Any, TypeVar
 
+from collections.abc import Callable
+
 from injectq import inject
 
 from agentflow.exceptions import GraphRecursionError
@@ -76,9 +78,13 @@ class StreamHandler[StateT: AgentState](
         edges: list[Edge],
         interrupt_before: list[str] | None = None,
         interrupt_after: list[str] | None = None,
+        get_node_factory: Callable[[str], Node] | None = None,
     ):
         self.nodes: dict[str, Node] = nodes
         self.edges: list[Edge] = edges
+        # Store factory for node lookup - enables override_node after compile
+        # Uses the nodes dict reference directly - modifications to the dict are reflected
+        self._get_node = get_node_factory if get_node_factory else lambda x: nodes[x]
         self.interrupt_before = interrupt_before or []
         self.interrupt_after = interrupt_after or []
         self._set_interrupts(interrupt_before, interrupt_after)
@@ -358,9 +364,9 @@ class StreamHandler[StateT: AgentState](
                     )
                     return
 
-                # Execute current node
+                # Execute current node - use factory for override support
                 logger.debug("Executing node '%s'", current_node)
-                node = self.nodes[current_node]
+                node = self._get_node(current_node)
 
                 ####################################################
                 ############ Execute Node ##########################

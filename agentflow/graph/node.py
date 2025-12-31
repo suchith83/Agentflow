@@ -31,7 +31,7 @@ from .tool_node import ToolNode
 
 
 if TYPE_CHECKING:
-    from .agent import Agent
+    from .base_agent import BaseAgent
 
 
 logger = logging.getLogger("agentflow.graph")
@@ -62,7 +62,7 @@ class Node:
     def __init__(
         self,
         name: str,
-        func: Union[Callable, "ToolNode", "Agent"],
+        func: Union[Callable, "ToolNode", "BaseAgent"],
         publisher: BasePublisher | None = Inject[BasePublisher],
     ):
         """Initialize a new Node instance with function and dependencies.

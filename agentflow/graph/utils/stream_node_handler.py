@@ -41,7 +41,7 @@ from .handler_mixins import BaseLoggingMixin
 
 
 if TYPE_CHECKING:
-    from agentflow.graph.agent import Agent
+    from agentflow.graph.base_agent import BaseAgent
 
 
 logger = logging.getLogger("agentflow.graph")
@@ -69,7 +69,7 @@ class StreamNodeHandler(BaseLoggingMixin):
     def __init__(
         self,
         name: str,
-        func: Union[Callable, "ToolNode", "Agent"],
+        func: Union[Callable, "ToolNode", "BaseAgent"],
     ):
         """Initialize a new StreamNodeHandler instance.
 
@@ -598,8 +598,9 @@ class StreamNodeHandler(BaseLoggingMixin):
 
         try:
             from agentflow.graph.agent import Agent
+            from agentflow.graph.base_agent import BaseAgent
 
-            if isinstance(self.func, Agent):
+            if isinstance(self.func, (Agent, BaseAgent)):
                 logger.debug("Node '%s' is an Agent instance, executing agent streaming", self.name)
                 result = self._call_agent_node(
                     state,
