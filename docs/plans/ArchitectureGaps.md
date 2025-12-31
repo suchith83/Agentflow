@@ -115,33 +115,6 @@ with TestContext() as ctx:
 
 ---
 
-### 4. Graph Cannot Be Serialized/Exported
-
-**Location**: `agentflow/graph/state_graph.py`
-
-**Problem**: No way to:
-- Export graph structure to JSON/YAML
-- Visualize graph as diagram
-- Load graph from configuration file
-
-**Current**: Graph is only defined programmatically
-
-**Impact**:
-- Cannot share graph definitions across systems
-- No visual debugging of graph flow
-- Cannot use low-code/no-code builders
-
-**Solution**:
-```python
-# Proposed API
-graph.to_dict()  # Export to dict
-graph.to_yaml("workflow.yaml")  # Save to file
-StateGraph.from_yaml("workflow.yaml")  # Load from file
-graph.visualize()  # Generate Mermaid/Graphviz diagram
-```
-
----
-
 ### 5. No Retry/Fallback Mechanism
 
 **Location**: Node execution in `agentflow/graph/node.py`
@@ -171,111 +144,8 @@ graph.add_node("MAIN", agent, retry_policy=RetryPolicy(
 ))
 ```
 
----
-
-### 6. InjectQ Container Not Properly Scoped
-
-**Location**: `agentflow/graph/state_graph.py` lines 105-115
-
-**Problem**:
-```python
-if container is None:
-    self._container = InjectQ.get_instance()  # Global singleton
-```
-
-**Impact**:
-- Tests pollute each other's DI state
-- Cannot have isolated test runs
-- Race conditions in parallel tests
-
-**Solution** (already supported):
-```python
-# Pass custom container to StateGraph
-test_container = InjectQ()  # Fresh instance
-graph = StateGraph(container=test_container)
-
-# Or use TestContext which handles this
-with TestContext() as ctx:
-    graph = ctx.create_graph()  # Uses isolated container
-    # ...test runs in isolation
-```
-
----
-
-### 7. No Request/Response Tracing
-
-**Location**: Missing correlation ID propagation
-
-**Problem**:
-- No request ID flows through the execution
-- Cannot correlate logs across node executions
-- No distributed tracing support (OpenTelemetry)
-
-**Impact**:
-- Debugging production issues is difficult
-- Cannot track request through multi-agent flows
-- No observability into complex workflows
-
-**Solution**:
-```python
-# Proposed: Automatic trace context
-config = {
-    "trace_id": "uuid",  # Auto-generated if missing
-    "span_id": "uuid",
-    "parent_span_id": "uuid",
-}
-
-# Log output
-# [trace_id=abc123] [node=MAIN] Processing message...
-# [trace_id=abc123] [node=TOOL] Executing get_weather...
-```
-
----
 
 ## Medium Gaps (🟡)
-
-### 8. No Streaming Accumulator
-
-**Location**: `agentflow/graph/compiled_graph.py`
-
-**Problem**: When streaming, there's no built-in way to:
-- Accumulate chunks into complete response
-- Detect stream completion
-- Handle partial tool calls
-
-**Impact**: Users must manually accumulate stream chunks
-
-**Solution**:
-```python
-# Proposed API
-async for chunk in graph.astream(input):
-    if chunk.is_complete:
-        full_response = chunk.accumulated_content
-```
-
----
-
-### 9. No Context Window Management
-
-**Location**: `agentflow/state/base_context.py`
-
-**Problem**: `BaseContextManager` exists but:
-- No token counting integration
-- No automatic summarization
-- No smart truncation strategies
-
-**Impact**: Context exceeds LLM limits, causing failures
-
-**Solution**:
-```python
-# Proposed: Smart context manager
-context_manager = SmartContextManager(
-    max_tokens=8000,
-    strategy="summarize_old",  # or "truncate_old", "sliding_window"
-    summarizer=LLMSummarizer(model="gpt-4o-mini"),
-)
-```
-
 ---
 
 ### 10. No Tool Result Caching
@@ -385,30 +255,8 @@ class AgentHandoff(Protocol):
         ...
 ```
 
----
-
-### 14. Callback System Limited
-
-**Location**: `agentflow/utils/callbacks.py`
-
-**Problem**: Callbacks are well-designed but missing:
-- `on_graph_start` / `on_graph_end` hooks
-- `on_checkpoint_save` / `on_checkpoint_load` hooks
-- `on_memory_retrieve` / `on_memory_store` hooks
-
-**Impact**: Cannot intercept all execution phases
-
-**Solution**: Extend `CallbackManager` with additional hook points
-
----
 
 ## Low Gaps (🟠)
-
-### 15. No Rate Limiting
-
-**Problem**: No built-in rate limiting for LLM/tool calls
-
-**Solution**: Add rate limiter to LLM service layer
 
 ---
 
@@ -427,12 +275,6 @@ class AgentHandoff(Protocol):
 **Solution**: Create `GraphConfig` Pydantic model
 
 ---
-
-### 18. No Warm-up/Health Check
-
-**Problem**: No way to verify graph is ready before serving requests
-
-**Solution**: Add `graph.health_check()` and `graph.warm_up()` methods
 
 ---
 
