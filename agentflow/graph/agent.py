@@ -15,6 +15,7 @@ from typing import Any
 from injectq import Inject, InjectQ
 
 from agentflow.adapters.llm.model_response_converter import ModelResponseConverter
+from agentflow.graph.base_agent import BaseAgent
 from agentflow.graph.tool_node import ToolNode
 from agentflow.state import AgentState
 from agentflow.state.base_context import BaseContextManager
@@ -39,7 +40,7 @@ logger = logging.getLogger("agentflow.agent")
 CONTENT_PREVIEW_LENGTH = 200
 
 
-class Agent:
+class Agent(BaseAgent):
     """A smart node function wrapper for LLM interactions.
 
     This class handles common boilerplate for agent implementations including:
@@ -139,8 +140,9 @@ class Agent:
                 "Install it with: pip install 10xscale-agentflow[litellm]"
             )
 
-        self.model = model
-        self.system_prompt = system_prompt
+        # Call parent constructor
+        super().__init__(model=model, system_prompt=system_prompt, tools=tools, **llm_kwargs)
+
         self.extra_messages = extra_messages
         self.tools = tools
         # self.learning = learning
@@ -200,6 +202,35 @@ class Agent:
         logger.debug("Context trimming not enabled")
         return state
 
+    async def _call_llm(
+        self,
+        messages: list[dict[str, Any]],
+        tools: list | None = None,
+        **kwargs: Any,
+    ) -> Any:
+        """Call the LLM via litellm.acompletion().
+
+        This method encapsulates the actual LLM API call, making it easy
+        to override in test subclasses.
+
+        Args:
+            messages: List of message dicts for the LLM
+            tools: Optional list of tool specifications
+            **kwargs: Additional LLM call parameters
+
+        Returns:
+            LiteLLM response object
+        """
+        call_kwargs = {**self.llm_kwargs, **kwargs}
+        if tools:
+            call_kwargs["tools"] = tools
+
+        return await acompletion(
+            model=self.model,
+            messages=messages,
+            **call_kwargs,
+        )
+
     async def execute(
         self,
         state: AgentState,
@@ -236,12 +267,10 @@ class Agent:
         # If tool results just came in, make final response without tools
         if state.context and len(state.context) > 0 and state.context[-1].role == "tool":
             # Make final response without tools since we just got tool results
-            response = await acompletion(
-                model=self.model,
+            response = await self._call_llm(
                 messages=messages,
                 stream=is_stream,
-                **self.llm_kwargs,
-            )  # type: ignore
+            )
         else:
             # Regular response with tools available
             tools = []
@@ -261,13 +290,11 @@ class Agent:
                 if node and isinstance(node.func, ToolNode):
                     tools = await node.func.all_tools(tags=self.tools_tags)
 
-            response = await acompletion(
-                model=self.model,
+            response = await self._call_llm(
                 messages=messages,
+                tools=tools if tools else None,
                 stream=is_stream,
-                tools=tools,
-                **self.llm_kwargs,
-            )  # type: ignore
+            )
 
         return ModelResponseConverter(
             response,

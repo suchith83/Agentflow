@@ -152,6 +152,12 @@ pip install 10xscale-agentflow[pg_checkpoint]
 # MCP (Model Context Protocol) support
 pip install 10xscale-agentflow[mcp]
 
+# Google GenAI adapter (google-genai SDK)
+pip install 10xscale-agentflow[google-genai]
+
+# LiteLLM for multi-provider LLM support
+pip install 10xscale-agentflow[litellm]
+
 # Composio tools (adapter)
 pip install 10xscale-agentflow[composio]
 
@@ -164,7 +170,7 @@ pip install 10xscale-agentflow[kafka]     # Kafka publisher
 pip install 10xscale-agentflow[rabbitmq]  # RabbitMQ publisher
 
 # Multiple extras
-pip install 10xscale-agentflow[pg_checkpoint,mcp,composio,langchain]
+pip install 10xscale-agentflow[pg_checkpoint,mcp,google-genai,litellm,composio,langchain]
 ```
 
 ### Environment Setup

@@ -123,6 +123,7 @@ sophisticated agent workflows while maintaining simplicity for common use cases.
 """
 
 from .agent import Agent
+from .base_agent import BaseAgent
 from .compiled_graph import CompiledGraph
 from .edge import Edge
 from .node import Node
@@ -132,6 +133,7 @@ from .tool_node import ToolNode
 
 __all__ = [
     "Agent",
+    "BaseAgent",
     "CompiledGraph",
     "Edge",
     "Node",

@@ -43,7 +43,7 @@ from .handler_mixins import BaseLoggingMixin
 
 
 if TYPE_CHECKING:
-    from agentflow.graph.agent import Agent
+    from agentflow.graph.base_agent import BaseAgent
 
 
 logger = logging.getLogger("agentflow.graph")
@@ -72,7 +72,7 @@ class InvokeNodeHandler(BaseLoggingMixin):
     def __init__(
         self,
         name: str,
-        func: Union[Callable, "ToolNode", "Agent"],
+        func: Union[Callable, "ToolNode", "BaseAgent"],
         publisher: BasePublisher | None = Inject[BasePublisher],
     ):
         self.name = name
@@ -462,8 +462,9 @@ class InvokeNodeHandler(BaseLoggingMixin):
         try:
             # Import Agent here to avoid circular dependency
             from agentflow.graph.agent import Agent
+            from agentflow.graph.base_agent import BaseAgent
 
-            if isinstance(self.func, Agent):
+            if isinstance(self.func, Agent | BaseAgent):
                 logger.debug("Node '%s' is an Agent instance, executing agent", self.name)
                 result = await self._call_agent_node(
                     state,

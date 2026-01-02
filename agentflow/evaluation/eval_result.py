@@ -1,0 +1,350 @@
+"""
+Evaluation result models.
+
+This module defines data structures for evaluation outcomes:
+    - CriterionResult: Result from a single criterion evaluation
+    - EvalCaseResult: Result from evaluating one test case
+    - EvalSummary: Aggregate statistics across all cases
+    - EvalReport: Complete evaluation report
+"""
+
+from __future__ import annotations
+
+import time
+from typing import Any
+
+from pydantic import BaseModel, Field
+
+from agentflow.evaluation.eval_set import ToolCall, TrajectoryStep
+
+
+class CriterionResult(BaseModel):
+    """Result from evaluating a single criterion.
+
+    Attributes:
+        criterion: Name of the criterion that was evaluated.
+        score: Score from 0.0 to 1.0.
+        passed: Whether the score met the threshold.
+        threshold: The threshold used for pass/fail.
+        details: Additional criterion-specific details.
+        error: Error message if evaluation failed.
+    """
+
+    criterion: str
+    score: float
+    passed: bool
+    threshold: float = 0.0
+    details: dict[str, Any] = Field(default_factory=dict)
+    error: str | None = None
+
+    @classmethod
+    def success(
+        cls,
+        criterion: str,
+        score: float,
+        threshold: float,
+        details: dict[str, Any] | None = None,
+    ) -> CriterionResult:
+        """Create a successful criterion result."""
+        return cls(
+            criterion=criterion,
+            score=score,
+            passed=score >= threshold,
+            threshold=threshold,
+            details=details or {},
+        )
+
+    @classmethod
+    def failure(
+        cls,
+        criterion: str,
+        error: str,
+        threshold: float = 0.0,
+    ) -> CriterionResult:
+        """Create a failed criterion result due to error."""
+        return cls(
+            criterion=criterion,
+            score=0.0,
+            passed=False,
+            threshold=threshold,
+            error=error,
+        )
+
+    @property
+    def is_error(self) -> bool:
+        """Check if this result represents an error."""
+        return self.error is not None
+
+
+class EvalCaseResult(BaseModel):
+    """Result from evaluating a single test case.
+
+    Attributes:
+        eval_id: ID of the evaluated case.
+        name: Name of the test case.
+        passed: Whether the case passed all criteria.
+        criterion_results: Results from each criterion.
+        actual_trajectory: The actual execution trajectory.
+        actual_tool_calls: Actual tool calls made.
+        actual_response: The actual final response.
+        duration_seconds: Time taken to run this case.
+        error: Error message if case evaluation failed.
+        metadata: Additional result metadata.
+    """
+
+    eval_id: str
+    name: str = ""
+    passed: bool
+    criterion_results: list[CriterionResult] = Field(default_factory=list)
+    actual_trajectory: list[TrajectoryStep] = Field(default_factory=list)
+    actual_tool_calls: list[ToolCall] = Field(default_factory=list)
+    actual_response: str = ""
+    duration_seconds: float = 0.0
+    error: str | None = None
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+    @classmethod
+    def success(
+        cls,
+        eval_id: str,
+        criterion_results: list[CriterionResult],
+        actual_trajectory: list[TrajectoryStep] | None = None,
+        actual_tool_calls: list[ToolCall] | None = None,
+        actual_response: str = "",
+        duration_seconds: float = 0.0,
+        name: str = "",
+    ) -> EvalCaseResult:
+        """Create a successful case result."""
+        all_passed = all(r.passed for r in criterion_results)
+        return cls(
+            eval_id=eval_id,
+            name=name,
+            passed=all_passed,
+            criterion_results=criterion_results,
+            actual_trajectory=actual_trajectory or [],
+            actual_tool_calls=actual_tool_calls or [],
+            actual_response=actual_response,
+            duration_seconds=duration_seconds,
+        )
+
+    @classmethod
+    def failure(
+        cls,
+        eval_id: str,
+        error: str,
+        name: str = "",
+        duration_seconds: float = 0.0,
+    ) -> EvalCaseResult:
+        """Create a failed case result due to error."""
+        return cls(
+            eval_id=eval_id,
+            name=name,
+            passed=False,
+            error=error,
+            duration_seconds=duration_seconds,
+        )
+
+    @property
+    def is_error(self) -> bool:
+        """Check if this result represents an error."""
+        return self.error is not None
+
+    def get_criterion_result(self, name: str) -> CriterionResult | None:
+        """Get result for a specific criterion."""
+        for result in self.criterion_results:
+            if result.criterion == name:
+                return result
+        return None
+
+    @property
+    def failed_criteria(self) -> list[CriterionResult]:
+        """Get list of criteria that failed."""
+        return [r for r in self.criterion_results if not r.passed]
+
+    @property
+    def passed_criteria(self) -> list[CriterionResult]:
+        """Get list of criteria that passed."""
+        return [r for r in self.criterion_results if r.passed]
+
+
+class EvalSummary(BaseModel):
+    """Aggregate statistics across all evaluation cases.
+
+    Attributes:
+        total_cases: Total number of cases evaluated.
+        passed_cases: Number of cases that passed all criteria.
+        failed_cases: Number of cases that failed at least one criterion.
+        error_cases: Number of cases that errored during evaluation.
+        pass_rate: Percentage of cases that passed (0.0 to 1.0).
+        avg_duration_seconds: Average time per case.
+        total_duration_seconds: Total evaluation time.
+        criterion_stats: Per-criterion aggregate statistics.
+    """
+
+    total_cases: int = 0
+    passed_cases: int = 0
+    failed_cases: int = 0
+    error_cases: int = 0
+    pass_rate: float = 0.0
+    avg_duration_seconds: float = 0.0
+    total_duration_seconds: float = 0.0
+    criterion_stats: dict[str, dict[str, Any]] = Field(default_factory=dict)
+
+    @classmethod
+    def from_results(cls, results: list[EvalCaseResult]) -> EvalSummary:
+        """Compute summary statistics from results."""
+        if not results:
+            return cls()
+
+        total = len(results)
+        passed = sum(1 for r in results if r.passed)
+        errored = sum(1 for r in results if r.is_error)
+        failed = total - passed - errored
+        total_duration = sum(r.duration_seconds for r in results)
+
+        # Compute per-criterion stats
+        criterion_stats: dict[str, dict[str, Any]] = {}
+        for result in results:
+            for cr in result.criterion_results:
+                if cr.criterion not in criterion_stats:
+                    criterion_stats[cr.criterion] = {
+                        "total": 0,
+                        "passed": 0,
+                        "failed": 0,
+                        "avg_score": 0.0,
+                        "scores": [],
+                    }
+                stats = criterion_stats[cr.criterion]
+                stats["total"] += 1
+                stats["scores"].append(cr.score)
+                if cr.passed:
+                    stats["passed"] += 1
+                else:
+                    stats["failed"] += 1
+
+        # Compute average scores
+        for stats in criterion_stats.values():
+            scores = stats.pop("scores")
+            stats["avg_score"] = sum(scores) / len(scores) if scores else 0.0
+            stats["pass_rate"] = stats["passed"] / stats["total"] if stats["total"] > 0 else 0.0
+
+        return cls(
+            total_cases=total,
+            passed_cases=passed,
+            failed_cases=failed,
+            error_cases=errored,
+            pass_rate=passed / total if total > 0 else 0.0,
+            avg_duration_seconds=total_duration / total if total > 0 else 0.0,
+            total_duration_seconds=total_duration,
+            criterion_stats=criterion_stats,
+        )
+
+
+class EvalReport(BaseModel):
+    """Complete evaluation report.
+
+    Attributes:
+        eval_set_id: ID of the evaluated set.
+        eval_set_name: Name of the evaluated set.
+        results: Individual case results.
+        summary: Aggregate statistics.
+        config_used: Configuration used for evaluation.
+        timestamp: When the evaluation was run.
+        metadata: Additional report metadata.
+    """
+
+    eval_set_id: str
+    eval_set_name: str = ""
+    results: list[EvalCaseResult] = Field(default_factory=list)
+    summary: EvalSummary = Field(default_factory=EvalSummary)
+    config_used: dict[str, Any] = Field(default_factory=dict)
+    timestamp: float = Field(default_factory=time.time)
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+    @classmethod
+    def create(
+        cls,
+        eval_set_id: str,
+        results: list[EvalCaseResult],
+        eval_set_name: str = "",
+        config_used: dict[str, Any] | None = None,
+    ) -> EvalReport:
+        """Create a report from results."""
+        return cls(
+            eval_set_id=eval_set_id,
+            eval_set_name=eval_set_name,
+            results=results,
+            summary=EvalSummary.from_results(results),
+            config_used=config_used or {},
+        )
+
+    @property
+    def passed(self) -> bool:
+        """Check if all cases passed."""
+        return self.summary.pass_rate == 1.0
+
+    @property
+    def failed_cases(self) -> list[EvalCaseResult]:
+        """Get list of failed cases."""
+        return [r for r in self.results if not r.passed]
+
+    @property
+    def passed_cases(self) -> list[EvalCaseResult]:
+        """Get list of passed cases."""
+        return [r for r in self.results if r.passed]
+
+    def get_case_result(self, eval_id: str) -> EvalCaseResult | None:
+        """Get result for a specific case."""
+        for result in self.results:
+            if result.eval_id == eval_id:
+                return result
+        return None
+
+    def to_file(self, path: str) -> None:
+        """Save report to a JSON file."""
+        import json
+        from pathlib import Path
+
+        with Path(path).open("w", encoding="utf-8") as f:
+            json.dump(self.model_dump(), f, indent=2)
+
+    @classmethod
+    def from_file(cls, path: str) -> EvalReport:
+        """Load report from a JSON file."""
+        import json
+        from pathlib import Path
+
+        with Path(path).open("r", encoding="utf-8") as f:
+            data = json.load(f)
+        return cls.model_validate(data)
+
+    def format_summary(self) -> str:
+        """Format summary as human-readable string."""
+        lines = [
+            f"Evaluation Report: {self.eval_set_name or self.eval_set_id}",
+            "=" * 60,
+            f"Total Cases: {self.summary.total_cases}",
+            f"Passed: {self.summary.passed_cases} ({self.summary.pass_rate:.1%})",
+            f"Failed: {self.summary.failed_cases}",
+            f"Errors: {self.summary.error_cases}",
+            f"Duration: {self.summary.total_duration_seconds:.2f}s",
+            "",
+            "Per-Criterion Results:",
+            "-" * 40,
+        ]
+
+        for criterion, stats in self.summary.criterion_stats.items():
+            lines.append(
+                f"  {criterion}: "
+                f"{stats['passed']}/{stats['total']} passed, "
+                f"avg score: {stats['avg_score']:.2f}"
+            )
+
+        if self.failed_cases:
+            lines.extend(["", "Failed Cases:", "-" * 40])
+            for case in self.failed_cases:
+                lines.append(f"  - {case.eval_id}: {case.name}")
+                for cr in case.failed_criteria:
+                    lines.append(f"      {cr.criterion}: {cr.score:.2f} < {cr.threshold}")
+
+        return "\n".join(lines)

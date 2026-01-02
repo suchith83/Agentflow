@@ -51,6 +51,8 @@ Agentflow delivers a comprehensive set of features that cover the entire agent l
 
 - **Async-first design** — Native async/await support for efficient I/O operations. Sync wrappers provided for compatibility with synchronous codebases.
 
+- **Comprehensive evaluation framework** — Built-in testing and evaluation tools specifically designed for LLM-based agents. Support for trajectory analysis, LLM-as-judge patterns, user simulation, and pytest integration. Go beyond traditional unit testing to validate agent behavior in realistic scenarios.
+
 - **Extensive documentation** — Comprehensive guides, API references, and runnable examples help you get started quickly and troubleshoot effectively.
 
 ---

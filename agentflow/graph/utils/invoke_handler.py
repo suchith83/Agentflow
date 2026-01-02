@@ -3,6 +3,8 @@ from __future__ import annotations  # isort: skip_file
 import logging
 from typing import Any, TypeVar
 
+from collections.abc import Callable
+
 from injectq import inject
 
 from agentflow.exceptions import GraphRecursionError
@@ -45,9 +47,13 @@ class InvokeHandler[StateT: AgentState](
         edges: list[Edge],
         interrupt_before: list[str] | None = None,
         interrupt_after: list[str] | None = None,
+        get_node_factory: Callable[[str], Node] | None = None,
     ):
         self.nodes: dict[str, Node] = nodes
         self.edges: list[Edge] = edges
+        # Store factory for node lookup - enables override_node after compile
+        # Uses the nodes dict reference directly - modifications to the dict are reflected
+        self._get_node = get_node_factory if get_node_factory else lambda x: nodes[x]
         # Keep existing attributes for backward-compatibility
         self.interrupt_before = interrupt_before or []
         self.interrupt_after = interrupt_after or []
@@ -299,9 +305,9 @@ class InvokeHandler[StateT: AgentState](
                     publish_event(event)
                     return state, messages
 
-                # Execute current node
+                # Execute current node - use factory for override support
                 logger.debug("Executing node '%s'", current_node)
-                node = self.nodes[current_node]
+                node = self._get_node(current_node)
 
                 # Publish node invocation event
 

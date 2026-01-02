@@ -14,6 +14,7 @@ from agentflow.utils.background_task_manager import BackgroundTaskManager
 from agentflow.utils.id_generator import BaseIDGenerator, DefaultIDGenerator
 
 from .agent import Agent
+from .base_agent import BaseAgent
 from .edge import Edge
 from .node import Node
 from .tool_node import ToolNode
@@ -220,13 +221,13 @@ class StateGraph[StateT: AgentState]:
             func = name_or_func
             logger.debug("Adding node '%s' with inferred name from function", name)
         elif isinstance(name_or_func, str) and (
-            callable(func) or isinstance(func, ToolNode | Agent)
+            callable(func) or isinstance(func, ToolNode | BaseAgent)
         ):
             # Name and function/ToolNode/Agent passed separately
             name = name_or_func
             node_type = (
                 "Agent"
-                if isinstance(func, Agent)
+                if isinstance(func, BaseAgent)
                 else "ToolNode"
                 if isinstance(func, ToolNode)
                 else "callable"
@@ -382,6 +383,44 @@ class StateGraph[StateT: AgentState]:
         self.entry_point = node_name
         self.add_edge(START, node_name)
         logger.info("Set entry point to '%s'", node_name)
+        return self
+
+    def override_node(
+        self,
+        name: str,
+        func: Union[Callable, "ToolNode", "Agent"],
+    ) -> "StateGraph":
+        """Override an existing node with a different function.
+
+        Use this in tests to swap production nodes with test doubles.
+        The node must already exist in the graph.
+
+        Args:
+            name: Name of the existing node to override
+            func: New function, ToolNode, or Agent to use
+
+        Returns:
+            StateGraph: The graph instance for method chaining.
+
+        Raises:
+            KeyError: If the node doesn't exist
+
+        Example:
+            ```python
+            # Production
+            graph = StateGraph()
+            graph.add_node("MAIN", production_agent)
+
+            # Test - override with test agent
+            graph.override_node("MAIN", test_agent)
+            ```
+        """
+        if name not in self.nodes:
+            raise KeyError(f"Node '{name}' does not exist. Use add_node() first.")
+
+        # Create new Node with same name but different function
+        self.nodes[name] = Node(name, func, self._publisher)
+        logger.debug("Overrode node '%s' with new function", name)
         return self
 
     def compile(

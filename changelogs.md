@@ -1,3 +1,13 @@
+Version: 0.5.7 later
+1. Fix Bugs
+2. Improved Agent class Now supports tool filtering by tags
+3. Added @tool decorator for function-based tools you can add tags, description, that tag can be used
+for filtering
+4. Added Unit Testing For Agents Introduce `testing` module
+5. Added Evaluation Framework for Agents and `evaluation` module
+6. Added Google SDK support for converters
+
+
 Version: 0.5.6 later
 2. Improved Error Handling in PgCheckpointer Methods and if thread name is null during update
 then default to existing name and it will return is created or not

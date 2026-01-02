@@ -70,7 +70,67 @@ markdown_extensions:
   - pymdownx.snippets
   - pymdownx.tabbed:
       alternate_style: true
-# nav:
-#   - Home: index.md
-#   - Reference: reference/index.md
-#   - Changelog: https://pypi.org/project/agentflow/
+
+nav:
+  - Home: index.md
+  - Tutorial:
+      - Tutorial/index.md
+      - React:
+          - Tutorial/react/00-agent-class-react.md
+          - Tutorial/react/01-basic-react.md
+          - Tutorial/react/02-dependency-injection.md
+          - Tutorial/react/03-mcp-integration.md
+          - Tutorial/react/04-streaming.md
+      - Tutorial/agent-class.md
+      - Tutorial/embedding.md
+      - Tutorial/handoff.md
+      - Tutorial/input_validation.md
+      - Tutorial/long_term_memory.md
+      - Tutorial/mem0_store.md
+      - Tutorial/plan_act_reflect.md
+      - Tutorial/qdrant_store.md
+      - Tutorial/rag.md
+      - Tutorial/tool-decorator.md
+  - Concepts:
+      - Concept/index.md
+      - Graph:
+          - Concept/graph/index.md
+          - Concept/graph/nodes.md
+          - Concept/graph/control_flow.md
+          - Concept/graph/tools.md
+          - Concept/graph/tool-decorator-api.md
+          - Concept/graph/execution.md
+          - Concept/graph/advanced.md
+          - Concept/graph/human-in-the-loop.md
+          - Concept/graph/agent-class.md
+          - Concept/graph/Config.md
+      - State & Context:
+          - Concept/context/index.md
+          - Concept/context/state.md
+          - Concept/context/message.md
+          - Concept/context/context-manager.md
+          - Concept/context/checkpointer.md
+          - Concept/context/store.md
+          - Concept/context/basestore.md
+          - Concept/context/embedding.md
+      - Evaluation:
+          - Concept/evaluation/index.md
+          - Concept/evaluation/getting-started.md
+          - Concept/evaluation/data-models.md
+          - Concept/evaluation/criteria.md
+          - Concept/evaluation/reporters.md
+          - Concept/evaluation/pytest-integration.md
+          - Concept/evaluation/user-simulation.md
+          - Concept/evaluation/advanced.md
+      - Concept/publisher.md
+      - Concept/Callbacks.md
+      - Concept/Command.md
+      - Concept/handoff.md
+      - Concept/dependency-injection.md
+      - Concept/id_generator.md
+      - Concept/response_converter.md
+      - Concept/async-patterns.md
+      - Concept/background-task-manager.md
+      - Concept/graceful-shutdown.md
+      - Concept/ERROR_HANDLING_GUIDELINES.md
+  - Reference: reference/index.md
