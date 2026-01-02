@@ -28,6 +28,9 @@ This release introduces comprehensive testing and evaluation frameworks for agen
 - Allows selective tool inclusion in agent workflows based on tag-based criteria
 - Improves modularity and tool management in complex agent systems
 
+#### Google SDK Support for Converters
+- Added Google SDK support for converters
+
 ### Bug Fixes
 - Fixed various stability issues in agent execution
 - Improved error handling in tool execution pipelines

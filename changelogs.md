@@ -5,6 +5,7 @@ Version: 0.5.7 later
 for filtering
 4. Added Unit Testing For Agents Introduce `testing` module
 5. Added Evaluation Framework for Agents and `evaluation` module
+6. Added Google SDK support for converters
 
 
 Version: 0.5.6 later
