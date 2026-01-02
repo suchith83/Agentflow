@@ -106,10 +106,12 @@ class InMemoryStore(BaseStore):
             timestamp=datetime.now(),
         )
 
+        cut_ratio = 50
+
         logger.debug(
             "Stored memory %s: %s...",
             mem_id,
-            content_str[:50] if len(content_str) > 50 else content_str,
+            content_str[:cut_ratio] if len(content_str) > cut_ratio else content_str,
         )
         return mem_id
 
