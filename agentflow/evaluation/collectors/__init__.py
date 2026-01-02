@@ -11,6 +11,7 @@ from agentflow.evaluation.collectors.trajectory_collector import (
     TrajectoryCollector,
 )
 
+
 __all__ = [
     "EventCollector",
     "TrajectoryCollector",

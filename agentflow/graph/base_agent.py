@@ -78,7 +78,6 @@ class BaseAgent(ABC):
         Returns:
             ModelResponseConverter, list[Message], or dict
         """
-        pass
 
     @abstractmethod
     async def _call_llm(
@@ -101,7 +100,6 @@ class BaseAgent(ABC):
         Returns:
             LLM response (format depends on implementation)
         """
-        pass
 
     async def __call__(
         self,

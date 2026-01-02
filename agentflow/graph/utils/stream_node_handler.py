@@ -600,7 +600,7 @@ class StreamNodeHandler(BaseLoggingMixin):
             from agentflow.graph.agent import Agent
             from agentflow.graph.base_agent import BaseAgent
 
-            if isinstance(self.func, (Agent, BaseAgent)):
+            if isinstance(self.func, Agent | BaseAgent):
                 logger.debug("Node '%s' is an Agent instance, executing agent streaming", self.name)
                 result = self._call_agent_node(
                     state,

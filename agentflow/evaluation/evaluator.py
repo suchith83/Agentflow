@@ -18,18 +18,17 @@ from agentflow.evaluation.criteria.base import BaseCriterion
 from agentflow.evaluation.criteria.llm_judge import LLMJudgeCriterion, RubricBasedCriterion
 from agentflow.evaluation.criteria.response import ResponseMatchCriterion
 from agentflow.evaluation.criteria.trajectory import TrajectoryMatchCriterion
-from agentflow.evaluation.eval_config import CriterionConfig, EvalConfig, MatchType
+from agentflow.evaluation.eval_config import CriterionConfig, EvalConfig
 from agentflow.evaluation.eval_result import (
     CriterionResult,
     EvalCaseResult,
     EvalReport,
 )
-from agentflow.evaluation.eval_set import EvalCase, EvalSet, MessageContent
+from agentflow.evaluation.eval_set import EvalCase, EvalSet
 
 
 if TYPE_CHECKING:
     from agentflow.graph.compiled_graph import CompiledGraph
-    from agentflow.state import AgentState
 
 logger = logging.getLogger("agentflow.evaluation")
 
@@ -264,7 +263,7 @@ class AgentEvaluator:
             collector = TrajectoryCollector(capture_all_events=True)
 
             # Prepare input state
-            from agentflow.state import AgentState, Message
+            from agentflow.state import Message
 
             state_dict: dict[str, Any] = {}
 
@@ -360,11 +359,11 @@ class AgentEvaluator:
             for msg in reversed(messages):
                 if hasattr(msg, "role") and msg.role == "assistant":
                     return msg.get_text() if hasattr(msg, "get_text") else str(msg)
-                elif isinstance(msg, dict) and msg.get("role") == "assistant":
+                if isinstance(msg, dict) and msg.get("role") == "assistant":
                     content = msg.get("content", "")
                     if isinstance(content, str):
                         return content
-                    elif isinstance(content, list):
+                    if isinstance(content, list):
                         texts = [
                             b.get("text", "")
                             for b in content
@@ -494,9 +493,9 @@ class AgentEvaluator:
             Loaded EvalConfig.
         """
         import json
+        from pathlib import Path
 
-        with open(config_file, "r", encoding="utf-8") as f:
-            data = json.load(f)
+        data = json.loads(Path(config_file).read_text(encoding="utf-8"))
         return EvalConfig.model_validate(data)
 
 

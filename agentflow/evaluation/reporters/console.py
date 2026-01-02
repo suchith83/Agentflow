@@ -9,6 +9,7 @@ from __future__ import annotations
 import sys
 from typing import TYPE_CHECKING, TextIO
 
+
 if TYPE_CHECKING:
     from agentflow.evaluation.eval_result import EvalCaseResult, EvalReport
 
@@ -111,9 +112,8 @@ class ConsoleReporter:
         title = report.eval_set_name or report.eval_set_id
         self._print()
         self._print(f"{Colors.BOLD}{Colors.CYAN}╔{'═' * 60}╗{Colors.RESET}")
-        self._print(
-            f"{Colors.BOLD}{Colors.CYAN}║{Colors.RESET} {Colors.BOLD}Evaluation Report: {title}{Colors.RESET}"
-        )
+        title_str = f"{Colors.BOLD}Evaluation Report: {title}{Colors.RESET}"
+        self._print(f"{Colors.BOLD}{Colors.CYAN}║{Colors.RESET} {title_str}")
         self._print(f"{Colors.BOLD}{Colors.CYAN}╚{'═' * 60}╝{Colors.RESET}")
         self._print()
 
@@ -133,28 +133,25 @@ class ConsoleReporter:
         self._print()
 
         # Stats table
-        self._print(
-            f"  {Colors.DIM}├─{Colors.RESET} Total Cases:  {Colors.BOLD}{summary.total_cases}{Colors.RESET}"
-        )
+        total_str = f"Total Cases:  {Colors.BOLD}{summary.total_cases}{Colors.RESET}"
+        self._print(f"  {Colors.DIM}├─{Colors.RESET} {total_str}")
 
         pass_color = Colors.GREEN if summary.passed_cases > 0 else Colors.DIM
-        self._print(
-            f"  {Colors.DIM}├─{Colors.RESET} Passed:       {pass_color}{summary.passed_cases} ({summary.pass_rate:.1%}){Colors.RESET}"
-        )
+        pass_str = f"{pass_color}{summary.passed_cases} ({summary.pass_rate:.1%}){Colors.RESET}"
+        self._print(f"  {Colors.DIM}├─{Colors.RESET} Passed:       {pass_str}")
 
         fail_color = Colors.RED if summary.failed_cases > 0 else Colors.DIM
-        self._print(
-            f"  {Colors.DIM}├─{Colors.RESET} Failed:       {fail_color}{summary.failed_cases}{Colors.RESET}"
-        )
+        fail_str = f"{fail_color}{summary.failed_cases}{Colors.RESET}"
+        self._print(f"  {Colors.DIM}├─{Colors.RESET} Failed:       {fail_str}")
 
         error_color = Colors.YELLOW if summary.error_cases > 0 else Colors.DIM
-        self._print(
-            f"  {Colors.DIM}├─{Colors.RESET} Errors:       {error_color}{summary.error_cases}{Colors.RESET}"
-        )
+        error_str = f"{error_color}{summary.error_cases}{Colors.RESET}"
+        self._print(f"  {Colors.DIM}├─{Colors.RESET} Errors:       {error_str}")
 
-        self._print(
-            f"  {Colors.DIM}└─{Colors.RESET} Duration:     {summary.total_duration_seconds:.2f}s (avg: {summary.avg_duration_seconds:.2f}s)"
+        duration_str = (
+            f"{summary.total_duration_seconds:.2f}s (avg: {summary.avg_duration_seconds:.2f}s)"
         )
+        self._print(f"  {Colors.DIM}└─{Colors.RESET} Duration:     {duration_str}")
         self._print()
 
     def _print_criterion_stats(self, report: EvalReport) -> None:
@@ -172,10 +169,12 @@ class ConsoleReporter:
             total = stats.get("total", 0)
 
             # Color based on pass rate
-            if pass_rate >= 0.9:
+            HIGH_PASS_RATE = 0.9
+            MED_PASS_RATE = 0.5
+            if pass_rate >= HIGH_PASS_RATE:
                 color = Colors.GREEN
                 icon = "✓"
-            elif pass_rate >= 0.5:
+            elif pass_rate >= MED_PASS_RATE:
                 color = Colors.YELLOW
                 icon = "○"
             else:

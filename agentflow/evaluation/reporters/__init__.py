@@ -8,17 +8,18 @@ This module provides various output formats for evaluation results:
 """
 
 from agentflow.evaluation.reporters.console import (
-    ConsoleReporter,
     Colors,
+    ConsoleReporter,
     print_report,
+)
+from agentflow.evaluation.reporters.html import (
+    HTMLReporter,
 )
 from agentflow.evaluation.reporters.json import (
     JSONReporter,
     JUnitXMLReporter,
 )
-from agentflow.evaluation.reporters.html import (
-    HTMLReporter,
-)
+
 
 __all__ = [
     # Console

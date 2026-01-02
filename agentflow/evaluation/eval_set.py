@@ -61,11 +61,9 @@ class ToolCall(BaseModel):
         """
         if self.name != other.name:
             return False
-        if check_args and self.args != other.args:
-            return False
-        if check_call_id and self.call_id != other.call_id:
-            return False
-        return True
+        return not (check_args and self.args != other.args) and not (
+            check_call_id and self.call_id != other.call_id
+        )
 
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, ToolCall):

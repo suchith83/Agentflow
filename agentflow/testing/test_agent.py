@@ -24,14 +24,14 @@ class MockLLMResponse:
     the LiteLLMConverter which expects response objects to have this method.
     """
 
-    def __init__(self, content: str, id: str = "test-response"):
+    def __init__(self, content: str, test_id: str = "test-response"):
         """Initialize mock response.
 
         Args:
             content: The text content of the response
             id: Response ID (default: "test-response")
         """
-        self.id = id
+        self.id = test_id
         self._data = {
             "id": id,
             "choices": [
@@ -146,13 +146,13 @@ class TestAgent(BaseAgent):
             "TestAgent returning response %d/%d: %s...",
             idx + 1,
             len(self.responses),
-            content[:50] if len(content) > 50 else content,
+            content[:50] if len(content) > 50 else content,  # noqa: PLR2004
         )
 
         # Return MockLLMResponse that has model_dump() method
         return MockLLMResponse(
             content=content,
-            id=f"test-response-{self.call_count}",
+            test_id=f"test-response-{self.call_count}",
         )
 
     async def execute(
@@ -185,7 +185,7 @@ class TestAgent(BaseAgent):
         Raises:
             AssertionError: If the agent was never called
         """
-        assert self.call_count > 0, "TestAgent was never called"
+        assert self.call_count > 0, "TestAgent was never called"  # noqa: S101
 
     def assert_called_times(self, n: int) -> None:
         """Assert the agent was called exactly n times.
@@ -196,7 +196,7 @@ class TestAgent(BaseAgent):
         Raises:
             AssertionError: If call count doesn't match
         """
-        assert self.call_count == n, f"Expected {n} calls, got {self.call_count}"
+        assert self.call_count == n, f"Expected {n} calls, got {self.call_count}"  # noqa: S101
 
     def assert_not_called(self) -> None:
         """Assert the agent was never called.
@@ -204,7 +204,7 @@ class TestAgent(BaseAgent):
         Raises:
             AssertionError: If the agent was called
         """
-        assert self.call_count == 0, f"Expected no calls, but got {self.call_count}"
+        assert self.call_count == 0, f"Expected no calls, but got {self.call_count}"  # noqa: S101
 
     def get_last_messages(self) -> list[dict[str, Any]]:
         """Get messages from the last call.

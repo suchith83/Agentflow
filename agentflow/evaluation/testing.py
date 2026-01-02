@@ -8,8 +8,9 @@ agent evaluations into pytest test suites.
 from __future__ import annotations
 
 import functools
+from collections.abc import Callable
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable
+from typing import TYPE_CHECKING, Any
 
 import pytest
 
@@ -116,7 +117,7 @@ def eval_test(
             # Assert pass rate meets threshold
             if report.summary.pass_rate < threshold:
                 failure_details = "\n".join(
-                    f"  - {r.name or r.eval_id}: {r.error or ', '.join(c.criterion for c in r.failed_criteria)}"
+                    f"  - {r.name or r.eval_id}: {r.error or ', '.join(c.criterion for c in r.failed_criteria)}"  # noqa: E501
                     for r in report.failed_cases
                 )
                 pytest.fail(

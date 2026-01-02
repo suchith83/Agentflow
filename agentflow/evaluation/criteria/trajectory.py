@@ -14,9 +14,9 @@ from agentflow.evaluation.eval_config import MatchType
 from agentflow.evaluation.eval_result import CriterionResult
 from agentflow.evaluation.eval_set import ToolCall
 
+
 if TYPE_CHECKING:
     from agentflow.evaluation.collectors.trajectory_collector import TrajectoryCollector
-    from agentflow.evaluation.eval_config import CriterionConfig
     from agentflow.evaluation.eval_set import EvalCase
 
 
@@ -133,13 +133,15 @@ class TrajectoryMatchCriterion(SyncCriterion):
             min_len = min(len(actual), len(expected))
             matches = sum(
                 1
-                for a, e in zip(actual[:min_len], expected[:min_len])
+                for a, e in zip(actual[:min_len], expected[:min_len], strict=False)
                 if self._tools_match(a, e, check_args)
             )
             return matches / len(expected)
 
         # Same length - count matches
-        matches = sum(1 for a, e in zip(actual, expected) if self._tools_match(a, e, check_args))
+        matches = sum(
+            1 for a, e in zip(actual, expected, strict=False) if self._tools_match(a, e, check_args)
+        )
         return matches / len(expected)
 
     def _in_order_match(

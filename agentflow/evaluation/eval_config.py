@@ -11,7 +11,6 @@ This module defines configuration structures for agent evaluation:
 from __future__ import annotations
 
 from enum import Enum
-from typing import Any
 
 from pydantic import BaseModel, Field
 

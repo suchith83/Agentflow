@@ -15,7 +15,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
-from agentflow.evaluation.eval_set import TrajectoryStep, ToolCall
+from agentflow.evaluation.eval_set import ToolCall, TrajectoryStep
 
 
 class CriterionResult(BaseModel):

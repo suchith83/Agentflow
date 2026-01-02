@@ -313,7 +313,8 @@ class UserSimulator:
         for goal in remaining:
             # Check if key words from goal appear in conversation
             goal_words = goal.lower().split()
-            if all(word in full_text for word in goal_words if len(word) > 3):
+            min_word_length = 3
+            if all(word in full_text for word in goal_words if len(word) > min_word_length):
                 newly_achieved.append(goal)
 
         return newly_achieved
@@ -358,7 +359,7 @@ class UserSimulator:
             for msg in reversed(messages):
                 if hasattr(msg, "role") and msg.role == "assistant":
                     return msg.get_text() if hasattr(msg, "get_text") else str(msg)
-                elif isinstance(msg, dict) and msg.get("role") == "assistant":
+                if isinstance(msg, dict) and msg.get("role") == "assistant":
                     content = msg.get("content", "")
                     if isinstance(content, str):
                         return content

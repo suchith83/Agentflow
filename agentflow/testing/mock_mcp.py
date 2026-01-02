@@ -136,7 +136,6 @@ class MockMCPClient:
 
         if callable(handler):
             # Support both sync and async handlers
-            import asyncio
             import inspect
 
             if inspect.iscoroutinefunction(handler):
@@ -202,7 +201,7 @@ class MockMCPClient:
         Raises:
             AssertionError: If tool was never called
         """
-        assert self.was_called(name), f"MCP tool '{name}' was never called"
+        assert self.was_called(name), f"MCP tool '{name}' was never called"  # noqa: S101
 
     def assert_called_with(self, name: str, **expected_args: Any) -> None:
         """Assert that a tool was called with specific arguments.
@@ -217,11 +216,11 @@ class MockMCPClient:
             AssertionError: If tool not called or args don't match
         """
         last_call = self.get_last_call(name)
-        assert last_call is not None, f"MCP tool '{name}' was never called"
+        assert last_call is not None, f"MCP tool '{name}' was never called"  # noqa: S101
 
         for key, expected in expected_args.items():
             actual = last_call["arguments"].get(key)
-            assert actual == expected, (
+            assert actual == expected, (  # noqa: S101
                 f"MCP tool '{name}' called with {key}={actual}, expected {key}={expected}"
             )
 
@@ -345,7 +344,7 @@ class MockComposioAdapter:
         logger.debug("Calling mock Composio tool '%s' with args: %s", slug, arguments)
 
         if callable(handler):
-            return handler(**arguments)
+            return handler(**arguments)  # type: ignore
         return handler
 
     def was_called(self, slug: str) -> bool:

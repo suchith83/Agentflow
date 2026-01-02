@@ -12,11 +12,11 @@ import time
 from typing import TYPE_CHECKING, Any
 
 from agentflow.evaluation.eval_set import StepType, ToolCall, TrajectoryStep
-from agentflow.publisher.events import ContentType, Event, EventType
+from agentflow.publisher.events import Event, EventType
+
 
 if TYPE_CHECKING:
     from agentflow.publisher.events import EventModel
-    from agentflow.state import Message
 
 logger = logging.getLogger("agentflow.evaluation")
 

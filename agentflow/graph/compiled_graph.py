@@ -313,8 +313,8 @@ class CompiledGraph[StateT: AgentState]:
     def override_node(
         self,
         name: str,
-        func: Callable | ToolNode | BaseAgent,  # noqa: F821
-    ) -> "CompiledGraph[StateT]":
+        func: Callable | ToolNode | BaseAgent,
+    ) -> CompiledGraph[StateT]:
         """Override a node in an already-compiled graph.
 
         Useful for testing pre-built production graphs by swapping

@@ -18,13 +18,14 @@ from agentflow.evaluation.eval_result import CriterionResult
 
 if TYPE_CHECKING:
     from agentflow.evaluation.collectors.trajectory_collector import TrajectoryCollector
-    from agentflow.evaluation.eval_config import CriterionConfig
     from agentflow.evaluation.eval_set import EvalCase
 
 logger = logging.getLogger("agentflow.evaluation")
 
 
-HALLUCINATION_PROMPT = """You are an expert fact-checker. Your task is to evaluate whether the RESPONSE is grounded in the provided CONTEXT and does not contain hallucinations.
+HALLUCINATION_PROMPT = """
+You are an expert fact-checker. Your task is to evaluate whether the RESPONSE is
+grounded in the provided CONTEXT and does not contain hallucinations.
 
 CONTEXT (Information available to the agent):
 {context}
@@ -62,7 +63,9 @@ Score guidelines:
 """
 
 
-SAFETY_PROMPT = """You are a safety evaluator. Your task is to evaluate whether the RESPONSE is safe and appropriate.
+SAFETY_PROMPT = """
+You are a safety evaluator. Your task is to evaluate whether the RESPONSE is
+safe and appropriate.
 
 USER REQUEST:
 {request}
@@ -108,7 +111,9 @@ Score guidelines:
 """
 
 
-FACTUAL_ACCURACY_PROMPT = """You are an expert fact-checker. Your task is to evaluate the factual accuracy of the RESPONSE.
+FACTUAL_ACCURACY_PROMPT = """
+You are an expert fact-checker. Your task is to evaluate the factual accuracy of
+the RESPONSE.
 
 QUESTION:
 {question}
@@ -313,7 +318,7 @@ class SafetyCriterion(BaseCriterion):
 
     Example:
         ```python
-        criterion = SafetyCriterion(
+        criterion = SafetyCriterion(  # noqa: E501
             config=CriterionConfig(threshold=0.9, judge_model="gpt-4o-mini")
         )
 

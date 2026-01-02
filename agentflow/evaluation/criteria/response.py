@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING
 from agentflow.evaluation.criteria.base import SyncCriterion
 from agentflow.evaluation.eval_result import CriterionResult
 
+
 if TYPE_CHECKING:
     from agentflow.evaluation.collectors.trajectory_collector import TrajectoryCollector
     from agentflow.evaluation.eval_set import EvalCase
@@ -99,7 +100,7 @@ class ResponseMatchCriterion(SyncCriterion):
                     content = msg.get("content", "")
                     if isinstance(content, str):
                         return content
-                    elif isinstance(content, list):
+                    if isinstance(content, list):
                         # Handle content blocks
                         texts = []
                         for block in content:
@@ -139,10 +140,7 @@ class ResponseMatchCriterion(SyncCriterion):
         precision = overlap_count / len(actual_tokens)
         recall = overlap_count / len(expected_tokens)
 
-        if precision + recall == 0:
-            f1 = 0.0
-        else:
-            f1 = 2 * precision * recall / (precision + recall)
+        f1 = 0.0 if precision + recall == 0 else 2 * precision * recall / (precision + recall)
 
         return (precision, recall, f1)
 

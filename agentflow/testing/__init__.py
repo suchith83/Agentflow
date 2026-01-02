@@ -48,8 +48,7 @@ from typing import Any
 
 from injectq import InjectQ
 
-from agentflow.store.in_memory_store import InMemoryStore
-
+from .in_memory_store import InMemoryStore
 from .mock_mcp import MockComposioAdapter, MockLangChainAdapter, MockMCPClient
 from .mock_tools import MockToolRegistry
 from .test_agent import TestAgent
@@ -185,6 +184,7 @@ StateGraph = Any  # Avoid circular import
 
 
 __all__ = [
+    "InMemoryStore",
     "MockComposioAdapter",
     "MockLangChainAdapter",
     "MockMCPClient",

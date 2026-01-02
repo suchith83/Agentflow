@@ -8,9 +8,10 @@ providing a consistent interface for different types of evaluations.
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from agentflow.evaluation.eval_result import CriterionResult
+
 
 if TYPE_CHECKING:
     from agentflow.evaluation.collectors.trajectory_collector import TrajectoryCollector
@@ -91,7 +92,6 @@ class BaseCriterion(ABC):
         Raises:
             EvaluationError: If evaluation fails due to an error.
         """
-        pass
 
     async def evaluate_invocation(
         self,
@@ -166,7 +166,6 @@ class SyncCriterion(BaseCriterion):
         Returns:
             CriterionResult containing score, pass/fail status, and details.
         """
-        pass
 
     async def evaluate(
         self,
@@ -227,11 +226,9 @@ class CompositeCriterion(BaseCriterion):
         if self.require_all:
             # AND: use minimum score, all must pass
             combined_score = min(scores) if scores else 0.0
-            passed = all(r.passed for r in results)
         else:
             # OR: use maximum score, any pass is success
             combined_score = max(scores) if scores else 0.0
-            passed = any(r.passed for r in results)
 
         return CriterionResult.success(
             criterion=self.name,
@@ -287,7 +284,6 @@ class WeightedCriterion(BaseCriterion):
             total_weight += weight
 
         combined_score = weighted_sum / total_weight if total_weight > 0 else 0.0
-        passed = combined_score >= self.threshold
 
         return CriterionResult.success(
             criterion=self.name,

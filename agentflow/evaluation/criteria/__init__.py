@@ -14,6 +14,11 @@ This module provides various criteria for evaluating agent behavior:
     - FactualAccuracyCriterion: Factual accuracy checking
 """
 
+from agentflow.evaluation.criteria.advanced import (
+    FactualAccuracyCriterion,
+    HallucinationCriterion,
+    SafetyCriterion,
+)
 from agentflow.evaluation.criteria.base import (
     BaseCriterion,
     CompositeCriterion,
@@ -33,11 +38,7 @@ from agentflow.evaluation.criteria.trajectory import (
     ToolNameMatchCriterion,
     TrajectoryMatchCriterion,
 )
-from agentflow.evaluation.criteria.advanced import (
-    HallucinationCriterion,
-    SafetyCriterion,
-    FactualAccuracyCriterion,
-)
+
 
 __all__ = [
     # Base classes

@@ -173,7 +173,7 @@ class MockToolRegistry:
         Raises:
             AssertionError: If the tool was never called
         """
-        assert self.was_called(name), f"Tool '{name}' was never called"
+        assert self.was_called(name), f"Tool '{name}' was never called"  # noqa: S101
 
     def assert_called_with(self, name: str, **expected_kwargs: Any) -> None:
         """Assert that a tool was called with specific keyword arguments.
@@ -188,13 +188,13 @@ class MockToolRegistry:
             AssertionError: If tool not called or kwargs don't match
         """
         last_call = self.get_last_call(name)
-        assert last_call is not None, f"Tool '{name}' was never called"
+        assert last_call is not None, f"Tool '{name}' was never called"  # noqa: S101
 
         for key, expected in expected_kwargs.items():
             actual = last_call["kwargs"].get(key)
-            assert actual == expected, (
-                f"Tool '{name}' called with {key}={actual}, expected {key}={expected}"
-            )
+            assert (  # noqa: S101
+                actual == expected
+            ), f"Tool '{name}' called with {key}={actual}, expected {key}={expected}"
 
     def assert_call_count(self, name: str, expected: int) -> None:
         """Assert that a tool was called exactly n times.
@@ -207,7 +207,7 @@ class MockToolRegistry:
             AssertionError: If call count doesn't match
         """
         actual = self.call_count(name)
-        assert actual == expected, f"Tool '{name}' called {actual} times, expected {expected}"
+        assert actual == expected, f"Tool '{name}' called {actual} times, expected {expected}"  # noqa: S101
 
     def reset(self) -> None:
         """Clear all call history.

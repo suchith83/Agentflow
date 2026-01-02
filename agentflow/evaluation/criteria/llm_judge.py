@@ -7,20 +7,22 @@ Uses an LLM to evaluate semantic similarity and quality of responses.
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from agentflow.evaluation.criteria.base import BaseCriterion
 from agentflow.evaluation.eval_result import CriterionResult
 
+
 if TYPE_CHECKING:
     from agentflow.evaluation.collectors.trajectory_collector import TrajectoryCollector
-    from agentflow.evaluation.eval_config import CriterionConfig
     from agentflow.evaluation.eval_set import EvalCase
 
 logger = logging.getLogger("agentflow.evaluation")
 
 
-SEMANTIC_MATCH_PROMPT = """You are an expert evaluator. Your task is to determine if the ACTUAL response is semantically equivalent to the EXPECTED response.
+SEMANTIC_MATCH_PROMPT = """
+You are an expert evaluator. Your task is to determine if the ACTUAL response is
+semanctically equivalent to the EXPECTED response.
 
 QUESTION: {question}
 
@@ -28,7 +30,9 @@ EXPECTED RESPONSE: {expected}
 
 ACTUAL RESPONSE: {actual}
 
-Evaluate if the ACTUAL response conveys the same meaning and information as the EXPECTED response. Minor differences in wording are acceptable as long as the core meaning is preserved.
+Evaluate if the ACTUAL response conveys the same meaning and information as the
+EXPECTED response. Minor differences in wording are acceptable as long as the core
+meaning is preserved.
 
 Respond with a JSON object:
 {{
@@ -44,7 +48,9 @@ Score guidelines:
 - 0.0-0.1: Completely different or contradictory
 """
 
-QUALITY_EVALUATION_PROMPT = """You are an expert evaluator. Your task is to evaluate the quality of an AI assistant's response.
+QUALITY_EVALUATION_PROMPT = """
+You are an expert evaluator. Your task is to evaluate the quality of an AI
+assistant's response.
 
 QUESTION: {question}
 

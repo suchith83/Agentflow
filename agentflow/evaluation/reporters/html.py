@@ -11,6 +11,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+
 if TYPE_CHECKING:
     from agentflow.evaluation.eval_result import EvalCaseResult, EvalReport
 
@@ -32,47 +33,48 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             --color-text: #1e293b;
             --color-muted: #64748b;
         }}
-        
+
         * {{
             box-sizing: border-box;
             margin: 0;
             padding: 0;
         }}
-        
+
         body {{
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+                         Oxygen, Ubuntu, sans-serif;
             background-color: var(--color-bg);
             color: var(--color-text);
             line-height: 1.6;
             padding: 2rem;
         }}
-        
+
         .container {{
             max-width: 1200px;
             margin: 0 auto;
         }}
-        
+
         header {{
             margin-bottom: 2rem;
         }}
-        
+
         h1 {{
             font-size: 1.5rem;
             margin-bottom: 0.5rem;
         }}
-        
+
         .timestamp {{
             color: var(--color-muted);
             font-size: 0.875rem;
         }}
-        
+
         .summary {{
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
             gap: 1rem;
             margin-bottom: 2rem;
         }}
-        
+
         .stat-card {{
             background: var(--color-card);
             border: 1px solid var(--color-border);
@@ -80,21 +82,21 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             padding: 1rem;
             text-align: center;
         }}
-        
+
         .stat-value {{
             font-size: 2rem;
             font-weight: 700;
         }}
-        
+
         .stat-label {{
             color: var(--color-muted);
             font-size: 0.875rem;
         }}
-        
+
         .stat-pass .stat-value {{ color: var(--color-pass); }}
         .stat-fail .stat-value {{ color: var(--color-fail); }}
         .stat-warn .stat-value {{ color: var(--color-warn); }}
-        
+
         .progress-bar {{
             background: var(--color-border);
             border-radius: 999px;
@@ -102,28 +104,28 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             margin-top: 0.5rem;
             overflow: hidden;
         }}
-        
+
         .progress-fill {{
             background: var(--color-pass);
             height: 100%;
             transition: width 0.3s ease;
         }}
-        
+
         section {{
             margin-bottom: 2rem;
         }}
-        
+
         h2 {{
             font-size: 1.25rem;
             margin-bottom: 1rem;
         }}
-        
+
         .case-list {{
             display: flex;
             flex-direction: column;
             gap: 0.5rem;
         }}
-        
+
         .case-item {{
             background: var(--color-card);
             border: 1px solid var(--color-border);
@@ -132,17 +134,17 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             cursor: pointer;
             transition: box-shadow 0.2s;
         }}
-        
+
         .case-item:hover {{
             box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
         }}
-        
+
         .case-header {{
             display: flex;
             align-items: center;
             gap: 0.75rem;
         }}
-        
+
         .case-status {{
             width: 24px;
             height: 24px;
@@ -154,38 +156,38 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             color: white;
             font-size: 0.75rem;
         }}
-        
+
         .case-status.pass {{ background: var(--color-pass); }}
         .case-status.fail {{ background: var(--color-fail); }}
         .case-status.error {{ background: var(--color-warn); }}
-        
+
         .case-name {{
             flex: 1;
             font-weight: 500;
         }}
-        
+
         .case-duration {{
             color: var(--color-muted);
             font-size: 0.875rem;
         }}
-        
+
         .case-details {{
             display: none;
             margin-top: 1rem;
             padding-top: 1rem;
             border-top: 1px solid var(--color-border);
         }}
-        
+
         .case-item.expanded .case-details {{
             display: block;
         }}
-        
+
         .criterion-list {{
             display: flex;
             flex-direction: column;
             gap: 0.5rem;
         }}
-        
+
         .criterion-item {{
             display: flex;
             align-items: center;
@@ -194,19 +196,19 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             background: var(--color-bg);
             border-radius: 4px;
         }}
-        
+
         .criterion-icon {{
             font-size: 0.875rem;
         }}
-        
+
         .criterion-name {{
             flex: 1;
         }}
-        
+
         .criterion-score {{
             font-family: monospace;
         }}
-        
+
         .error-message {{
             background: #fef2f2;
             border: 1px solid #fecaca;
@@ -217,13 +219,13 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             font-family: monospace;
             font-size: 0.875rem;
         }}
-        
+
         .filter-bar {{
             display: flex;
             gap: 0.5rem;
             margin-bottom: 1rem;
         }}
-        
+
         .filter-btn {{
             padding: 0.5rem 1rem;
             border: 1px solid var(--color-border);
@@ -232,12 +234,12 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             cursor: pointer;
             font-size: 0.875rem;
         }}
-        
+
         .filter-btn.active {{
             background: var(--color-text);
             color: white;
         }}
-        
+
         footer {{
             margin-top: 2rem;
             padding-top: 1rem;
@@ -254,7 +256,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             <h1>📊 {title}</h1>
             <p class="timestamp">Generated: {timestamp}</p>
         </header>
-        
+
         <section class="summary">
             <div class="stat-card">
                 <div class="stat-value">{total_cases}</div>
@@ -284,7 +286,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                 <div class="stat-label">Duration</div>
             </div>
         </section>
-        
+
         <section>
             <h2>Test Cases</h2>
             <div class="filter-bar">
@@ -297,12 +299,12 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 {case_items}
             </div>
         </section>
-        
+
         <footer>
             <p>Generated by Agentflow Evaluation Framework</p>
         </footer>
     </div>
-    
+
     <script>
         // Toggle case details
         document.querySelectorAll('.case-item').forEach(item => {{
@@ -310,13 +312,13 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                 item.classList.toggle('expanded');
             }});
         }});
-        
+
         // Filter buttons
         document.querySelectorAll('.filter-btn').forEach(btn => {{
             btn.addEventListener('click', () => {{
                 document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
                 btn.classList.add('active');
-                
+
                 const filter = btn.dataset.filter;
                 document.querySelectorAll('.case-item').forEach(item => {{
                     if (filter === 'all') {{

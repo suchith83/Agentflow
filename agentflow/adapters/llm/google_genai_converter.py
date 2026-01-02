@@ -72,123 +72,18 @@ class GoogleGenAIConverter(BaseConverter):
         candidates = response.candidates or []
         if not candidates:
             # Return empty message if no candidates
-            return Message(
-                message_id=generate_id(None),
-                role="assistant",
-                content=[],
-                timestamp=datetime.now().timestamp(),
-                metadata={"provider": "google_genai", "model": ""},
-            )
+            return self._create_empty_message()
 
         # Take the first candidate
         candidate = candidates[0]
         content = candidate.content
 
         # Extract usage metadata
-        usage_metadata = response.usage_metadata or {}
-        usages = TokenUsages(
-            completion_tokens=getattr(usage_metadata, "candidates_token_count", 0) or 0,
-            prompt_tokens=getattr(usage_metadata, "prompt_token_count", 0) or 0,
-            total_tokens=getattr(usage_metadata, "total_token_count", 0) or 0,
-            cache_creation_input_tokens=0,
-            cache_read_input_tokens=getattr(usage_metadata, "cached_content_token_count", 0) or 0,
-            reasoning_tokens=0,
-        )
+        usages = self._extract_usage_metadata(response)
 
         # Extract parts from content
         parts = content.parts if content else []
-        blocks = []
-        tools_calls = []
-        reasoning_content = ""
-
-        for part in parts:
-            # Handle text parts
-            if part.text:
-                blocks.append(TextBlock(text=part.text))
-
-            # Handle thought parts (reasoning)
-            if hasattr(part, "thought") and part.thought:
-                reasoning_content = part.thought
-                blocks.append(ReasoningBlock(summary=part.thought))
-
-            # Handle function calls
-            if hasattr(part, "function_call") and part.function_call:
-                func_call = part.function_call
-                tool_call_id = generate_id(None)
-
-                # Parse args - they should be a dict
-                args = dict(func_call.args) if func_call.args else {}
-
-                blocks.append(
-                    ToolCallBlock(
-                        name=func_call.name,
-                        args=args,
-                        id=tool_call_id,
-                    )
-                )
-
-                tools_calls.append(
-                    {
-                        "id": tool_call_id,
-                        "function": {"name": func_call.name, "arguments": json.dumps(args)},
-                        "type": "function",
-                    }
-                )
-
-            # Handle inline data (images, audio, video)
-            if hasattr(part, "inline_data") and part.inline_data:
-                inline_data = part.inline_data
-                mime_type = inline_data.mime_type or ""
-
-                # Determine the type of media
-                if mime_type.startswith("image/"):
-                    media = MediaRef(
-                        kind="data",
-                        data_base64=inline_data.data,
-                        mime_type=mime_type,
-                    )
-                    blocks.append(ImageBlock(media=media))
-                elif mime_type.startswith("audio/"):
-                    media = MediaRef(
-                        kind="data",
-                        data_base64=inline_data.data,
-                        mime_type=mime_type,
-                    )
-                    blocks.append(AudioBlock(media=media))
-                elif mime_type.startswith("video/"):
-                    media = MediaRef(
-                        kind="data",
-                        data_base64=inline_data.data,
-                        mime_type=mime_type,
-                    )
-                    blocks.append(VideoBlock(media=media))
-
-            # Handle file data (URIs)
-            if hasattr(part, "file_data") and part.file_data:
-                file_data = part.file_data
-                mime_type = file_data.mime_type or ""
-
-                if mime_type.startswith("image/"):
-                    media = MediaRef(
-                        kind="url",
-                        url=file_data.file_uri,
-                        mime_type=mime_type,
-                    )
-                    blocks.append(ImageBlock(media=media))
-                elif mime_type.startswith("audio/"):
-                    media = MediaRef(
-                        kind="url",
-                        url=file_data.file_uri,
-                        mime_type=mime_type,
-                    )
-                    blocks.append(AudioBlock(media=media))
-                elif mime_type.startswith("video/"):
-                    media = MediaRef(
-                        kind="url",
-                        url=file_data.file_uri,
-                        mime_type=mime_type,
-                    )
-                    blocks.append(VideoBlock(media=media))
+        blocks, tools_calls, reasoning_content = self._process_parts(parts)
 
         # Get model version and other metadata
         model_version = response.model_version or ""
@@ -213,6 +108,116 @@ class GoogleGenAIConverter(BaseConverter):
             raw=None,  # Google GenAI responses are Pydantic models
             tools_calls=tools_calls if tools_calls else None,
         )
+
+    def _create_empty_message(self) -> Message:
+        """Create an empty assistant message."""
+        return Message(
+            message_id=generate_id(None),
+            role="assistant",
+            content=[],
+            timestamp=datetime.now().timestamp(),
+            metadata={"provider": "google_genai", "model": ""},
+        )
+
+    def _extract_usage_metadata(self, response: Any) -> TokenUsages:
+        """Extract token usage metadata from response."""
+        usage_metadata = response.usage_metadata or {}
+        return TokenUsages(
+            completion_tokens=getattr(usage_metadata, "candidates_token_count", 0) or 0,
+            prompt_tokens=getattr(usage_metadata, "prompt_token_count", 0) or 0,
+            total_tokens=getattr(usage_metadata, "total_token_count", 0) or 0,
+            cache_creation_input_tokens=0,
+            cache_read_input_tokens=getattr(usage_metadata, "cached_content_token_count", 0) or 0,
+            reasoning_tokens=0,
+        )
+
+    def _process_parts(self, parts: list) -> tuple[list, list, str]:
+        """Process content parts and extract blocks, tool calls, and reasoning."""
+        blocks = []
+        tools_calls = []
+        reasoning_content = ""
+
+        for part in parts:
+            self._process_text_part(part, blocks)
+            reasoning = self._process_reasoning_part(part, blocks)
+            if reasoning:
+                reasoning_content = reasoning
+            self._process_function_call_part(part, blocks, tools_calls)
+            self._process_inline_media_part(part, blocks)
+            self._process_file_media_part(part, blocks)
+
+        return blocks, tools_calls, reasoning_content
+
+    def _process_text_part(self, part: Any, blocks: list) -> None:
+        """Process text part."""
+        if part.text:
+            blocks.append(TextBlock(text=part.text))
+
+    def _process_reasoning_part(self, part: Any, blocks: list) -> str:
+        """Process reasoning (thought) part."""
+        if hasattr(part, "thought") and part.thought:
+            blocks.append(ReasoningBlock(summary=part.thought))
+            return part.thought
+        return ""
+
+    def _process_function_call_part(self, part: Any, blocks: list, tools_calls: list) -> None:
+        """Process function call part."""
+        if hasattr(part, "function_call") and part.function_call:
+            func_call = part.function_call
+            tool_call_id = generate_id(None)
+
+            # Parse args - they should be a dict
+            args = dict(func_call.args) if func_call.args else {}
+
+            blocks.append(
+                ToolCallBlock(
+                    name=func_call.name,
+                    args=args,
+                    id=tool_call_id,
+                )
+            )
+
+            tools_calls.append(
+                {
+                    "id": tool_call_id,
+                    "function": {"name": func_call.name, "arguments": json.dumps(args)},
+                    "type": "function",
+                }
+            )
+
+    def _process_inline_media_part(self, part: Any, blocks: list) -> None:
+        """Process inline media (images, audio, video) part."""
+        if hasattr(part, "inline_data") and part.inline_data:
+            inline_data = part.inline_data
+            mime_type = inline_data.mime_type or ""
+
+            self._add_media_block_by_type(blocks, mime_type, inline_data.data, kind="data")
+
+    def _process_file_media_part(self, part: Any, blocks: list) -> None:
+        """Process file media (images, audio, video) part."""
+        if hasattr(part, "file_data") and part.file_data:
+            file_data = part.file_data
+            mime_type = file_data.mime_type or ""
+
+            self._add_media_block_by_type(blocks, mime_type, file_data.file_uri, kind="url")
+
+    def _add_media_block_by_type(
+        self, blocks: list, mime_type: str, data: str | Any, kind: str
+    ) -> None:
+        """Add appropriate media block based on MIME type."""
+        media = MediaRef(
+            kind=kind,
+            data_base64=data if kind == "data" else None,
+            url=data if kind == "url" else None,
+            mime_type=mime_type,
+        )
+
+        if mime_type.startswith("image/"):
+            blocks.append(ImageBlock(media=media))
+        elif mime_type.startswith("audio/"):
+            blocks.append(AudioBlock(media=media))
+        elif mime_type.startswith("video/"):
+            blocks.append(VideoBlock(media=media))
 
     def _extract_delta_content_blocks(
         self,
