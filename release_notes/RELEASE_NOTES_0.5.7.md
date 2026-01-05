@@ -3,7 +3,7 @@
 
 ## Version: 0.5.7 (later)
 **Summary:**
-This release introduces comprehensive testing and evaluation frameworks for agents, enhances the @tool decorator with additional capabilities, and includes bug fixes to improve stability and reliability. The addition of dedicated `testing` and `evaluation` modules provides developers with powerful tools for agent validation and performance assessment.
+This release introduces comprehensive testing and evaluation frameworks for agents, enhances the `@tool` decorator with additional capabilities, and includes bug fixes to improve stability and reliability. The addition of dedicated `testing` and `evaluation` modules provides developers with powerful tools for agent validation and performance assessment.
 
 ### Key Enhancements
 
@@ -17,8 +17,8 @@ This release introduces comprehensive testing and evaluation frameworks for agen
 - Supports metrics collection and analysis for agent interactions
 - Enables performance benchmarking and quality assessment of agent implementations
 
-#### Enhanced @tool Decorator
-- Extended @tool decorator for function-based tools with additional metadata support
+#### Enhanced `@tool` Decorator
+- Extended `@tool` decorator for function-based tools with additional metadata support
 - Added capability to specify tags for tools, enabling semantic categorization
 - Added description parameter for better tool documentation
 - Tags enable filtering and discovery of tools based on use cases
