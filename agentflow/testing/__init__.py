@@ -51,7 +51,9 @@ from injectq import InjectQ
 from .in_memory_store import InMemoryStore
 from .mock_mcp import MockComposioAdapter, MockLangChainAdapter, MockMCPClient
 from .mock_tools import MockToolRegistry
+from .quick_test import QuickTest
 from .test_agent import TestAgent
+from .test_result import TestResult
 
 
 logger = logging.getLogger("agentflow.testing")
@@ -189,6 +191,8 @@ __all__ = [
     "MockLangChainAdapter",
     "MockMCPClient",
     "MockToolRegistry",
+    "QuickTest",
     "TestAgent",
     "TestContext",
+    "TestResult",
 ]

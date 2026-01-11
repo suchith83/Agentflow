@@ -24,6 +24,7 @@ Example:
     ```
 """
 
+from agentflow.evaluation.builder import EvalSetBuilder
 from agentflow.evaluation.collectors.trajectory_collector import (
     EventCollector,
     TrajectoryCollector,
@@ -79,6 +80,8 @@ from agentflow.evaluation.evaluator import (
     AgentEvaluator,
     EvaluationRunner,
 )
+from agentflow.evaluation.presets import EvalPresets
+from agentflow.evaluation.quick_eval import QuickEval
 from agentflow.evaluation.reporters.console import (
     ConsoleReporter,
     print_report,
@@ -117,8 +120,11 @@ __all__ = [
     "EvalCase",
     "EvalCaseResult",
     "EvalConfig",
+    # New: Simplified interfaces
+    "EvalPresets",
     "EvalReport",
     "EvalSet",
+    "EvalSetBuilder",
     "EvalSummary",
     "EvaluationRunner",
     # Collectors
@@ -135,6 +141,8 @@ __all__ = [
     "LLMJudgeCriterion",
     "MatchType",
     "MessageContent",
+    # New: Quick evaluation
+    "QuickEval",
     # Response Criteria
     "ResponseMatchCriterion",
     "Rubric",
