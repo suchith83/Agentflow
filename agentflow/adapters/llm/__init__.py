@@ -17,9 +17,7 @@ Exports:
 from .base_converter import BaseConverter, ConverterType
 from .google_genai_converter import GoogleGenAIConverter
 from .litellm_converter import LiteLLMConverter
-
-
-# from .openai_converter import OpenAIConverter
+from .openai_converter import OpenAIConverter
 
 
 __all__ = [
@@ -27,5 +25,5 @@ __all__ = [
     "ConverterType",
     "GoogleGenAIConverter",
     "LiteLLMConverter",
-    # "OpenAIConverter",
+    "OpenAIConverter",
 ]

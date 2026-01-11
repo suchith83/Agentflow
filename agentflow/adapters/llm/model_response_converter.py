@@ -39,17 +39,32 @@ class ModelResponseConverter:
         """
         self.response = response
 
-        if isinstance(converter, str) and converter == "litellm":
-            from .litellm_converter import LiteLLMConverter
+        if isinstance(converter, str):
+            if converter == "litellm":
+                from .litellm_converter import LiteLLMConverter
 
-            self.converter = LiteLLMConverter()
-            logger.debug("Using LiteLLMConverter for response conversion")
+                self.converter = LiteLLMConverter()
+                logger.debug("Using LiteLLMConverter for response conversion")
 
-        elif isinstance(converter, str) and converter == "openai":
-            from .openai_converter import OpenAIConverter
+            elif converter == "openai":
+                from .openai_converter import OpenAIConverter
 
-            self.converter = OpenAIConverter()
-            logger.debug("Using OpenAIConverter for response conversion")
+                self.converter = OpenAIConverter()
+                logger.debug("Using OpenAIConverter for response conversion")
+
+            elif converter == "google":
+                from .google_genai_converter import GoogleGenAIConverter
+
+                self.converter = GoogleGenAIConverter()
+                logger.debug("Using GoogleGenAIConverter for response conversion")
+
+            else:
+                logger.error(f"Unsupported converter: {converter}")
+                raise ValueError(
+                    f"Unsupported converter: {converter}. "
+                    "Supported: 'openai', 'google', 'litellm'"
+                )
+
         elif isinstance(converter, BaseConverter):
             self.converter = converter
             logger.debug(f"Using custom converter: {type(converter).__name__}")
