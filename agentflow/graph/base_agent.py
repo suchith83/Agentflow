@@ -7,9 +7,12 @@ Agent and TestAgent seamlessly for testability.
 
 import logging
 from abc import ABC, abstractmethod
+from collections.abc import Callable
 from typing import Any
 
+from agentflow.graph.tool_node.base import ToolNode
 from agentflow.state import AgentState
+from agentflow.state.message import Message
 
 
 logger = logging.getLogger("agentflow.agent")
@@ -44,9 +47,16 @@ class BaseAgent(ABC):
     def __init__(
         self,
         model: str,
+        provider: str | None = None,
         system_prompt: list[dict[str, Any]] | None = None,
-        tools: list | None = None,
-        **kwargs: Any,
+        tools: list[Callable] | ToolNode | None = None,
+        tool_node_name: str | None = None,
+        extra_messages: list[Message] | None = None,
+        client: Any = None,  # Escape hatch: allow custom client
+        base_url: str | None = None,  # For OpenAI-compatible APIs (ollama, vllm, etc.)
+        trim_context: bool = False,
+        tools_tags: set[str] | None = None,
+        **llm_kwargs,
     ):
         """Initialize a BaseAgent.
 
@@ -59,7 +69,7 @@ class BaseAgent(ABC):
         self.model = model
         self.system_prompt = system_prompt or []
         self.tools = tools
-        self.kwargs = kwargs
+        self.llm_kwargs = llm_kwargs
 
     @abstractmethod
     async def execute(

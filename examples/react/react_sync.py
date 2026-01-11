@@ -1,14 +1,10 @@
 from dotenv import load_dotenv
-from injectq import Inject
-from litellm import completion
 
-from agentflow.adapters.llm.model_response_converter import ModelResponseConverter
 from agentflow.checkpointer import InMemoryCheckpointer
 from agentflow.graph import StateGraph, ToolNode
+from agentflow.graph.agent import Agent
 from agentflow.state import AgentState, Message
-from agentflow.state.base_context import BaseContextManager
 from agentflow.utils.constants import END
-from agentflow.utils.converter import convert_messages
 
 
 load_dotenv()
@@ -36,53 +32,23 @@ def get_weather(
 
 tool_node = ToolNode([get_weather])
 
-
-def main_agent(state: AgentState, context_manager: BaseContextManager = Inject[BaseContextManager]):
-    prompts = """
-        You are a helpful assistant.
-        Your task is to assist the user in finding information and answering questions.
-    """
-
-    new_state = context_manager.trim_context(state)
-
-    messages = convert_messages(
-        system_prompts=[
-            {
-                "role": "system",
-                "content": prompts,
-                "cache_control": {
-                    "type": "ephemeral",
-                    "ttl": "3600s",  # 👈 Cache for 1 hour
-                },
-            },
-            {"role": "user", "content": "Today Date is 2024-06-15"},
-        ],
-        state=new_state,
-    )
-
-    mcp_tools = []
-
-    # Check if the last message is a tool result - if so, make final response without tools
-    if state.context and len(state.context) > 0 and state.context[-1].role == "tool":
-        # Make final response without tools since we just got tool results
-        response = completion(
-            model="gemini/gemini-2.5-flash",
-            messages=messages,
-        )
-    else:
-        # Regular response with tools available
-        tools = tool_node.all_tools_sync()
-        response = completion(
-            model="gemini/gemini-2.5-flash",
-            messages=messages,
-            tools=tools + mcp_tools,
-        )
-
-    # Return str, Message, AgentState, Command or ModelResponseConverter
-    return ModelResponseConverter(
-        response,
-        converter="litellm",
-    )
+# Create agent with tools
+agent = Agent(
+    model="gemini-2.5-flash",
+    provider="google",
+    system_prompt=[
+        {
+            "role": "system",
+            "content": """
+                You are a helpful assistant.
+                Your task is to assist the user in finding information and answering questions.
+            """,
+        },
+        {"role": "user", "content": "Today Date is 2024-06-15"},
+    ],
+    tool_node_name="TOOL",
+    trim_context=True,
+)
 
 
 def should_use_tools(state: AgentState) -> str:
@@ -110,7 +76,7 @@ def should_use_tools(state: AgentState) -> str:
 
 
 graph = StateGraph()
-graph.add_node("MAIN", main_agent)
+graph.add_node("MAIN", agent)
 graph.add_node("TOOL", tool_node)
 
 # Add conditional edges from MAIN

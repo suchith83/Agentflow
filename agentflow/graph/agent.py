@@ -83,104 +83,115 @@ class Agent(BaseAgent):
         self,
         model: str,
         provider: str | None = None,
+        output_type: str = "text",  # NEW: Explicit output type
         system_prompt: list[dict[str, Any]] | None = None,
         tools: list[Callable] | ToolNode | None = None,
         tool_node_name: str | None = None,
         extra_messages: list[Message] | None = None,
-        client: Any = None,  # Escape hatch: allow custom client
         base_url: str | None = None,  # For OpenAI-compatible APIs (ollama, vllm, etc.)
         trim_context: bool = False,
         tools_tags: set[str] | None = None,
-        **llm_kwargs,
+        **kwargs,
     ):
         """Initialize an Agent node.
 
         Args:
-            model: Model identifier (e.g., "gpt-4o", "gemini-2.0-flash-exp").
+            model: Model identifier (any model name - no parsing required).
+                Examples: "gpt-4o", "gemini-2.0-flash-exp", "qwen-2.5-72b", "deepseek-chat"
             provider: Provider name ("openai", "google"). If None, will auto-detect from model.
+            output_type: Type of output to generate (default: "text").
+                - "text": Text generation (default, most common)
+                - "image": Image generation
+                - "video": Video generation
+                - "audio": Audio/TTS generation
             system_prompt: System prompt as list of message dicts.
             tools: List of tool functions, ToolNode instance, or None.
                 If list is provided, will be converted to ToolNode internally.
             tool_node_name: Name of the existing ToolNode. You can send list of tools
                 or provide ToolNode instance via `tools` parameter instead.
             extra_messages: Additional messages to include in every interaction.
-            client: Optional custom client instance (escape hatch). If provided, provider/model are ignored.
-            base_url: Optional base URL for OpenAI-compatible APIs (ollama, vllm, openrouter, deepseek, etc.).
+            base_url: Optional base URL for OpenAI-compatible APIs
+                (ollama, vllm, openrouter, deepseek, etc.).
             trim_context: Whether to trim context using context manager.
             tools_tags: Optional tags to filter tools.
-            **llm_kwargs: Additional provider-specific parameters (temperature, max_tokens, top_p, etc.).
+            **llm_kwargs: Additional provider-specific parameters
+                (temperature, max_tokens, top_p, or model args, organization_id, project_id).
 
         Raises:
             ImportError: If required provider SDK is not installed.
-            ValueError: If provider cannot be determined.
+            ValueError: If provider cannot be determined or doesn't support output_type.
 
         Example:
             ```python
-            # OpenAI agent
-            agent = Agent(
+            # Text generation (default - no need to specify output_type)
+            text_agent = Agent(
                 model="gpt-4o",
-                provider="openai",
                 system_prompt="You are a helpful assistant",
                 tools=[weather_tool, calculator],
                 temperature=0.8,
-                max_tokens=1000,
             )
 
-            # Google Gemini agent (auto-detect provider from model)
-            agent = Agent(
+            # Image generation (explicit)
+            image_agent = Agent(
+                model="dall-e-3",
+                output_type="image",
+            )
+
+            # Video generation (explicit)
+            video_agent = Agent(
+                model="veo-2.0",
+                provider="google",
+                output_type="video",
+            )
+
+            # Multi-modal workflow (Google ADK style)
+            prompt_agent = Agent(
                 model="gemini-2.0-flash-exp",
-                system_prompt="You are a helpful assistant",
+                system_prompt="Generate detailed image prompts",
             )
 
-            # Ollama via OpenAI-compatible API
-            agent = Agent(
-                model="llama3",
+            imagen_agent = Agent(
+                model="imagen-3.0-generate-001",
+                output_type="image",
+            )
+
+            # Third-party models (Qwen, DeepSeek, Ollama)
+            qwen_agent = Agent(
+                model="qwen-2.5-72b-instruct",
+                provider="openai",
+                base_url="https://api.qwen.com/v1",
+            )
+
+            ollama_agent = Agent(
+                model="llama3:70b",
                 provider="openai",
                 base_url="http://localhost:11434/v1",
-                system_prompt="You are a helpful assistant",
-            )
-
-            # OpenRouter
-            agent = Agent(
-                model="anthropic/claude-3.5-sonnet",
-                provider="openai",
-                base_url="https://openrouter.ai/api/v1",
-                system_prompt="You are a helpful assistant",
-            )
-
-            # Custom client (escape hatch)
-            from openai import AsyncOpenAI
-            custom_client = AsyncOpenAI(api_key="...", base_url="https://proxy.com")
-            agent = Agent(
-                model="gpt-4o",
-                client=custom_client,
-                system_prompt="...",
             )
             ```
         """
         # Call parent constructor
-        super().__init__(model=model, system_prompt=system_prompt or [], tools=tools, **llm_kwargs)
+        super().__init__(model=model, system_prompt=system_prompt or [], tools=tools, **kwargs)
+
+        # Store output type
+        self.output_type = output_type.lower()
 
         # Determine provider
-        if client is not None:
-            # User provided custom client - detect provider from client type
-            self.provider = self._detect_provider_from_client(client)
-            self.client = client
-            self.base_url = None
-            logger.debug(f"Using custom client for provider: {self.provider}")
-        elif provider is not None:
+        if provider is not None:
             self.provider = provider.lower()
             self.base_url = base_url
-            self.client = self._create_client(self.provider, model, base_url)
+            self.client = self._create_client(self.provider, base_url)
         else:
             # Auto-detect provider from model name
             self.provider = self._detect_provider_from_model(model)
             self.base_url = base_url
-            self.client = self._create_client(self.provider, model, base_url)
+            self.client = self._create_client(self.provider, base_url)
+
+        # Validate that provider supports the output type
+        self._validate_output_type()
 
         self.extra_messages = extra_messages
         self.tools = tools
-        self.llm_kwargs = llm_kwargs
+        self.llm_kwargs = kwargs
         self.trim_context = trim_context
         self.tools_tags = tools_tags
         self.tool_node_name = tool_node_name
@@ -190,7 +201,7 @@ class Agent(BaseAgent):
 
         logger.info(
             f"Agent initialized: model={model}, provider={self.provider}, "
-            f"has_tools={self._tool_node is not None}"
+            f"output_type={self.output_type}, has_tools={self._tool_node is not None}"
         )
 
     def _setup_tools(self) -> ToolNode | None:
@@ -209,6 +220,37 @@ class Agent(BaseAgent):
 
         logger.debug(f"Converting {len(self.tools)} tool functions to ToolNode")
         return ToolNode(self.tools)
+
+    def _validate_output_type(self) -> None:
+        """Validate that provider supports the requested output type.
+
+        Raises:
+            ValueError: If provider doesn't support the output type.
+        """
+        valid_output_types = ["text", "image", "video", "audio"]
+        if self.output_type not in valid_output_types:
+            raise ValueError(
+                f"Invalid output_type '{self.output_type}'. Supported types: {valid_output_types}"
+            )
+
+        # Provider-specific validation
+        if self.provider == "google":
+            supported = ["text", "image", "video", "audio"]
+            if self.output_type not in supported:
+                raise ValueError(
+                    f"Google provider doesn't support output_type='{self.output_type}'. "
+                    f"Supported: {supported}"
+                )
+            logger.debug(f"Google provider supports output_type='{self.output_type}'")
+
+        elif self.provider == "openai":
+            supported = ["text", "image", "audio"]
+            if self.output_type not in supported:
+                raise ValueError(
+                    f"OpenAI provider doesn't support output_type='{self.output_type}'. "
+                    f"Supported: {supported}"
+                )
+            logger.debug(f"OpenAI provider supports output_type='{self.output_type}'")
 
     async def _trim_context(
         self,
@@ -229,9 +271,17 @@ class Agent(BaseAgent):
                 logger.warning("trim_context is enabled but no context manager is available")
                 return state
 
-            new_state = await context_manager.trim_context(state)
-            logger.debug("Context trimmed using context manager")
-            return new_state
+            # Try to access context_manager to check if it's actually None (InjectQ proxy)
+            try:
+                new_state = await context_manager.trim_context(state)
+                logger.debug("Context trimmed using context manager")
+                return new_state
+            except AttributeError:
+                logger.warning(
+                    "trim_context is enabled but no BaseContextManager is registered. "
+                    "Skipping context trimming."
+                )
+                return state
 
         logger.debug("Context trimming not enabled")
         return state
@@ -250,42 +300,18 @@ class Agent(BaseAgent):
         """
         model_lower = model.lower()
 
-        if model_lower.startswith("gpt-") or model_lower.startswith("o1-"):
+        if model_lower.startswith(("gpt-", "o1-")):
             return "openai"
-        elif model_lower.startswith("gemini-"):
+        if model_lower.startswith("gemini-"):
             return "google"
-        else:
-            # Default to openai for unknown models (works with ollama, vllm, etc.)
-            logger.info(
-                f"Could not auto-detect provider for model '{model}'. "
-                "Defaulting to 'openai'. If using a different provider, specify explicitly."
-            )
-            return "openai"
+        # Default to openai for unknown models (works with ollama, vllm, etc.)
+        logger.info(
+            f"Could not auto-detect provider for model '{model}'. "
+            "Defaulting to 'openai'. If using a different provider, specify explicitly."
+        )
+        return "openai"
 
-    def _detect_provider_from_client(self, client: Any) -> str:
-        """Detect provider from client instance type.
-
-        Args:
-            client: Client instance
-
-        Returns:
-            Provider name
-        """
-        client_type = type(client).__name__
-        module = type(client).__module__
-
-        if "openai" in module or "OpenAI" in client_type:
-            return "openai"
-        elif "google" in module or "genai" in module or "Google" in client_type or "AsyncClient" in client_type:
-            return "google"
-        else:
-            logger.warning(
-                f"Could not detect provider from client type {client_type}. "
-                "Defaulting to 'openai'."
-            )
-            return "openai"
-
-    def _create_client(self, provider: str, model: str, base_url: str | None = None) -> Any:
+    def _create_client(self, provider: str, base_url: str | None = None) -> Any:
         """Create a client instance for the specified provider.
 
         Args:
@@ -301,14 +327,30 @@ class Agent(BaseAgent):
         """
         if provider == "openai":
             try:
-                from openai import AsyncOpenAI
+                import os  # noqa: PLC0415
 
-                client_kwargs = {}
+                from openai import AsyncOpenAI  # noqa: PLC0415
+
+                # Get API key from environment
+                api_key = os.getenv("OPENAI_API_KEY")
+                if not api_key:
+                    logger.warning(
+                        "OPENAI_API_KEY environment variable not set. "
+                        "API calls may fail if not using custom client or base_url without auth."
+                    )
+
                 if base_url:
-                    client_kwargs["base_url"] = base_url
                     logger.info(f"Using custom base_url for OpenAI client: {base_url}")
+                    return AsyncOpenAI(
+                        api_key=api_key,
+                        base_url=base_url,
+                        **self.llm_kwargs,
+                    )
 
-                return AsyncOpenAI(**client_kwargs)
+                return AsyncOpenAI(
+                    api_key=api_key,
+                    **self.llm_kwargs,
+                )
             except ImportError:
                 raise ImportError(
                     "openai SDK is required for OpenAI provider. "
@@ -317,8 +359,9 @@ class Agent(BaseAgent):
 
         elif provider == "google":
             try:
-                from google import genai
-                import os
+                import os  # noqa: PLC0415
+
+                from google import genai  # noqa: PLC0415
 
                 # Get API key from environment
                 api_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
@@ -328,8 +371,12 @@ class Agent(BaseAgent):
                         "for Google provider"
                     )
 
-                # Use AsyncClient for async operations
-                return genai.Client(api_key=api_key)
+                # Use Client (has both sync and async methods via .aio)
+                logger.info("Creating Google GenAI Client with async support")
+                return genai.Client(
+                    api_key=api_key,
+                    **self.llm_kwargs,
+                )
             except ImportError:
                 raise ImportError(
                     "google-genai SDK is required for Google provider. "
@@ -338,9 +385,282 @@ class Agent(BaseAgent):
 
         else:
             raise ValueError(
-                f"Unsupported provider: {provider}. "
-                "Supported providers: 'openai', 'google'"
+                f"Unsupported provider: {provider}. Supported providers: 'openai', 'google'"
             )
+
+    def _extract_prompt(self, messages: list[dict[str, Any]]) -> str:
+        """Extract prompt from messages for non-text generation (image/video/audio).
+
+        Args:
+            messages: List of message dicts
+
+        Returns:
+            Extracted prompt string (from last user message)
+        """
+        # Get the last user message content
+        for msg in reversed(messages):
+            if msg.get("role") == "user":
+                content = msg.get("content", "")
+                return str(content) if content else ""
+        return ""
+
+    def _convert_to_google_format(
+        self, messages: list[dict[str, Any]]
+    ) -> tuple[str | None, list[str]]:
+        """Convert messages to Google GenAI format.
+
+        Args:
+            messages: List of message dicts
+
+        Returns:
+            Tuple of (system_instruction, google_contents)
+        """
+        system_instruction = None
+        google_contents = []
+
+        for msg in messages:
+            role = msg.get("role", "user")
+            content = msg.get("content", "")
+
+            if role == "system":
+                if system_instruction is None:
+                    system_instruction = str(content)
+                else:
+                    system_instruction += "\n" + str(content)
+            elif role in ["user", "assistant"]:
+                google_contents.append(str(content))
+
+        return system_instruction, google_contents
+
+    def _convert_tools_to_google_format(self, tools: list) -> list:
+        """Convert tools to Google GenAI format.
+
+        OpenAI format:
+        {
+            "type": "function",
+            "function": {
+                "name": "get_weather",
+                "description": "Get weather...",
+                "parameters": {
+                    "type": "object",
+                    "properties": {...},
+                    "required": [...]
+                }
+            }
+        }
+
+        Google format uses FunctionDeclaration:
+        FunctionDeclaration(
+            name="get_weather",
+            description="Get weather...",
+            parameters_json_schema={  # Note: parameters_json_schema, not parameters
+                "type": "object",
+                "properties": {...},
+                "required": [...]
+            }
+        )
+
+        Args:
+            tools: List of tool dicts in OpenAI format
+
+        Returns:
+            List of Google FunctionDeclaration objects
+        """
+        from google.genai import types  # noqa: PLC0415
+
+        google_tools = []
+        for tool in tools:
+            if isinstance(tool, dict) and "function" in tool:
+                func = tool["function"]
+
+                # Create Google FunctionDeclaration
+                func_decl_kwargs = {
+                    "name": func["name"],
+                    "description": func.get("description", ""),
+                }
+
+                # Add parameters_json_schema if parameters exist
+                if "parameters" in func:
+                    func_decl_kwargs["parameters_json_schema"] = func["parameters"]
+
+                google_tools.append(types.FunctionDeclaration(**func_decl_kwargs))
+        return google_tools
+
+    def _build_google_config(
+        self,
+        system_instruction: str | None,
+        tools: list | None,
+        call_kwargs: dict[str, Any],
+    ) -> Any:
+        """Build Google GenAI config.
+
+        Args:
+            system_instruction: System instruction string
+            tools: List of tools
+            call_kwargs: Additional call kwargs
+
+        Returns:
+            GenerateContentConfig instance or None
+        """
+        from google.genai import types  # noqa: PLC0415
+
+        config_kwargs = {}
+
+        if system_instruction:
+            config_kwargs["system_instruction"] = system_instruction
+
+        # Add LLM kwargs
+        if "temperature" in call_kwargs:
+            config_kwargs["temperature"] = call_kwargs.pop("temperature")
+        if "max_tokens" in call_kwargs or "max_output_tokens" in call_kwargs:
+            config_kwargs["max_output_tokens"] = call_kwargs.pop(
+                "max_tokens", call_kwargs.pop("max_output_tokens", None)
+            )
+
+        # Add tools for text generation only
+        if tools and self.output_type == "text":
+            function_declarations = self._convert_tools_to_google_format(tools)
+            if function_declarations:
+                # Wrap FunctionDeclarations in a Tool object
+                config_kwargs["tools"] = [types.Tool(function_declarations=function_declarations)]
+
+        return types.GenerateContentConfig(**config_kwargs) if config_kwargs else None
+
+    async def _call_openai(
+        self,
+        messages: list[dict[str, Any]],
+        tools: list | None = None,
+        stream: bool = False,
+        **kwargs: Any,
+    ) -> Any:
+        """Call OpenAI API (or OpenAI-compatible APIs).
+
+        Routes to appropriate endpoint based on output_type.
+
+        Args:
+            messages: List of message dicts
+            tools: Optional list of tool specifications
+            stream: Whether to stream the response
+            **kwargs: Additional call parameters
+
+        Returns:
+            OpenAI response object
+        """
+        call_kwargs = {**self.llm_kwargs, **kwargs}
+
+        if self.output_type == "text":
+            # Standard chat completions (default)
+            if tools:
+                call_kwargs["tools"] = tools
+
+            logger.debug(f"Calling OpenAI chat.completions.create with model={self.model}")
+            return await self.client.chat.completions.create(
+                model=self.model,
+                messages=messages,
+                stream=stream,
+                **call_kwargs,
+            )
+
+        if self.output_type == "image":
+            # DALL-E or compatible image generation
+            prompt = self._extract_prompt(messages)
+            logger.debug(f"Calling OpenAI images.generate with model={self.model}")
+            return await self.client.images.generate(
+                model=self.model,
+                prompt=prompt,
+                **call_kwargs,
+            )
+
+        if self.output_type == "audio":
+            # TTS or audio generation
+            text = self._extract_prompt(messages)
+            logger.debug(f"Calling OpenAI audio.speech.create with model={self.model}")
+            return await self.client.audio.speech.create(
+                model=self.model,
+                input=text,
+                **call_kwargs,
+            )
+
+        raise ValueError(f"Unsupported output_type '{self.output_type}' for OpenAI provider")
+
+    async def _call_google(
+        self,
+        messages: list[dict[str, Any]],
+        tools: list | None = None,
+        stream: bool = False,
+        **kwargs: Any,
+    ) -> Any:
+        """Call Google GenAI API.
+
+        Routes to appropriate method based on output_type.
+
+        Args:
+            messages: List of message dicts
+            tools: Optional list of tool specifications
+            stream: Whether to stream the response
+            **kwargs: Additional call parameters
+
+        Returns:
+            Google GenAI response object
+        """
+        call_kwargs = {**self.llm_kwargs, **kwargs}
+
+        # Convert messages to Google format
+        system_instruction, google_contents = self._convert_to_google_format(messages)
+
+        # Build config
+        config = self._build_google_config(system_instruction, tools, call_kwargs)
+
+        if self.output_type == "text":
+            # Text generation - generate_content
+            if stream:
+                logger.debug(
+                    f"Calling Google aio.models.generate_content_stream with model={self.model}"
+                )
+                return await self.client.aio.models.generate_content_stream(
+                    model=self.model,
+                    contents=google_contents,
+                    config=config,
+                )
+            logger.debug(f"Calling Google aio.models.generate_content with model={self.model}")
+            return await self.client.aio.models.generate_content(
+                model=self.model,
+                contents=google_contents,
+                config=config,
+            )
+
+        if self.output_type == "image":
+            # Image generation - generate_images
+            prompt = self._extract_prompt(messages)
+            logger.debug(f"Calling Google aio.models.generate_images with model={self.model}")
+            return await self.client.aio.models.generate_images(
+                model=self.model,
+                prompt=prompt,
+                config=config,
+            )
+
+        if self.output_type == "video":
+            # Video generation - generate_videos
+            prompt = self._extract_prompt(messages)
+            logger.debug(f"Calling Google aio.models.generate_videos with model={self.model}")
+            return await self.client.aio.models.generate_videos(
+                model=self.model,
+                prompt=prompt,
+                config=config,
+            )
+
+        if self.output_type == "audio":
+            # Audio generation (if supported by model)
+            prompt = self._extract_prompt(messages)
+            logger.debug(f"Calling Google aio.models.generate_audio with model={self.model}")
+            # Note: This may need adjustment based on actual Google GenAI audio API
+            return await self.client.aio.models.generate_audio(
+                model=self.model,
+                prompt=prompt,
+                config=config,
+            )
+
+        raise ValueError(f"Unsupported output_type '{self.output_type}' for Google provider")
 
     async def _call_llm(
         self,
@@ -351,8 +671,7 @@ class Agent(BaseAgent):
     ) -> Any:
         """Call the LLM using the appropriate native SDK.
 
-        This method uses duck typing to call the correct SDK method based on
-        the provider. The converter will handle provider-specific response formats.
+        Routes to provider-specific method based on provider and output_type.
 
         Args:
             messages: List of message dicts for the LLM
@@ -362,85 +681,20 @@ class Agent(BaseAgent):
 
         Returns:
             Provider-specific response object
+
+        Raises:
+            ValueError: If provider is not supported
         """
-        call_kwargs = {**self.llm_kwargs, **kwargs}
+        logger.debug(
+            f"Calling LLM: provider={self.provider}, output_type={self.output_type}, "
+            f"model={self.model}, stream={stream}"
+        )
 
-        # OpenAI SDK (also works with OpenAI-compatible APIs via base_url)
         if self.provider == "openai":
-            if tools:
-                call_kwargs["tools"] = tools
-
-            return await self.client.chat.completions.create(
-                model=self.model,
-                messages=messages,
-                stream=stream,
-                **call_kwargs,
-            )
-
-        # Google GenAI SDK with AsyncClient
-        elif self.provider == "google":
-            from google.genai import types
-
-            # Google GenAI uses different message format
-            # Extract system instruction
-            system_instruction = None
-            google_contents = []
-
-            for msg in messages:
-                role = msg.get("role", "user")
-                content = msg.get("content", "")
-
-                if role == "system":
-                    if system_instruction is None:
-                        system_instruction = str(content)
-                    else:
-                        system_instruction += "\n" + str(content)
-                elif role in ["user", "assistant"]:
-                    google_contents.append(str(content))
-
-            # Build config
-            config_kwargs = {}
-            if system_instruction:
-                config_kwargs["system_instruction"] = system_instruction
-
-            # Add other LLM kwargs
-            if "temperature" in call_kwargs:
-                config_kwargs["temperature"] = call_kwargs.pop("temperature")
-            if "max_tokens" in call_kwargs or "max_output_tokens" in call_kwargs:
-                config_kwargs["max_output_tokens"] = call_kwargs.pop(
-                    "max_tokens", call_kwargs.pop("max_output_tokens", None)
-                )
-
-            if tools:
-                # Convert tools to Google GenAI format
-                google_tools = []
-                for tool in tools:
-                    # Google GenAI expects function definitions
-                    if isinstance(tool, dict) and "function" in tool:
-                        google_tools.append(tool)
-                if google_tools:
-                    config_kwargs["tools"] = google_tools
-
-            config = types.GenerateContentConfig(**config_kwargs) if config_kwargs else None
-
-            # Use AsyncClient methods (native async, no wrapping needed!)
-            if stream:
-                # AsyncClient has async generator methods
-                return await self.client.io.models.generate_content_stream(
-                    model=self.model,
-                    contents=google_contents,
-                    config=config,
-                )
-            else:
-                # AsyncClient has async methods
-                return await self.client.io.models.generate_content(
-                    model=self.model,
-                    contents=google_contents,
-                    config=config,
-                )
-
-        else:
-            raise ValueError(f"Unsupported provider: {self.provider}")
+            return await self._call_openai(messages, tools, stream, **kwargs)
+        if self.provider == "google":
+            return await self._call_google(messages, tools, stream, **kwargs)
+        raise ValueError(f"Unsupported provider: {self.provider}")
 
     async def execute(
         self,
