@@ -1,0 +1,27 @@
+# Test dependencies for react_sync example tests
+# Install with: pip install -r test_requirements.txt
+
+# Core testing framework
+pytest>=8.0.0
+pytest-asyncio>=0.23.0
+
+# Coverage reporting
+pytest-cov>=4.1.0
+
+# Timeout support
+pytest-timeout>=2.2.0
+
+# Test fixtures and utilities
+pytest-mock>=3.12.0
+
+# For better test output
+pytest-html>=4.1.0
+
+# For parallel test execution (optional)
+pytest-xdist>=3.5.0
+
+# Code quality checks (optional)
+ruff>=0.1.0
+
+# Type checking (optional)
+mypy>=1.8.0
