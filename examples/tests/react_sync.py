@@ -6,7 +6,7 @@ from agentflow.adapters.llm.model_response_converter import ModelResponseConvert
 from agentflow.checkpointer import InMemoryCheckpointer
 from agentflow.graph import StateGraph, ToolNode
 from agentflow.graph.agent import Agent
-from agentflow.state import AgentState, Message
+from agentflow.state import AgentState
 from agentflow.utils.constants import END
 from agentflow.utils.converter import convert_messages
 
