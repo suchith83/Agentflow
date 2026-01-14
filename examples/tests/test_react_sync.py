@@ -12,7 +12,7 @@ from pathlib import Path
 import pytest
 
 from agentflow.checkpointer import InMemoryCheckpointer
-from agentflow.graph import StateGraph, ToolNode
+from agentflow.graph import ToolNode
 from agentflow.graph.agent import Agent
 from agentflow.state import AgentState, Message
 from agentflow.utils.constants import END
