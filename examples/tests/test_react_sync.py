@@ -337,7 +337,12 @@ class TestIntegration:
 
     @pytest.fixture(autouse=True)
     def skip_integration(self, request):
-        if not request.config.getoption("--run-integration", default=False):
+        try:
+            run_integration = request.config.getoption("--run-integration")
+        except ValueError:
+            run_integration = False
+
+        if not run_integration:
             pytest.skip("Integration tests require --run-integration flag")
 
     def test_full_agent_execution(self):
