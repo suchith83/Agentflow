@@ -8,7 +8,6 @@ including the weather tool, routing logic, and graph construction.
 # Import the components from react_sync
 import sys
 from pathlib import Path
-from unittest.mock import Mock, patch
 
 import pytest
 
