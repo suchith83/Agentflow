@@ -354,11 +354,10 @@ class TestIntegration:
         # Entry point should be valid
         assert graph.entry_point in graph.nodes
 
-        # All edge destinations should be valid nodes or END
-        for source, destinations in graph.edges.items():
-            assert source in graph.nodes
-            for dest in destinations:
-                assert dest in graph.nodes or dest == END
+        # All edges should connect valid nodes or END
+        for edge in graph.edges:
+            assert edge.from_node in graph.nodes
+            assert edge.to_node in graph.nodes or edge.to_node == END
 
         # Conditional edges should have valid sources
         for source in graph.conditional_edges.keys():
