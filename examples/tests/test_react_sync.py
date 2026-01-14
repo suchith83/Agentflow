@@ -31,7 +31,6 @@ class TestGetWeatherTool:
         from react_sync import get_weather
 
         result = get_weather(location="New York City")
-        print("result:", result)
 
         assert result == "The weather in New York City is sunny"
         assert isinstance(result, str)
