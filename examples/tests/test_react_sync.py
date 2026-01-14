@@ -339,9 +339,9 @@ class TestIntegration:
         from react_sync import app
 
         inp = {"messages": [Message.text_message("Please call the get_weather function for Tokyo")]}
-        config = {"thread_id": "test_12345", "recursion_limit": 10}
 
         # This would require actual API calls, so we skip in normal tests
+        # config = {"thread_id": "test_12345", "recursion_limit": 10}
         # result = app.invoke(inp, config=config)
         #
         # assert "messages" in result
