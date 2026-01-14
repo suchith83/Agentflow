@@ -213,14 +213,10 @@ class TestToolNode:
 
         # print("result_state:", result_state)
 
-        # Verify tool result was added to context
-        # assert len(result_state.content) > len(state.context)
-        assert len(result_state.content) > 0
-        # Last message should be a tool result
-        last_message = result_state.content[-1]
-        assert last_message.type == "tool_result"
-
-
+        # Verify tool result message was returned
+        assert isinstance(result_state, Message)
+        # The returned message should be a tool result
+        assert getattr(result_state, "type", None) == "tool_result"
 class TestAgentConfiguration:
     """Tests for the Agent configuration."""
 
