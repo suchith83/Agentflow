@@ -88,7 +88,7 @@ async def parse_response(
             return {
                 "context": state.context,
                 "summary": state.context_summary,
-                "message": messages,
+                "messages": messages,
             }
         case ResponseGranularity.LOW:
             # Return all messages from state context
