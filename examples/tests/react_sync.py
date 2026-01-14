@@ -6,7 +6,7 @@ from agentflow.adapters.llm.model_response_converter import ModelResponseConvert
 from agentflow.checkpointer import InMemoryCheckpointer
 from agentflow.graph import StateGraph, ToolNode
 from agentflow.graph.agent import Agent
-from agentflow.state import AgentState
+from agentflow.state import AgentState, Message
 from agentflow.utils.constants import END
 from agentflow.utils.converter import convert_messages
 
@@ -54,36 +54,6 @@ agent = Agent(
     trim_context=True,
 )
 
-
-async def main_agent(
-    state: AgentState,
-    config: dict[str, Any],
-    checkpointer: Any | None = None,
-    store: Any | None = None,
-):
-    prompts = """
-        You are a helpful assistant.
-        Your task is to assist the user in finding information and answering questions.
-    """
-
-    messages = convert_messages(
-        system_prompts=[{"role": "system", "content": prompts}],
-        state=state,
-    )
-
-    # Check if the last message is a tool result - if so, make final response without tools
-    tools = await tool_node.all_tools()
-    print("**** List of tools", len(tools), tools)
-    response = await acompletion(
-        model="gemini/gemini-2.0-flash",
-        messages=messages,
-        tools=tools,
-    )
-    return ModelResponseConverter(
-        response,
-        converter="litellm",
-    )
-
 def should_use_tools(state: AgentState) -> str:
     """Determine if we should use tools or end the conversation."""
     if not state.context or len(state.context) == 0:
@@ -109,7 +79,7 @@ def should_use_tools(state: AgentState) -> str:
 
 
 graph = StateGraph()
-graph.add_node("MAIN", main_agent)
+graph.add_node("MAIN", agent)
 graph.add_node("TOOL", tool_node)
 
 # Add conditional edges from MAIN
@@ -131,17 +101,17 @@ app = graph.compile(
 
 # now run it
 
-# inp = {"messages": [Message.text_message("Please call the get_weather function for New York City")]}
-# config = {"thread_id": "12345", "recursion_limit": 10}
+inp = {"messages": [Message.text_message("Please call the get_weather function for New York City")]}
+config = {"thread_id": "12345", "recursion_limit": 10}
 
-# res = app.invoke(inp, config=config)
+res = app.invoke(inp, config=config)
 
-# for i in res["messages"]:
-#     print("**********************")
-#     print("Message Type: ", i.role)
-#     print(i)
-#     print("**********************")
-#     print("\n\n")
+for i in res["messages"]:
+    print("**********************")
+    print("Message Type: ", i.role)
+    print(i)
+    print("**********************")
+    print("\n\n")
 
 
 # grp = app.generate_graph()

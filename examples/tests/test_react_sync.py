@@ -216,7 +216,7 @@ class TestToolNode:
         # Verify tool result message was returned
         assert isinstance(result_state, Message)
         # The returned message should be a tool result
-        assert getattr(result_state, "type", None) == "tool_result"
+        assert getattr(result_state.content[0], "type", None) == "tool_result"
 class TestAgentConfiguration:
     """Tests for the Agent configuration."""
 
