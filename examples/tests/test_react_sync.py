@@ -319,10 +319,18 @@ class TestCheckpointerConfiguration:
         assert isinstance(checkpointer, InMemoryCheckpointer)
 
     def test_app_has_checkpointer(self):
-        """Test that compiled app uses checkpointer."""
+        """Test that compiled app uses the configured checkpointer instance.
+
+        This test intentionally touches the private ``_checkpointer`` attribute on the
+        compiled graph object to verify that the ``react_sync.checkpointer`` is the
+        same instance wired into ``app``. If a public API for accessing the
+        checkpointer is added in the future, this test should be updated to use it
+        instead of relying on the private attribute.
+        """
         from react_sync import app, checkpointer
 
-        # The app should have checkpointer configured
+        # NOTE: This assertion intentionally verifies an internal attribute to ensure
+        # that the compiled graph is wired to the expected checkpointer instance.
         assert app._checkpointer == checkpointer
 
 
