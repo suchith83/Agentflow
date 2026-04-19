@@ -79,7 +79,7 @@ class Agent(
         llm_kwargs: Additional provider-specific parameters
     """
 
-    def __init__(  # noqa: PLR0913
+    def __init__(  # noqa: PLR0912, PLR0913
         self,
         model: str,
         provider: str | None = None,
@@ -267,6 +267,12 @@ class Agent(
             self.provider = self._detect_provider_from_model(model)
             self.base_url = base_url
             self.client = self._create_client(self.provider, base_url)
+
+        # Normalize vertex_ai → google after client creation.
+        # Vertex AI uses the same google-genai SDK, so all downstream execution
+        # and message conversion logic works identically.
+        if self.provider == "vertex_ai":
+            self.provider = "google"
 
         # Validate that provider supports the output type
         self._validate_output_type()

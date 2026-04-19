@@ -115,6 +115,31 @@ class AgentProviderMixin:
             logger.info("Creating Google GenAI Client with async support")
             return genai.Client(api_key=api_key)
 
+        if provider == "vertex_ai":
+            try:
+                from google import genai
+            except ImportError as exc:
+                raise ImportError(
+                    "google-genai SDK is required for Vertex AI provider. "
+                    "Install it with: pip install 10xscale-agentflow[google-genai]"
+                ) from exc
+
+            project = os.getenv("GOOGLE_CLOUD_PROJECT")
+            location = os.getenv("GOOGLE_CLOUD_LOCATION", "us-central1")
+            if not project:
+                raise ValueError(
+                    "GOOGLE_CLOUD_PROJECT environment variable must be set "
+                    "for Vertex AI provider"
+                )
+
+            logger.info(
+                "Creating Google GenAI Client with Vertex AI (project=%s, location=%s)",
+                project,
+                location,
+            )
+            return genai.Client(vertexai=True, project=project, location=location)
+
         raise ValueError(
-            f"Unsupported provider: {provider}. " f"Supported providers: 'openai', 'google'"
+            f"Unsupported provider: {provider}. "
+            f"Supported providers: 'openai', 'google', 'vertex_ai'"
         )
