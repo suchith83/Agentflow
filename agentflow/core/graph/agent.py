@@ -5,6 +5,7 @@ implementation lives in smaller internal modules under ``agentflow.graph.agent_i
 """
 
 import logging
+import os
 from typing import TYPE_CHECKING, Any
 
 from agentflow.core.graph.base_agent import BaseAgent
@@ -79,17 +80,15 @@ class Agent(
         llm_kwargs: Additional provider-specific parameters
     """
 
-    def __init__(  # noqa: PLR0912, PLR0913
+    def __init__(  # noqa: PLR0913
         self,
         model: str,
-        provider: str | None = None,
         output_type: str = "text",
         system_prompt: list[dict[str, Any]] | None = None,
         tool_node: "str | ToolNode | None" = None,
         extra_messages: list[Message] | None = None,
         trim_context: bool = False,
         tools_tags: set[str] | None = None,
-        api_style: str = "chat",
         reasoning_config: dict[str, Any] | bool | None = REASONING_DEFAULT,  # type: ignore
         skills: "SkillConfig | None" = None,
         memory: "MemoryConfig | None" = None,
@@ -239,6 +238,19 @@ class Agent(
         """
         # Pop kwargs-only params before passing to parent
         base_url: str | None = kwargs.pop("base_url", None)
+        provider: str | None = kwargs.pop("provider", None)
+        # this is mainly for OpenAI-compatible APIs but can be used as a hint for provider detection
+        api_style: str = kwargs.pop("api_style", "chat")
+
+        # check user using vertex ai for google or other model
+        use_vertex_ai: bool = kwargs.pop(
+            "use_vertex_ai",
+            os.getenv(
+                "GOOGLE_GENAI_USE_VERTEXAI",
+                "false",
+            ).lower()
+            == "true",
+        )  # legacy alias for provider="google"
         # Call parent constructor
         super().__init__(
             model=model,
@@ -261,18 +273,12 @@ class Agent(
         if provider is not None:
             self.provider = provider.lower()
             self.base_url = base_url
-            self.client = self._create_client(self.provider, base_url)
+            self.client = self._create_client(self.provider, base_url, use_vertex_ai)
         else:
             # Auto-detect provider from model name
-            self.provider = self._detect_provider_from_model(model)
+            self.provider = self._detect_provider_from_model(model, use_vertex_ai)
             self.base_url = base_url
             self.client = self._create_client(self.provider, base_url)
-
-        # Normalize vertex_ai → google after client creation.
-        # Vertex AI uses the same google-genai SDK, so all downstream execution
-        # and message conversion logic works identically.
-        if self.provider == "vertex_ai":
-            self.provider = "google"
 
         # Validate that provider supports the output type
         self._validate_output_type()
