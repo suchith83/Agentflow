@@ -1,3 +1,9 @@
+Version 0.7.3 later
+1. Added support for Vertex AI models in Google SDK
+2. Added Support for Structured Output
+
+
+
 Version 0.7.0 later
 1. MultiModal Support for Agents
 2. Reasoning Configuration for Agents
