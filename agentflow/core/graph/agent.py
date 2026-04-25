@@ -95,6 +95,7 @@ class Agent(
         retry_config: RetryConfig | bool | None = True,
         fallback_models: list[str | tuple[str, str]] | None = None,
         multimodal_config: MultimodalConfig | None = None,
+        output_schema: Any | None = None,
         **kwargs,
     ):
         """Initialize an Agent node.
@@ -267,6 +268,8 @@ class Agent(
 
         # Store output type
         self.output_type = output_type.lower()
+        self.output_schema = output_schema
+        self._validate_output_schema_output_type()
 
         # Determine provider; self.llm_kwargs is set by super().__init__ and is
         # already available here for _create_client().
@@ -335,3 +338,15 @@ class Agent(
 
         # Multimodal configuration
         self.multimodal_config = multimodal_config
+
+    def _validate_output_schema_output_type(self) -> None:
+        """Validate compatibility between output_schema and output_type."""
+        if self.output_schema is None:
+            return
+
+        if self.output_type in {"image", "video", "audio"}:
+            raise ValueError(
+                "output_schema can only be used with text generation. "
+                "Use output_type='text' (or 'json' for legacy compatibility), "
+                "or remove output_schema for media generation."
+            )

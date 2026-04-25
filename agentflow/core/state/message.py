@@ -28,6 +28,7 @@ from datetime import datetime
 from typing import Any, Literal
 from uuid import uuid4
 
+import pydantic
 from injectq import InjectQ
 from pydantic import BaseModel, Field
 
@@ -160,6 +161,7 @@ class Message(BaseModel):
     metadata: dict[str, Any] = Field(default_factory=dict)
     usages: TokenUsages | None = None
     raw: dict[str, Any] | None = None
+    parsed_content: dict | pydantic.BaseModel | None = None
 
     @classmethod
     def text_message(

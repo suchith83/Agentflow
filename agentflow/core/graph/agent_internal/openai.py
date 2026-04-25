@@ -95,7 +95,21 @@ class AgentOpenAIMixin:
             if key not in CALL_EXCLUDED_KWARGS
         }
 
-        if self.output_type == "text":
+        output_schema = getattr(self, "output_schema", None)
+        if output_schema:
+            if tools:
+                call_kwargs["tools"] = tools
+
+            logger.debug("Calling OpenAI beta.chat.completions.parse with model=%s", self.model)
+            return await self.client.beta.chat.completions.parse(
+                model=self.model,
+                messages=messages,
+                response_format=output_schema,
+                stream=False,
+                **call_kwargs,
+            )
+
+        if self.output_type in ("text", "json"):
             if tools:
                 call_kwargs["tools"] = tools
 

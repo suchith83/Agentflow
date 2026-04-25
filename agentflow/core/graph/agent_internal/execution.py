@@ -251,6 +251,20 @@ class AgentExecutionMixin:
 
         if self.provider == "openai":
             if self.api_style == "responses":
+                if getattr(self, "output_schema", None):
+                    logger.debug(
+                        "output_schema is set; using chat completions parse path "
+                        "instead of Responses API"
+                    )
+                    self._effective_api_style = "chat"
+                    if self.reasoning_config and self.reasoning_config.get("effort"):
+                        kwargs.setdefault("reasoning_effort", self.reasoning_config["effort"])
+                    if self.base_url and self.reasoning_config:
+                        existing_extra = kwargs.get("extra_body", {})
+                        existing_extra["reasoning"] = self.reasoning_config
+                        kwargs["extra_body"] = existing_extra
+                    return await self._call_openai(messages, tools, stream, **kwargs)
+
                 if self.base_url:
                     try:
                         result = await self._call_openai_responses(

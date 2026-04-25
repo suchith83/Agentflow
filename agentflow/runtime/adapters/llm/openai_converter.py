@@ -83,6 +83,7 @@ class OpenAIConverter(BaseConverter):
             return self._build_empty_response_message(response, usages)
 
         message = choice.message
+        parsed = getattr(message, "parsed", None)
         content, reasoning_content = self._extract_message_text_and_reasoning(message)
         blocks = self._build_response_blocks(message, content, reasoning_content)
         final_tool_calls = self._append_tool_call_blocks(message, blocks)
@@ -94,6 +95,7 @@ class OpenAIConverter(BaseConverter):
             role=message.role,
             content=blocks,
             reasoning=reasoning_content,
+            parsed_content=parsed,
             timestamp=getattr(response, "created", datetime.now().timestamp()),
             metadata={
                 "provider": "openai",

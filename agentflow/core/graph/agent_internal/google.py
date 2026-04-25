@@ -301,6 +301,8 @@ class AgentGoogleMixin:
         from google.genai import types
 
         config_kwargs = {}
+        structured_output = getattr(self, "output_schema", None) is not None
+        text_like_output = self.output_type in ("text", "json")
 
         if system_instruction:
             config_kwargs["system_instruction"] = system_instruction
@@ -313,7 +315,7 @@ class AgentGoogleMixin:
                 call_kwargs.pop("max_output_tokens", None),
             )
 
-        if tools and self.output_type == "text":
+        if tools and text_like_output and not structured_output:
             function_declarations = self._convert_tools_to_google_format(tools)
             if function_declarations:
                 config_kwargs["tools"] = [types.Tool(function_declarations=function_declarations)]
@@ -321,7 +323,8 @@ class AgentGoogleMixin:
         if (
             self.reasoning_config
             and isinstance(self.reasoning_config, dict)
-            and self.output_type == "text"
+            and text_like_output
+            and not structured_output
         ):
             thinking_kwargs: dict[str, Any] = {"include_thoughts": True}
             budget = self.reasoning_config.get("thinking_budget")
@@ -340,6 +343,39 @@ class AgentGoogleMixin:
 
         return types.GenerateContentConfig(**config_kwargs) if config_kwargs else None
 
+    async def _call_google_content_generation(
+        self,
+        google_contents: list,
+        config: Any,
+        stream: bool,
+        structured_output: bool,
+    ) -> Any:
+        """Call Google content generation endpoints for text or structured-json output."""
+        mode_suffix = " (json schema)" if structured_output else ""
+
+        if stream:
+            logger.debug(
+                "Calling Google aio.models.generate_content_stream%s with model=%s",
+                mode_suffix,
+                self.model,
+            )
+            return await self.client.aio.models.generate_content_stream(
+                model=self.model,
+                contents=google_contents,
+                config=config,
+            )
+
+        logger.debug(
+            "Calling Google aio.models.generate_content%s with model=%s",
+            mode_suffix,
+            self.model,
+        )
+        return await self.client.aio.models.generate_content(
+            model=self.model,
+            contents=google_contents,
+            config=config,
+        )
+
     async def _call_google(
         self,
         messages: list[dict[str, Any]],
@@ -348,28 +384,46 @@ class AgentGoogleMixin:
         **kwargs: Any,
     ) -> Any:
         """Call Google GenAI text, image, video, or audio endpoints."""
+        output_schema = getattr(self, "output_schema", None)
+        structured_output = output_schema is not None
+
+        if tools and structured_output:
+            raise ValueError(
+                "Google GenAI does not currently support combining tool calls (function calling) "
+                "with structured JSON outputs when output_schema is provided. "
+                "Please execute tools using plain text output, or separate your tool gathering "
+                "and structured extraction nodes."
+            )
+
         call_kwargs = {**self.llm_kwargs, **kwargs}
 
         system_instruction, google_contents = self._convert_to_google_format(messages)
         config = self._build_google_config(system_instruction, tools, call_kwargs)
 
-        if self.output_type == "text":
-            if stream:
-                logger.debug(
-                    "Calling Google aio.models.generate_content_stream with model=%s",
-                    self.model,
-                )
-                return await self.client.aio.models.generate_content_stream(
-                    model=self.model,
-                    contents=google_contents,
-                    config=config,
-                )
+        if structured_output:
+            if config is None:
+                from google.genai import types
 
-            logger.debug("Calling Google aio.models.generate_content with model=%s", self.model)
-            return await self.client.aio.models.generate_content(
-                model=self.model,
-                contents=google_contents,
-                config=config,
+                config = types.GenerateContentConfig(
+                    response_mime_type="application/json",
+                    response_schema=output_schema,
+                )
+            else:
+                config.response_mime_type = "application/json"
+                config.response_schema = output_schema
+            return await self._call_google_content_generation(
+                google_contents,
+                config,
+                stream,
+                structured_output=True,
+            )
+
+        if self.output_type in ("text", "json"):
+            return await self._call_google_content_generation(
+                google_contents,
+                config,
+                stream,
+                structured_output=False,
             )
 
         if self.output_type == "image":

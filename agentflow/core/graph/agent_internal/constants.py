@@ -49,9 +49,9 @@ CALL_EXCLUDED_KWARGS = CLIENT_CONSTRUCTOR_KWARGS | frozenset(
     }
 )
 
-VALID_OUTPUT_TYPES = ("text", "image", "video", "audio")
-GOOGLE_OUTPUT_TYPES = ("text", "image", "video", "audio")
-OPENAI_OUTPUT_TYPES = ("text", "image", "audio")
+VALID_OUTPUT_TYPES = ("text", "image", "video", "audio", "json")
+GOOGLE_OUTPUT_TYPES = ("text", "image", "video", "audio", "json")
+OPENAI_OUTPUT_TYPES = ("text", "image", "audio", "json")
 
 GOOGLE_THINKING_BUDGET_BY_EFFORT = {
     "low": 512,

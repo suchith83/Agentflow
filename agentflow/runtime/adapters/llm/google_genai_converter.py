@@ -94,6 +94,8 @@ class GoogleGenAIConverter(BaseConverter):
         if hasattr(response, "create_time") and response.create_time:
             created_date = response.create_time.timestamp()
 
+        parsed = getattr(response, "parsed", None)
+
         return Message(
             message_id=generate_id(getattr(response, "response_id", None)),
             role="assistant",
@@ -108,6 +110,7 @@ class GoogleGenAIConverter(BaseConverter):
             usages=usages,
             raw=None,  # Google GenAI responses are Pydantic models
             tools_calls=tools_calls if tools_calls else None,
+            parsed_content=parsed,
         )
 
     def _create_empty_message(self) -> Message:
