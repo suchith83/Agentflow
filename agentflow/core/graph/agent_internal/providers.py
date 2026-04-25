@@ -22,6 +22,8 @@ class _ProviderAgentLike(Protocol):
     provider: str
     llm_kwargs: dict[str, Any]
 
+    def _create_google_vertex_ai_client(self) -> Any: ...
+
 
 class AgentProviderMixin:
     """Provider-specific validation and client creation helpers."""
@@ -48,8 +50,11 @@ class AgentProviderMixin:
 
         logger.debug("%s provider supports output_type='%s'", self.provider, self.output_type)
 
-    def _detect_provider_from_model(self, model: str) -> str:
+    def _detect_provider_from_model(self, model: str, use_vertex_ai: bool = False) -> str:
         """Infer the provider from the model name when not explicitly supplied."""
+        if use_vertex_ai:
+            return "google"
+
         model_lower = model.lower()
 
         if model_lower.startswith(("gpt-", "o1-", "o3-", "o4-")):
@@ -64,10 +69,34 @@ class AgentProviderMixin:
         )
         return "openai"
 
+    def _create_google_vertex_ai_client(self: _ProviderAgentLike) -> Any:
+        try:
+            from google import genai
+        except ImportError as exc:
+            raise ImportError(
+                "google-genai SDK is required for Vertex AI provider. "
+                "Install it with: pip install 10xscale-agentflow[google-genai]"
+            ) from exc
+
+        project = os.getenv("GOOGLE_CLOUD_PROJECT")
+        location = os.getenv("GOOGLE_CLOUD_LOCATION", "us-central1")
+        if not project:
+            raise ValueError(
+                "GOOGLE_CLOUD_PROJECT environment variable must be set for Vertex AI provider"
+            )
+
+        logger.info(
+            "Creating Google GenAI Client with Vertex AI (project=%s, location=%s)",
+            project,
+            location,
+        )
+        return genai.Client(vertexai=True, project=project, location=location)
+
     def _create_client(
         self: _ProviderAgentLike,
         provider: str,
         base_url: str | None = None,
+        use_vertex_ai: bool = False,
     ) -> Any:
         """Create a native SDK client for the selected provider."""
         if provider == "openai":
@@ -97,6 +126,9 @@ class AgentProviderMixin:
             return AsyncOpenAI(api_key=api_key, **client_kwargs)
 
         if provider == "google":
+            if use_vertex_ai:
+                return self._create_google_vertex_ai_client()
+
             try:
                 from google import genai
             except ImportError as exc:
@@ -114,30 +146,6 @@ class AgentProviderMixin:
 
             logger.info("Creating Google GenAI Client with async support")
             return genai.Client(api_key=api_key)
-
-        if provider == "vertex_ai":
-            try:
-                from google import genai
-            except ImportError as exc:
-                raise ImportError(
-                    "google-genai SDK is required for Vertex AI provider. "
-                    "Install it with: pip install 10xscale-agentflow[google-genai]"
-                ) from exc
-
-            project = os.getenv("GOOGLE_CLOUD_PROJECT")
-            location = os.getenv("GOOGLE_CLOUD_LOCATION", "us-central1")
-            if not project:
-                raise ValueError(
-                    "GOOGLE_CLOUD_PROJECT environment variable must be set "
-                    "for Vertex AI provider"
-                )
-
-            logger.info(
-                "Creating Google GenAI Client with Vertex AI (project=%s, location=%s)",
-                project,
-                location,
-            )
-            return genai.Client(vertexai=True, project=project, location=location)
 
         raise ValueError(
             f"Unsupported provider: {provider}. "
