@@ -32,6 +32,8 @@ from .callbacks import (
     BeforeInvokeCallback,
     CallbackContext,
     CallbackManager,
+    GraphLifecycleContext,
+    GraphLifecycleHook,
     InvocationType,
     OnErrorCallback,
 )
@@ -89,6 +91,8 @@ __all__ = [
     "DelayedKeyboardInterrupt",
     "ExecutionState",
     "GracefulShutdownManager",
+    "GraphLifecycleContext",
+    "GraphLifecycleHook",
     "HexIDGenerator",
     "IDType",
     "IntIDGenerator",

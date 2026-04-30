@@ -8,6 +8,16 @@ their own validation logic and custom behavior at key points in the execution fl
 - after_invoke: Called after AI/TOOL/MCP invocation for output validation and modification
 - on_error: Called when errors occur during invocation for error handling and logging
 
+Graph-level lifecycle hooks (GraphLifecycleHook) fire at structural events of the entire
+graph run:
+- on_graph_start: Before the execution loop begins
+- on_graph_end: After successful graph completion, before final state sync
+- on_graph_error: When an unhandled error escapes the execution loop
+- on_interrupt: When execution pauses at an interrupt point
+- on_resume: When a previously interrupted execution resumes
+- on_checkpoint: Before every durable checkpoint write
+- on_state_update: After each node result is merged into state
+
 The system is generic and type-safe, supporting different callback types for different
 invocation contexts.
 """
@@ -17,9 +27,13 @@ from abc import ABC, abstractmethod
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Union
+from typing import TYPE_CHECKING, Any, Union
 
 from agentflow.core.state.message import Message
+
+
+if TYPE_CHECKING:
+    from agentflow.core.state import AgentState
 
 
 logger = logging.getLogger("agentflow.utils")
@@ -177,6 +191,175 @@ OnErrorCallbackType = Union[
 ]
 
 
+# ─── Graph Lifecycle Hooks ──────────────────────────────────────────────────
+
+
+@dataclass
+class GraphLifecycleContext:
+    """Context passed to all graph lifecycle hook methods.
+
+    Carries the full config dict so hooks can access thread_id, run_id, and
+    any application-specific keys set on the config.
+    """
+
+    config: dict[str, Any]
+
+    @property
+    def thread_id(self) -> str:
+        """The thread ID for this execution."""
+        return self.config.get("thread_id", "")
+
+    @property
+    def run_id(self) -> str:
+        """The run ID for this execution."""
+        return self.config.get("run_id", "")
+
+
+class GraphLifecycleHook:
+    """Abstract base class for graph-level lifecycle hooks.
+
+    All methods have default no-op implementations so users only need to
+    override the specific hooks they care about.
+
+    Example:
+        ```python
+        class MyHook(GraphLifecycleHook):
+            async def on_graph_start(self, ctx, state):
+                print(f"Graph started for thread {ctx.thread_id}")
+
+            async def on_graph_end(self, ctx, final_state, messages, total_steps):
+                print(f"Completed in {total_steps} steps")
+        ```
+    """
+
+    async def on_graph_start(
+        self,
+        context: "GraphLifecycleContext",
+        state: "AgentState",
+    ) -> "AgentState | None":
+        """Called after state is loaded, before the execution loop starts.
+
+        Return a modified AgentState to replace the initial state, or None to keep it.
+        """
+        return None
+
+    async def on_graph_end(
+        self,
+        context: "GraphLifecycleContext",
+        final_state: "AgentState",
+        messages: list[Message],
+        total_steps: int,
+    ) -> "AgentState | None":
+        """Called after successful graph completion, before final state sync.
+
+        Return a modified AgentState to persist, or None to keep the current state.
+        """
+        return None
+
+    async def on_graph_error(
+        self,
+        context: "GraphLifecycleContext",
+        error: Exception,
+        partial_state: "AgentState",
+        messages: list[Message],
+        step: int,
+        node_name: str,
+    ) -> "tuple[AgentState, str] | None":
+        """Called when an unhandled error escapes the execution loop.
+
+        Return (modified_state, error_message) to change the persisted error snapshot,
+        or None to keep the current error state. The exception is always re-raised.
+        """
+        return None
+
+    async def on_interrupt(
+        self,
+        context: "GraphLifecycleContext",
+        interrupted_node: str,
+        interrupt_type: str,
+        state: "AgentState",
+    ) -> "AgentState | None":
+        """Called when execution pauses at an interrupt point.
+
+        Return a modified AgentState to persist at interrupt, or None to keep the current state.
+        In-place mutation of the passed state is also supported.
+        """
+        return None
+
+    async def on_resume(
+        self,
+        context: "GraphLifecycleContext",
+        resumed_node: str,
+        state: "AgentState",
+        resume_data: dict[str, Any],
+    ) -> "AgentState | None":
+        """Called when a previously interrupted execution is about to resume.
+
+        Called before clear_interrupt(). Return a modified AgentState to continue with,
+        or None to use the loaded state unchanged.
+        """
+        return None
+
+    async def on_checkpoint(
+        self,
+        context: "GraphLifecycleContext",
+        state: "AgentState",
+        messages: list[Message],
+        is_context_trimmed: bool,
+    ) -> "tuple[AgentState, list[Message]] | AgentState | None":
+        """Called before every durable checkpoint write.
+
+        Return (state, messages) to modify both, AgentState to modify state only,
+        or None to persist without modification.
+        """
+        return None
+
+    async def on_state_update(
+        self,
+        context: "GraphLifecycleContext",
+        node_name: str,
+        old_state: "AgentState",
+        new_state: "AgentState",
+        step: int,
+    ) -> "AgentState | None":
+        """Called after each node's result is merged into state.
+
+        Return a modified AgentState to replace new_state, or None to use new_state unchanged.
+        """
+        return None
+
+
+# Type aliases for functional lifecycle hook callbacks
+OnGraphStartCallbackType = Union[
+    GraphLifecycleHook,
+    Callable[["GraphLifecycleContext", "AgentState"], Awaitable["AgentState | None"]],
+]
+OnGraphEndCallbackType = Callable[
+    ["GraphLifecycleContext", "AgentState", list[Message], int],
+    Awaitable["AgentState | None"],
+]
+OnGraphErrorCallbackType = Callable[
+    ["GraphLifecycleContext", Exception, "AgentState", list[Message], int, str],
+    Awaitable["tuple[AgentState, str] | None"],
+]
+OnInterruptCallbackType = Callable[
+    ["GraphLifecycleContext", str, str, "AgentState"],
+    Awaitable["AgentState | None"],
+]
+OnResumeCallbackType = Callable[
+    ["GraphLifecycleContext", str, "AgentState", dict[str, Any]],
+    Awaitable["AgentState | None"],
+]
+OnCheckpointCallbackType = Callable[
+    ["GraphLifecycleContext", "AgentState", list[Message], bool],
+    Awaitable["tuple[AgentState, list[Message]] | AgentState | None"],
+]
+OnStateUpdateCallbackType = Callable[
+    ["GraphLifecycleContext", str, "AgentState", "AgentState", int],
+    Awaitable["AgentState | None"],
+]
+
+
 class CallbackManager:
     """
     Manages registration and execution of callbacks for different invocation types.
@@ -211,6 +394,31 @@ class CallbackManager:
         }
         # Validator registry
         self._validators: list[BaseValidator] = []
+        # Graph lifecycle hooks
+        self._lifecycle_hooks: list[GraphLifecycleHook] = []
+
+    def register_lifecycle_hook(self, hook: GraphLifecycleHook) -> None:
+        """Register a graph lifecycle hook.
+
+        The hook's methods are called at structural events of the graph run
+        (start, end, error, interrupt, resume, checkpoint, state update).
+
+        Args:
+            hook: A GraphLifecycleHook instance. Only the methods you override are called.
+
+        Example:
+            ```python
+            class MyHook(GraphLifecycleHook):
+                async def on_graph_start(self, ctx, state):
+                    print("Graph started")
+
+
+            callback_mgr = CallbackManager()
+            callback_mgr.register_lifecycle_hook(MyHook())
+            ```
+        """
+        self._lifecycle_hooks.append(hook)
+        logger.debug("Registered lifecycle hook: %s", hook.__class__.__name__)
 
     def register_before_invoke(
         self, invocation_type: InvocationType, callback: BeforeInvokeCallbackType
@@ -431,3 +639,175 @@ class CallbackManager:
             }
             for inv_type in InvocationType
         }
+
+    # ── Graph Lifecycle Fire Methods ─────────────────────────────────────────
+
+    async def fire_on_graph_start(
+        self,
+        context: GraphLifecycleContext,
+        state: "AgentState",
+    ) -> "AgentState":
+        """Fire all on_graph_start hooks and return the (potentially modified) state."""
+        result = state
+        for hook in self._lifecycle_hooks:
+            try:
+                modified = await hook.on_graph_start(context, result)
+                if modified is not None:
+                    result = modified
+            except Exception as e:
+                logger.exception(
+                    "Lifecycle hook %s.on_graph_start failed: %s",
+                    hook.__class__.__name__,
+                    e,
+                )
+        return result
+
+    async def fire_on_graph_end(
+        self,
+        context: GraphLifecycleContext,
+        final_state: "AgentState",
+        messages: list[Message],
+        total_steps: int,
+    ) -> "AgentState":
+        """Fire all on_graph_end hooks and return the (potentially modified) state."""
+        result = final_state
+        for hook in self._lifecycle_hooks:
+            try:
+                modified = await hook.on_graph_end(context, result, messages, total_steps)
+                if modified is not None:
+                    result = modified
+            except Exception as e:
+                logger.exception(
+                    "Lifecycle hook %s.on_graph_end failed: %s",
+                    hook.__class__.__name__,
+                    e,
+                )
+        return result
+
+    async def fire_on_graph_error(
+        self,
+        context: GraphLifecycleContext,
+        error: Exception,
+        partial_state: "AgentState",
+        messages: list[Message],
+        step: int,
+        node_name: str,
+    ) -> "tuple[AgentState, str]":
+        """
+        Fire all on_graph_error hooks. Returns (state, error_message).
+        Error is always re-raised.
+        """
+        result_state = partial_state
+        error_message = str(error)
+        for hook in self._lifecycle_hooks:
+            try:
+                result = await hook.on_graph_error(
+                    context, error, result_state, messages, step, node_name
+                )
+                if result is not None:
+                    result_state, error_message = result
+            except Exception as e:
+                logger.exception(
+                    "Lifecycle hook %s.on_graph_error failed: %s",
+                    hook.__class__.__name__,
+                    e,
+                )
+        return result_state, error_message
+
+    async def fire_on_interrupt(
+        self,
+        context: GraphLifecycleContext,
+        interrupted_node: str,
+        interrupt_type: str,
+        state: "AgentState",
+    ) -> "AgentState":
+        """Fire all on_interrupt hooks and return the (potentially modified) state."""
+        result = state
+        for hook in self._lifecycle_hooks:
+            try:
+                modified = await hook.on_interrupt(
+                    context, interrupted_node, interrupt_type, result
+                )
+                if modified is not None:
+                    result = modified
+            except Exception as e:
+                logger.exception(
+                    "Lifecycle hook %s.on_interrupt failed: %s",
+                    hook.__class__.__name__,
+                    e,
+                )
+        return result
+
+    async def fire_on_resume(
+        self,
+        context: GraphLifecycleContext,
+        resumed_node: str,
+        state: "AgentState",
+        resume_data: dict[str, Any],
+    ) -> "AgentState":
+        """Fire all on_resume hooks and return the (potentially modified) state."""
+        result = state
+        for hook in self._lifecycle_hooks:
+            try:
+                modified = await hook.on_resume(context, resumed_node, result, resume_data)
+                if modified is not None:
+                    result = modified
+            except Exception as e:
+                logger.exception(
+                    "Lifecycle hook %s.on_resume failed: %s",
+                    hook.__class__.__name__,
+                    e,
+                )
+        return result
+
+    async def fire_on_checkpoint(
+        self,
+        context: GraphLifecycleContext,
+        state: "AgentState",
+        messages: list[Message],
+        is_context_trimmed: bool,
+    ) -> "tuple[AgentState, list[Message]]":
+        """Fire all on_checkpoint hooks and return (state, messages) for persistence."""
+        result_state = state
+        result_messages = messages
+        for hook in self._lifecycle_hooks:
+            try:
+                result = await hook.on_checkpoint(
+                    context, result_state, result_messages, is_context_trimmed
+                )
+                if result is None:
+                    pass
+                elif isinstance(result, tuple):
+                    result_state, result_messages = result
+                else:
+                    result_state = result
+            except Exception as e:
+                logger.exception(
+                    "Lifecycle hook %s.on_checkpoint failed: %s",
+                    hook.__class__.__name__,
+                    e,
+                )
+        return result_state, result_messages
+
+    async def fire_on_state_update(
+        self,
+        context: GraphLifecycleContext,
+        node_name: str,
+        old_state: "AgentState",
+        new_state: "AgentState",
+        step: int,
+    ) -> "AgentState":
+        """Fire all on_state_update hooks and return the (potentially modified) state."""
+        result = new_state
+        for hook in self._lifecycle_hooks:
+            try:
+                modified = await hook.on_state_update(context, node_name, old_state, result, step)
+                if modified is not None:
+                    result = modified
+            except Exception as e:
+                logger.exception(
+                    "Lifecycle hook %s.on_state_update failed: %s",
+                    hook.__class__.__name__,
+                    e,
+                )
+        return result
