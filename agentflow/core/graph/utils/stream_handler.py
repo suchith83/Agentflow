@@ -15,7 +15,7 @@ from typing import Any, TypeVar
 
 from collections.abc import Callable
 
-from injectq import inject
+from injectq import inject, Inject
 
 from agentflow.core.exceptions import GraphRecursionError
 from agentflow.core.graph.edge import Edge
@@ -26,6 +26,7 @@ from agentflow.core.state import AgentState, Message, ErrorBlock
 from agentflow.core.state.message_block import RemoteToolCallBlock
 from agentflow.core.state.stream_chunks import StreamChunk, StreamEvent
 from agentflow.utils import END, ResponseGranularity, add_messages
+from agentflow.utils.callbacks import CallbackManager, GraphLifecycleContext
 from .heandler_utils import (
     check_and_handle_interrupt,
     check_interrupted,
@@ -84,6 +85,7 @@ class StreamHandler[StateT: AgentState](
         interrupt_before: list[str] | None = None,
         interrupt_after: list[str] | None = None,
         get_node_factory: Callable[[str], Node] | None = None,
+        callback_mgr: CallbackManager = Inject[CallbackManager],
     ):
         self.nodes: dict[str, Node] = nodes
         self.edges: list[Edge] = edges
@@ -93,6 +95,7 @@ class StreamHandler[StateT: AgentState](
         self.interrupt_before = interrupt_before or []
         self.interrupt_after = interrupt_after or []
         self._set_interrupts(interrupt_before, interrupt_after)
+        self.callback_mgr = callback_mgr
 
     async def _execute_graph(  # noqa: PLR0912, PLR0915
         self,
@@ -138,6 +141,9 @@ class StreamHandler[StateT: AgentState](
         # Get current execution info from state
         current_node = state.execution_meta.current_node
         step = state.execution_meta.step
+
+        # Build lifecycle context (shared across all hooks in this execution)
+        lifecycle_context = GraphLifecycleContext(config=config)
 
         # Create event for graph execution
         event = EventModel.default(
@@ -237,6 +243,9 @@ class StreamHandler[StateT: AgentState](
                 # Execute current node - use factory for override support
                 logger.debug("Executing node '%s'", current_node)
                 node = self._get_node(current_node)
+
+                # Snapshot state before node execution for on_state_update hook
+                old_state_snapshot = state.model_copy(deep=True)
 
                 ####################################################
                 ############ Execute Node ##########################
@@ -387,6 +396,16 @@ class StreamHandler[StateT: AgentState](
                         run_id=config.get("run_id"),
                     )
 
+                # Fire on_state_update hook after state has been merged
+                if self.callback_mgr and self.callback_mgr._lifecycle_hooks:
+                    state = await self.callback_mgr.fire_on_state_update(
+                        lifecycle_context,
+                        node_name=current_node,
+                        old_state=old_state_snapshot,
+                        new_state=state,
+                        step=step,
+                    )
+
                 # Call realtime sync after node execution
                 await call_realtime_sync(state, config)
                 event.event_type = EventType.UPDATE
@@ -521,6 +540,16 @@ class StreamHandler[StateT: AgentState](
                 step,
             )
             state.complete()
+
+            # Fire on_graph_end hook before final state sync
+            if self.callback_mgr and self.callback_mgr._lifecycle_hooks:
+                state = await self.callback_mgr.fire_on_graph_end(
+                    lifecycle_context,
+                    final_state=state,
+                    messages=messages,
+                    total_steps=step,
+                )
+
             is_context_trimmed = await sync_data(
                 state=state,
                 config=config,
@@ -569,6 +598,17 @@ class StreamHandler[StateT: AgentState](
             event.metadata["error"] = str(e)
             event.data["state"] = state.model_dump()
             publish_event(event)
+
+            # Fire on_graph_error hook before persisting the error state
+            if self.callback_mgr and self.callback_mgr._lifecycle_hooks:
+                state, _ = await self.callback_mgr.fire_on_graph_error(
+                    lifecycle_context,
+                    error=e,
+                    partial_state=state,
+                    messages=messages,
+                    step=step,
+                    node_name=current_node,
+                )
 
             await sync_data(
                 state=state,
@@ -679,7 +719,12 @@ class StreamHandler[StateT: AgentState](
         publish_event(event)
 
         # Check if this is a resume case
-        config = await check_interrupted(state, input_data, config)
+        state, config = await check_interrupted(state, input_data, config)
+
+        # Fire on_graph_start hook before execution begins
+        if self.callback_mgr and self.callback_mgr._lifecycle_hooks:
+            lc_context = GraphLifecycleContext(config=config)
+            state = await self.callback_mgr.fire_on_graph_start(lc_context, state)  # type: ignore
 
         # Now start Execution
         # Execute graph

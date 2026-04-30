@@ -5,7 +5,7 @@ from typing import Any, TypeVar
 
 from collections.abc import Callable
 
-from injectq import inject
+from injectq import inject, Inject
 
 from agentflow.core.exceptions import GraphRecursionError
 from agentflow.core.graph.edge import Edge
@@ -23,6 +23,7 @@ from agentflow.core.state import AgentState, Message
 from agentflow.core.state.message_block import RemoteToolCallBlock
 from agentflow.utils import END, ResponseGranularity
 from agentflow.core.state.reducers import add_messages
+from agentflow.utils.callbacks import CallbackManager, GraphLifecycleContext
 
 from .heandler_utils import (
     check_and_handle_interrupt,
@@ -54,6 +55,7 @@ class InvokeHandler[StateT: AgentState](
         interrupt_before: list[str] | None = None,
         interrupt_after: list[str] | None = None,
         get_node_factory: Callable[[str], Node] | None = None,
+        callback_mgr: CallbackManager = Inject[CallbackManager],
     ):
         self.nodes: dict[str, Node] = nodes
         self.edges: list[Edge] = edges
@@ -65,6 +67,7 @@ class InvokeHandler[StateT: AgentState](
         self.interrupt_after = interrupt_after or []
         # And set via mixin for a single source of truth
         self._set_interrupts(interrupt_before, interrupt_after)
+        self.callback_mgr = callback_mgr
 
     async def _execute_graph(  # noqa: PLR0912, PLR0915
         self,
@@ -97,6 +100,9 @@ class InvokeHandler[StateT: AgentState](
         # Get current execution info from state
         current_node = state.execution_meta.current_node
         step = state.execution_meta.step
+
+        # Build lifecycle context (shared across all hooks in this execution)
+        lifecycle_context = GraphLifecycleContext(config=config)
 
         # Create event for graph execution
         event = EventModel.default(
@@ -156,6 +162,9 @@ class InvokeHandler[StateT: AgentState](
                 # Execute current node - use factory for override support
                 logger.debug("Executing node '%s'", current_node)
                 node = self._get_node(current_node)
+
+                # Snapshot state before node execution for on_state_update hook
+                old_state_snapshot = state.model_copy(deep=True)
 
                 # Publish node invocation event
 
@@ -228,6 +237,16 @@ class InvokeHandler[StateT: AgentState](
                 if res:
                     return state, messages
 
+                # Fire on_state_update hook after state has been merged
+                if self.callback_mgr and self.callback_mgr._lifecycle_hooks:
+                    state = await self.callback_mgr.fire_on_state_update(
+                        lifecycle_context,
+                        node_name=current_node,
+                        old_state=old_state_snapshot,
+                        new_state=state,
+                        step=step,
+                    )  # type: ignore
+
                 # Call realtime sync after node execution (if state/messages changed)
                 await call_realtime_sync(state, config)
                 event.event_type = EventType.UPDATE
@@ -235,7 +254,7 @@ class InvokeHandler[StateT: AgentState](
                 event.data["messages"] = [m.model_dump() for m in messages] if messages else []
                 if messages:
                     lm = messages[-1]
-                    event.content = lm.text() if isinstance(lm.content, list) else lm.content
+                    event.content = lm.text() if isinstance(lm.content, list) else lm.content  # type: ignore
                     if isinstance(lm.content, list):
                         event.content_blocks = lm.content
                 event.content_type = [ContentType.STATE, ContentType.MESSAGE]
@@ -316,6 +335,16 @@ class InvokeHandler[StateT: AgentState](
                 step,
             )
             state.complete()
+
+            # Fire on_graph_end hook before final state sync
+            if self.callback_mgr and self.callback_mgr._lifecycle_hooks:
+                state = await self.callback_mgr.fire_on_graph_end(
+                    lifecycle_context,
+                    final_state=state,
+                    messages=messages,
+                    total_steps=step,
+                )  # type: ignore
+
             res = await sync_data(
                 state=state,
                 config=config,
@@ -327,7 +356,7 @@ class InvokeHandler[StateT: AgentState](
             event.data["messages"] = [m.model_dump() for m in messages] if messages else []
             if messages:
                 fm = messages[-1]
-                event.content = fm.text() if isinstance(fm.content, list) else fm.content
+                event.content = fm.text() if isinstance(fm.content, list) else fm.content  # type: ignore
                 if isinstance(fm.content, list):
                     event.content_blocks = fm.content
             event.content_type = [ContentType.STATE, ContentType.MESSAGE]
@@ -350,6 +379,17 @@ class InvokeHandler[StateT: AgentState](
             event.metadata["error"] = str(e)
             event.data["state"] = state.model_dump()
             publish_event(event)
+
+            # Fire on_graph_error hook before persisting the error state
+            if self.callback_mgr and self.callback_mgr._lifecycle_hooks:
+                state, _ = await self.callback_mgr.fire_on_graph_error(
+                    lifecycle_context,
+                    error=e,
+                    partial_state=state,
+                    messages=messages,
+                    step=step,
+                    node_name=current_node,
+                )  # type: ignore
 
             await sync_data(
                 state=state,
@@ -405,7 +445,12 @@ class InvokeHandler[StateT: AgentState](
         publish_event(event)
 
         # Check if this is a resume case
-        config = await check_interrupted(state, input_data, config)
+        state, config = await check_interrupted(state, input_data, config)
+
+        # Fire on_graph_start hook before execution begins
+        if self.callback_mgr and self.callback_mgr._lifecycle_hooks:
+            lc_context = GraphLifecycleContext(config=config)
+            state = await self.callback_mgr.fire_on_graph_start(lc_context, state)  # type: ignore
 
         event.event_type = EventType.UPDATE
         event.metadata["status"] = "Graph invoked"

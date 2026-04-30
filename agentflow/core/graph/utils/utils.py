@@ -38,7 +38,7 @@ from agentflow.utils import (
     ResponseGranularity,
     add_messages,
 )
-from agentflow.utils.callbacks import CallbackManager
+from agentflow.utils.callbacks import CallbackManager, GraphLifecycleContext
 
 
 StateT = TypeVar("StateT", bound=AgentState)
@@ -544,6 +544,7 @@ async def sync_data(
     trim: bool = False,
     checkpointer: BaseCheckpointer = Inject[BaseCheckpointer],  # will be auto-injected
     context_manager: BaseContextManager = Inject[BaseContextManager],  # will be auto-injected
+    callback_mgr: CallbackManager = Inject[CallbackManager],  # will be auto-injected
 ) -> bool:
     """Sync the current state and messages to the checkpointer."""
     is_context_trimmed = False
@@ -553,6 +554,16 @@ async def sync_data(
     if context_manager and trim:
         new_state = await context_manager.atrim_context(state)
         is_context_trimmed = True
+
+    # Fire on_checkpoint hook before persisting
+    if callback_mgr and callback_mgr._lifecycle_hooks:
+        lifecycle_context = GraphLifecycleContext(config=config)
+        new_state, messages = await callback_mgr.fire_on_checkpoint(
+            lifecycle_context,
+            state=new_state,
+            messages=messages,
+            is_context_trimmed=is_context_trimmed,
+        )
 
     # first sync with realtime then main db
     await call_realtime_sync(state, config, checkpointer)
