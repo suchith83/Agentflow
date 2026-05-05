@@ -38,6 +38,7 @@ from .reducers import (
     replace_value,
 )
 from .stream_chunks import StreamChunk, StreamEvent
+from .stream_emitter import StreamEmitter
 from .tool_result import ToolResult
 
 
@@ -59,6 +60,7 @@ __all__ = [
     "MessageContextManager",
     "ReasoningBlock",
     "StreamChunk",
+    "StreamEmitter",
     "StreamEvent",
     "TextBlock",
     "TextBlock",

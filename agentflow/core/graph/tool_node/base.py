@@ -30,6 +30,7 @@ from injectq import Inject
 
 from agentflow.core.state import AgentState, ErrorBlock, Message, ToolCallBlock, ToolResultBlock
 from agentflow.core.state.message_block import RemoteToolCallBlock
+from agentflow.core.state.stream_emitter import StreamEmitter
 from agentflow.runtime.adapters.tools import ComposioAdapter
 from agentflow.runtime.publisher.events import ContentType, Event, EventModel, EventType
 from agentflow.runtime.publisher.publish import publish_event
@@ -493,6 +494,7 @@ class ToolNode(
         tool_call_id: str,
         config: dict[str, t.Any],
         state: AgentState,
+        emit: StreamEmitter | None = None,
         callback_manager: CallbackManager = Inject[CallbackManager],
     ) -> t.AsyncIterator[Message | dict[str, t.Any]]:
         """Execute a tool with streaming support, yielding incremental results.
@@ -629,6 +631,7 @@ class ToolNode(
                 config,
                 state,
                 callback_manager,
+                emit=emit,
             )
             if isinstance(result, Message):
                 event.data["message"] = result.model_dump()

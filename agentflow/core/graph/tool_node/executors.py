@@ -23,6 +23,12 @@ from agentflow.utils import CallbackContext, CallbackManager, InvocationType, ca
 from .constants import INJECTABLE_PARAMS, has_injected_default
 
 
+# Sentinel-import: StreamEmitter is imported lazily to avoid circular deps at
+# module load time; the type hint is only used in method signatures.
+if t.TYPE_CHECKING:
+    from agentflow.core.state.stream_emitter import StreamEmitter
+
+
 logger = logging.getLogger("agentflow.graph.tool_node")
 
 
@@ -395,7 +401,7 @@ class LocalExecMixin:
             ):
                 continue
 
-            if param_name in ["state", "config", "tool_call_id"]:
+            if param_name in default_data:
                 input_data[param_name] = default_data[param_name]
                 continue
 
@@ -515,6 +521,7 @@ class LocalExecMixin:
         config: dict[str, t.Any],
         state: AgentState,
         callback_mgr: CallbackManager,
+        emit: StreamEmitter | None = None,
     ) -> dict[str, t.Any] | Message:
         context = CallbackContext(
             invocation_type=InvocationType.TOOL,
@@ -536,6 +543,7 @@ class LocalExecMixin:
                 "tool_call_id": tool_call_id,
                 "state": state,
                 "config": config,
+                "emit": emit,
             },
         )
 

@@ -1,3 +1,5 @@
+import random
+
 from dotenv import load_dotenv
 
 from agentflow.core import Agent, StateGraph, ToolNode
@@ -13,6 +15,13 @@ checkpointer = InMemoryCheckpointer()
 
 class CustomAgentState(AgentState):
     jd_name: str = "CustomAgentState"
+
+
+def call_weather_api(location: str) -> str:
+    is_failed = random.choice([True, False])  # Randomly simulate success or failure
+    if is_failed:
+        raise Exception("Failed to fetch weather data due to a simulated API error.")
+    return f"The weather in {location} is sunny"
 
 
 def get_weather(
@@ -31,7 +40,20 @@ def get_weather(
         print(f"Number of messages in context: {len(state.context)}")  # type: ignore
 
     # return f"The weather in {location} is sunny"
-    raise Exception("Simulated tool failure for testing error handling.")
+
+    result = ""
+    for i in range(3):  # Try up to 3 times
+        try:
+            result = call_weather_api(location)
+            break  # If successful, exit the loop
+        except Exception as e:
+            print(f"Attempt {i + 1} failed: {e}")
+            if i == 2:  # If it's the last attempt, return an error message
+                result = (
+                    f"Sorry, I couldn't fetch the weather for {location} after multiple attempts."
+                )
+
+    return result
 
 
 # def update_context(

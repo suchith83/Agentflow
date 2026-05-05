@@ -1,7 +1,10 @@
+import time
+
 from dotenv import load_dotenv
 
 from agentflow.core import Agent, StateGraph, ToolNode
 from agentflow.core.state import AgentState, Message
+from agentflow.core.state.stream_emitter import StreamEmitter
 from agentflow.storage.checkpointer import InMemoryCheckpointer
 from agentflow.utils.constants import END
 
@@ -20,16 +23,29 @@ def get_weather(
     location: str,
     tool_call_id: str | None = None,
     state: AgentState | None = None,
+    emit: StreamEmitter | None = None,
 ) -> str:
     """
     Get the current weather for a specific location.
     This demo shows injectable parameters: tool_call_id and state are automatically injected.
     """
     # You can access injected parameters here
+
+    if emit:
+        emit.progress("Fetching weather data...", data={"location": location})
+
+    time.sleep(1)  # Simulate a delay in fetching weather data
+
+    if emit:
+        emit.progress("Processing weather data...", data={"location": location})
+
     if tool_call_id:
         print(f"Tool call ID: {tool_call_id}")
     if state and hasattr(state, "context"):
         print(f"Number of messages in context: {len(state.context)}")  # type: ignore
+
+    if emit:
+        emit.progress("Finalizing response...", data={"location": location})
 
     return f"The weather in {location} is sunny"
 
@@ -44,13 +60,14 @@ main_agent = Agent(
         {
             "role": "system",
             "content": """
-                You are a helpful assistant.
-                Your task is to assist the user in finding information and answering questions.
+                You are a helpful assistant with access to a get_weather tool.
+                When asked about weather for any location you MUST call the get_weather tool.
+                Do not answer weather questions from your own knowledge.
             """,
         },
         {"role": "user", "content": "Today Date is 2024-06-15"},
     ],
-    tools=tool_node,
+    tool_node=tool_node,
     trim_context=True,
 )
 
@@ -101,7 +118,7 @@ app = graph.compile(
 
 
 # now run it
-inp = {"messages": [Message.text_message("HI")]}
+inp = {"messages": [Message.text_message("Please call the get_weather function for Paris")]}
 config = {"thread_id": "12345", "recursion_limit": 10, "is_stream": True}
 
 res = app.stream(inp, config=config)
