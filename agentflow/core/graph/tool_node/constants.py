@@ -39,6 +39,7 @@ INJECTABLE_PARAMS = {
     "tool_call_id",
     "state",
     "config",
+    "emit",
     "generated_id",
     "context_manager",
     "publisher",

@@ -25,6 +25,7 @@ from agentflow.core.graph.utils.utils import process_node_result
 from agentflow.core.state import AgentState, Message
 from agentflow.core.state.message_block import ErrorBlock
 from agentflow.core.state.stream_chunks import StreamChunk, StreamEvent
+from agentflow.core.state.stream_emitter import StreamEmitter
 from agentflow.prebuilt.tools.handoff import is_handoff_tool
 from agentflow.runtime.adapters.llm.model_response_converter import ModelResponseConverter
 from agentflow.runtime.publisher.events import ContentType, Event, EventModel, EventType
@@ -111,40 +112,59 @@ class StreamNodeHandler(BaseLoggingMixin):
             run_id=config.get("run_id"),
         )
 
-        # Execute the tool function with injectable parameters
-        tool_result_gen = self.func.stream(  # type: ignore
-            function_name,  # type: ignore
-            function_args,
+        # Create a per-tool queue.  The StreamEmitter pushes chunks into this
+        # queue from the tool (including from sync-tool threads); the background
+        # task pushes the final tool result(s); we drain the queue and yield
+        # items live so the frontend sees progress before the tool finishes.
+        loop = asyncio.get_running_loop()
+        queue: asyncio.Queue = asyncio.Queue()
+        _DONE = object()  # sentinel
+
+        emitter = StreamEmitter(
+            tool_name=function_name,
             tool_call_id=tool_call_id,
-            state=state,
-            config=config,
-        )
-        logger.debug("Node '%s' tool execution completed successfully", self.name)
-        yield StreamChunk(
-            event=StreamEvent.UPDATES,
-            data={
-                "status": "tool_invoked",
-                "tool_name": function_name,
-                "args": function_args,
-                "tool_call_id": tool_call_id,
-                "node": self.name,
-            },
+            node_name=self.name,
             thread_id=config.get("thread_id"),
             run_id=config.get("run_id"),
+            queue=queue,
+            loop=loop,
         )
 
-        async for result in tool_result_gen:
-            if isinstance(result, dict):
+        async def _run_tool() -> None:
+            try:
+                async for result in self.func.stream(  # type: ignore[union-attr]
+                    function_name,
+                    function_args,
+                    tool_call_id=tool_call_id,
+                    state=state,
+                    config=config,
+                    emit=emitter,
+                ):
+                    await queue.put(result)
+            finally:
+                await queue.put(_DONE)
+
+        task = asyncio.create_task(_run_tool())
+
+        while True:
+            item = await queue.get()
+            if item is _DONE:
+                break
+
+            if isinstance(item, StreamChunk):
+                # Already a StreamChunk (e.g. emitted by the tool via StreamEmitter)
+                yield item
+            elif isinstance(item, dict):
                 # Dict result from ToolResult (state update) — yield the message
                 # and pass the dict through so the consumer can handle state merging
-                msg = result.get("messages")
+                msg = item.get("messages")
                 if isinstance(msg, Message):
                     yield msg
                     yield StreamChunk(
                         event=StreamEvent.MESSAGE,
                         message=msg,
                         data={
-                            "status": "tool_invoked",
+                            "status": "tool_result",
                             "tool_name": function_name,
                             "args": function_args,
                             "tool_call_id": tool_call_id,
@@ -154,26 +174,26 @@ class StreamNodeHandler(BaseLoggingMixin):
                         run_id=config.get("run_id"),
                     )
                 # Yield the raw dict so upstream can merge state
-                yield result
-            elif isinstance(result, Message):
-                yield result
+                yield item
+            elif isinstance(item, Message):
+                yield item
                 is_error = (
-                    any(isinstance(block, ErrorBlock) for block in result.content)
-                    if isinstance(result.content, list)
+                    any(isinstance(block, ErrorBlock) for block in item.content)
+                    if isinstance(item.content, list)
                     else False
                 )
                 if is_error:
                     yield StreamChunk(
                         event=StreamEvent.ERROR,
                         data={
-                            "status": "tool_invoked",
+                            "status": "tool_failed",
                             "tool_name": function_name,
                             "args": function_args,
                             "tool_call_id": tool_call_id,
                             "node": self.name,
                             "reason": "Tool execution resulted in error",
                             "error": next(
-                                block for block in result.content if isinstance(block, ErrorBlock)
+                                block for block in item.content if isinstance(block, ErrorBlock)
                             ).message,
                         },
                         thread_id=config.get("thread_id"),
@@ -182,9 +202,9 @@ class StreamNodeHandler(BaseLoggingMixin):
                 else:
                     yield StreamChunk(
                         event=StreamEvent.MESSAGE,
-                        message=result,
+                        message=item,
                         data={
-                            "status": "tool_invoked",
+                            "status": "tool_result",
                             "tool_name": function_name,
                             "args": function_args,
                             "tool_call_id": tool_call_id,
@@ -194,7 +214,10 @@ class StreamNodeHandler(BaseLoggingMixin):
                         run_id=config.get("run_id"),
                     )
             else:
-                yield result
+                yield item
+
+        # Re-raise any exception that occurred inside the background task.
+        await task
 
     async def _call_tools(
         self,
@@ -208,7 +231,7 @@ class StreamNodeHandler(BaseLoggingMixin):
             and last_message.tools_calls
             and len(last_message.tools_calls) > 0
         ):
-            # NEW: Check for handoff BEFORE executing any tools
+            # Check for handoff BEFORE executing any tools
             for tool_call in last_message.tools_calls:
                 tool_name = tool_call.get("function", {}).get("name", "")
                 is_handoff, target_agent = is_handoff_tool(tool_name)
@@ -220,45 +243,50 @@ class StreamNodeHandler(BaseLoggingMixin):
                         tool_name,
                         target_agent,
                     )
-
-                    # Yield Command for streaming context
                     yield Command(  # type: ignore
                         update=None,
                         goto=target_agent,
                     )
-                    return  # Stop processing
+                    return
 
-            # Continue with normal tool execution if no handoff detected
-            # Execute tool calls in parallel
             logger.info(
                 "Node '%s' executing %d tool calls in parallel",
                 self.name,
                 len(last_message.tools_calls),
             )
 
-            # Create async generators for all tool calls
+            # Shared output queue — all parallel tool workers push here so items
+            # are yielded as soon as they are available, not after all tools finish.
+            shared_queue: asyncio.Queue = asyncio.Queue()
+            _WORKER_DONE = object()  # per-worker sentinel
+
             generators = [
                 self._handle_single_tool(tool_call, state, config)
                 for tool_call in last_message.tools_calls
             ]
 
-            # Use asyncio.gather to collect all results from generators
-            async def collect_from_generator(gen):
-                results = []
-                async for result in gen:
-                    # all results
-                    results.append(result)
-                return results
+            async def _worker(gen: AsyncIterable) -> None:
+                try:
+                    async for item in gen:
+                        await shared_queue.put(item)
+                finally:
+                    await shared_queue.put(_WORKER_DONE)
 
-            # Execute all tool calls concurrently
-            all_results = await asyncio.gather(*[collect_from_generator(gen) for gen in generators])
+            tasks = [asyncio.create_task(_worker(gen)) for gen in generators]
+            remaining = len(tasks)
 
-            # Yield all results (they come in order of completion, not call order)
-            for results in all_results:
-                for result in results:
-                    yield result
+            while remaining > 0:
+                item = await shared_queue.get()
+                if item is _WORKER_DONE:
+                    remaining -= 1
+                else:
+                    yield item
+
+            # Re-raise the first exception from any worker task.
+            for task in tasks:
+                await task
+
         else:
-            # No tool calls to execute, return available tools
             logger.exception("Node '%s': No tool calls to execute", self.name)
             raise NodeError(
                 message="No tool calls to execute",
