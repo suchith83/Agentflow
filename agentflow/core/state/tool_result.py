@@ -17,6 +17,7 @@ class ToolResult:
         message: The text response to return to the AI (used as the tool result content).
         state: Optional dict mapping state field names to their new values.
             Only fields present in the dict are updated; other fields are left unchanged.
+        is_error: If True, the result is marked as a failed tool call (status="failed").
 
     Example::
 
@@ -33,3 +34,4 @@ class ToolResult:
 
     message: Any
     state: dict[str, Any] | None = field(default=None)
+    is_error: bool = field(default=False)

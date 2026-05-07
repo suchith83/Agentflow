@@ -31,6 +31,57 @@ if t.TYPE_CHECKING:
 
 logger = logging.getLogger("agentflow.graph.tool_node")
 
+_STATUS_OK: set[str] = {"completed", "success", "ok", "done", "true", "1"}
+_STATUS_FAIL: set[str] = {"failed", "failure", "error", "false", "0"}
+_ERROR_TRUE: set[str] = {"true", "1", "yes", "error", "failed", "failure"}
+
+
+def _safe_serialize(obj: t.Any) -> dict[str, t.Any]:
+    try:
+        json.dumps(obj)
+        return obj if isinstance(obj, dict) else {"content": obj}
+    except (TypeError, OverflowError):
+        if hasattr(obj, "model_dump"):
+            dumped = obj.model_dump()  # type: ignore
+            if isinstance(dumped, dict) and dumped.get("type") == "resource":
+                resource = dumped.get("resource", {})
+                if isinstance(resource, dict) and "uri" in resource:
+                    resource["uri"] = str(resource["uri"])
+                    dumped["resource"] = resource
+            return dumped
+        return {"content": str(obj), "type": "fallback"}
+
+
+def _as_bool(val: t.Any, truthy_set: set[str]) -> bool:
+    if isinstance(val, bool):
+        return val
+    return str(val).lower() in truthy_set
+
+
+def _extract_block_meta(
+    data: dict[str, t.Any],
+) -> tuple[bool, dict[str, t.Any]]:
+    """Normalize arbitrary status/error keys; return (is_error, cleaned_data)."""
+    data = dict(data)
+
+    raw_status = data.pop("status", None)
+    raw_is_error = data.pop("is_error", data.pop("error", None))
+    raw_success = data.pop("success", None)
+
+    if raw_is_error is not None:
+        is_error = _as_bool(raw_is_error, _ERROR_TRUE)
+    elif raw_success is not None:
+        is_error = not _as_bool(raw_success, _STATUS_OK)
+    else:
+        is_error = False
+
+    if raw_status is not None:
+        s = str(raw_status).lower()
+        if s in _STATUS_FAIL:
+            is_error = True
+
+    return is_error, data
+
 
 class ComposioMixin:
     _composio: ComposioAdapter | None
@@ -439,31 +490,25 @@ class LocalExecMixin:
         result: t.Any,
         tool_call_id: str,
     ) -> list[ContentBlock]:
-        def safe_serialize(obj: t.Any) -> dict[str, t.Any]:
-            try:
-                json.dumps(obj)
-                return obj if isinstance(obj, dict) else {"content": obj}
-            except (TypeError, OverflowError):
-                if hasattr(obj, "model_dump"):
-                    dumped = obj.model_dump()  # type: ignore
-                    if isinstance(dumped, dict) and dumped.get("type") == "resource":
-                        resource = dumped.get("resource", {})
-                        if isinstance(resource, dict) and "uri" in resource:
-                            resource["uri"] = str(resource["uri"])
-                            dumped["resource"] = resource
-                    return dumped
-                return {"content": str(obj), "type": "fallback"}
+        is_error = False
 
         if isinstance(result, str):
             output: str | list[dict[str, t.Any]] = result
         elif isinstance(result, dict):
-            output = [safe_serialize(result)]
+            is_error, cleaned = _extract_block_meta(result)
+            output = [_safe_serialize(cleaned)]
         elif hasattr(result, "model_dump"):
-            output = [safe_serialize(result.model_dump())]
+            dumped = result.model_dump()  # type: ignore
+            if isinstance(dumped, dict):
+                is_error, cleaned = _extract_block_meta(dumped)
+                output = [_safe_serialize(cleaned)]
+            else:
+                output = [_safe_serialize(dumped)]
         elif hasattr(result, "__dict__"):
-            output = [safe_serialize(result.__dict__)]
+            is_error, cleaned = _extract_block_meta(result.__dict__)
+            output = [_safe_serialize(cleaned)]
         elif isinstance(result, list):
-            output = [safe_serialize(item) for item in result]
+            output = [_safe_serialize(item) for item in result]
         else:
             output = str(result)
 
@@ -471,8 +516,8 @@ class LocalExecMixin:
             ToolResultBlock(
                 call_id=tool_call_id,
                 output=output,
-                status="completed",
-                is_error=False,
+                status="failed" if is_error else "completed",
+                is_error=is_error,
             )
         ]
 
@@ -496,8 +541,8 @@ class LocalExecMixin:
                         ToolResultBlock(
                             call_id=tool_call_id,
                             output=result.message,
-                            status="completed",
-                            is_error=False,
+                            status="failed" if result.is_error else "completed",
+                            is_error=result.is_error,
                         )
                     ],
                     meta=meta,
