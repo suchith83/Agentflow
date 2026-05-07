@@ -13,6 +13,7 @@ Covers:
 from __future__ import annotations
 
 import sys
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -1109,6 +1110,55 @@ class TestResolveTools:
         with pytest.raises(RuntimeError, match="ToolNode named 'nonexistent_node' was not found"):
             await agent._resolve_tools(InjectQ.get_instance())
 
+    async def test_named_node_resolves_and_registers_pending_tools(self):
+        def pending_tool(value: str) -> str:
+            return value
+
+        agent = _make_openai_agent(tool_node="TOOL")
+        agent._tool_node = None
+        agent.tool_node_name = "TOOL"
+        agent._extra_tools = [pending_tool]
+
+        fake_tool_node = ToolNode([])
+        fake_node = MagicMock()
+        fake_node.func = fake_tool_node
+
+        container = MagicMock()
+        container.call_factory.return_value = fake_node
+
+        result = await agent._resolve_tools(container)
+
+        assert agent._tool_node is fake_tool_node
+        # tool_node_name cleared to prevent duplicate tool resolution on subsequent calls
+        assert agent.tool_node_name is None
+        assert getattr(agent, "_extra_tools", []) == []
+        assert any(tool["function"]["name"] == "pending_tool" for tool in result)
+
+    async def test_named_node_no_duplicate_tools_on_second_call(self):
+        """Resolving a named ToolNode and calling _resolve_tools again must not duplicate tools."""
+        def my_tool(x: str) -> str:
+            """A test tool."""
+            return x
+
+        agent = _make_openai_agent(tool_node="TOOL")
+        agent._tool_node = None
+        agent.tool_node_name = "TOOL"
+
+        fake_tool_node = ToolNode([my_tool])
+        fake_node = MagicMock()
+        fake_node.func = fake_tool_node
+
+        container = MagicMock()
+        container.call_factory.return_value = fake_node
+
+        first = await agent._resolve_tools(container)
+        second = await agent._resolve_tools(container)
+
+        names_first = [t["function"]["name"] for t in first]
+        names_second = [t["function"]["name"] for t in second]
+        assert names_first.count("my_tool") == 1
+        assert names_second.count("my_tool") == 1
+
 
 # ═════════════════════════════════════════════════════════════════════════════
 # Agent.__init__ – construction edge cases
@@ -1219,6 +1269,36 @@ class TestAgentInit:
         memory = MemoryConfig(user_memory=UserMemoryConfig(user_id="u1"))
         with pytest.raises(RuntimeError, match="Memory requires an existing ToolNode"):
             _make_openai_agent(tool_node=None, memory=memory)
+
+    def test_memory_config_defers_to_named_tool_node(self):
+        memory = MemoryConfig(user_memory=UserMemoryConfig(user_id="u1"))
+        agent = _make_openai_agent(tool_node="my_tools", memory=memory)
+
+        assert agent.tool_node_name == "my_tools"
+        assert getattr(agent, "_extra_tools", None) is not None
+        assert len(agent._extra_tools) > 0
+
+    def test_agent_init_defers_skills_to_named_tool_node(self, tmp_path: Path):
+        from agentflow.core.skills.models import SkillConfig
+
+        skill_dir = tmp_path / "alpha"
+        skill_dir.mkdir()
+        (skill_dir / "SKILL.md").write_text(
+            "---\nname: alpha\ndescription: Test skill\n---\n# Alpha skill\n", encoding="utf-8"
+        )
+
+        with patch.object(Agent, "_create_client", return_value=MagicMock()):
+            agent = Agent(
+                model="gpt-4o",
+                provider="openai",
+                tool_node="TOOL",
+                skills=SkillConfig(skills_dir=str(tmp_path), inject_trigger_table=False),
+                reasoning_config=None,
+            )
+
+        assert agent.tool_node_name == "TOOL"
+        assert getattr(agent, "_extra_tools", None) is not None
+        assert len(agent._extra_tools) == 1
 
     def test_memory_config_adds_tools_to_existing_tool_node(self):
         memory = MemoryConfig(user_memory=UserMemoryConfig(user_id="u1"))

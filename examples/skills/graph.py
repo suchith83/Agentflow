@@ -32,10 +32,11 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 from agentflow.core.graph import Agent, StateGraph, ToolNode
+from agentflow.core.skills import SkillConfig
 from agentflow.core.state import AgentState, Message
 from agentflow.core.state.message_context_manager import MessageContextManager
-from agentflow.graph.skills import SkillConfig
 from agentflow.utils.constants import END
+
 
 load_dotenv()
 
@@ -71,6 +72,13 @@ def get_weather(location: str) -> str:
 # Skills directory — three SKILL.md files sit alongside this script
 # ---------------------------------------------------------------------------
 SKILLS_DIR = str(Path(__file__).parent / "skills")
+
+# ---------------------------------------------------------------------------
+# Tool node — registered in the graph as "TOOL".
+# At compile time the graph wires this into the agent automatically.
+# ---------------------------------------------------------------------------
+tool_node = ToolNode([get_weather])
+
 # ---------------------------------------------------------------------------
 # Agent — Gemini 2.5 Flash with skills + context trimming enabled + custom tools
 # ---------------------------------------------------------------------------
@@ -89,7 +97,7 @@ agent = Agent(
             ),
         }
     ],
-    tool_node=ToolNode([get_weather]),  # ← Add custom tools here (alongside skills)
+    tool_node="TOOL",  # resolved to the ToolNode above at graph.compile() time
     skills=SkillConfig(
         skills_dir=SKILLS_DIR,
         inject_trigger_table=True,  # auto-appends skill trigger table to system prompt
@@ -97,22 +105,6 @@ agent = Agent(
     ),
     trim_context=True,
 )
-
-# ---------------------------------------------------------------------------
-# Tool node — when skills are enabled, the ToolNode passed to Agent gets the
-# set_skill tool injected into it automatically.  Use get_tool_node() to get
-# the final ToolNode (including set_skill) to register as a graph node.
-# It contains both:
-#   1. set_skill (auto-added by skills system)
-#   2. get_weather (our custom tool passed to Agent)
-# ---------------------------------------------------------------------------
-tool_node = agent.get_tool_node()
-
-# Optional: Print available tools to verify both are registered
-print("\n📋 Available tools in ToolNode:")
-for tool_name in tool_node._funcs.keys():
-    print(f"  - {tool_name}")
-print()
 
 # ---------------------------------------------------------------------------
 # Routing
@@ -153,6 +145,12 @@ graph.add_edge("TOOL", "MAIN")
 graph.set_entry_point("MAIN")
 
 app = graph.compile()
+
+# Print available tools after compile — both get_weather + set_skill are registered
+print("\n📋 Available tools in ToolNode (resolved at compile time):")
+for tool_name in tool_node._funcs:
+    print(f"  - {tool_name}")
+print()
 
 # ---------------------------------------------------------------------------
 # Run
