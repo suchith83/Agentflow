@@ -22,12 +22,13 @@ The system is generic and type-safe, supporting different callback types for dif
 invocation contexts.
 """
 
+import inspect
 import logging
 from abc import ABC, abstractmethod
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from enum import Enum
-from typing import TYPE_CHECKING, Any, Union
+from typing import TYPE_CHECKING, Any, TypeVar, Union, cast
 
 from agentflow.core.state.message import Message
 
@@ -37,6 +38,8 @@ if TYPE_CHECKING:
 
 
 logger = logging.getLogger("agentflow.utils")
+
+StateT = TypeVar("StateT", bound="AgentState")
 
 
 class BaseValidator(ABC):
@@ -235,24 +238,24 @@ class GraphLifecycleHook:
     async def on_graph_start(
         self,
         context: "GraphLifecycleContext",
-        state: "AgentState",
-    ) -> "AgentState | None":
+        state: StateT,
+    ) -> "StateT | None":
         """Called after state is loaded, before the execution loop starts.
 
-        Return a modified AgentState to replace the initial state, or None to keep it.
+        Return a modified StateT to replace the initial state, or None to keep it.
         """
         return None
 
     async def on_graph_end(
         self,
         context: "GraphLifecycleContext",
-        final_state: "AgentState",
+        final_state: StateT,
         messages: list[Message],
         total_steps: int,
-    ) -> "AgentState | None":
+    ) -> "StateT | None":
         """Called after successful graph completion, before final state sync.
 
-        Return a modified AgentState to persist, or None to keep the current state.
+        Return a modified StateT to persist, or None to keep the current state.
         """
         return None
 
@@ -260,11 +263,11 @@ class GraphLifecycleHook:
         self,
         context: "GraphLifecycleContext",
         error: Exception,
-        partial_state: "AgentState",
+        partial_state: StateT,
         messages: list[Message],
         step: int,
         node_name: str,
-    ) -> "tuple[AgentState, str] | None":
+    ) -> "tuple[StateT, str] | None":
         """Called when an unhandled error escapes the execution loop.
 
         Return (modified_state, error_message) to change the persisted error snapshot,
@@ -277,11 +280,11 @@ class GraphLifecycleHook:
         context: "GraphLifecycleContext",
         interrupted_node: str,
         interrupt_type: str,
-        state: "AgentState",
-    ) -> "AgentState | None":
+        state: StateT,
+    ) -> "StateT | None":
         """Called when execution pauses at an interrupt point.
 
-        Return a modified AgentState to persist at interrupt, or None to keep the current state.
+        Return a modified StateT to persist at interrupt, or None to keep the current state.
         In-place mutation of the passed state is also supported.
         """
         return None
@@ -290,12 +293,12 @@ class GraphLifecycleHook:
         self,
         context: "GraphLifecycleContext",
         resumed_node: str,
-        state: "AgentState",
+        state: StateT,
         resume_data: dict[str, Any],
-    ) -> "AgentState | None":
+    ) -> "StateT | None":
         """Called when a previously interrupted execution is about to resume.
 
-        Called before clear_interrupt(). Return a modified AgentState to continue with,
+        Called before clear_interrupt(). Return a modified StateT to continue with,
         or None to use the loaded state unchanged.
         """
         return None
@@ -303,13 +306,13 @@ class GraphLifecycleHook:
     async def on_checkpoint(
         self,
         context: "GraphLifecycleContext",
-        state: "AgentState",
+        state: StateT,
         messages: list[Message],
         is_context_trimmed: bool,
-    ) -> "tuple[AgentState, list[Message]] | AgentState | None":
+    ) -> "tuple[StateT, list[Message]] | StateT | None":
         """Called before every durable checkpoint write.
 
-        Return (state, messages) to modify both, AgentState to modify state only,
+        Return (state, messages) to modify both, StateT to modify state only,
         or None to persist without modification.
         """
         return None
@@ -318,46 +321,15 @@ class GraphLifecycleHook:
         self,
         context: "GraphLifecycleContext",
         node_name: str,
-        old_state: "AgentState",
-        new_state: "AgentState",
+        old_state: StateT,
+        new_state: StateT,
         step: int,
-    ) -> "AgentState | None":
+    ) -> "StateT | None":
         """Called after each node's result is merged into state.
 
-        Return a modified AgentState to replace new_state, or None to use new_state unchanged.
+        Return a modified StateT to replace new_state, or None to use new_state unchanged.
         """
         return None
-
-
-# Type aliases for functional lifecycle hook callbacks
-OnGraphStartCallbackType = Union[
-    GraphLifecycleHook,
-    Callable[["GraphLifecycleContext", "AgentState"], Awaitable["AgentState | None"]],
-]
-OnGraphEndCallbackType = Callable[
-    ["GraphLifecycleContext", "AgentState", list[Message], int],
-    Awaitable["AgentState | None"],
-]
-OnGraphErrorCallbackType = Callable[
-    ["GraphLifecycleContext", Exception, "AgentState", list[Message], int, str],
-    Awaitable["tuple[AgentState, str] | None"],
-]
-OnInterruptCallbackType = Callable[
-    ["GraphLifecycleContext", str, str, "AgentState"],
-    Awaitable["AgentState | None"],
-]
-OnResumeCallbackType = Callable[
-    ["GraphLifecycleContext", str, "AgentState", dict[str, Any]],
-    Awaitable["AgentState | None"],
-]
-OnCheckpointCallbackType = Callable[
-    ["GraphLifecycleContext", "AgentState", list[Message], bool],
-    Awaitable["tuple[AgentState, list[Message]] | AgentState | None"],
-]
-OnStateUpdateCallbackType = Callable[
-    ["GraphLifecycleContext", str, "AgentState", "AgentState", int],
-    Awaitable["AgentState | None"],
-]
 
 
 class CallbackManager:
@@ -478,7 +450,7 @@ class CallbackManager:
                     current_data = await callback(context, current_data)
                 elif callable(callback):
                     result = callback(context, current_data)
-                    if hasattr(result, "__await__"):
+                    if inspect.isawaitable(result):
                         current_data = await result
                     else:
                         current_data = result
@@ -516,7 +488,7 @@ class CallbackManager:
                     current_output = await callback(context, input_data, current_output)
                 elif callable(callback):
                     result = callback(context, input_data, current_output)
-                    if hasattr(result, "__await__"):
+                    if inspect.isawaitable(result):
                         current_output = await result
                     else:
                         current_output = result
@@ -549,11 +521,17 @@ class CallbackManager:
                     result = await callback(context, input_data, error)
                 elif callable(callback):
                     result = callback(context, input_data, error)
-                    if hasattr(result, "__await__"):
+                    if inspect.isawaitable(result):
                         result = await result  # type: ignore
 
-                if isinstance(result, Message) or result is None:
+                if result is None or isinstance(result, Message):
                     recovery_value = result
+                else:
+                    logger.warning(
+                        "Error callback %s returned non-Message value %r; ignoring",
+                        callback.__class__.__name__,
+                        result,
+                    )
             except Exception as exc:
                 logger.exception("Error callback failed: %s", exc)
                 continue
@@ -645,8 +623,8 @@ class CallbackManager:
     async def fire_on_graph_start(
         self,
         context: GraphLifecycleContext,
-        state: "AgentState",
-    ) -> "AgentState":
+        state: StateT,
+    ) -> StateT:
         """Fire all on_graph_start hooks and return the (potentially modified) state."""
         result = state
         for hook in self._lifecycle_hooks:
@@ -665,10 +643,10 @@ class CallbackManager:
     async def fire_on_graph_end(
         self,
         context: GraphLifecycleContext,
-        final_state: "AgentState",
+        final_state: StateT,
         messages: list[Message],
         total_steps: int,
-    ) -> "AgentState":
+    ) -> StateT:
         """Fire all on_graph_end hooks and return the (potentially modified) state."""
         result = final_state
         for hook in self._lifecycle_hooks:
@@ -688,11 +666,11 @@ class CallbackManager:
         self,
         context: GraphLifecycleContext,
         error: Exception,
-        partial_state: "AgentState",
+        partial_state: StateT,
         messages: list[Message],
         step: int,
         node_name: str,
-    ) -> "tuple[AgentState, str]":
+    ) -> tuple[StateT, str]:
         """
         Fire all on_graph_error hooks. Returns (state, error_message).
         Error is always re-raised.
@@ -719,8 +697,8 @@ class CallbackManager:
         context: GraphLifecycleContext,
         interrupted_node: str,
         interrupt_type: str,
-        state: "AgentState",
-    ) -> "AgentState":
+        state: StateT,
+    ) -> StateT:
         """Fire all on_interrupt hooks and return the (potentially modified) state."""
         result = state
         for hook in self._lifecycle_hooks:
@@ -742,9 +720,9 @@ class CallbackManager:
         self,
         context: GraphLifecycleContext,
         resumed_node: str,
-        state: "AgentState",
+        state: StateT,
         resume_data: dict[str, Any],
-    ) -> "AgentState":
+    ) -> StateT:
         """Fire all on_resume hooks and return the (potentially modified) state."""
         result = state
         for hook in self._lifecycle_hooks:
@@ -763,10 +741,10 @@ class CallbackManager:
     async def fire_on_checkpoint(
         self,
         context: GraphLifecycleContext,
-        state: "AgentState",
+        state: StateT,
         messages: list[Message],
         is_context_trimmed: bool,
-    ) -> "tuple[AgentState, list[Message]]":
+    ) -> tuple[StateT, list[Message]]:
         """Fire all on_checkpoint hooks and return (state, messages) for persistence."""
         result_state = state
         result_messages = messages
@@ -775,12 +753,10 @@ class CallbackManager:
                 result = await hook.on_checkpoint(
                     context, result_state, result_messages, is_context_trimmed
                 )
-                if result is None:
-                    pass
-                elif isinstance(result, tuple):
-                    result_state, result_messages = result
-                else:
-                    result_state = result
+                if isinstance(result, tuple):
+                    result_state, result_messages = cast(tuple[StateT, list[Message]], result)
+                elif result is not None:
+                    result_state = cast(StateT, result)
             except Exception as e:
                 logger.exception(
                     "Lifecycle hook %s.on_checkpoint failed: %s",
@@ -793,10 +769,10 @@ class CallbackManager:
         self,
         context: GraphLifecycleContext,
         node_name: str,
-        old_state: "AgentState",
-        new_state: "AgentState",
+        old_state: StateT,
+        new_state: StateT,
         step: int,
-    ) -> "AgentState":
+    ) -> StateT:
         """Fire all on_state_update hooks and return the (potentially modified) state."""
         result = new_state
         for hook in self._lifecycle_hooks:
