@@ -43,8 +43,12 @@ class AgentExecutionMixin:
         if isinstance(tn, str):
             logger.debug("tool_node is a named graph-node reference: '%s'", tn)
             self.tool_node_name = tn
+            # Lazy resolution: the named node is looked up at execution time
+            # via _resolve_tools(), once the graph has been compiled and the
+            # "get_node" factory is registered in the DI container.
             return None
 
+        # If name is passed then we need to load the ToolNode
         logger.debug("tool_node is a ToolNode instance")
         return tn
 
@@ -503,36 +507,48 @@ class AgentExecutionMixin:
         return messages
 
     async def _resolve_tools(self, container: InjectQ) -> list[dict[str, Any]]:
-        """Resolve tool definitions from inline tools and named ToolNodes."""
-        tools: list[dict[str, Any]] = []
-        if self._tool_node:
-            tools = await self._tool_node.all_tools(tags=self.tools_tags)
+        """Resolve tool definitions from inline tools and named ToolNodes.
 
-        if not self.tool_node_name:
-            return tools
+        On the first call when ``tool_node_name`` is set, the named graph node is
+        resolved via InjectQ, cached as ``self._tool_node``, and any tools that
+        were queued in ``self._extra_tools`` before the graph was compiled are
+        registered into the ToolNode.  Subsequent calls use the cached instance
+        directly — no repeated DI lookup, no duplicates.
+        """
+        # Resolve a named ToolNode on first call, then cache it
+        if self.tool_node_name:
+            try:
+                node = container.call_factory("get_node", self.tool_node_name)
+            except (KeyError, DependencyNotFoundError) as exc:
+                raise RuntimeError(
+                    f"ToolNode named '{self.tool_node_name}' was not found in the compiled graph. "
+                    "Register the named ToolNode in the graph before executing the Agent."
+                ) from exc
 
-        try:
-            node = container.call_factory("get_node", self.tool_node_name)
-        except (KeyError, DependencyNotFoundError) as exc:
-            raise RuntimeError(
-                f"ToolNode named '{self.tool_node_name}' was not found in the compiled graph. "
-                "Register the named ToolNode in the graph before executing the Agent."
-            ) from exc
+            if node is None:
+                raise RuntimeError(
+                    f"ToolNode named '{self.tool_node_name}' was not found in the compiled graph. "
+                    "Register the named ToolNode in the graph before executing the Agent."
+                )
 
-        if node is None:
-            raise RuntimeError(
-                f"ToolNode named '{self.tool_node_name}' was not found in the compiled graph. "
-                "Register the named ToolNode in the graph before executing the Agent."
-            )
+            if not isinstance(node.func, ToolNode):
+                raise RuntimeError(
+                    f"Graph node '{self.tool_node_name}' is not a ToolNode. "
+                    "Pass a ToolNode instance or register the proper graph node."
+                )
 
-        if not isinstance(node.func, ToolNode):
-            raise RuntimeError(
-                f"Graph node '{self.tool_node_name}' is not a ToolNode. "
-                "Pass a ToolNode instance or register the proper graph node."
-            )
+            self._tool_node = node.func
+            self.tool_node_name = None  # prevent duplicate resolution on future calls
 
-        tools.extend(await node.func.all_tools(tags=self.tools_tags))
-        return tools
+            # Drain any tools that were queued before the graph was compiled
+            for fn in getattr(self, "_extra_tools", []):
+                self._tool_node.add_tool(fn)
+            self._extra_tools = []
+
+        if not self._tool_node:
+            return []
+
+        return await self._tool_node.all_tools(tags=self.tools_tags)
 
     def _extract_prompt(self, messages: list[dict[Any, Any]]) -> str:
         """Extract the last user message as a plain string for non-chat generation endpoints.

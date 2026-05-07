@@ -917,6 +917,21 @@ class TestAgentSkillsMixin:
         with pytest.raises(RuntimeError, match="Skills require an existing ToolNode"):
             mixin._setup_skills(SkillConfig(skills_dir=str(tmp_path)))
 
+    def test_setup_skills_defers_to_named_tool_node(self, tmp_path: Path):
+        from agentflow.core.graph.agent_internal.skills import AgentSkillsMixin
+
+        _make_skill_dir(tmp_path, "alpha")
+
+        mixin = AgentSkillsMixin()
+        mixin._tool_node = None
+        mixin.tool_node_name = "TOOL"
+        mixin._setup_skills(SkillConfig(skills_dir=str(tmp_path)))
+
+        assert mixin._skills_config is not None
+        assert mixin._skills_registry is not None
+        assert getattr(mixin, "_extra_tools", None) is not None
+        assert len(mixin._extra_tools) == 1
+
     def test_setup_skills_creates_registry_with_existing_tool_node(self, tmp_path: Path):
         from agentflow.core.graph.agent_internal.skills import AgentSkillsMixin
         from agentflow.core.graph.tool_node import ToolNode

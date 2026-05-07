@@ -52,10 +52,19 @@ class AgentMemoryMixin:
 
         memory_tools = memory.model_facing_tools()
         if memory_tools and self._tool_node is None:
-            raise RuntimeError(
-                "Memory requires an existing ToolNode when model-facing memory tools are enabled. "
-                "Provide a ToolNode to the Agent or register the memory tools manually."
-            )
+            if getattr(self, "tool_node_name", None) is not None:
+                # Named ToolNode resolved at execution time via InjectQ; queue
+                # these tools so _resolve_tools() registers them on first call.
+                extra = getattr(self, "_extra_tools", None)
+                if extra is None:
+                    self._extra_tools = list(memory_tools)
+                else:
+                    extra.extend(memory_tools)
+            else:
+                raise RuntimeError(
+                    "Memory requires an existing ToolNode when model-facing memory tools enabled"
+                    "Provide a ToolNode to the Agent or register the memory tools manually."
+                )
 
         if self._tool_node is not None:
             for memory_tool in memory_tools:

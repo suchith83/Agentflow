@@ -32,10 +32,11 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 from agentflow.core.graph import Agent, StateGraph, ToolNode
+from agentflow.core.skills import SkillConfig
 from agentflow.core.state import AgentState, Message
 from agentflow.core.state.message_context_manager import MessageContextManager
-from agentflow.graph.skills import SkillConfig
 from agentflow.utils.constants import END
+
 
 load_dotenv()
 
@@ -89,7 +90,7 @@ agent = Agent(
             ),
         }
     ],
-    tool_node=ToolNode([get_weather]),  # ← Add custom tools here (alongside skills)
+    tool_node="TOOL",  # ← Add custom tools here (alongside skills)
     skills=SkillConfig(
         skills_dir=SKILLS_DIR,
         inject_trigger_table=True,  # auto-appends skill trigger table to system prompt
@@ -106,11 +107,11 @@ agent = Agent(
 #   1. set_skill (auto-added by skills system)
 #   2. get_weather (our custom tool passed to Agent)
 # ---------------------------------------------------------------------------
-tool_node = agent.get_tool_node()
+tool_node = ToolNode([get_weather])
 
 # Optional: Print available tools to verify both are registered
 print("\n📋 Available tools in ToolNode:")
-for tool_name in tool_node._funcs.keys():
+for tool_name in tool_node._funcs:
     print(f"  - {tool_name}")
 print()
 

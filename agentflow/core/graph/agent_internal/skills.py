@@ -57,13 +57,25 @@ class AgentSkillsMixin:
             hot_reload=self._skills_config.hot_reload,
         )
 
-        # Add skill tool to the tool node; require an existing ToolNode.
+        # Add skill tool to the tool node; if the agent was configured with a
+        # named ToolNode reference (tool_node="TOOL"), queue the tool until the
+        # actual ToolNode is resolved at execution time.
         if self._tool_node is None:
-            raise RuntimeError(
-                "Skills require an existing ToolNode when skills are enabled. "
-                "Provide a ToolNode to the Agent before configuring skills."
-            )
-        self._tool_node.add_tool(set_skill_fn)
+            if getattr(self, "tool_node_name", None) is not None:
+                # Named ToolNode resolved at execution time via InjectQ; queue the
+                # tool so _resolve_tools() registers it on first call.
+                extra = getattr(self, "_extra_tools", None)
+                if extra is None:
+                    self._extra_tools = [set_skill_fn]
+                else:
+                    extra.append(set_skill_fn)
+            else:
+                raise RuntimeError(
+                    "Skills require an existing ToolNode when skills are enabled. "
+                    "Provide a ToolNode to the Agent before configuring skills."
+                )
+        else:
+            self._tool_node.add_tool(set_skill_fn)
 
         # Build and cache trigger-table prompt once during setup.
         if self._skills_config.inject_trigger_table:
