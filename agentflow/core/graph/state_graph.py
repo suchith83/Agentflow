@@ -516,6 +516,13 @@ class StateGraph[StateT: AgentState]:
         self._container.bind_factory("get_node", lambda x: self.nodes[x])
         self._container.bind_factory("get_entry_point_node", lambda: self.nodes[self.entry_point])  # type: ignore
 
+        # Resolve named ToolNode references at compile time.
+        # Any agent that was constructed with tool_node="SOME_NODE" has
+        # tool_node_name set and _extra_tools queued.  Now that the node
+        # registry is final we can wire them up immediately so the runtime
+        # path in _resolve_tools is a simple fast-path lookup.
+        self._resolve_named_tool_nodes()
+
         app = CompiledGraph(
             state=self._state,
             interrupt_after=interrupt_after,
@@ -568,3 +575,68 @@ class StateGraph[StateT: AgentState]:
                         "available_nodes": list(self.nodes.keys()),
                     },
                 )
+
+    def _resolve_named_tool_nodes(self) -> None:
+        """Wire named ToolNode references on agent nodes at compile time.
+
+        Walks every registered node.  When the node's ``func`` is an agent
+        that was given ``tool_node="SOME_NAME"`` (i.e. ``tool_node_name`` is
+        set and ``_tool_node`` is ``None``), the named graph node is looked up
+        in ``self.nodes``, the underlying ``ToolNode`` is cached on the agent,
+        and any tools queued in ``_extra_tools`` (e.g. set_skill, memory tools)
+        are registered immediately.  After this call the runtime
+        ``_resolve_tools`` path needs no DI lookup for those agents.
+        """
+        from agentflow.core.graph.tool_node import ToolNode
+
+        for node in self.nodes.values():
+            agent = node.func
+            tool_node_name = getattr(agent, "tool_node_name", None)
+            if not tool_node_name:
+                continue
+            if getattr(agent, "_tool_node", None) is not None:
+                continue  # already resolved
+
+            target = self.nodes.get(tool_node_name)
+            if target is None:
+                raise GraphError(
+                    message=(
+                        f"Agent node '{node.name}' references tool_node='{tool_node_name}' "
+                        "which is not registered in the graph."
+                    ),
+                    error_code="GRAPH_005",
+                    context={
+                        "agent_node": node.name,
+                        "tool_node_name": tool_node_name,
+                        "available_nodes": list(self.nodes.keys()),
+                    },
+                )
+            if not isinstance(target.func, ToolNode):
+                raise GraphError(
+                    message=(
+                        f"Agent node '{node.name}' references tool_node='{tool_node_name}' "
+                        "but that node's func is not a ToolNode."
+                    ),
+                    error_code="GRAPH_006",
+                    context={
+                        "agent_node": node.name,
+                        "tool_node_name": tool_node_name,
+                        "actual_type": type(target.func).__name__,
+                    },
+                )
+
+            resolved_tool_node = target.func
+            agent._tool_node = resolved_tool_node
+            agent.tool_node_name = None  # mark as resolved
+
+            for fn in getattr(agent, "_extra_tools", []):
+                resolved_tool_node.add_tool(fn)
+            agent._extra_tools = []
+
+            logger.info(
+                "Compile-time: resolved tool_node '%s' for agent node '%s' "
+                "(%d extra tool(s) registered)",
+                tool_node_name,
+                node.name,
+                0,  # already drained above
+            )
