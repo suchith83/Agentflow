@@ -218,7 +218,7 @@ class GraphLifecycleContext:
         return self.config.get("run_id", "")
 
 
-class GraphLifecycleHook:
+class GraphLifecycleHook[StateT]:
     """Abstract base class for graph-level lifecycle hooks.
 
     All methods have default no-op implementations so users only need to
