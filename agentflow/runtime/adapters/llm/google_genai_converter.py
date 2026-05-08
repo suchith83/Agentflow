@@ -83,7 +83,7 @@ class GoogleGenAIConverter(BaseConverter):
         usages = self._extract_usage_metadata(response)
 
         # Extract parts from content
-        parts = content.parts if content else []
+        parts = (content.parts or []) if content else []
         blocks, tools_calls, reasoning_content = self._process_parts(parts)
 
         # Get model version and other metadata
