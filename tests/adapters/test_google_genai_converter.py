@@ -250,6 +250,22 @@ class TestGoogleGenAIConverter:
         assert message.metadata["provider"] == "google_genai"
 
     @pytest.mark.asyncio
+    async def test_convert_response_with_none_content_parts(self, converter):
+        """Test converting a response whose content parts are explicitly None."""
+        content = MockContent(parts=[])
+        content.parts = None
+        candidate = MockCandidate(content=content)
+        response = MockGenerateContentResponse(candidates=[candidate])
+
+        message = await converter.convert_response(response)
+
+        assert isinstance(message, Message)
+        assert message.role == "assistant"
+        assert message.content == []
+        assert message.tools_calls is None
+        assert message.metadata["provider"] == "google_genai"
+
+    @pytest.mark.asyncio
     async def test_convert_response_with_multiple_parts(self, converter):
         """Test converting a response with multiple parts."""
         # Create mock response with text, thought, and function call
