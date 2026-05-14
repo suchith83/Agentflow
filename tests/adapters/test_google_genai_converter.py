@@ -2,11 +2,15 @@
 
 import json
 from datetime import datetime
-from unittest.mock import Mock
+from unittest.mock import MagicMock, Mock
+
+import logging
 
 import pytest
 
 from agentflow.runtime.adapters.llm.google_genai_converter import GoogleGenAIConverter
+from agentflow.runtime.adapters.llm.openai_converter import OpenAIConverter
+from agentflow.runtime.adapters.llm.openai_responses_converter import OpenAIResponsesConverter
 from agentflow.core.state.message import Message
 from agentflow.core.state.message_block import ReasoningBlock, TextBlock, ToolCallBlock
 
@@ -248,6 +252,42 @@ class TestGoogleGenAIConverter:
         assert message.role == "assistant"
         assert len(message.content) == 0
         assert message.metadata["provider"] == "google_genai"
+
+    @pytest.mark.asyncio
+    async def test_openai_converter_logs_warning_for_missing_choices(self, caplog):
+        """Test OpenAI converter warns when choices are missing."""
+        response = MagicMock()
+        response.id = "resp_123"
+        response.model = "gpt-4o-mini"
+        response.created = 1234567890
+        response.choices = []
+        response.usage = None
+
+        with caplog.at_level(logging.WARNING, logger="agentflow.adapters.openai"):
+            message = await OpenAIConverter().convert_response(response)
+
+        assert isinstance(message, Message)
+        assert message.content == []
+        assert "OpenAI response has no choices" in caplog.text
+
+    @pytest.mark.asyncio
+    async def test_openai_responses_converter_logs_warning_for_missing_output(self, caplog):
+        """Test Responses API converter warns when output items are missing."""
+        response = MagicMock()
+        response.id = "resp_456"
+        response.model = "gpt-4.1"
+        response.status = "completed"
+        response.created_at = 1234567890
+        response.output = []
+        response.usage = None
+        response.model_dump.return_value = {}
+
+        with caplog.at_level(logging.WARNING, logger="agentflow.adapters.openai_responses"):
+            message = await OpenAIResponsesConverter().convert_response(response)
+
+        assert isinstance(message, Message)
+        assert message.content == []
+        assert "OpenAI Responses API response has no output items" in caplog.text
 
     @pytest.mark.asyncio
     async def test_convert_response_with_none_content_parts(self, converter):

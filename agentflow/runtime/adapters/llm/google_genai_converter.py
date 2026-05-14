@@ -72,6 +72,7 @@ class GoogleGenAIConverter(BaseConverter):
         # Extract candidates (Google GenAI can return multiple candidates)
         candidates = response.candidates or []
         if not candidates:
+            logger.warning("Google GenAI response has no candidates: %s", response)
             # Return empty message if no candidates
             return self._create_empty_message()
 
@@ -84,6 +85,9 @@ class GoogleGenAIConverter(BaseConverter):
 
         # Extract parts from content
         parts = (content.parts or []) if content else []
+        if parts is None:
+            logger.warning("Google GenAI response content has no parts: %s", response)
+
         blocks, tools_calls, reasoning_content = self._process_parts(parts)
 
         # Get model version and other metadata
