@@ -24,6 +24,7 @@ class AgentSkillsMixin:
     _skills_registry: SkillsRegistry | None
     _trigger_table_prompt: dict[str, Any] | None
     _tool_node: ToolNode | None
+    _preloaded_skill_cache: dict[str, str]
 
     def _setup_skills(self, skills: SkillConfig | None) -> None:
         """Initialize skills infrastructure if a SkillConfig is provided.
@@ -34,6 +35,7 @@ class AgentSkillsMixin:
         self._skills_config = None
         self._skills_registry = None
         self._trigger_table_prompt = None
+        self._preloaded_skill_cache = {}
 
         if skills is None:
             return
@@ -51,6 +53,17 @@ class AgentSkillsMixin:
         if self._skills_config.skills_dir:
             self._skills_registry.discover(self._skills_config.skills_dir)
 
+        if self._skills_config.mode == "session":
+            # Session mode: no set_skill tool, no trigger table.
+            # Skill content is preloaded per-call in _build_skill_prompts()
+            # based on the state field named by preload_from.
+            logger.info(
+                "Skills enabled (session mode): %d skill(s) discovered",
+                len(self._skills_registry.names()),
+            )
+            return
+
+        # ── on-demand mode (default) ─────────────────────────────────────────
         # Create set_skill tool (loads skill content or specific resources)
         set_skill_fn = make_set_skill_tool(
             self._skills_registry,
@@ -93,20 +106,56 @@ class AgentSkillsMixin:
         state: Any,
         system_prompt: list[dict[str, Any]],
     ) -> list[dict[str, Any]]:
-        """Build effective system prompts with skill trigger table if configured.
+        """Build effective system prompts with skill content if configured.
+
+        For ``on-demand`` mode: appends the trigger table (if enabled).
+        For ``session`` mode: reads ``state.<preload_from>``, loads the
+        matching SKILL.md body, and appends it as a system message.
 
         Args:
-            state: Current AgentState (unused, kept for API compatibility).
+            state: Current AgentState.
             system_prompt: Base system prompt list.
 
         Returns:
-            Effective system prompt list with trigger table appended if configured.
+            Effective system prompt list with skill content appended if configured.
         """
         effective_system_prompt = list(system_prompt)
 
         if not self._skills_config or not self._skills_registry:
             return effective_system_prompt
 
+        if self._skills_config.mode == "session":
+            field = self._skills_config.preload_from
+            if not field:
+                return effective_system_prompt
+
+            skill_name: str = ""
+            if state is not None:
+                skill_name = getattr(state, field, None) or ""
+
+            if not skill_name:
+                logger.warning(
+                    "Skills in session mode require a skill name in state.%s; no skill "
+                    "content injected",
+                    field,
+                )
+                return effective_system_prompt
+
+            # Use cached content unless hot_reload is enabled and file changed.
+            if skill_name not in self._preloaded_skill_cache or self._skills_config.hot_reload:
+                content = self._skills_registry.load_content(
+                    skill_name,
+                    hot_reload=self._skills_config.hot_reload,
+                )
+                self._preloaded_skill_cache[skill_name] = content
+
+            skill_content = self._preloaded_skill_cache[skill_name]
+            if skill_content:
+                effective_system_prompt.append({"role": "system", "content": skill_content})
+
+            return effective_system_prompt
+
+        # ── on-demand mode ───────────────────────────────────────────────────
         if self._trigger_table_prompt is not None:
             effective_system_prompt.append(self._trigger_table_prompt)
 
