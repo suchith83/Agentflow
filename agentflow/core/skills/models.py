@@ -183,7 +183,7 @@ class SkillConfig(BaseModel):
         return v
 
     @model_validator(mode="after")
-    def _validate_session_mode_fields(self) -> "SkillConfig":
+    def _validate_session_mode_fields(self) -> SkillConfig:
         """Ensure session mode is fully configured."""
         if self.mode == "session" and self.preload_from is None:
             raise ValueError(
