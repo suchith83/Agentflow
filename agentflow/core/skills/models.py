@@ -7,8 +7,9 @@ Defines SkillMeta (parsed from SKILL.md frontmatter) and SkillConfig
 from __future__ import annotations
 
 import re
+from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
 # Skill names must be slug-like: lowercase alphanumeric, hyphens, underscores.
@@ -124,6 +125,37 @@ class SkillConfig(BaseModel):
     inject_trigger_table: bool = True
     hot_reload: bool = True
 
+    mode: Literal["on-demand", "session"] = "on-demand"
+    """Activation mode.
+
+    * ``"on-demand"`` *(default)* — current behaviour: the trigger table is
+      injected into the system prompt and the LLM calls ``set_skill()`` to
+      load skill content.
+    * ``"session"`` — framework preloads a single skill (identified by
+      ``preload_from``) before the first LLM call.  No trigger table and no
+      ``set_skill`` tool are injected.  Designed for multi-tenant agents
+      where each session has a fixed persona/domain.
+    """
+
+    preload_from: str | None = None
+    """Name of the ``AgentState`` field that contains the skill name to load.
+
+    Only used when ``mode="session"``.  The framework reads
+    ``state.<preload_from>`` at the start of every call to resolve which
+    SKILL.md to inject as a system message.
+
+    Example::
+
+        class FashionState(AgentState):
+            SKILL_NAME: str = ""
+
+        SkillConfig(
+            skills_dir="./skills/",
+            mode="session",
+            preload_from="SKILL_NAME",
+        )
+    """
+
     @field_validator("skills_dir")
     @classmethod
     def _validate_skills_dir(cls, v: str | None) -> str | None:
@@ -133,3 +165,30 @@ class SkillConfig(BaseModel):
         if not v:
             raise ValueError("skills_dir must not be an empty string (use None to disable)")
         return v
+
+    @field_validator("preload_from")
+    @classmethod
+    def _validate_preload_from(cls, v: str | None) -> str | None:
+        if v is None:
+            return v
+        v = v.strip()
+        if not v:
+            raise ValueError("preload_from must not be an empty string (use None to disable)")
+        # Must be a valid Python identifier (state field name)
+        if not v.isidentifier():
+            raise ValueError(
+                f"preload_from '{v}' is not a valid Python identifier. "
+                "It must match the name of a field on your AgentState subclass."
+            )
+        return v
+
+    @model_validator(mode="after")
+    def _validate_session_mode_fields(self) -> SkillConfig:
+        """Ensure session mode is fully configured."""
+        if self.mode == "session" and self.preload_from is None:
+            raise ValueError(
+                "SkillConfig: 'preload_from' must be set when mode='session'. "
+                "Provide the name of the AgentState field that holds the skill name "
+                "(e.g. preload_from='SKILL_NAME')."
+            )
+        return self
