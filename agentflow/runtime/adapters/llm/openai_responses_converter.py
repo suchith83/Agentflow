@@ -108,8 +108,12 @@ class OpenAIResponsesConverter(BaseConverter):
         blocks: list = []
         reasoning_text = ""
         tool_calls_raw: list[dict] = []
+        output_items = getattr(response, "output", [])
 
-        for item in getattr(response, "output", []):
+        if not output_items:
+            logger.warning("OpenAI Responses API response has no output items: %s", response)
+
+        for item in output_items:
             item_type = getattr(item, "type", None)
 
             if item_type == "reasoning":

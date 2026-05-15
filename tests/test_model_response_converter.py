@@ -1,9 +1,11 @@
 """Tests for ModelResponseConverter."""
 
-import pytest
 import asyncio
 import inspect
+import logging
 from unittest.mock import Mock, AsyncMock, patch, MagicMock
+
+import pytest
 
 from agentflow.runtime.adapters.llm.model_response_converter import ModelResponseConverter
 from agentflow.runtime.adapters.llm.base_converter import BaseConverter
@@ -69,6 +71,19 @@ class TestModelResponseConverter:
         
         assert result == mock_message
         mock_converter.convert_response.assert_called_once_with("static response")
+
+    @pytest.mark.asyncio
+    async def test_invoke_logs_warning_for_none_response(self, caplog):
+        """Test invoke warns when the wrapped response is empty."""
+        mock_converter = AsyncMock(spec=BaseConverter)
+        mock_converter.convert_response.return_value = Message.text_message("Converted response", "assistant")
+
+        converter = ModelResponseConverter(None, mock_converter)
+
+        with caplog.at_level(logging.WARNING, logger="agentflow.adapters"):
+            await converter.invoke()
+
+        assert "Received empty response while converting a model response" in caplog.text
 
     @pytest.mark.asyncio
     async def test_invoke_with_sync_callable(self):
@@ -184,6 +199,27 @@ class TestModelResponseConverter:
         mock_converter.convert_streaming_response.assert_called_once_with(
             config, node_name=node_name, response="stream response", meta=meta
         )
+
+    @pytest.mark.asyncio
+    async def test_stream_logs_warning_for_none_response(self, caplog):
+        """Test stream warns when the wrapped response is empty."""
+        config = {"thread_id": "test_thread"}
+        node_name = "test_node"
+        mock_converter = AsyncMock(spec=BaseConverter)
+
+        async def mock_stream_generator():
+            yield Message.text_message("Stream chunk", "assistant")
+
+        mock_converter.convert_streaming_response = Mock(return_value=mock_stream_generator())
+        converter = ModelResponseConverter(None, mock_converter)
+
+        with caplog.at_level(logging.WARNING, logger="agentflow.adapters"):
+            results = []
+            async for message in converter.stream(config, node_name):
+                results.append(message)
+
+        assert len(results) == 1
+        assert "Received empty response while starting streaming conversion" in caplog.text
 
     @pytest.mark.asyncio
     async def test_stream_with_sync_callable(self):

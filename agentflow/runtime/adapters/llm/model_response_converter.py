@@ -74,6 +74,12 @@ class ModelResponseConverter:
             logger.error(f"Unsupported converter: {converter}")
             raise ValueError(f"Unsupported converter: {converter}")
 
+    @staticmethod
+    def _warn_if_empty_response(response: Any, *, context: str) -> None:
+        """Emit a warning when a provider returned no payload to convert."""
+        if response is None:
+            logger.warning("Received empty response while %s", context)
+
     async def invoke(self) -> Message:
         """
         Call the underlying function and convert a non-streaming response to Message.
@@ -94,6 +100,7 @@ class ModelResponseConverter:
         else:
             response = self.response
 
+        self._warn_if_empty_response(response, context="converting a model response")
         logger.debug("Converting response to Message")
         return await self.converter.convert_response(response)  # type: ignore
 
@@ -131,6 +138,7 @@ class ModelResponseConverter:
         else:
             response = self.response
 
+        self._warn_if_empty_response(response, context="starting streaming conversion")
         async for item in self.converter.convert_streaming_response(  # type: ignore
             config,
             node_name=node_name,

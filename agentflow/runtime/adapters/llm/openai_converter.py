@@ -80,6 +80,7 @@ class OpenAIConverter(BaseConverter):
 
         choice = response.choices[0] if response.choices else None
         if not choice:
+            logger.warning("OpenAI response has no choices: %s", response)
             return self._build_empty_response_message(response, usages)
 
         message = choice.message
