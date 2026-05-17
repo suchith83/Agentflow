@@ -1,8 +1,61 @@
 [project]
 name = "10xscale-agentflow"
-version = "0.7.4.4"
-description = "10xScale Agentflow is a Python framework for building, orchestrating, and managing multi-agent systems. Designed for flexibility and scalability, 10xScale Agentflow enables developers to create intelligent agents that collaborate, communicate, and solve complex tasks together."
+version = "0.7.4.5"
+description = "Production-grade Python framework for building, orchestrating, and deploying multi-agent LLM systems. A simpler, batteries-included alternative to LangGraph, CrewAI, and AutoGen with graph-based workflows, durable state, native MCP support, and provider-agnostic LLM integration (OpenAI, Google GenAI, Anthropic)."
 readme = "README.md"
+keywords = [
+    "agent",
+    "agents",
+    "ai-agent",
+    "ai-agents",
+    "multi-agent",
+    "multi-agent-systems",
+    "agentic",
+    "agentic-ai",
+    "agentic-workflow",
+    "agent-framework",
+    "agent-orchestration",
+    "orchestration",
+    "workflow",
+    "workflow-engine",
+    "state-machine",
+    "stategraph",
+    "graph",
+    "llm",
+    "llm-agent",
+    "llm-framework",
+    "llm-orchestration",
+    "llmops",
+    "genai",
+    "generative-ai",
+    "ai",
+    "artificial-intelligence",
+    "openai",
+    "anthropic",
+    "claude",
+    "gemini",
+    "google-genai",
+    "mcp",
+    "model-context-protocol",
+    "tool-use",
+    "function-calling",
+    "rag",
+    "memory",
+    "vector-store",
+    "qdrant",
+    "mem0",
+    "langgraph",
+    "langchain",
+    "crewai",
+    "autogen",
+    "pydantic-ai",
+    "fastapi",
+    "react-agent",
+    "reasoning",
+    "chatbot",
+    "assistant",
+    "a2a",
+]
 license = {file = "LICENSE"}
 requires-python = ">=3.12"
 dependencies = [
@@ -24,17 +77,17 @@ classifiers = [
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
     "Intended Audience :: Developers",
-    "Development Status :: 3 - Alpha",
+    "Development Status :: 5 - Production/Stable",
     "Topic :: Software Development :: Libraries :: Application Frameworks",
     "Topic :: Software Development :: Libraries :: Python Modules",
 ]
 
 
 [project.urls]
-Homepage = "https://github.com/10xHub/agentflow"
+Homepage = "https://agentflow.10xscale.ai"
 Repository = "https://github.com/10xHub/agentflow"
 Issues = "https://github.com/10xHub/agentflow/issues"
-Documentation = "https://10xhub.github.io/Agentflow/"
+Documentation = "https://agentflow.10xscale.ai"
 
 
 [build-system]
