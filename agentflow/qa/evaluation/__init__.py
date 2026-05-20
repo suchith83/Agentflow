@@ -112,6 +112,7 @@ from agentflow.qa.evaluation.eval_result import (
     EvalCaseResult,
     EvalReport,
     EvalSummary,
+    NodeDetail,
 )
 
 # --- Evaluator ---
@@ -149,6 +150,9 @@ from agentflow.qa.evaluation.testing import (
     parametrize_eval_cases,
     run_eval,
 )
+
+# --- Token usage ---
+from agentflow.qa.evaluation.token_usage import TokenUsage
 
 
 __all__ = [
@@ -196,6 +200,7 @@ __all__ = [
     "LLMJudgeCriterion",
     "MatchType",
     "MessageContent",
+    "NodeDetail",
     "NodeOrderMatchCriterion",
     "NodeResponseData",
     "PublisherCallback",
@@ -215,6 +220,7 @@ __all__ = [
     "SimulationResult",
     "StepType",
     "SyncCriterion",
+    "TokenUsage",
     "ToolCall",
     "ToolNameMatchCriterion",
     # --- Collectors ---

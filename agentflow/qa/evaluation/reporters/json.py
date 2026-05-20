@@ -111,6 +111,7 @@ class JSONReporter(BaseReporter):
             # Node responses
             if not self.include_node_responses:
                 result.pop("node_responses", None)
+                result.pop("node_details", None)
 
             # Actual response text
             if not self.include_actual_response:

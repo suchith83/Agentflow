@@ -44,6 +44,7 @@ from agentflow.qa.evaluation.eval_result import (
     EvalReport,
 )
 from agentflow.qa.evaluation.execution.result import ExecutionResult, NodeResponseData
+from agentflow.utils.callbacks import CallbackManager
 
 
 if TYPE_CHECKING:
@@ -492,10 +493,7 @@ class AgentEvaluator:
             graph = self.graph
             if collector_override is not None:
                 _, local_mgr = make_trajectory_callback(collector_override, config=config)
-                if hasattr(graph, "_graph") and hasattr(graph._graph, "compile"):
-                    graph = graph._graph.compile(callback_manager=local_mgr)
-                elif hasattr(graph, "compile"):
-                    graph = graph.compile(callback_manager=local_mgr)
+                graph._state_graph._container.bind_instance(CallbackManager, local_mgr)
 
             # ---- Multi-turn conversation loop ---------------------------
             # Each Invocation represents one user turn.

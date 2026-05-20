@@ -13,6 +13,7 @@ from typing import Any
 from pydantic import BaseModel, Field
 
 from agentflow.qa.evaluation.dataset.eval_set import StepType, ToolCall, TrajectoryStep
+from agentflow.qa.evaluation.token_usage import TokenUsage
 
 
 class NodeResponseData(BaseModel):
@@ -39,6 +40,10 @@ class NodeResponseData(BaseModel):
     tool_call_names: list[str] = Field(default_factory=list)
     is_final: bool = False
     timestamp: float = 0.0
+    token_usage: TokenUsage = Field(default_factory=TokenUsage)
+    raw_llm_response: dict[str, Any] | None = None
+    tool_call_inputs: list[dict[str, Any]] = Field(default_factory=list)
+    tool_call_outputs: list[dict[str, Any]] = Field(default_factory=list)
 
 
 class ExecutionResult(BaseModel):
@@ -67,6 +72,14 @@ class ExecutionResult(BaseModel):
     duration_seconds: float = 0.0
 
     # --- Computed helpers --------------------------------------------------
+
+    @property
+    def token_usage(self) -> TokenUsage:
+        """Aggregate token usage across all node invocations in this case."""
+        total = TokenUsage()
+        for nr in self.node_responses:
+            total = total + nr.token_usage
+        return total
 
     @property
     def tool_trajectory(self) -> list[TrajectoryStep]:
