@@ -78,6 +78,24 @@ class HTMLReporter(BaseReporter):
         title = report.eval_set_name or report.eval_set_id
         case_items = "\n".join(self._render_case(r) for r in report.results)
 
+        tok = report.summary.total_token_usage
+        if tok.total_tokens:
+            cache_part = (
+                f"&nbsp;&nbsp;cache_read: <strong>{tok.cache_read_tokens:,}</strong>"
+                if tok.cache_read_tokens
+                else ""
+            )
+            token_summary = (
+                f"&#x1F4B0; Tokens &mdash; "
+                f"input: <strong>{tok.input_tokens:,}</strong>&nbsp;&nbsp;"
+                f"output: <strong>{tok.output_tokens:,}</strong>"
+                f"{cache_part}&nbsp;&nbsp;"
+                f"total: <strong>{tok.total_tokens:,}</strong>&nbsp;&nbsp;"
+                f"avg/case: <strong>{report.summary.avg_tokens_per_case:.0f}</strong>"
+            )
+        else:
+            token_summary = ""  # nosec B105
+
         return build_html(
             title=_html_lib.escape(title),
             timestamp=format_timestamp(report.timestamp),
@@ -90,6 +108,7 @@ class HTMLReporter(BaseReporter):
             case_items=case_items,
             css=CSS_CONTENT,
             js=JS_CONTENT,
+            token_summary=token_summary,
         )
 
     def _render_case(self, result: EvalCaseResult) -> str:

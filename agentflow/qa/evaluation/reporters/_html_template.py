@@ -20,8 +20,12 @@ def build_html(
     case_items: str,
     css: str,
     js: str,
+    token_summary: str = "",
 ) -> str:
     """Return a complete self-contained HTML string for an eval report."""
+    token_summary_block = (
+        f'        <div class="token-summary-bar">{token_summary}</div>' if token_summary else ""
+    )
     return f"""<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -92,6 +96,7 @@ def build_html(
                 <div class="stat-value">{duration}s</div>
                 <div class="stat-label">Duration</div>
             </div>
+{token_summary_block}
         </section>
 
         <section class="charts-section">

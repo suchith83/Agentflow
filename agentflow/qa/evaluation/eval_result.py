@@ -13,9 +13,40 @@ from __future__ import annotations
 import time
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_serializer
 
 from agentflow.qa.evaluation.dataset.eval_set import ToolCall, TrajectoryStep
+from agentflow.qa.evaluation.token_usage import TokenUsage
+
+
+class NodeDetail(BaseModel):
+    """Per-node LLM I/O snapshot stored inside EvalCaseResult.
+
+    Captures exactly what was sent to the model and what it returned for
+    every node invocation in a case, enabling transparent debugging and
+    per-node token accounting in reports.
+
+    Attributes:
+        node_name:         Name of the graph node that ran.
+        input_messages:    Conversation history sent to the LLM.
+        response_text:     LLM text output; empty on tool-call turns.
+        tool_call_inputs:  Full arguments for each tool call requested.
+        tool_call_outputs: Full results returned from each tool call.
+        token_usage:       Tokens consumed by this LLM call.
+        timestamp:         Wall-clock time when this invocation completed.
+    """
+
+    node_name: str = ""
+    input_messages: list[dict[str, Any]] = Field(default_factory=list)
+    response_text: str = ""
+    tool_call_inputs: list[dict[str, Any]] = Field(default_factory=list)
+    tool_call_outputs: list[dict[str, Any]] = Field(default_factory=list)
+    token_usage: TokenUsage = Field(default_factory=TokenUsage)
+    timestamp: float = 0.0
+
+    @field_serializer("token_usage")
+    def _ser_token_usage(self, v: TokenUsage) -> dict[str, int]:
+        return v.to_dict()
 
 
 class CriterionResult(BaseModel):
@@ -112,6 +143,12 @@ class EvalCaseResult(BaseModel):
     error: str | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
     turn_results: list[dict[str, Any]] = Field(default_factory=list)
+    token_usage: TokenUsage = Field(default_factory=TokenUsage)
+    node_details: list[NodeDetail] = Field(default_factory=list)
+
+    @field_serializer("token_usage")
+    def _ser_token_usage(self, v: TokenUsage) -> dict[str, int]:
+        return v.to_dict()
 
     @classmethod
     def success(  # noqa: PLR0913
@@ -128,6 +165,8 @@ class EvalCaseResult(BaseModel):
         name: str = "",
         metadata: dict[str, Any] | None = None,
         turn_results: list[dict[str, Any]] | None = None,
+        token_usage: TokenUsage | None = None,
+        node_details: list[NodeDetail] | None = None,
     ) -> EvalCaseResult:
         """Create a successful case result."""
         all_passed = all(r.passed for r in criterion_results)
@@ -145,6 +184,8 @@ class EvalCaseResult(BaseModel):
             duration_seconds=duration_seconds,
             metadata=metadata or {},
             turn_results=turn_results or [],
+            token_usage=token_usage or TokenUsage(),
+            node_details=node_details or [],
         )
 
     @classmethod
@@ -215,6 +256,17 @@ class EvalSummary(BaseModel):
     avg_duration_seconds: float = 0.0
     total_duration_seconds: float = 0.0
     criterion_stats: dict[str, dict[str, Any]] = Field(default_factory=dict)
+    total_token_usage: TokenUsage = Field(default_factory=TokenUsage)
+    per_case_token_usage: dict[str, TokenUsage] = Field(default_factory=dict)
+    avg_tokens_per_case: float = 0.0
+
+    @field_serializer("total_token_usage")
+    def _ser_total(self, v: TokenUsage) -> dict[str, int]:
+        return v.to_dict()
+
+    @field_serializer("per_case_token_usage")
+    def _ser_per_case(self, v: dict[str, TokenUsage]) -> dict[str, dict[str, int]]:
+        return {k: tu.to_dict() for k, tu in v.items()}
 
     @classmethod
     def from_results(cls, results: list[EvalCaseResult]) -> EvalSummary:
@@ -263,6 +315,14 @@ class EvalSummary(BaseModel):
             stats["avg_score"] = sum(scores) / len(scores) if scores else 0.0
             stats["pass_rate"] = stats["passed"] / stats["total"] if stats["total"] > 0 else 0.0
 
+        # Token usage aggregation
+        per_case_token_usage: dict[str, TokenUsage] = {}
+        total_token_usage = TokenUsage()
+        for result in results:
+            per_case_token_usage[result.eval_id] = result.token_usage
+            total_token_usage = total_token_usage + result.token_usage
+        avg_tokens_per_case = total_token_usage.total_tokens / total if total > 0 else 0.0
+
         return cls(
             total_cases=total,
             passed_cases=passed,
@@ -272,6 +332,9 @@ class EvalSummary(BaseModel):
             avg_duration_seconds=total_duration / total if total > 0 else 0.0,
             total_duration_seconds=total_duration,
             criterion_stats=criterion_stats,
+            total_token_usage=total_token_usage,
+            per_case_token_usage=per_case_token_usage,
+            avg_tokens_per_case=avg_tokens_per_case,
         )
 
 

@@ -425,3 +425,154 @@ class TestRubric:
         )
         assert rubric.rubric_id == "helpful"
         assert rubric.weight == 2.0
+
+
+# ── TokenUsage ────────────────────────────────────────────────────────────────
+
+
+class TestTokenUsage:
+    """Unit tests for the TokenUsage dataclass."""
+
+    def _make(self, inp: int = 0, out: int = 0, cr: int = 0, cc: int = 0):
+        from agentflow.qa.evaluation.token_usage import TokenUsage
+
+        return TokenUsage(
+            input_tokens=inp,
+            output_tokens=out,
+            cache_read_tokens=cr,
+            cache_creation_tokens=cc,
+        )
+
+    def test_total_tokens_is_input_plus_output(self):
+        tok = self._make(inp=100, out=50)
+        assert tok.total_tokens == 150
+
+    def test_total_tokens_excludes_cache_fields(self):
+        tok = self._make(inp=100, out=50, cr=200, cc=300)
+        assert tok.total_tokens == 150
+
+    def test_add_sums_all_fields(self):
+        a = self._make(inp=100, out=40, cr=10, cc=5)
+        b = self._make(inp=200, out=80, cr=20, cc=15)
+        result = a + b
+        assert result.input_tokens == 300
+        assert result.output_tokens == 120
+        assert result.cache_read_tokens == 30
+        assert result.cache_creation_tokens == 20
+        assert result.total_tokens == 420
+
+    def test_add_returns_new_instance(self):
+        a = self._make(inp=10, out=5)
+        b = self._make(inp=20, out=10)
+        result = a + b
+        assert result is not a
+        assert result is not b
+
+    def test_radd_with_zero_supports_sum(self):
+        from agentflow.qa.evaluation.token_usage import TokenUsage
+
+        tokens = [
+            self._make(inp=100, out=30),
+            self._make(inp=200, out=60),
+            self._make(inp=50, out=15),
+        ]
+        total = sum(tokens, TokenUsage())
+        assert total.input_tokens == 350
+        assert total.output_tokens == 105
+        assert total.total_tokens == 455
+
+    def test_radd_with_non_zero_returns_not_implemented(self):
+        tok = self._make(inp=10, out=5)
+        result = tok.__radd__(42)
+        assert result is NotImplemented
+
+    def test_to_dict_includes_all_fields_and_total(self):
+        tok = self._make(inp=312, out=84, cr=100, cc=0)
+        d = tok.to_dict()
+        assert d == {
+            "input_tokens": 312,
+            "output_tokens": 84,
+            "cache_read_tokens": 100,
+            "cache_creation_tokens": 0,
+            "total_tokens": 396,
+        }
+
+    def test_default_instance_is_all_zeros(self):
+        from agentflow.qa.evaluation.token_usage import TokenUsage
+
+        tok = TokenUsage()
+        assert tok.input_tokens == 0
+        assert tok.output_tokens == 0
+        assert tok.total_tokens == 0
+
+
+# ── EvalSummary token aggregation ─────────────────────────────────────────────
+
+
+class TestEvalSummaryTokenAggregation:
+    """Verify token fields are correctly aggregated in EvalSummary."""
+
+    def test_total_token_usage_sums_all_cases(self):
+        from agentflow.qa.evaluation.eval_result import EvalCaseResult, EvalSummary
+        from agentflow.qa.evaluation.token_usage import TokenUsage
+
+        r1 = EvalCaseResult.success(
+            eval_id="c1",
+            actual_response="",
+            actual_tool_calls=[],
+            actual_trajectory=[],
+            criterion_results=[],
+            duration_seconds=1.0,
+            token_usage=TokenUsage(input_tokens=100, output_tokens=40),
+        )
+        r2 = EvalCaseResult.success(
+            eval_id="c2",
+            actual_response="",
+            actual_tool_calls=[],
+            actual_trajectory=[],
+            criterion_results=[],
+            duration_seconds=1.0,
+            token_usage=TokenUsage(input_tokens=200, output_tokens=60),
+        )
+        summary = EvalSummary.from_results([r1, r2])
+        assert summary.total_token_usage.input_tokens == 300
+        assert summary.total_token_usage.output_tokens == 100
+        assert summary.total_token_usage.total_tokens == 400
+        assert summary.avg_tokens_per_case == 200.0
+
+    def test_per_case_token_usage_keyed_by_eval_id(self):
+        from agentflow.qa.evaluation.eval_result import EvalCaseResult, EvalSummary
+        from agentflow.qa.evaluation.token_usage import TokenUsage
+
+        r = EvalCaseResult.success(
+            eval_id="my_case",
+            actual_response="",
+            actual_tool_calls=[],
+            actual_trajectory=[],
+            criterion_results=[],
+            duration_seconds=0.5,
+            token_usage=TokenUsage(input_tokens=50, output_tokens=25),
+        )
+        summary = EvalSummary.from_results([r])
+        assert "my_case" in summary.per_case_token_usage
+        assert summary.per_case_token_usage["my_case"].total_tokens == 75
+
+    def test_model_dump_includes_total_tokens_field(self):
+        from agentflow.qa.evaluation.eval_result import EvalCaseResult, EvalSummary
+        from agentflow.qa.evaluation.token_usage import TokenUsage
+
+        r = EvalCaseResult.success(
+            eval_id="x",
+            actual_response="",
+            actual_tool_calls=[],
+            actual_trajectory=[],
+            criterion_results=[],
+            duration_seconds=0.1,
+            token_usage=TokenUsage(input_tokens=10, output_tokens=5),
+        )
+        summary = EvalSummary.from_results([r])
+        d = summary.model_dump()
+        assert "total_tokens" in d["total_token_usage"]
+        assert d["total_token_usage"]["total_tokens"] == 15
+        assert "total_tokens" in list(d["per_case_token_usage"].values())[0]
+

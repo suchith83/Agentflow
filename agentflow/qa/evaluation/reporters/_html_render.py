@@ -16,6 +16,7 @@ from agentflow.qa.evaluation.reporters._utils import (
     format_tool_calls,
 )
 
+
 if TYPE_CHECKING:
     from agentflow.qa.evaluation.eval_result import EvalCaseResult
 
@@ -102,6 +103,110 @@ _CASE_TEMPLATE = (
 
 # ── Public entry point ────────────────────────────────────────────────────────
 
+# ── Token panel ───────────────────────────────────────────────────────────────
+
+
+def _render_token_panel(tok: Any) -> str:
+    """Render a compact token usage bar for a case."""
+    parts = [
+        '<span style="margin-right:1rem;">&#x1F4B0; <strong>Tokens</strong></span>',
+        f"in: <strong>{tok.input_tokens:,}</strong>",
+        f"out: <strong>{tok.output_tokens:,}</strong>",
+    ]
+    if tok.cache_read_tokens:
+        parts.append(f"cache_read: <strong>{tok.cache_read_tokens:,}</strong>")
+    parts.append(f"total: <strong>{tok.total_tokens:,}</strong>")
+    inner = "&nbsp;&nbsp;".join(parts)
+    return (
+        '                    <div class="token-summary-bar" style="'
+        "font-size:0.8rem;padding:0.35rem 0.5rem;margin:0.25rem 0;"
+        'border-radius:4px;background:var(--color-bg-muted,#f3f4f6);">'
+        f"{inner}</div>"
+    )
+
+
+# ── Node details accordion ────────────────────────────────────────────────────
+
+
+def _render_node_details(node_details: list[Any]) -> str:
+    """Render collapsible per-node LLM I/O panels from NodeDetail objects."""
+    items: list[str] = []
+    for nd in node_details:
+        node_name = _html.escape(getattr(nd, "node_name", "") or "")
+        response_text = _html.escape(getattr(nd, "response_text", "") or "")
+        tok = getattr(nd, "token_usage", None)
+
+        tok_line = ""
+        if tok and tok.total_tokens:
+            tok_line = (
+                f'<div style="font-size:0.75rem;color:var(--color-muted);margin-bottom:0.3rem;">'
+                f"in: {tok.input_tokens}  out: {tok.output_tokens}"
+                + (f"  cache_read: {tok.cache_read_tokens}" if tok.cache_read_tokens else "")
+                + f"  total: {tok.total_tokens}</div>"
+            )
+
+        # Input messages
+        input_msgs = getattr(nd, "input_messages", None) or []
+        msg_html = ""
+        if input_msgs:
+            rows = []
+            for m in input_msgs:
+                role = _html.escape(str(m.get("role", "")))
+                content = m.get("content", "")
+                if isinstance(content, list):
+                    content = " ".join(
+                        p.get("text", "") if isinstance(p, dict) else str(p) for p in content
+                    )
+                rows.append(
+                    f'<div style="margin:0.2rem 0;">'
+                    f'<span style="font-weight:600;color:var(--color-accent);">[{role}]</span> '
+                    f"{_html.escape(str(content)[:500])}</div>"
+                )
+            msg_html = (
+                '<div style="padding:0.4rem;font-size:0.78rem;max-height:200px;overflow-y:auto;">'
+                + "".join(rows)
+                + "</div>"
+            )
+
+        # Response text
+        resp_html = ""
+        if response_text:
+            resp_html = (
+                f'<div style="padding:0.4rem;font-size:0.78rem;'
+                f'border-left:3px solid var(--color-pass);margin:0.3rem 0;">'
+                f"{response_text[:800]}</div>"
+            )
+
+        # Tool call inputs
+        tci = getattr(nd, "tool_call_inputs", None) or []
+        tco = getattr(nd, "tool_call_outputs", None) or []
+        tool_html = ""
+        if tci:
+            rows = []
+            for i, inp in enumerate(tci):
+                name = _html.escape(str(inp.get("name", inp.get("function", {}).get("name", ""))))
+                args = _html.escape(
+                    _json.dumps(inp.get("args", inp.get("arguments", {})), ensure_ascii=False)[:400]
+                )
+                out = _html.escape(
+                    _json.dumps(tco[i] if i < len(tco) else {}, ensure_ascii=False)[:400]
+                )
+                rows.append(
+                    f'<div style="font-size:0.75rem;margin:0.2rem 0;">'
+                    f"&#x1F527; <strong>{name}</strong> "
+                    f'<span style="color:var(--color-muted);">args:</span> {args}'
+                    f' &rarr; <span style="color:var(--color-muted);">out:</span> {out}</div>'
+                )
+            tool_html = "<div>" + "".join(rows) + "</div>"
+
+        body = tok_line + (msg_html or "") + (resp_html or "") + (tool_html or "")
+        items.append(
+            f'<details style="margin:0.3rem 0 0.3rem 0.5rem;">'
+            f'<summary style="font-size:0.82rem;cursor:pointer;">&#x1F9E0; {node_name}</summary>'
+            f"{body}</details>"
+        )
+    return "\n".join(items)
+
 
 def render_case(
     result: EvalCaseResult,
@@ -133,9 +238,7 @@ def render_case(
             body_parts.append(
                 _detail(
                     "Metadata",
-                    '<div style="padding:0.5rem;">'
-                    + "<br/>".join(meta_items)
-                    + "</div>",
+                    '<div style="padding:0.5rem;">' + "<br/>".join(meta_items) + "</div>",
                 )
             )
 
@@ -189,7 +292,7 @@ def render_case(
         body_parts.append(
             _detail(
                 f"Node Visits ({len(result.node_visits)})",
-                f'<div style="padding:0.5rem;font-family:monospace;font-size:0.8rem;">{nv_html}</div>',
+                f'<div style="padding:0.5rem;font-family:monospace;font-size:0.8rem;">{nv_html}</div>',  # noqa: E501
             )
         )
 
@@ -197,9 +300,18 @@ def render_case(
     if include_node_responses and getattr(result, "node_responses", None):
         boxes = _render_node_responses(result.node_responses)
         if boxes:
-            body_parts.append(
-                _detail(f"Node Responses ({len(boxes)})", "\n".join(boxes))
-            )
+            body_parts.append(_detail(f"Node Responses ({len(boxes)})", "\n".join(boxes)))
+
+    # Node details (per-node LLM I/O accordion)
+    if include_node_responses and getattr(result, "node_details", None):
+        nd_html = _render_node_details(result.node_details)
+        if nd_html:
+            body_parts.append(_detail(f"Node Details ({len(result.node_details)})", nd_html))
+
+    # Per-case token usage panel
+    tok = getattr(result, "token_usage", None)
+    if tok and tok.total_tokens:
+        body_parts.append(_render_token_panel(tok))
 
     # Messages
     if getattr(result, "messages", None):
@@ -225,9 +337,7 @@ def render_case(
 
     # Criteria with score bars
     if include_details and crs:
-        criteria_html = "\n".join(
-            f"                        {render_criterion(cr)}" for cr in crs
-        )
+        criteria_html = "\n".join(f"                        {render_criterion(cr)}" for cr in crs)
         body_parts.append(
             _detail(
                 "Criteria",
@@ -239,8 +349,7 @@ def render_case(
     # Error
     if result.error:
         body_parts.append(
-            f'                    <div class="error-message">'
-            f"{_html.escape(result.error)}</div>"
+            f'                    <div class="error-message">{_html.escape(result.error)}</div>'
         )
 
     return _CASE_TEMPLATE.format(
@@ -276,17 +385,13 @@ def _render_trajectory_steps(trajectory: list[Any]) -> list[str]:
     for step in trajectory:
         if isinstance(step, dict):
             stype = step.get("step_type", step.get("type", "node")).lower()
-            sname = _html.escape(
-                str(step.get("name", step.get("node", step.get("tool", ""))))
-            )
+            sname = _html.escape(str(step.get("name", step.get("node", step.get("tool", "")))))
             sargs = step.get("args", {})
             smeta = step.get("metadata", {})
             stimestamp = step.get("timestamp")
         elif hasattr(step, "step_type"):
             stype = (
-                step.step_type.value
-                if hasattr(step.step_type, "value")
-                else str(step.step_type)
+                step.step_type.value if hasattr(step.step_type, "value") else str(step.step_type)
             )
             sname = _html.escape(str(step.name))
             sargs = step.args if hasattr(step, "args") else {}
@@ -314,18 +419,14 @@ def _render_trajectory_steps(trajectory: list[Any]) -> list[str]:
             )
         if smeta:
             detail_parts.append(
-                f'<span class="traj-detail" style="{_muted}"> meta: {_html.escape(str(smeta))}</span>'
+                f'<span class="traj-detail" style="{_muted}"> meta: {_html.escape(str(smeta))}</span>'  # noqa: E501
             )
         if stimestamp:
-            detail_parts.append(
-                f'<span class="traj-detail" style="{_muted}"> @{stimestamp}</span>'
-            )
+            detail_parts.append(f'<span class="traj-detail" style="{_muted}"> @{stimestamp}</span>')
 
         steps.append(
             f'<div class="traj-step {css_cls}">'
-            f'<span class="traj-label">[{stype.upper()}]</span>'
-            + "".join(detail_parts)
-            + "</div>"
+            f'<span class="traj-label">[{stype.upper()}]</span>' + "".join(detail_parts) + "</div>"
         )
     return steps
 
@@ -367,15 +468,9 @@ def _render_node_responses(node_responses: list[Any]) -> list[str]:
             if nr_tools
             else ""
         )
-        tc_flag = (
-            f'<br/><span style="{_ms}">has_tool_calls: True</span>'
-            if nr_has_tools
-            else ""
-        )
+        tc_flag = f'<br/><span style="{_ms}">has_tool_calls: True</span>' if nr_has_tools else ""
         ts_info = (
-            f'<br/><span style="{_ms}">timestamp: {nr_timestamp}</span>'
-            if nr_timestamp
-            else ""
+            f'<br/><span style="{_ms}">timestamp: {nr_timestamp}</span>' if nr_timestamp else ""
         )
         input_info = (
             f'<br/><span style="{_ms}">input_messages: {len(nr_input_msgs)} messages</span>'
@@ -429,11 +524,7 @@ def _render_turn_results(turn_results: list[Any]) -> list[str]:
         agent_resp = _html.escape(str(tr.get("agent_response", "")))
         turn_tcs: list[Any] = tr.get("tool_calls", [])
         turn_nv: list[str] = tr.get("node_visits", [])
-        tc_info = (
-            f'<br/><span style="{_ts}">tool_calls: {len(turn_tcs)}</span>'
-            if turn_tcs
-            else ""
-        )
+        tc_info = f'<br/><span style="{_ts}">tool_calls: {len(turn_tcs)}</span>' if turn_tcs else ""
         nv_info = (
             f'<br/><span style="{_ts}">nodes: {_html.escape(" → ".join(turn_nv))}</span>'
             if turn_nv

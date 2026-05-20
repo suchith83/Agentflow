@@ -31,6 +31,7 @@ from dataclasses import field as datafield
 from typing import Any
 
 from agentflow.qa.evaluation.dataset.eval_set import StepType, ToolCall, TrajectoryStep
+from agentflow.qa.evaluation.token_usage import TokenUsage
 from agentflow.runtime.publisher.base_publisher import BasePublisher
 from agentflow.runtime.publisher.events import ContentType, Event, EventModel, EventType
 from agentflow.utils.callbacks import (
@@ -77,6 +78,10 @@ class NodeResponse:
     tool_call_names: list[str] = datafield(default_factory=list)
     is_final: bool = False
     timestamp: float = 0.0
+    token_usage: TokenUsage = datafield(default_factory=TokenUsage)
+    raw_llm_response: dict | None = None
+    tool_call_inputs: list[dict] = datafield(default_factory=list)
+    tool_call_outputs: list[dict] = datafield(default_factory=list)
 
 
 class PublisherCallback(AfterInvokeCallback):
