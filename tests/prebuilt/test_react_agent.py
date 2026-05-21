@@ -3,171 +3,210 @@
 import pytest
 from unittest.mock import Mock, patch
 
-from agentflow.storage.checkpointer import InMemoryCheckpointer
 from agentflow.core.graph import ToolNode, CompiledGraph
-from agentflow.prebuilt.agent.react import ReactAgent, _should_use_tools
+from agentflow.prebuilt.agent.react import ReactAgent, _make_should_use_tools, _should_use_tools
 from agentflow.core.state import AgentState, Message
 from agentflow.utils import END
 from agentflow.utils.callbacks import CallbackManager
+from agentflow.core.graph.base_agent import BaseAgent
+
+
+class FakeManagedAgent(BaseAgent):
+    """Agent stub used to verify the model-based ReactAgent constructor path."""
+
+    def __init__(self, model: str, tool_node: ToolNode | None = None, **kwargs):
+        super().__init__(model=model, tool_node=tool_node, **kwargs)
+        self._tool_node = tool_node
+        self.tool_node_name = None
+
+    def get_tool_node(self) -> ToolNode | None:
+        return self._tool_node
+
+    async def execute(self, state: AgentState, config: dict) -> AgentState:
+        return state
+
+    async def _call_llm(self, messages: list[dict], tools: list | None = None, **kwargs):
+        raise NotImplementedError
+
+
+class FakeToolNode:
+    """ToolNode stub for constructor-only unit tests."""
+
+    def __init__(
+        self,
+        tools,
+        client=None,
+        pass_user_info_to_mcp: bool = False,
+    ):
+        self.tools = list(tools)
+        self.client = client
+        self.pass_user_info_to_mcp = pass_user_info_to_mcp
 
 
 class TestReactAgent:
     """Test the ReactAgent class."""
     
-    def setup_method(self):
-        """Set up test fixtures."""
-        self.state = AgentState()
-        self.react_agent = ReactAgent[AgentState](state=self.state)
-        
-    def test_init_default(self):
-        """Test ReactAgent initialization with defaults."""
-        agent = ReactAgent[AgentState]()
-        assert agent is not None
-        assert agent._graph is not None
-        
     def test_init_with_state(self):
         """Test ReactAgent initialization with custom state."""
         state = AgentState()
-        agent = ReactAgent[AgentState](state=state)
+        with patch("agentflow.prebuilt.agent.react.Agent", FakeManagedAgent):
+            agent = ReactAgent[AgentState](model="fake-model", provider="openai", state=state)
         assert agent is not None
         assert agent._graph is not None
-        
-    def test_compile_with_callable_nodes(self):
-        """Test compiling ReactAgent with callable main and tool nodes."""
-        def mock_main_node(state: AgentState) -> AgentState:
-            state.context.append(Message.text_message("Main node executed"))
-            return state
-            
-        def mock_tool_node(state: AgentState) -> AgentState:
-            """Mock tool node function that handles tool calls."""
-            # Simulate tool execution
-            if state.context and hasattr(state.context[-1], 'tools_calls'):
-                tool_result = Message.text_message("Tool executed successfully", role="tool")
-                state.context.append(tool_result)
-            return state
-        
-        compiled = self.react_agent.compile(
-            main_node=mock_main_node,
-            tool_node=mock_tool_node,
-        )
-        
+
+    def test_init_requires_model(self):
+        """ReactAgent should require a model because it owns Agent creation."""
+        with pytest.raises(TypeError):
+            ReactAgent[AgentState]()
+
+    def test_constructor_builds_owned_tool_node(self):
+        """ReactAgent should build ToolNode internally from tool constructor inputs."""
+
+        def lookup_weather(location: str) -> str:
+            return f"Weather for {location}"
+
+        with patch("agentflow.prebuilt.agent.react.Agent", FakeManagedAgent):
+            react_agent = ReactAgent[AgentState](
+                model="fake-model",
+                provider="openai",
+                tools=[lookup_weather],
+                system_prompt=[{"role": "system", "content": "Be helpful."}],
+            )
+
+        assert isinstance(react_agent._agent, FakeManagedAgent)
+        assert react_agent._tool_node is not None
+        assert "lookup_weather" in react_agent._tool_node._funcs
+
+    def test_compile_with_internal_agent_and_tools(self):
+        """ReactAgent.compile should build the ReAct graph from constructor config."""
+
+        def lookup_weather(location: str) -> str:
+            return f"Weather for {location}"
+
+        with patch("agentflow.prebuilt.agent.react.Agent", FakeManagedAgent):
+            react_agent = ReactAgent[AgentState](
+                model="fake-model",
+                provider="openai",
+                tools=[lookup_weather],
+            )
+
+        compiled = react_agent.compile()
+
         assert isinstance(compiled, CompiledGraph)
-        
-    def test_compile_with_tuple_nodes(self):
-        """Test compiling ReactAgent with tuple (function, name) nodes."""
-        def mock_main_node(state: AgentState) -> AgentState:
-            state.context.append(Message.text_message("Custom main executed"))
-            return state
-            
-        def mock_tool_node(state: AgentState) -> AgentState:
-            """Custom tool node function."""
-            tool_result = Message.text_message("Custom tool executed", role="tool")
-            state.context.append(tool_result)
-            return state
-        
-        compiled = self.react_agent.compile(
-            main_node=(mock_main_node, "CUSTOM_MAIN"),
-            tool_node=(mock_tool_node, "CUSTOM_TOOL"),
-        )
-        
-        assert isinstance(compiled, CompiledGraph)
-        
+        assert react_agent._main_node_name in react_agent._graph.nodes
+        assert react_agent._tool_node_name in react_agent._graph.nodes
+
     def test_compile_with_checkpointer(self):
         """Test compiling ReactAgent with checkpointer."""
-        def mock_main_node(state: AgentState) -> AgentState:
-            return state
-            
-        def mock_tool_node(state: AgentState) -> AgentState:
-            return state
-            
-        checkpointer = InMemoryCheckpointer[AgentState]()
-        
-        compiled = self.react_agent.compile(
-            main_node=mock_main_node,
-            tool_node=mock_tool_node,
-            checkpointer=checkpointer,
-        )
-        
+        checkpointer = Mock()
+
+        with patch("agentflow.prebuilt.agent.react.Agent", FakeManagedAgent):
+            react_agent = ReactAgent[AgentState](model="fake-model", provider="openai")
+
+        compiled = react_agent.compile(checkpointer=checkpointer)
+
         assert isinstance(compiled, CompiledGraph)
-        
+
     def test_compile_with_callback_manager(self):
         """Test compiling ReactAgent with callback manager."""
-        def mock_main_node(state: AgentState) -> AgentState:
-            return state
-            
-        def mock_tool_node(state: AgentState) -> AgentState:
-            return state
-            
         callback_manager = CallbackManager()
-        
-        compiled = self.react_agent.compile(
-            main_node=mock_main_node,
-            tool_node=mock_tool_node,
-            callback_manager=callback_manager,
-        )
-        
+
+        with patch("agentflow.prebuilt.agent.react.Agent", FakeManagedAgent):
+            react_agent = ReactAgent[AgentState](model="fake-model", provider="openai")
+
+        compiled = react_agent.compile(callback_manager=callback_manager)
+
         assert isinstance(compiled, CompiledGraph)
-        
+
     def test_compile_with_interrupts(self):
         """Test compiling ReactAgent with interrupt configurations."""
-        def mock_main_node(state: AgentState) -> AgentState:
-            return state
-            
-        def mock_tool_node(state: AgentState) -> AgentState:
-            return state
-            
-        compiled = self.react_agent.compile(
-            main_node=mock_main_node,
-            tool_node=mock_tool_node,
+
+        with patch("agentflow.prebuilt.agent.react.Agent", FakeManagedAgent):
+            react_agent = ReactAgent[AgentState](model="fake-model", provider="openai")
+
+        compiled = react_agent.compile(
             interrupt_before=["MAIN"],
-            interrupt_after=["TOOL"],
+            interrupt_after=["MAIN"],
         )
-        
+
         assert isinstance(compiled, CompiledGraph)
-        
-    def test_compile_invalid_main_node_tuple(self):
-        """Test error handling for invalid main node in tuple format."""
-        def mock_tool_node(state: AgentState) -> AgentState:
-            return state
-        
-        with pytest.raises(ValueError, match="main_node\\[0\\] must be a callable function"):
-            self.react_agent.compile(
-                main_node=("not_callable", "MAIN"),
-                tool_node=mock_tool_node,
+
+    def test_compile_without_tools_skips_tool_node(self):
+        """ReactAgent should compile a single-node graph when no tools are configured."""
+
+        with patch("agentflow.prebuilt.agent.react.Agent", FakeManagedAgent):
+            react_agent = ReactAgent[AgentState](model="fake-model", provider="openai")
+
+        compiled = react_agent.compile()
+
+        assert isinstance(compiled, CompiledGraph)
+        assert react_agent._main_node_name in react_agent._graph.nodes
+        assert react_agent._tool_node_name not in react_agent._graph.nodes
+
+    def test_compile_with_custom_node_names(self):
+        """ReactAgent should honor custom graph node names."""
+
+        def lookup_weather(location: str) -> str:
+            return f"Weather for {location}"
+
+        with patch("agentflow.prebuilt.agent.react.Agent", FakeManagedAgent):
+            react_agent = ReactAgent[AgentState](
+                model="fake-model",
+                provider="openai",
+                tools=[lookup_weather],
+                main_node_name="CUSTOM_MAIN",
+                tool_node_name="CUSTOM_TOOL",
             )
-            
-    def test_compile_invalid_main_node_callable(self):
-        """Test error handling for invalid main node as direct value."""
-        def mock_tool_node(state: AgentState) -> AgentState:
-            return state
-            
-        with pytest.raises(ValueError, match="main_node must be a callable function"):
-            self.react_agent.compile(
-                main_node="not_callable",
-                tool_node=mock_tool_node,
+
+        compiled = react_agent.compile()
+
+        assert isinstance(compiled, CompiledGraph)
+        assert "CUSTOM_MAIN" in react_agent._graph.nodes
+        assert "CUSTOM_TOOL" in react_agent._graph.nodes
+
+    def test_compile_forwards_media_store_and_shutdown_timeout(self):
+        """ReactAgent.compile should forward graph-level options to StateGraph.compile."""
+
+        media_store = Mock()
+        compiled_graph = Mock(spec=CompiledGraph)
+
+        with patch("agentflow.prebuilt.agent.react.Agent", FakeManagedAgent):
+            react_agent = ReactAgent[AgentState](model="fake-model", provider="openai")
+
+        with patch(
+            "agentflow.prebuilt.agent.react.StateGraph.compile",
+            autospec=True,
+            return_value=compiled_graph,
+        ) as compile_mock:
+            result = react_agent.compile(
+                media_store=media_store,
+                shutdown_timeout=12.5,
             )
-            
-    def test_compile_invalid_tool_node_tuple(self):
-        """Test error handling for invalid tool node in tuple format."""
-        def mock_main_node(state: AgentState) -> AgentState:
-            return state
-            
-        with pytest.raises(ValueError, match="tool_node\\[0\\] must be a callable function"):
-            self.react_agent.compile(
-                main_node=mock_main_node,
-                tool_node=("not_callable", "TOOL"),
+
+        assert result is compiled_graph
+        assert compile_mock.call_args.kwargs["media_store"] is media_store
+        assert compile_mock.call_args.kwargs["shutdown_timeout"] == 12.5
+
+    def test_constructor_builds_tool_node_from_client_only(self):
+        """Providing an MCP client alone should still build the internal ToolNode."""
+
+        client = object()
+
+        with patch("agentflow.prebuilt.agent.react.Agent", FakeManagedAgent), patch(
+            "agentflow.prebuilt.agent.react.ToolNode",
+            FakeToolNode,
+        ):
+            react_agent = ReactAgent[AgentState](
+                model="fake-model",
+                provider="openai",
+                client=client,
+                pass_user_info_to_mcp=True,
             )
-            
-    def test_compile_invalid_tool_node_callable(self):
-        """Test error handling for invalid tool node as direct value."""
-        def mock_main_node(state: AgentState) -> AgentState:
-            return state
-            
-        with pytest.raises(ValueError, match="tool_node must be a callable function"):
-            self.react_agent.compile(
-                main_node=mock_main_node,
-                tool_node="not_callable",
-            )
+
+        assert isinstance(react_agent._tool_node, FakeToolNode)
+        assert react_agent._tool_node.tools == []
+        assert react_agent._tool_node.client is client
+        assert react_agent._tool_node.pass_user_info_to_mcp is True
 
 
 class TestShouldUseToolsFunction:
@@ -267,65 +306,46 @@ class TestShouldUseToolsFunction:
         result = _should_use_tools(state)
         assert result == "TOOL"
 
+    def test_custom_router_maps_tool_branch(self):
+        """Custom tool node names should receive the tool branch from the router helper."""
+
+        state = AgentState()
+        assistant_msg = Message.text_message("Use a tool", role="assistant")
+        assistant_msg.tools_calls = [{"id": "call_123", "type": "function"}]
+        state.context = [assistant_msg]
+
+        router = _make_should_use_tools("CUSTOM_TOOL")
+
+        assert router(state) == "CUSTOM_TOOL"
+
+    def test_custom_router_preserves_non_tool_routes(self):
+        """Custom router should preserve MAIN and END decisions from the base router."""
+
+        tool_state = AgentState()
+        tool_state.context = [Message.text_message("done", role="tool")]
+
+        end_state = AgentState()
+        end_state.context = [Message.text_message("hello", role="user")]
+
+        router = _make_should_use_tools("CUSTOM_TOOL")
+
+        assert router(tool_state) == "MAIN"
+        assert router(end_state) == END
+
 
 class TestReactAgentIntegration:
     """Integration tests for the ReactAgent."""
-    
-    def test_react_agent_execution_flow(self):
-        """Test the complete React agent execution flow."""
-        def mock_main_node(state: AgentState) -> AgentState:
-            # Simulate AI making tool calls
-            if len(state.context) == 1:  # First call, user message
-                msg = Message.text_message("I need to call a tool", role="assistant")
-                msg.tools_calls = [{"id": "call_123", "type": "function", "function": {"name": "test_tool", "arguments": '{"input": "test"}'}}]
-                state.context.append(msg)
-            else:  # After tool execution, make final response
-                msg = Message.text_message("Tool executed, here's the result", role="assistant")
-                msg.tools_calls = []
-                state.context.append(msg)
-            return state
-            
-        def mock_tool_function(input: str) -> str:
-            return f"Tool processed: {input}"
-            
-        tool_node = ToolNode([mock_tool_function])
-        react_agent = ReactAgent[AgentState]()
 
-        compiled = react_agent.compile(
-            main_node=mock_main_node,
-            tool_node=tool_node,
-        )        # Execute the agent
-        initial_state = {"messages": [Message.text_message("Please use the tool", role="user")]}
-        result = compiled.invoke(initial_state, config={"thread_id": "test_123"})
-        
-        assert isinstance(result, dict)
-        assert "messages" in result
-        
-    @pytest.mark.asyncio
-    async def test_react_agent_async_execution(self):
-        """Test React agent with async execution."""
-        async def mock_async_main_node(state: AgentState) -> AgentState:
-            msg = Message.text_message("Async response", role="assistant")
-            state.context.append(msg)
-            return state
-            
-        def mock_tool_node(state: AgentState) -> AgentState:
-            tool_result = Message.text_message("Async tool executed", role="tool")
-            state.context.append(tool_result)
-            return state
-        react_agent = ReactAgent[AgentState]()
-        
-        compiled = react_agent.compile(
-            main_node=mock_async_main_node,
-            tool_node=mock_tool_node,
-        )
-        
-        # Execute the agent asynchronously
-        initial_state = {"messages": [Message.text_message("Test async", role="user")]}
-        result = await compiled.ainvoke(initial_state, config={"thread_id": "async_test"})
-        
-        assert isinstance(result, dict)
-        assert "messages" in result
+    def test_tool_node_not_created_without_tools_or_client(self):
+        """ReactAgent should skip ToolNode creation when no tools or MCP client are supplied."""
+
+        with patch("agentflow.prebuilt.agent.react.Agent", FakeManagedAgent):
+            react_agent = ReactAgent[AgentState](
+                model="fake-model",
+                provider="openai",
+            )
+
+        assert react_agent._tool_node is None
 
 
 if __name__ == "__main__":
