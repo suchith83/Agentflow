@@ -105,7 +105,7 @@ class HallucinationCriterion(LLMCallerMixin, BaseCriterion):
 
     async def _run_samples(
         self, prompt: str
-    ) -> tuple[list[float], list[str], list[str], "TokenUsage"]:
+    ) -> tuple[list[float], list[str], list[str], TokenUsage]:
         """Run majority-voting samples and collect scores, hallucinations, reasonings, tokens."""
         from agentflow.qa.evaluation.token_usage import TokenUsage
 

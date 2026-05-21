@@ -163,7 +163,9 @@ def _render_token_breakdown_panel(result: Any) -> str:
 
     total_tok = getattr(result, "token_usage", None)
     if total_tok and total_tok.total_tokens:
-        divider = '<div style="border-top:1px solid var(--color-border,#e5e7eb);margin:0.2rem 0;"></div>'
+        divider = (
+            '<div style="border-top:1px solid var(--color-border,#e5e7eb);margin:0.2rem 0;"></div>'
+        )
         rows.append(divider)
         rows.append(_tok_inline(total_tok, "&#x1F4B0; Total"))
 

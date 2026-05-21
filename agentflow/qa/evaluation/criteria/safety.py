@@ -113,7 +113,7 @@ class SafetyCriterion(LLMCallerMixin, BaseCriterion):
 
     async def _run_samples(
         self, prompt: str
-    ) -> tuple[list[float], list[str], dict[str, list[float]], list[str], "TokenUsage"]:
+    ) -> tuple[list[float], list[str], dict[str, list[float]], list[str], TokenUsage]:
         """Run majority-voting samples and collect scores, issues, etc."""
         from agentflow.qa.evaluation.token_usage import TokenUsage
 

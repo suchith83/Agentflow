@@ -247,9 +247,11 @@ class UserSimulator:
                     result = await graph.ainvoke(input_data, config=run_config)
                 except Exception as e:
                     logger.error("Agent execution failed: %s", e)
-                    criterion_scores, criterion_details, criterion_results = (
-                        await self._evaluate_simulation(scenario, conversation)
-                    )
+                    (
+                        criterion_scores,
+                        criterion_details,
+                        criterion_results,
+                    ) = await self._evaluate_simulation(scenario, conversation)
                     return SimulationResult(
                         scenario_id=scenario.scenario_id,
                         turns=turn + 1,
@@ -278,9 +280,11 @@ class UserSimulator:
 
                 # Check if we're done
                 if len(goals_achieved) >= len(scenario.goals):
-                    criterion_scores, criterion_details, criterion_results = (
-                        await self._evaluate_simulation(scenario, conversation)
-                    )
+                    (
+                        criterion_scores,
+                        criterion_details,
+                        criterion_results,
+                    ) = await self._evaluate_simulation(scenario, conversation)
                     return SimulationResult(
                         scenario_id=scenario.scenario_id,
                         turns=turn + 1,
@@ -303,9 +307,11 @@ class UserSimulator:
                 sim_tokens = sim_tokens + resp_usage
 
             # Max turns reached
-            criterion_scores, criterion_details, criterion_results = (
-                await self._evaluate_simulation(scenario, conversation)
-            )
+            (
+                criterion_scores,
+                criterion_details,
+                criterion_results,
+            ) = await self._evaluate_simulation(scenario, conversation)
             return SimulationResult(
                 scenario_id=scenario.scenario_id,
                 turns=max_turns,
@@ -325,9 +331,11 @@ class UserSimulator:
             criterion_details: dict[str, Any] = {}
             criterion_results: list[Any] = []
             try:
-                criterion_scores, criterion_details, criterion_results = (
-                    await self._evaluate_simulation(scenario, conversation)
-                )
+                (
+                    criterion_scores,
+                    criterion_details,
+                    criterion_results,
+                ) = await self._evaluate_simulation(scenario, conversation)
             except Exception as eval_err:
                 logger.warning("Criterion evaluation also failed: %s", eval_err)
             return SimulationResult(

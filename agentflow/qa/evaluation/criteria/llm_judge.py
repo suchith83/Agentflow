@@ -107,7 +107,7 @@ class LLMJudgeCriterion(LLMCallerMixin, BaseCriterion):
         question: str,
         expected: str,
         actual: str,
-    ) -> tuple[list[float], list[str], "TokenUsage"]:
+    ) -> tuple[list[float], list[str], TokenUsage]:
         from agentflow.qa.evaluation.token_usage import TokenUsage
 
         scores: list[float] = []

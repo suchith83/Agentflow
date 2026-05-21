@@ -645,9 +645,7 @@ class AgentEvaluator:
             from agentflow.qa.evaluation.token_usage import TokenUsage
 
             agent_token_usage = execution.token_usage
-            criteria_token_usage = sum(
-                (cr.token_usage for cr in criterion_results), TokenUsage()
-            )
+            criteria_token_usage = sum((cr.token_usage for cr in criterion_results), TokenUsage())
             total_token_usage = agent_token_usage + criteria_token_usage
 
             return EvalCaseResult.success(
