@@ -344,24 +344,24 @@ class TestEvalConfig:
     def test_eval_config_default(self):
         """Test default eval config."""
         config = EvalConfig.default()
-        assert "tool_trajectory_avg_score" in config.criteria
-        assert "response_match_score" in config.criteria
-        assert config.criteria["tool_trajectory_avg_score"].threshold == 1.0
-        assert config.criteria["response_match_score"].threshold == 0.8
+        assert config.criteria.trajectory is not None
+        assert config.criteria.response_match is not None
+        assert config.criteria.trajectory.threshold == 1.0
+        assert config.criteria.response_match.threshold == 0.8
 
     def test_eval_config_strict(self):
         """Test strict eval config."""
         config = EvalConfig.strict()
-        assert config.criteria["tool_trajectory_avg_score"].threshold == 1.0
-        assert config.criteria["response_match_score"].threshold == 0.9
-        assert "llm_judge" in config.criteria
+        assert config.criteria.trajectory.threshold == 1.0
+        assert config.criteria.response_match.threshold == 0.9
+        assert config.criteria.llm_judge is not None
 
     def test_eval_config_relaxed(self):
         """Test relaxed eval config."""
         config = EvalConfig.relaxed()
-        assert config.criteria["tool_trajectory_avg_score"].threshold == 0.8
-        assert config.criteria["tool_trajectory_avg_score"].match_type == MatchType.IN_ORDER
-        assert config.criteria["response_match_score"].threshold == 0.6
+        assert config.criteria.trajectory.threshold == 0.8
+        assert config.criteria.trajectory.match_type == MatchType.IN_ORDER
+        assert config.criteria.response_match.threshold == 0.6
 
     def test_eval_config_enable_criterion(self):
         """Test enabling a criterion."""
@@ -370,14 +370,14 @@ class TestEvalConfig:
             "llm_judge",
             CriterionConfig(threshold=0.7),
         )
-        assert "llm_judge" in config.criteria
-        assert config.criteria["llm_judge"].threshold == 0.7
+        assert config.criteria.llm_judge is not None
+        assert config.criteria.llm_judge.threshold == 0.7
 
     def test_eval_config_disable_criterion(self):
         """Test disabling a criterion."""
         config = EvalConfig.default()
-        config.disable_criterion("tool_trajectory_avg_score")
-        assert config.criteria["tool_trajectory_avg_score"].enabled is False
+        config.disable_criterion("trajectory")
+        assert config.criteria.trajectory.enabled is False
 
     def test_eval_config_with_rubrics(self):
         """Test adding rubrics to config."""
@@ -385,10 +385,10 @@ class TestEvalConfig:
         rubrics = [Rubric(rubric_id="test", content="Test rubric")]
         new_config = config.with_rubrics(rubrics)
         
-        assert "rubric_based" in new_config.criteria
-        assert len(new_config.criteria["rubric_based"].rubrics) == 1
+        assert new_config.criteria.rubric_based is not None
+        assert len(new_config.criteria.rubric_based.rubrics) == 1
         # Original should be unchanged
-        assert "rubric_based" not in config.criteria
+        assert config.criteria.rubric_based is None
 
     def test_eval_config_serialization(self):
         """Test saving and loading eval config."""
@@ -399,8 +399,8 @@ class TestEvalConfig:
             config.to_file(str(path))
             
             loaded = EvalConfig.from_file(str(path))
-            assert "tool_trajectory_avg_score" in loaded.criteria
-            assert loaded.criteria["tool_trajectory_avg_score"].threshold == 1.0
+            assert loaded.criteria.trajectory is not None
+            assert loaded.criteria.trajectory.threshold == 1.0
 
 
 class TestRubric:

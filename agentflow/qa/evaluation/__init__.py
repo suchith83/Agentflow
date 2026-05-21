@@ -43,8 +43,8 @@ Example:
 
 # --- Dataset ---
 # --- Collectors (event-based trajectory capture via callback_manager) ---
+from agentflow.qa.evaluation.collectors.event_collector import EventCollector
 from agentflow.qa.evaluation.collectors.trajectory_collector import (
-    EventCollector,
     PublisherCallback,
     TrajectoryCollector,
     make_trajectory_callback,
