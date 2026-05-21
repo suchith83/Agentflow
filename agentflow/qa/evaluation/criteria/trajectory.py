@@ -55,16 +55,19 @@ class TrajectoryMatchCriterion(SyncCriterion):
         actual_names = [t.name for t in actual_tools]
         expected_names = [t.name for t in expected_tools]
 
-        return self._result(score, {
-            "reason": (
-                f"Matched {score:.0%} of expected tools. "
-                f"Expected {expected_names}, got {actual_names}."
-            ),
-            "actual_trajectory": [t.model_dump() for t in actual_tools],
-            "expected_trajectory": [t.model_dump() for t in expected_tools],
-            "match_type": match_type.value,
-            "check_args": check_args,
-        })
+        return self._result(
+            score,
+            {
+                "reason": (
+                    f"Matched {score:.0%} of expected tools. "
+                    f"Expected {expected_names}, got {actual_names}."
+                ),
+                "actual_trajectory": [t.model_dump() for t in actual_tools],
+                "expected_trajectory": [t.model_dump() for t in expected_tools],
+                "match_type": match_type.value,
+                "check_args": check_args,
+            },
+        )
 
     def _tools_match(self, actual: ToolCall, expected: ToolCall, check_args: bool) -> bool:
         return actual.matches(expected, check_args=check_args, check_call_id=False)
@@ -158,15 +161,18 @@ class NodeOrderMatchCriterion(SyncCriterion):
         else:
             score = self._any_order_match(actual_nodes, expected_nodes)
 
-        return self._result(score, {
-            "reason": (
-                f"Matched {score:.0%} of expected node order. "
-                f"Expected {expected_nodes}, got {actual_nodes}."
-            ),
-            "actual_node_order": actual_nodes,
-            "expected_node_order": expected_nodes,
-            "match_type": match_type.value,
-        })
+        return self._result(
+            score,
+            {
+                "reason": (
+                    f"Matched {score:.0%} of expected node order. "
+                    f"Expected {expected_nodes}, got {actual_nodes}."
+                ),
+                "actual_node_order": actual_nodes,
+                "expected_node_order": expected_nodes,
+                "match_type": match_type.value,
+            },
+        )
 
     @staticmethod
     def _exact_match(actual: list[str], expected: list[str]) -> float:
@@ -232,7 +238,10 @@ class ToolNameMatchCriterion(SyncCriterion):
                     remaining.remove(exp_name)
             score = matched / len(expected_names)
 
-        return self._result(score, {
-            "expected_names": expected_names,
-            "actual_names": actual_names,
-        })
+        return self._result(
+            score,
+            {
+                "expected_names": expected_names,
+                "actual_names": actual_names,
+            },
+        )

@@ -141,9 +141,8 @@ class PublisherCallback(AfterInvokeCallback):
                         "input_tokens": getattr(usages, "prompt_tokens", 0) or 0,
                         "output_tokens": getattr(usages, "completion_tokens", 0) or 0,
                         "cache_read_tokens": getattr(usages, "cache_read_input_tokens", 0) or 0,
-                        "cache_creation_tokens": getattr(
-                            usages, "cache_creation_input_tokens", 0
-                        ) or 0,
+                        "cache_creation_tokens": getattr(usages, "cache_creation_input_tokens", 0)
+                        or 0,
                     }
 
             return EventModel(

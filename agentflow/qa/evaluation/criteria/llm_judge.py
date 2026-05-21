@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from agentflow.qa.evaluation.criteria.llm_base import TemplatedLLMCriterion
+from agentflow.qa.evaluation.eval_result import CriterionResult
 
 
 if TYPE_CHECKING:

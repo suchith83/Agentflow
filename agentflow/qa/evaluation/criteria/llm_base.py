@@ -21,6 +21,7 @@ from typing import TYPE_CHECKING, Any
 
 from agentflow.qa.evaluation.criteria.base import BaseCriterion
 from agentflow.qa.evaluation.criteria.llm_utils import LLMCallerMixin
+from agentflow.qa.evaluation.eval_result import CriterionResult
 from agentflow.qa.evaluation.token_usage import TokenUsage
 
 

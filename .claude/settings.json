@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -c \"from agentflow.qa.evaluation.config.eval_config import EvalConfig, CriteriaConfig, CriterionConfig; from agentflow.qa.evaluation.config.presets import EvalPresets; print\\('OK'\\)\")"
+    ]
+  }
+}

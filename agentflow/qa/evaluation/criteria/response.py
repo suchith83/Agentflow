@@ -64,13 +64,16 @@ class RougeMatchCriterion(SyncCriterion):
 
         precision, recall, f1 = self._rouge1_score(actual_response, expected_response)
 
-        return self._result(f1, {
-            "precision": precision,
-            "recall": recall,
-            "f1": f1,
-            "actual_response": actual_response[:500],
-            "expected_response": expected_response[:500],
-        })
+        return self._result(
+            f1,
+            {
+                "precision": precision,
+                "recall": recall,
+                "f1": f1,
+                "actual_response": actual_response[:500],
+                "expected_response": expected_response[:500],
+            },
+        )
 
     def _rouge1_score(self, actual: str, expected: str) -> tuple[float, float, float]:
         actual_tokens = set(self._tokenize(actual))
@@ -112,11 +115,14 @@ class ExactMatchCriterion(SyncCriterion):
         actual_response = actual.actual_response.strip()
         is_match = actual_response == expected_response
 
-        return self._result(1.0 if is_match else 0.0, {
-            "match": is_match,
-            "actual_length": len(actual_response),
-            "expected_length": len(expected_response),
-        })
+        return self._result(
+            1.0 if is_match else 0.0,
+            {
+                "match": is_match,
+                "actual_length": len(actual_response),
+                "expected_length": len(expected_response),
+            },
+        )
 
 
 class ContainsKeywordsCriterion(SyncCriterion):

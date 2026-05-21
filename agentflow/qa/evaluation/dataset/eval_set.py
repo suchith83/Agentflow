@@ -13,7 +13,6 @@ This module defines the core data structures for agent evaluation:
 from __future__ import annotations
 
 import uuid
-from collections.abc import Iterator
 from enum import StrEnum
 from typing import Any
 

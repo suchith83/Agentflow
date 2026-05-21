@@ -243,10 +243,13 @@ class CompositeCriterion(BaseCriterion):
             # OR: use maximum score, any pass is success
             combined_score = max(scores) if scores else 0.0
 
-        return self._result(combined_score, {
-            "sub_results": [r.model_dump() for r in results],
-            "require_all": self.require_all,
-        })
+        return self._result(
+            combined_score,
+            {
+                "sub_results": [r.model_dump() for r in results],
+                "require_all": self.require_all,
+            },
+        )
 
 
 class WeightedCriterion(BaseCriterion):
@@ -293,8 +296,11 @@ class WeightedCriterion(BaseCriterion):
 
         combined_score = weighted_sum / total_weight if total_weight > 0 else 0.0
 
-        return self._result(combined_score, {
-            "sub_results": [
-                {"criterion": r.criterion, "score": r.score, "weight": w} for r, w in results
-            ],
-        })
+        return self._result(
+            combined_score,
+            {
+                "sub_results": [
+                    {"criterion": r.criterion, "score": r.score, "weight": w} for r, w in results
+                ],
+            },
+        )

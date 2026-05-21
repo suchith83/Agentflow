@@ -110,7 +110,10 @@ class AgentEvaluator:
         """
         criteria = []
 
-        for name, criterion_config in self.config.criteria.to_dict().items():
+        for name in self.config.criteria.model_fields:
+            criterion_config = getattr(self.config.criteria, name)
+            if criterion_config is None:
+                continue
             if not criterion_config.enabled:
                 continue
 
@@ -430,7 +433,9 @@ class AgentEvaluator:
             except Exception as exc:
                 logger.warning(
                     "Graph execution failed for case %s turn %d: %s",
-                    case.eval_id, turn_idx, exc,
+                    case.eval_id,
+                    turn_idx,
+                    exc,
                 )
                 return EvalCaseResult.failure(
                     eval_id=case.eval_id,
@@ -440,14 +445,16 @@ class AgentEvaluator:
                 )
 
             turn_response = collector.final_response or ""
-            turn_results.append({
-                "turn_index": turn_idx,
-                "user_input": user_text,
-                "agent_response": turn_response,
-                "tool_calls": [tc.model_dump() for tc in collector.tool_calls],
-                "node_visits": list(collector.node_visits),
-                "trajectory_steps": len(collector.trajectory),
-            })
+            turn_results.append(
+                {
+                    "turn_index": turn_idx,
+                    "user_input": user_text,
+                    "agent_response": turn_response,
+                    "tool_calls": [tc.model_dump() for tc in collector.tool_calls],
+                    "node_visits": list(collector.node_visits),
+                    "trajectory_steps": len(collector.trajectory),
+                }
+            )
 
             all_tool_calls.extend(collector.tool_calls)
             all_trajectory.extend(collector.trajectory)
@@ -494,7 +501,9 @@ class AgentEvaluator:
             except Exception as exc:
                 logger.error(
                     "Criterion '%s' failed for case %s: %s",
-                    criterion.name, case.eval_id, exc,
+                    criterion.name,
+                    case.eval_id,
+                    exc,
                 )
                 criterion_results.append(
                     CriterionResult.failure(criterion=criterion.name, error=str(exc))
@@ -536,9 +545,7 @@ class AgentEvaluator:
                 graph._state_graph._container.bind_instance(CallbackManager, local_mgr)
 
             # Run all conversation turns and accumulate results
-            result = await self._run_conversation_turns(
-                case, collector, graph, config, start_time
-            )
+            result = await self._run_conversation_turns(case, collector, graph, config, start_time)
             if isinstance(result, EvalCaseResult):
                 return result  # turn raised an exception — failure already built
             execution, turn_results = result

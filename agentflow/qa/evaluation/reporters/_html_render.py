@@ -179,7 +179,8 @@ def _render_token_breakdown_panel(result: Any) -> str:
 
 
 def _render_token_panel(tok: Any) -> str:
-    """Render a compact token usage bar (legacy single-row, kept for callers outside render_case)."""
+    """Render a compact token usage bar
+    (legacy single-row, kept for callers outside render_case)."""
     parts = [
         '<span style="margin-right:1rem;">&#x1F4B0; <strong>Tokens</strong></span>',
         f"in: <strong>{tok.input_tokens:,}</strong>",

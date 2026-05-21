@@ -100,9 +100,7 @@ def create_llm_client(
             **extra_kwargs,
         )
 
-    raise ValueError(
-        f"Unsupported provider: '{provider}'. Supported: 'google', 'openai'."
-    )
+    raise ValueError(f"Unsupported provider: '{provider}'. Supported: 'google', 'openai'.")
 
 
 def _create_google_client(*, use_vertex_ai: bool) -> Any:
@@ -118,9 +116,7 @@ def _create_google_client(*, use_vertex_ai: bool) -> Any:
         project = os.getenv("GOOGLE_CLOUD_PROJECT")
         location = os.getenv("GOOGLE_CLOUD_LOCATION", "us-central1")
         if not project:
-            raise ValueError(
-                "GOOGLE_CLOUD_PROJECT environment variable must be set for Vertex AI."
-            )
+            raise ValueError("GOOGLE_CLOUD_PROJECT environment variable must be set for Vertex AI.")
         logger.info(
             "Creating Google GenAI client (Vertex AI, project=%s, location=%s)",
             project,
@@ -159,9 +155,7 @@ def _create_openai_client(
             "custom base_url that doesn't require authentication."
         )
 
-    client_kwargs = {
-        k: v for k, v in extra_kwargs.items() if k in _CLIENT_CONSTRUCTOR_KWARGS
-    }
+    client_kwargs = {k: v for k, v in extra_kwargs.items() if k in _CLIENT_CONSTRUCTOR_KWARGS}
     if base_url:
         logger.info("Creating OpenAI client with custom base_url: %s", base_url)
         return AsyncOpenAI(api_key=resolved_key, base_url=base_url, **client_kwargs)

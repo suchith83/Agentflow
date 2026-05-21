@@ -22,7 +22,6 @@ from dataclasses import dataclass
 from dataclasses import field as datafield
 from typing import Any
 
-from agentflow.qa.evaluation.collectors.event_collector import EventCollector
 from agentflow.qa.evaluation.collectors.publisher_callback import PublisherCallback
 from agentflow.qa.evaluation.dataset.eval_set import StepType, ToolCall, TrajectoryStep
 from agentflow.qa.evaluation.token_usage import TokenUsage
