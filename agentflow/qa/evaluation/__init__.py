@@ -52,6 +52,7 @@ from agentflow.qa.evaluation.collectors.trajectory_collector import (
 
 # --- Config ---
 from agentflow.qa.evaluation.config.eval_config import (
+    CriteriaConfig,
     CriterionConfig,
     EvalConfig,
     MatchType,
@@ -168,6 +169,7 @@ __all__ = [
     "ConsoleReporter",
     "ContainsKeywordsCriterion",
     "ConversationScenario",
+    "CriteriaConfig",
     "CriterionConfig",
     # --- Results ---
     "CriterionResult",

@@ -76,7 +76,7 @@ class LLMJudgeCriterion(LLMCallerMixin, BaseCriterion):
                     details={"note": "No expected response to compare"},
                 )
 
-            scores, reasonings = await self._run_samples(
+            scores, reasonings, token_usage = await self._run_samples(
                 question=question,
                 expected=expected_response,
                 actual=actual_response,
@@ -95,6 +95,7 @@ class LLMJudgeCriterion(LLMCallerMixin, BaseCriterion):
                     "judge_model": self.config.judge_model,
                     "reason": reasonings[-1] if reasonings else "",
                 },
+                token_usage=token_usage,
             )
 
         except Exception as e:
@@ -106,9 +107,12 @@ class LLMJudgeCriterion(LLMCallerMixin, BaseCriterion):
         question: str,
         expected: str,
         actual: str,
-    ) -> tuple[list[float], list[str]]:
+    ) -> tuple[list[float], list[str], "TokenUsage"]:
+        from agentflow.qa.evaluation.token_usage import TokenUsage
+
         scores: list[float] = []
         reasonings: list[str] = []
+        total_usage = TokenUsage()
 
         prompt = SEMANTIC_MATCH_PROMPT.format(
             question=question,
@@ -118,13 +122,14 @@ class LLMJudgeCriterion(LLMCallerMixin, BaseCriterion):
 
         for _ in range(self.config.num_samples):
             try:
-                score, reasoning = await self._call_llm_score(prompt)
+                score, reasoning, usage = await self._call_llm_score(prompt)
                 scores.append(score)
                 reasonings.append(reasoning)
+                total_usage = total_usage + usage
             except Exception as e:
                 logger.warning("LLM sample failed: %s", e)
 
-        return scores, reasonings
+        return scores, reasonings, total_usage
 
     def _extract_question(self, expected: EvalCase) -> str:
         if expected.conversation:

@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from enum import Enum
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 # Default judge model used across all LLM-based evaluation criteria.
@@ -309,6 +309,139 @@ class ReporterConfig(BaseModel):
     timestamp_files: bool = True
 
 
+class CriteriaConfig(BaseModel):
+    """Type-safe configuration for evaluation criteria.
+
+    This replaces dictionary-based criterion configuration with a typed
+    Pydantic model that has explicit fields for each criterion type.
+    This prevents mistyping criterion names and provides IDE autocomplete.
+
+    All fields are optional — only include the criteria you need.
+
+    Attributes:
+        tool_name_match: Configuration for tool name matching criterion.
+        trajectory: Configuration for tool trajectory matching criterion.
+        node_order: Configuration for node visit order matching criterion.
+        response_match: Configuration for response semantic matching criterion (LLM-based).
+        rouge_match: Configuration for ROUGE-1 F1 response similarity criterion.
+        contains_keywords: Configuration for keyword presence criterion.
+        llm_judge: Configuration for LLM-as-judge overall quality criterion.
+        rubric_based: Configuration for custom rubric-based criterion.
+        factual_accuracy: Configuration for factual accuracy criterion (LLM-based).
+        hallucination: Configuration for hallucination/groundedness criterion (LLM-based).
+        safety: Configuration for safety evaluation criterion (LLM-based).
+        simulation_goals: Configuration for simulation goals criterion.
+    """
+
+    model_config = {"extra": "forbid"}  # Reject extra fields for type safety
+
+    tool_name_match: CriterionConfig | None = None
+    trajectory: CriterionConfig | None = None
+    node_order: CriterionConfig | None = None
+    response_match: CriterionConfig | None = None
+    rouge_match: CriterionConfig | None = None
+    contains_keywords: CriterionConfig | None = None
+    llm_judge: CriterionConfig | None = None
+    rubric_based: CriterionConfig | None = None
+    factual_accuracy: CriterionConfig | None = None
+    hallucination: CriterionConfig | None = None
+    safety: CriterionConfig | None = None
+    simulation_goals: CriterionConfig | None = None
+
+    def to_dict(self) -> dict[str, CriterionConfig]:
+        """Convert typed criteria to dictionary format for backward compatibility.
+
+        Returns:
+            Dictionary mapping criterion names to configurations.
+        """
+        result = {}
+        field_mapping = {
+            "tool_name_match": "tool_name_match_score",
+            "trajectory": "tool_trajectory_avg_score",
+            "node_order": "node_order",
+            "response_match": "response_match_score",
+            "rouge_match": "rouge_match",
+            "contains_keywords": "contains_keywords",
+            "llm_judge": "final_response_match_v2",
+            "rubric_based": "rubric_based_score",
+            "factual_accuracy": "factual_accuracy_score",
+            "hallucination": "hallucinations_v1",
+            "safety": "safety_score",
+            "simulation_goals": "simulation_goals_match",
+        }
+
+        for field_name, criterion_name in field_mapping.items():
+            value = getattr(self, field_name)
+            if value is not None:
+                result[criterion_name] = value
+
+        return result
+
+    # --- dict-compatible helpers so consumers like AgentEvaluator keep working ---
+
+    def items(self):
+        """Yield (criterion_name, CriterionConfig) pairs — dict-compatible."""
+        return self.to_dict().items()
+
+    def keys(self):
+        """Return criterion names — dict-compatible."""
+        return self.to_dict().keys()
+
+    def values(self):
+        """Return CriterionConfig instances — dict-compatible."""
+        return self.to_dict().values()
+
+    def get(self, name: str, default=None):
+        """Return the CriterionConfig for *name* — dict-compatible."""
+        return self.to_dict().get(name, default)
+
+    def __getitem__(self, name: str):
+        result = self.to_dict()
+        return result[name]
+
+    def __contains__(self, name: str):
+        return name in self.to_dict()
+
+    def __iter__(self):
+        return iter(self.to_dict())
+
+    def __len__(self):
+        return len(self.to_dict())
+
+    @classmethod
+    def from_dict(cls, criteria_dict: dict[str, CriterionConfig]) -> CriteriaConfig:
+        """Create typed CriteriaConfig from dictionary format.
+
+        Args:
+            criteria_dict: Dictionary mapping criterion names to configurations.
+
+        Returns:
+            CriteriaConfig instance.
+        """
+        reverse_mapping = {
+            "tool_name_match_score": "tool_name_match",
+            "tool_trajectory_avg_score": "trajectory",
+            "node_order": "node_order",
+            "response_match_score": "response_match",
+            "rouge_match": "rouge_match",
+            "contains_keywords": "contains_keywords",
+            "final_response_match_v2": "llm_judge",
+            "rubric_based_score": "rubric_based",
+            "factual_accuracy_score": "factual_accuracy",
+            "hallucinations_v1": "hallucination",
+            "safety_score": "safety",
+            "simulation_goals_match": "simulation_goals",
+        }
+
+        data = {}
+        for criterion_name, config in criteria_dict.items():
+            field_name = reverse_mapping.get(criterion_name)
+            if field_name:
+                data[field_name] = config
+
+        return cls(**data)
+
+
 class EvalConfig(BaseModel):
     """Main evaluation configuration.
 
@@ -316,7 +449,7 @@ class EvalConfig(BaseModel):
     which criteria to use and their thresholds.
 
     Attributes:
-        criteria: Dictionary of criterion name to configuration.
+        criteria: Type-safe criteria configuration (CriteriaConfig instance).
         user_simulator_config: Configuration for user simulation.
         parallel: Whether to run evaluations in parallel.
         max_concurrency: Maximum concurrent evaluations if parallel.
@@ -326,7 +459,7 @@ class EvalConfig(BaseModel):
         reporter: Configuration for automatic report generation.
     """
 
-    criteria: dict[str, CriterionConfig] = Field(default_factory=dict)
+    criteria: CriteriaConfig = Field(default_factory=CriteriaConfig)
     user_simulator_config: UserSimulatorConfig | None = None
     parallel: bool = False
     max_concurrency: int = 4
@@ -334,6 +467,13 @@ class EvalConfig(BaseModel):
     verbose: bool = False
     mock_mode: bool = False
     reporter: ReporterConfig = Field(default_factory=ReporterConfig)
+
+    @field_validator("criteria", mode="before")
+    @classmethod
+    def _normalize_criteria(cls, value):
+        if isinstance(value, dict):
+            return CriteriaConfig.from_dict(value)
+        return value
 
     @classmethod
     def default(cls) -> EvalConfig:
@@ -344,15 +484,15 @@ class EvalConfig(BaseModel):
             - response_match_score: ROUGE-1, threshold 0.8
         """
         return cls(
-            criteria={
-                "tool_trajectory_avg_score": CriterionConfig.trajectory(
+            criteria=CriteriaConfig(
+                trajectory=CriterionConfig.trajectory(
                     threshold=1.0,
                     match_type=MatchType.EXACT,
                 ),
-                "response_match_score": CriterionConfig.response_match(
+                response_match=CriterionConfig.response_match(
                     threshold=0.8,
                 ),
-            }
+            )
         )
 
     @classmethod
@@ -362,20 +502,20 @@ class EvalConfig(BaseModel):
         All criteria set to maximum strictness.
         """
         return cls(
-            criteria={
-                "tool_trajectory_avg_score": CriterionConfig.trajectory(
+            criteria=CriteriaConfig(
+                trajectory=CriterionConfig.trajectory(
                     threshold=1.0,
                     match_type=MatchType.EXACT,
                     check_args=True,
                 ),
-                "response_match_score": CriterionConfig.response_match(
+                response_match=CriterionConfig.response_match(
                     threshold=0.9,
                 ),
-                "final_response_match_v2": CriterionConfig.llm_judge(
+                llm_judge=CriterionConfig.llm_judge(
                     threshold=0.9,
                     num_samples=5,
                 ),
-            }
+            )
         )
 
     @classmethod
@@ -385,16 +525,16 @@ class EvalConfig(BaseModel):
         Uses IN_ORDER matching and lower thresholds.
         """
         return cls(
-            criteria={
-                "tool_trajectory_avg_score": CriterionConfig.trajectory(
+            criteria=CriteriaConfig(
+                trajectory=CriterionConfig.trajectory(
                     threshold=0.8,
                     match_type=MatchType.IN_ORDER,
                     check_args=False,
                 ),
-                "response_match_score": CriterionConfig.response_match(
+                response_match=CriterionConfig.response_match(
                     threshold=0.6,
                 ),
-            }
+            )
         )
 
     @classmethod
@@ -451,7 +591,7 @@ class EvalConfig(BaseModel):
         import copy
 
         new_config = copy.deepcopy(self)
-        new_config.criteria["rubric_based"] = CriterionConfig.rubric_based(
+        new_config.criteria.rubric_based = CriterionConfig.rubric_based(
             rubrics=rubrics,
         )
         return new_config

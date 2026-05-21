@@ -59,6 +59,7 @@ class CriterionResult(BaseModel):
         threshold: The threshold used for pass/fail.
         details: Additional criterion-specific details.
         error: Error message if evaluation failed.
+        token_usage: Tokens consumed by LLM judge calls for this criterion.
     """
 
     criterion: str
@@ -67,6 +68,11 @@ class CriterionResult(BaseModel):
     threshold: float = 0.0
     details: dict[str, Any] = Field(default_factory=dict)
     error: str | None = None
+    token_usage: TokenUsage = Field(default_factory=TokenUsage)
+
+    @field_serializer("token_usage")
+    def _ser_token_usage(self, v: TokenUsage) -> dict[str, int]:
+        return v.to_dict()
 
     @property
     def reason(self) -> str | None:
@@ -81,6 +87,7 @@ class CriterionResult(BaseModel):
         score: float,
         threshold: float,
         details: dict[str, Any] | None = None,
+        token_usage: TokenUsage | None = None,
     ) -> CriterionResult:
         """Create a successful criterion result."""
         return cls(
@@ -89,6 +96,7 @@ class CriterionResult(BaseModel):
             passed=score >= threshold,
             threshold=threshold,
             details=details or {},
+            token_usage=token_usage or TokenUsage(),
         )
 
     @classmethod
@@ -144,10 +152,15 @@ class EvalCaseResult(BaseModel):
     metadata: dict[str, Any] = Field(default_factory=dict)
     turn_results: list[dict[str, Any]] = Field(default_factory=list)
     token_usage: TokenUsage = Field(default_factory=TokenUsage)
+    agent_token_usage: TokenUsage = Field(default_factory=TokenUsage)
     node_details: list[NodeDetail] = Field(default_factory=list)
 
     @field_serializer("token_usage")
     def _ser_token_usage(self, v: TokenUsage) -> dict[str, int]:
+        return v.to_dict()
+
+    @field_serializer("agent_token_usage")
+    def _ser_agent_token_usage(self, v: TokenUsage) -> dict[str, int]:
         return v.to_dict()
 
     @classmethod
@@ -166,6 +179,7 @@ class EvalCaseResult(BaseModel):
         metadata: dict[str, Any] | None = None,
         turn_results: list[dict[str, Any]] | None = None,
         token_usage: TokenUsage | None = None,
+        agent_token_usage: TokenUsage | None = None,
         node_details: list[NodeDetail] | None = None,
     ) -> EvalCaseResult:
         """Create a successful case result."""
@@ -185,6 +199,7 @@ class EvalCaseResult(BaseModel):
             metadata=metadata or {},
             turn_results=turn_results or [],
             token_usage=token_usage or TokenUsage(),
+            agent_token_usage=agent_token_usage or TokenUsage(),
             node_details=node_details or [],
         )
 

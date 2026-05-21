@@ -79,14 +79,18 @@ class RubricBasedCriterion(LLMCallerMixin, BaseCriterion):
                 rubric_section=rubric_section,
             )
 
+            from agentflow.qa.evaluation.token_usage import TokenUsage
+
             scores: list[float] = []
             reasonings: list[str] = []
+            total_usage = TokenUsage()
 
             for _ in range(self.config.num_samples):
                 try:
-                    score, reasoning = await self._call_llm_score(prompt)
+                    score, reasoning, usage = await self._call_llm_score(prompt)
                     scores.append(score)
                     reasonings.append(reasoning)
+                    total_usage = total_usage + usage
                 except Exception as e:
                     logger.warning("Rubric sample failed: %s", e)
 
@@ -101,6 +105,7 @@ class RubricBasedCriterion(LLMCallerMixin, BaseCriterion):
                     "scores": scores,
                     "reasonings": reasonings,
                 },
+                token_usage=total_usage,
             )
 
         except Exception as e:

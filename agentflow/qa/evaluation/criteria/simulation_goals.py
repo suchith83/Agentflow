@@ -111,7 +111,7 @@ class SimulationGoalsCriterion(LLMCallerMixin, BaseCriterion):
                 goals=goals_text,
             )
 
-            result_dict = await self._call_llm_json(prompt)
+            result_dict, token_usage = await self._call_llm_json(prompt)
             score = float(result_dict.get("score", 0.0))
 
             return CriterionResult.success(
@@ -125,6 +125,7 @@ class SimulationGoalsCriterion(LLMCallerMixin, BaseCriterion):
                     "reason": result_dict.get("reasoning", ""),
                     "judge_model": self.config.judge_model,
                 },
+                token_usage=token_usage,
             )
 
         except Exception as e:

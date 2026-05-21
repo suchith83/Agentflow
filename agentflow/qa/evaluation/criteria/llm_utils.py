@@ -10,6 +10,8 @@ from __future__ import annotations
 import json
 import logging
 
+from agentflow.qa.evaluation.token_usage import TokenUsage
+
 
 logger = logging.getLogger("agentflow.evaluation")
 
@@ -52,17 +54,17 @@ class LLMCallerMixin:
     All LLM-based criteria inherit from this.
     """
 
-    async def _call_llm_json(self, prompt: str) -> dict:
-        """Call LLM and return full parsed JSON dict.
+    async def _call_llm_json(self, prompt: str) -> tuple[dict, TokenUsage]:
+        """Call LLM and return (parsed JSON dict, token usage).
 
-        Tries Google GenAI first, then OpenAI. If none
-        are available, returns a default dict with score 0.5.
+        Tries Google GenAI first, then OpenAI. If none are available,
+        returns a default dict with score 0.5 and zero token usage.
 
         Args:
             prompt: The evaluation prompt to send.
 
         Returns:
-            Parsed JSON dict from LLM response.
+            Tuple of (parsed JSON dict, TokenUsage for this call).
         """
         provider, model_name = _parse_model_provider(self.config.judge_model)
 
@@ -86,10 +88,10 @@ class LLMCallerMixin:
                 return result
 
         logger.warning("No LLM library available, returning default score")
-        return {"score": 0.5, "reasoning": "No LLM available"}
+        return {"score": 0.5, "reasoning": "No LLM available"}, TokenUsage()
 
-    async def _call_google_json(self, model: str, prompt: str) -> dict | None:
-        """Call Google GenAI and return parsed JSON dict, or None on failure."""
+    async def _call_google_json(self, model: str, prompt: str) -> tuple[dict, TokenUsage] | None:
+        """Call Google GenAI and return (parsed JSON dict, TokenUsage), or None on failure."""
         try:
             from google import genai
             from google.genai import types
@@ -107,15 +109,23 @@ class LLMCallerMixin:
             text = (response.text or "").strip()
             if not text:
                 raise ValueError("Google GenAI returned empty content")
-            return json.loads(text)
+            usage = TokenUsage()
+            meta = getattr(response, "usage_metadata", None)
+            if meta is not None:
+                usage = TokenUsage(
+                    input_tokens=getattr(meta, "prompt_token_count", 0) or 0,
+                    output_tokens=getattr(meta, "candidates_token_count", 0) or 0,
+                    cache_read_tokens=getattr(meta, "cached_content_token_count", 0) or 0,
+                )
+            return json.loads(text), usage
         except ImportError:
             return None
         except Exception as e:
             logger.warning("Google GenAI call failed: %s", e)
             return None
 
-    async def _call_openai_json(self, model: str, prompt: str) -> dict | None:
-        """Call OpenAI and return parsed JSON dict, or None on failure."""
+    async def _call_openai_json(self, model: str, prompt: str) -> tuple[dict, TokenUsage] | None:
+        """Call OpenAI and return (parsed JSON dict, TokenUsage), or None on failure."""
         try:
             from openai import AsyncOpenAI
 
@@ -129,15 +139,27 @@ class LLMCallerMixin:
             text = (response.choices[0].message.content or "").strip()
             if not text:
                 raise ValueError("OpenAI returned empty content")
-            return json.loads(text)
+            usage = TokenUsage()
+            ru = getattr(response, "usage", None)
+            if ru is not None:
+                cached = 0
+                details = getattr(ru, "prompt_tokens_details", None)
+                if details is not None:
+                    cached = getattr(details, "cached_tokens", 0) or 0
+                usage = TokenUsage(
+                    input_tokens=getattr(ru, "prompt_tokens", 0) or 0,
+                    output_tokens=getattr(ru, "completion_tokens", 0) or 0,
+                    cache_read_tokens=cached,
+                )
+            return json.loads(text), usage
         except ImportError:
             return None
         except Exception as e:
             logger.warning("OpenAI call failed: %s", e)
             return None
 
-    async def _call_llm_score(self, prompt: str) -> tuple[float, str]:
-        """Call LLM and return (score, reasoning).
+    async def _call_llm_score(self, prompt: str) -> tuple[float, str, TokenUsage]:
+        """Call LLM and return (score, reasoning, token_usage).
 
         Convenience wrapper around :meth:`_call_llm_json` that extracts
         the ``score`` and ``reasoning`` fields from the response dict.
@@ -146,7 +168,7 @@ class LLMCallerMixin:
             prompt: The evaluation prompt to send.
 
         Returns:
-            Tuple of (score float 0-1, reasoning string).
+            Tuple of (score float 0-1, reasoning string, TokenUsage).
         """
-        result = await self._call_llm_json(prompt)
-        return float(result.get("score", 0.0)), result.get("reasoning", "")
+        result, usage = await self._call_llm_json(prompt)
+        return float(result.get("score", 0.0)), result.get("reasoning", ""), usage

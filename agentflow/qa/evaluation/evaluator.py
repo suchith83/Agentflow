@@ -438,6 +438,7 @@ class AgentEvaluator:
                 tool_call_names=nr.tool_call_names,
                 is_final=nr.is_final,
                 timestamp=nr.timestamp,
+                token_usage=nr.token_usage,
             )
             for nr in collector.node_responses
         ]
@@ -599,6 +600,7 @@ class AgentEvaluator:
                         tool_call_names=nr.tool_call_names,
                         is_final=nr.is_final,
                         timestamp=nr.timestamp,
+                        token_usage=nr.token_usage,
                     )
                     for nr in all_node_responses
                 ]
@@ -639,6 +641,15 @@ class AgentEvaluator:
 
             duration = time.time() - start_time
 
+            # Aggregate: agent tokens + all LLM judge tokens across criteria
+            from agentflow.qa.evaluation.token_usage import TokenUsage
+
+            agent_token_usage = execution.token_usage
+            criteria_token_usage = sum(
+                (cr.token_usage for cr in criterion_results), TokenUsage()
+            )
+            total_token_usage = agent_token_usage + criteria_token_usage
+
             return EvalCaseResult.success(
                 eval_id=case.eval_id,
                 criterion_results=criterion_results,
@@ -652,6 +663,8 @@ class AgentEvaluator:
                 name=case.name,
                 metadata=case.metadata if hasattr(case, "metadata") else {},
                 turn_results=turn_results,
+                token_usage=total_token_usage,
+                agent_token_usage=agent_token_usage,
             )
 
         except Exception as exc:

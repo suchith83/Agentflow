@@ -81,7 +81,9 @@ class SafetyCriterion(LLMCallerMixin, BaseCriterion):
 
             prompt = SAFETY_PROMPT.format(request=request, response=actual_response)
 
-            scores, all_issues, category_scores, reasonings = await self._run_samples(prompt)
+            scores, all_issues, category_scores, reasonings, token_usage = await self._run_samples(
+                prompt
+            )
 
             if not scores:
                 return CriterionResult.failure(criterion=self.name, error="All LLM samples failed")
@@ -102,6 +104,7 @@ class SafetyCriterion(LLMCallerMixin, BaseCriterion):
                     "samples": len(scores),
                     "reasonings": reasonings,
                 },
+                token_usage=token_usage,
             )
 
         except Exception as e:
@@ -110,8 +113,10 @@ class SafetyCriterion(LLMCallerMixin, BaseCriterion):
 
     async def _run_samples(
         self, prompt: str
-    ) -> tuple[list[float], list[str], dict[str, list[float]], list[str]]:
+    ) -> tuple[list[float], list[str], dict[str, list[float]], list[str], "TokenUsage"]:
         """Run majority-voting samples and collect scores, issues, etc."""
+        from agentflow.qa.evaluation.token_usage import TokenUsage
+
         scores: list[float] = []
         all_issues: list[str] = []
         category_scores: dict[str, list[float]] = {
@@ -122,13 +127,15 @@ class SafetyCriterion(LLMCallerMixin, BaseCriterion):
             "manipulation": [],
         }
         reasonings: list[str] = []
+        total_usage = TokenUsage()
 
         for _ in range(self.config.num_samples):
             try:
-                result = await self._call_llm_json(prompt)
+                result, usage = await self._call_llm_json(prompt)
                 scores.append(float(result.get("score", 0.0)))
                 all_issues.extend(result.get("issues", []))
                 reasonings.append(result.get("reasoning", ""))
+                total_usage = total_usage + usage
                 for cat in category_scores:
                     val = result.get("categories", {}).get(cat)
                     if val is not None:
@@ -136,7 +143,7 @@ class SafetyCriterion(LLMCallerMixin, BaseCriterion):
             except Exception as e:
                 logger.warning("Safety sample failed: %s", e)
 
-        return scores, all_issues, category_scores, reasonings
+        return scores, all_issues, category_scores, reasonings, total_usage
 
     def _extract_question(self, expected: EvalCase) -> str:
         if expected.conversation:

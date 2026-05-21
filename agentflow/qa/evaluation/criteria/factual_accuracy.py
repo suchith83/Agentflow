@@ -79,7 +79,7 @@ class FactualAccuracyCriterion(LLMCallerMixin, BaseCriterion):
                 reference=reference or "Not provided",
             )
 
-            scores, all_errors, reasonings = await self._run_samples(prompt)
+            scores, all_errors, reasonings, token_usage = await self._run_samples(prompt)
 
             if not scores:
                 return CriterionResult.failure(criterion=self.name, error="All LLM samples failed")
@@ -96,28 +96,35 @@ class FactualAccuracyCriterion(LLMCallerMixin, BaseCriterion):
                     "samples": len(scores),
                     "reasonings": reasonings,
                 },
+                token_usage=token_usage,
             )
 
         except Exception as e:
             logger.error("Factual accuracy evaluation failed: %s", e)
             return CriterionResult.failure(criterion=self.name, error=str(e))
 
-    async def _run_samples(self, prompt: str) -> tuple[list[float], list[str], list[str]]:
-        """Run majority-voting samples and collect scores, errors, and reasonings."""
+    async def _run_samples(
+        self, prompt: str
+    ) -> tuple[list[float], list[str], list[str], "TokenUsage"]:
+        """Run majority-voting samples and collect scores, errors, reasonings, and tokens."""
+        from agentflow.qa.evaluation.token_usage import TokenUsage
+
         scores: list[float] = []
         all_errors: list[str] = []
         reasonings: list[str] = []
+        total_usage = TokenUsage()
 
         for _ in range(self.config.num_samples):
             try:
-                result = await self._call_llm_json(prompt)
+                result, usage = await self._call_llm_json(prompt)
                 scores.append(float(result.get("score", 0.0)))
                 all_errors.extend(result.get("errors", []))
                 reasonings.append(result.get("reasoning", ""))
+                total_usage = total_usage + usage
             except Exception as e:
                 logger.warning("Factual accuracy sample failed: %s", e)
 
-        return scores, all_errors, reasonings
+        return scores, all_errors, reasonings, total_usage
 
     def _extract_question(self, expected: EvalCase) -> str:
         if expected.conversation:

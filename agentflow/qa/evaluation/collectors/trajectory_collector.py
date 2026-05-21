@@ -253,6 +253,18 @@ class PublisherCallback(AfterInvokeCallback):
                     elif hasattr(t, "model_dump"):
                         tool_call_names.append(t.model_dump().get("name", ""))
 
+            # Extract token usage from the LLM response message
+            token_data: dict[str, int] = {}
+            if node_message is not None:
+                usages = getattr(node_message, "usages", None)
+                if usages is not None:
+                    token_data = {
+                        "input_tokens": getattr(usages, "prompt_tokens", 0) or 0,
+                        "output_tokens": getattr(usages, "completion_tokens", 0) or 0,
+                        "cache_read_tokens": getattr(usages, "cache_read_input_tokens", 0) or 0,
+                        "cache_creation_tokens": getattr(usages, "cache_creation_input_tokens", 0) or 0,
+                    }
+
             return EventModel(
                 event=Event.NODE_EXECUTION,
                 event_type=EventType.END,
@@ -263,6 +275,7 @@ class PublisherCallback(AfterInvokeCallback):
                     "has_tool_calls": has_tool_calls,
                     "tool_call_names": tool_call_names,
                     "is_final": not has_tool_calls,
+                    "token_usage": token_data,
                 },
                 content_type=[ContentType.MESSAGE],
                 thread_id=self._config.get("thread_id", ""),
@@ -404,6 +417,13 @@ class TrajectoryCollector(BasePublisher):
         response_text = event.data.get("response_text", "")
         has_tool_calls = event.data.get("has_tool_calls", False)
         is_final = event.data.get("is_final", not has_tool_calls)
+        raw_token = event.data.get("token_usage", {})
+        node_token_usage = TokenUsage(
+            input_tokens=raw_token.get("input_tokens", 0),
+            output_tokens=raw_token.get("output_tokens", 0),
+            cache_read_tokens=raw_token.get("cache_read_tokens", 0),
+            cache_creation_tokens=raw_token.get("cache_creation_tokens", 0),
+        )
         nr = NodeResponse(
             node_name=node_name,
             input_messages=event.data.get("input_messages", []),
@@ -412,6 +432,7 @@ class TrajectoryCollector(BasePublisher):
             tool_call_names=event.data.get("tool_call_names", []),
             is_final=is_final,
             timestamp=event.timestamp or time.time(),
+            token_usage=node_token_usage,
         )
         self.node_responses.append(nr)
         if is_final and response_text:
