@@ -2,7 +2,7 @@
 Execution result container for agent evaluation.
 
 Holds extracted tool calls, trajectory and response
-built by AgentEvaluator._execution_from_collector() from a TrajectoryCollector.
+built by AgentEvaluator from a TrajectoryCollector.
 """
 
 from __future__ import annotations
@@ -41,9 +41,6 @@ class NodeResponseData(BaseModel):
     is_final: bool = False
     timestamp: float = 0.0
     token_usage: TokenUsage = Field(default_factory=TokenUsage)
-    raw_llm_response: dict[str, Any] | None = None
-    tool_call_inputs: list[dict[str, Any]] = Field(default_factory=list)
-    tool_call_outputs: list[dict[str, Any]] = Field(default_factory=list)
 
 
 class ExecutionResult(BaseModel):

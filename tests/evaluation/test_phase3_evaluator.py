@@ -11,6 +11,7 @@ import pytest
 
 from agentflow.qa.evaluation import (
     AgentEvaluator,
+    CriteriaConfig,
     CriterionConfig,
     CriterionResult,
     EvalCase,
@@ -53,10 +54,10 @@ class TestAgentEvaluator:
         mock_graph = MagicMock()
         mock_collector = MagicMock(spec=TrajectoryCollector)
         config = EvalConfig(
-            criteria={
-                "trajectory_match": CriterionConfig(threshold=0.9),
-                "response_match": CriterionConfig(threshold=0.7),
-            }
+            criteria=CriteriaConfig(
+                trajectory=CriterionConfig(threshold=0.9),
+                response_match=CriterionConfig(threshold=0.7),
+            )
         )
         evaluator = AgentEvaluator(mock_graph, mock_collector, config=config)
 
@@ -69,10 +70,10 @@ class TestAgentEvaluator:
         mock_graph = MagicMock()
         mock_collector = MagicMock(spec=TrajectoryCollector)
         config = EvalConfig(
-            criteria={
-                "tool_trajectory_avg_score": CriterionConfig(threshold=0.8),
-                "response_match_score": CriterionConfig(threshold=0.6),
-            }
+            criteria=CriteriaConfig(
+                trajectory=CriterionConfig(threshold=0.8),
+                response_match=CriterionConfig(threshold=0.6),
+            )
         )
         evaluator = AgentEvaluator(mock_graph, mock_collector, config=config)
 
@@ -86,13 +87,11 @@ class TestAgentEvaluator:
         mock_graph = MagicMock()
         mock_collector = MagicMock(spec=TrajectoryCollector)
         config = EvalConfig(
-            criteria={
-                "unknown_criterion": CriterionConfig(),
-            }
+            criteria=CriteriaConfig()  # all fields None — no criteria enabled
         )
         evaluator = AgentEvaluator(mock_graph, mock_collector, config=config)
 
-        # Unknown criterion should be skipped
+        # No criteria set — evaluator should have empty list
         assert len(evaluator.criteria) == 0
 
     def test_load_eval_set_file_not_found(self):
@@ -134,7 +133,7 @@ class TestAgentEvaluator:
             Path(temp_path).unlink()
 
     def test_execution_from_collector(self):
-        """Test building ExecutionResult from a TrajectoryCollector."""
+        """Test building ExecutionResult from collector fields."""
         from agentflow.qa.evaluation import ToolCall as EvalToolCall
 
         collector = TrajectoryCollector()
@@ -144,16 +143,30 @@ class TestAgentEvaluator:
         collector.final_response = "Hi there!"
         collector.node_visits = ["agent"]
 
-        result = AgentEvaluator._execution_from_collector(collector)
+        result = AgentEvaluator._build_execution_result(
+            node_responses=collector.node_responses,
+            tool_calls=collector.tool_calls,
+            trajectory=collector.trajectory,
+            node_visits=collector.node_visits,
+            actual_response=collector.final_response,
+            duration_seconds=collector.duration,
+        )
         assert result.actual_response == "Hi there!"
         assert len(result.tool_calls) == 1
         assert result.node_visits == ["agent"]
 
     def test_execution_from_collector_empty(self):
-        """Test building ExecutionResult from empty collector."""
+        """Test building ExecutionResult from empty collector fields."""
         collector = TrajectoryCollector()
 
-        result = AgentEvaluator._execution_from_collector(collector)
+        result = AgentEvaluator._build_execution_result(
+            node_responses=collector.node_responses,
+            tool_calls=collector.tool_calls,
+            trajectory=collector.trajectory,
+            node_visits=collector.node_visits,
+            actual_response=collector.final_response,
+            duration_seconds=collector.duration,
+        )
         assert result.actual_response == ""
         assert len(result.tool_calls) == 0
 

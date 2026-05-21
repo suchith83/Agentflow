@@ -16,6 +16,8 @@ CSS_CONTENT = """
     --color-text: #1e293b;
     --color-muted: #64748b;
     --color-header-bg: #ffffff;
+    --color-bg-muted: #f3f4f6;
+    --color-accent: #6366f1;
 }
 
 [data-theme="dark"] {
@@ -28,6 +30,8 @@ CSS_CONTENT = """
     --color-text: #f1f5f9;
     --color-muted: #94a3b8;
     --color-header-bg: #1e293b;
+    --color-bg-muted: #0f172a;
+    --color-accent: #818cf8;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -41,6 +45,8 @@ CSS_CONTENT = """
         --color-text: #f1f5f9;
         --color-muted: #94a3b8;
         --color-header-bg: #1e293b;
+        --color-bg-muted: #0f172a;
+        --color-accent: #818cf8;
     }
 }
 
@@ -520,6 +526,13 @@ details[open] > summary::before { content: '▼ '; }
     background: #2d1515;
     border-color: #7f1d1d;
     color: #fca5a5;
+}
+@media (prefers-color-scheme: dark) {
+    :root:not([data-theme]) .error-message {
+        background: #2d1515;
+        border-color: #7f1d1d;
+        color: #fca5a5;
+    }
 }
 
 /* ── Footer ─────────────────────────────────────────────────────────────── */

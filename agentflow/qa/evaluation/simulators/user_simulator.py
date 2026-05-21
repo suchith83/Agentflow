@@ -15,6 +15,8 @@ from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel, Field
 
+from agentflow.qa.evaluation.token_usage import TokenUsage
+
 
 if TYPE_CHECKING:
     from agentflow.core.graph.compiled_graph import CompiledGraph
@@ -108,6 +110,8 @@ class SimulationResult(BaseModel):
         error: Error message if simulation failed.
         criterion_scores: Scores from each evaluation criterion (name -> score 0.0-1.0).
         criterion_details: Detailed output from each criterion (name -> details dict).
+        simulator_token_usage: Tokens consumed by simulator LLM calls (user-turn generation).
+        criterion_results: Full CriterionResult objects with per-criterion token usage.
     """
 
     scenario_id: str = ""
@@ -118,6 +122,8 @@ class SimulationResult(BaseModel):
     error: str | None = None
     criterion_scores: dict[str, float] = Field(default_factory=dict)
     criterion_details: dict[str, Any] = Field(default_factory=dict)
+    simulator_token_usage: TokenUsage = Field(default_factory=TokenUsage)
+    criterion_results: list[Any] = Field(default_factory=list)  # list[CriterionResult]
 
 
 class UserSimulator:
@@ -210,6 +216,7 @@ class UserSimulator:
 
         conversation: list[dict[str, str]] = []
         goals_achieved: list[str] = []
+        sim_tokens = TokenUsage()
         max_turns = scenario.max_turns or self.max_turns
 
         # Each simulation gets its own thread_id so checkpointer state
@@ -223,7 +230,8 @@ class UserSimulator:
             # Start with the initial prompt
             user_message = scenario.starting_prompt
             if not user_message:
-                user_message = await self._generate_initial_message(scenario)
+                user_message, usage = await self._generate_initial_message(scenario)
+                sim_tokens = sim_tokens + usage
 
             for turn in range(max_turns):
                 # Add user message to conversation
@@ -239,9 +247,11 @@ class UserSimulator:
                     result = await graph.ainvoke(input_data, config=run_config)
                 except Exception as e:
                     logger.error("Agent execution failed: %s", e)
-                    criterion_scores, criterion_details = await self._evaluate_simulation(
-                        scenario, conversation
-                    )
+                    (
+                        criterion_scores,
+                        criterion_details,
+                        criterion_results,
+                    ) = await self._evaluate_simulation(scenario, conversation)
                     return SimulationResult(
                         scenario_id=scenario.scenario_id,
                         turns=turn + 1,
@@ -251,6 +261,8 @@ class UserSimulator:
                         error=f"Agent error: {e}",
                         criterion_scores=criterion_scores,
                         criterion_details=criterion_details,
+                        simulator_token_usage=sim_tokens,
+                        criterion_results=criterion_results,
                     )
 
                 # Extract agent response
@@ -258,18 +270,21 @@ class UserSimulator:
                 conversation.append({"role": "assistant", "content": agent_response})
 
                 # Check for goal completion using LLM
-                achieved = await self._check_goals(
+                achieved, check_usage = await self._check_goals(
                     scenario.goals,
                     goals_achieved,
                     conversation,
                 )
+                sim_tokens = sim_tokens + check_usage
                 goals_achieved.extend(achieved)
 
                 # Check if we're done
                 if len(goals_achieved) >= len(scenario.goals):
-                    criterion_scores, criterion_details = await self._evaluate_simulation(
-                        scenario, conversation
-                    )
+                    (
+                        criterion_scores,
+                        criterion_details,
+                        criterion_results,
+                    ) = await self._evaluate_simulation(scenario, conversation)
                     return SimulationResult(
                         scenario_id=scenario.scenario_id,
                         turns=turn + 1,
@@ -278,20 +293,25 @@ class UserSimulator:
                         completed=True,
                         criterion_scores=criterion_scores,
                         criterion_details=criterion_details,
+                        simulator_token_usage=sim_tokens,
+                        criterion_results=criterion_results,
                     )
 
                 # Generate next user message
                 remaining_goals = [g for g in scenario.goals if g not in goals_achieved]
-                user_message = await self._generate_response(
+                user_message, resp_usage = await self._generate_response(
                     scenario=scenario,
                     conversation=conversation,
                     remaining_goals=remaining_goals,
                 )
+                sim_tokens = sim_tokens + resp_usage
 
             # Max turns reached
-            criterion_scores, criterion_details = await self._evaluate_simulation(
-                scenario, conversation
-            )
+            (
+                criterion_scores,
+                criterion_details,
+                criterion_results,
+            ) = await self._evaluate_simulation(scenario, conversation)
             return SimulationResult(
                 scenario_id=scenario.scenario_id,
                 turns=max_turns,
@@ -300,6 +320,8 @@ class UserSimulator:
                 completed=len(goals_achieved) >= len(scenario.goals),
                 criterion_scores=criterion_scores,
                 criterion_details=criterion_details,
+                simulator_token_usage=sim_tokens,
+                criterion_results=criterion_results,
             )
 
         except Exception as e:
@@ -307,10 +329,13 @@ class UserSimulator:
             # Attempt criterion evaluation even on failure
             criterion_scores: dict[str, float] = {}
             criterion_details: dict[str, Any] = {}
+            criterion_results: list[Any] = []
             try:
-                criterion_scores, criterion_details = await self._evaluate_simulation(
-                    scenario, conversation
-                )
+                (
+                    criterion_scores,
+                    criterion_details,
+                    criterion_results,
+                ) = await self._evaluate_simulation(scenario, conversation)
             except Exception as eval_err:
                 logger.warning("Criterion evaluation also failed: %s", eval_err)
             return SimulationResult(
@@ -322,12 +347,14 @@ class UserSimulator:
                 error=str(e),
                 criterion_scores=criterion_scores,
                 criterion_details=criterion_details,
+                simulator_token_usage=sim_tokens,
+                criterion_results=criterion_results,
             )
 
     async def _generate_initial_message(
         self,
         scenario: ConversationScenario,
-    ) -> str:
+    ) -> tuple[str, TokenUsage]:
         """Generate the initial user message."""
         prompt = USER_SIMULATOR_PROMPT.format(
             scenario=scenario.description,
@@ -342,7 +369,7 @@ class UserSimulator:
         scenario: ConversationScenario,
         conversation: list[dict[str, str]],
         remaining_goals: list[str],
-    ) -> str:
+    ) -> tuple[str, TokenUsage]:
         """Generate the next user message."""
         # Get last assistant message
         last_assistant = ""
@@ -364,20 +391,22 @@ class UserSimulator:
         all_goals: list[str],
         achieved: list[str],
         conversation: list[dict[str, str]],
-    ) -> list[str]:
+    ) -> tuple[list[str], TokenUsage]:
         """Check which goals have been newly achieved using LLM-based evaluation.
 
         Falls back to keyword matching if the LLM call fails.
         """
         remaining = [g for g in all_goals if g not in achieved]
         newly_achieved = []
+        total_usage = TokenUsage()
 
         conv_text = "\n".join(f"{m['role'].upper()}: {m['content']}" for m in conversation)
 
         for goal in remaining:
             prompt = GOAL_CHECK_PROMPT.format(conversation=conv_text, goal=goal)
             try:
-                raw = await self._call_llm(prompt)
+                raw, usage = await self._call_llm(prompt)
+                total_usage = total_usage + usage
                 # Strip markdown code fences that some LLMs wrap JSON in
                 clean = raw.strip()
                 if clean.startswith("```"):
@@ -395,13 +424,13 @@ class UserSimulator:
                 if words and all(w in text for w in words):
                     newly_achieved.append(goal)
 
-        return newly_achieved
+        return newly_achieved, total_usage
 
     async def _evaluate_simulation(
         self,
         scenario: ConversationScenario,
         conversation: list[dict[str, str]],
-    ) -> tuple[dict[str, float], dict[str, Any]]:
+    ) -> tuple[dict[str, float], dict[str, Any], list[Any]]:
         """Run configured criteria against the completed simulation.
 
         Builds a minimal ExecutionResult and EvalCase from the simulation
@@ -414,10 +443,10 @@ class UserSimulator:
             conversation: Full conversation history.
 
         Returns:
-            Tuple of (criterion_scores, criterion_details).
+            Tuple of (criterion_scores, criterion_details, criterion_results).
         """
         if not self.criteria or not conversation:
-            return {}, {}
+            return {}, {}, []
 
         from agentflow.qa.evaluation.dataset.eval_set import (
             EvalCase,
@@ -456,51 +485,54 @@ class UserSimulator:
 
         scores: dict[str, float] = {}
         details: dict[str, Any] = {}
+        results: list[Any] = []
 
         for criterion in self.criteria:
             try:
                 cr_result = await criterion.evaluate(execution, case)
                 scores[criterion.name] = cr_result.score
                 details[criterion.name] = cr_result.details or {}
+                results.append(cr_result)
             except Exception as e:
                 logger.warning("Criterion %s failed: %s", criterion.name, e)
                 scores[criterion.name] = 0.0
                 details[criterion.name] = {"error": str(e)}
 
-        return scores, details
+        return scores, details, results
 
-    async def _call_llm(self, prompt: str) -> str:
+    async def _call_llm(self, prompt: str) -> tuple[str, TokenUsage]:
         """Call the LLM for user simulation.
 
         Uses Google GenAI as primary, OpenAI as fallback.
+        Returns (text, TokenUsage).
         """
         from agentflow.qa.evaluation.criteria.llm_utils import _parse_model_provider
 
         provider, model_name = _parse_model_provider(self.model)
 
         if provider == "google":
-            result = await self._call_google(model_name, prompt)
-            if result is not None:
-                return result
+            text, usage = await self._call_google(model_name, prompt)
+            if text is not None:
+                return text, usage
 
         # OpenAI path
-        result = await self._call_openai(
+        text, usage = await self._call_openai(
             self.model if provider == "openai" else model_name,
             prompt,
         )
-        if result is not None:
-            return result
+        if text is not None:
+            return text, usage
 
         # Fallback: try Google if we haven't yet
         if provider != "google":
-            result = await self._call_google(model_name, prompt)
-            if result is not None:
-                return result
+            text, usage = await self._call_google(model_name, prompt)
+            if text is not None:
+                return text, usage
 
-        return "I have a follow-up question."
+        return "I have a follow-up question.", TokenUsage()
 
-    async def _call_google(self, model: str, prompt: str) -> str | None:
-        """Call Google GenAI for user simulation, or None on failure."""
+    async def _call_google(self, model: str, prompt: str) -> tuple[str | None, TokenUsage]:
+        """Call Google GenAI for user simulation. Returns (text, TokenUsage)."""
         try:
             from google import genai
             from google.genai import types
@@ -512,15 +544,23 @@ class UserSimulator:
                 contents=prompt,
                 config=config,
             )
-            return (response.text or "").strip()
+            usage = TokenUsage()
+            meta = getattr(response, "usage_metadata", None)
+            if meta is not None:
+                usage = TokenUsage(
+                    input_tokens=getattr(meta, "prompt_token_count", 0) or 0,
+                    output_tokens=getattr(meta, "candidates_token_count", 0) or 0,
+                    cache_read_tokens=getattr(meta, "cached_content_token_count", 0) or 0,
+                )
+            return (response.text or "").strip(), usage
         except ImportError:
-            return None
+            return None, TokenUsage()
         except Exception as e:
             logger.warning("Google GenAI call failed (%s): %s", type(e).__name__, e)
-            return None
+            return None, TokenUsage()
 
-    async def _call_openai(self, model: str, prompt: str) -> str | None:
-        """Call OpenAI for user simulation, or None on failure."""
+    async def _call_openai(self, model: str, prompt: str) -> tuple[str | None, TokenUsage]:
+        """Call OpenAI for user simulation. Returns (text, TokenUsage)."""
         try:
             from openai import AsyncOpenAI
 
@@ -530,12 +570,19 @@ class UserSimulator:
                 messages=[{"role": "user", "content": prompt}],
                 temperature=self.temperature,
             )
-            return (response.choices[0].message.content or "").strip()
+            usage = TokenUsage()
+            raw = getattr(response, "usage", None)
+            if raw is not None:
+                usage = TokenUsage(
+                    input_tokens=getattr(raw, "prompt_tokens", 0) or 0,
+                    output_tokens=getattr(raw, "completion_tokens", 0) or 0,
+                )
+            return (response.choices[0].message.content or "").strip(), usage
         except ImportError:
-            return None
+            return None, TokenUsage()
         except Exception as e:
             logger.warning("OpenAI call failed (%s): %s", type(e).__name__, e)
-            return None
+            return None, TokenUsage()
 
     def _extract_response(self, result: dict[str, Any]) -> str:
         """Extract text response from graph result.

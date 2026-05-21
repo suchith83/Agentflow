@@ -1,22 +1,16 @@
-"""
-Rubric-based evaluation criterion.
-"""
+"""Rubric-based evaluation criterion."""
 
 from __future__ import annotations
 
-import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
-from agentflow.qa.evaluation.criteria.base import BaseCriterion
-from agentflow.qa.evaluation.criteria.llm_utils import LLMCallerMixin
+from agentflow.qa.evaluation.criteria.llm_base import TemplatedLLMCriterion
 from agentflow.qa.evaluation.eval_result import CriterionResult
 
 
 if TYPE_CHECKING:
     from agentflow.qa.evaluation.dataset.eval_set import EvalCase
     from agentflow.qa.evaluation.execution.result import ExecutionResult
-
-logger = logging.getLogger("agentflow.evaluation")
 
 
 RUBRIC_PROMPT = """
@@ -39,75 +33,38 @@ Respond with a JSON object:
 """
 
 
-class RubricBasedCriterion(LLMCallerMixin, BaseCriterion):
-    """Evaluate response quality against custom rubrics.
-
-    Uses an LLM to grade responses against user-defined rubrics,
-    allowing for flexible and domain-specific evaluation.
-    """
+class RubricBasedCriterion(TemplatedLLMCriterion):
+    """Evaluate response quality against custom rubrics."""
 
     name = "rubric_based_final_response_quality_v1"
     description = "LLM-based rubric evaluation"
 
-    async def evaluate(
+    def _get_skip_result(
+        self, actual: ExecutionResult, expected: EvalCase
+    ) -> CriterionResult | None:
+        if not self.config.rubrics:
+            return self._result(1.0, {"note": "No rubrics configured"})
+        return super()._get_skip_result(actual, expected)
+
+    def _build_prompt(self, actual: ExecutionResult, expected: EvalCase) -> str:
+        rubric_lines = ["Evaluate the response against these criteria:"]
+        for rubric in self.config.rubrics:
+            rubric_lines.append(f"- {rubric.rubric_id}: {rubric.content}")
+        return RUBRIC_PROMPT.format(
+            question=self._extract_question(expected),
+            response=actual.actual_response,
+            rubric_section="\n".join(rubric_lines),
+        )
+
+    def _build_details(
         self,
-        actual: ExecutionResult,
-        expected: EvalCase,
-    ) -> CriterionResult:
-        try:
-            rubrics = self.config.rubrics
-            if not rubrics:
-                return CriterionResult.success(
-                    criterion=self.name,
-                    score=1.0,
-                    threshold=self.threshold,
-                    details={"note": "No rubrics configured"},
-                )
-
-            question = self._extract_question(expected)
-
-            actual_response = actual.actual_response
-
-            rubric_lines = ["Evaluate the response against these criteria:"]
-            for rubric in rubrics:
-                rubric_lines.append(f"- {rubric.rubric_id}: {rubric.content}")
-            rubric_section = "\n".join(rubric_lines)
-
-            prompt = RUBRIC_PROMPT.format(
-                question=question,
-                response=actual_response,
-                rubric_section=rubric_section,
-            )
-
-            scores: list[float] = []
-            reasonings: list[str] = []
-
-            for _ in range(self.config.num_samples):
-                try:
-                    score, reasoning = await self._call_llm_score(prompt)
-                    scores.append(score)
-                    reasonings.append(reasoning)
-                except Exception as e:
-                    logger.warning("Rubric sample failed: %s", e)
-
-            final_score = sum(scores) / len(scores) if scores else 0.0
-
-            return CriterionResult.success(
-                criterion=self.name,
-                score=final_score,
-                threshold=self.threshold,
-                details={
-                    "rubrics": [r.rubric_id for r in rubrics],
-                    "scores": scores,
-                    "reasonings": reasonings,
-                },
-            )
-
-        except Exception as e:
-            logger.error("Rubric evaluation failed: %s", e)
-            return CriterionResult.failure(criterion=self.name, error=str(e))
-
-    def _extract_question(self, expected: EvalCase) -> str:
-        if expected.conversation:
-            return expected.conversation[0].user_content.get_text()
-        return ""
+        scores: list[float],
+        reasonings: list[str],
+        aggregated_extras: dict[str, Any],
+        final_score: float,
+    ) -> dict[str, Any]:
+        return {
+            "rubrics": [r.rubric_id for r in self.config.rubrics],
+            "scores": scores,
+            "reasonings": reasonings,
+        }

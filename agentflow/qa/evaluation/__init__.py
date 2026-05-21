@@ -43,8 +43,8 @@ Example:
 
 # --- Dataset ---
 # --- Collectors (event-based trajectory capture via callback_manager) ---
+from agentflow.qa.evaluation.collectors.event_collector import EventCollector
 from agentflow.qa.evaluation.collectors.trajectory_collector import (
-    EventCollector,
     PublisherCallback,
     TrajectoryCollector,
     make_trajectory_callback,
@@ -52,6 +52,7 @@ from agentflow.qa.evaluation.collectors.trajectory_collector import (
 
 # --- Config ---
 from agentflow.qa.evaluation.config.eval_config import (
+    CriteriaConfig,
     CriterionConfig,
     EvalConfig,
     MatchType,
@@ -168,6 +169,7 @@ __all__ = [
     "ConsoleReporter",
     "ContainsKeywordsCriterion",
     "ConversationScenario",
+    "CriteriaConfig",
     "CriterionConfig",
     # --- Results ---
     "CriterionResult",

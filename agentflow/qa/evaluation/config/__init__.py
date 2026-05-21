@@ -22,6 +22,7 @@ Example:
 
 from .eval_config import (
     DEFAULT_JUDGE_MODEL,
+    CriteriaConfig,
     CriterionConfig,
     EvalConfig,
     MatchType,
@@ -34,6 +35,7 @@ from .presets import EvalPresets
 
 __all__ = [
     "DEFAULT_JUDGE_MODEL",
+    "CriteriaConfig",
     "CriterionConfig",
     # Core config models
     "EvalConfig",

@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import logging
-import os
 from typing import Any, Protocol
+
+from agentflow.core.llm.client_factory import create_llm_client, detect_provider
 
 from .constants import (
     CLIENT_CONSTRUCTOR_KWARGS,
@@ -21,8 +22,6 @@ class _ProviderAgentLike(Protocol):
     output_type: str
     provider: str
     llm_kwargs: dict[str, Any]
-
-    def _create_google_vertex_ai_client(self) -> Any: ...
 
 
 class AgentProviderMixin:
@@ -52,45 +51,10 @@ class AgentProviderMixin:
 
     def _detect_provider_from_model(self, model: str, use_vertex_ai: bool = False) -> str:
         """Infer the provider from the model name when not explicitly supplied."""
-        if use_vertex_ai:
-            return "google"
+        return detect_provider(model, use_vertex_ai=use_vertex_ai)
 
-        model_lower = model.lower()
-
-        if model_lower.startswith(("gpt-", "o1-", "o3-", "o4-")):
-            return "openai"
-        if model_lower.startswith(("gemini-", "imagen-", "veo-", "chirp")):
-            return "google"
-
-        logger.info(
-            "Could not auto-detect provider for model '%s'. Defaulting to 'openai'. "
-            "If using a different provider, specify explicitly.",
-            model,
-        )
-        return "openai"
-
-    def _create_google_vertex_ai_client(self: _ProviderAgentLike) -> Any:
-        try:
-            from google import genai
-        except ImportError as exc:
-            raise ImportError(
-                "google-genai SDK is required for Vertex AI provider. "
-                "Install it with: pip install 10xscale-agentflow[google-genai]"
-            ) from exc
-
-        project = os.getenv("GOOGLE_CLOUD_PROJECT")
-        location = os.getenv("GOOGLE_CLOUD_LOCATION", "us-central1")
-        if not project:
-            raise ValueError(
-                "GOOGLE_CLOUD_PROJECT environment variable must be set for Vertex AI provider"
-            )
-
-        logger.info(
-            "Creating Google GenAI Client with Vertex AI (project=%s, location=%s)",
-            project,
-            location,
-        )
-        return genai.Client(vertexai=True, project=project, location=location)
+    def _create_google_vertex_ai_client(self) -> Any:
+        return create_llm_client("google", use_vertex_ai=True)
 
     def _create_client(
         self: _ProviderAgentLike,
@@ -99,55 +63,12 @@ class AgentProviderMixin:
         use_vertex_ai: bool = False,
     ) -> Any:
         """Create a native SDK client for the selected provider."""
-        if provider == "openai":
-            try:
-                from openai import AsyncOpenAI
-            except ImportError as exc:
-                raise ImportError(
-                    "openai SDK is required for OpenAI provider. "
-                    "Install it with: pip install 10xscale-agentflow[openai]"
-                ) from exc
-
-            api_key = self.llm_kwargs.get("api_key") or os.getenv("OPENAI_API_KEY")
-            if not api_key:
-                logger.warning(
-                    "OPENAI_API_KEY environment variable not set. "
-                    "API calls may fail if not using custom client or base_url without auth."
-                )
-
-            client_kwargs = {
-                key: value
-                for key, value in self.llm_kwargs.items()
-                if key in CLIENT_CONSTRUCTOR_KWARGS
-            }
-            if base_url:
-                logger.info("Using custom base_url for OpenAI client: %s", base_url)
-                return AsyncOpenAI(api_key=api_key, base_url=base_url, **client_kwargs)
-            return AsyncOpenAI(api_key=api_key, **client_kwargs)
-
-        if provider == "google":
-            if use_vertex_ai:
-                return self._create_google_vertex_ai_client()
-
-            try:
-                from google import genai
-            except ImportError as exc:
-                raise ImportError(
-                    "google-genai SDK is required for Google provider. "
-                    "Install it with: pip install 10xscale-agentflow[google-genai]"
-                ) from exc
-
-            api_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
-            if not api_key:
-                raise ValueError(
-                    "GEMINI_API_KEY or GOOGLE_API_KEY environment variable must be set "
-                    "for Google provider"
-                )
-
-            logger.info("Creating Google GenAI Client with async support")
-            return genai.Client(api_key=api_key)
-
-        raise ValueError(
-            f"Unsupported provider: {provider}. "
-            f"Supported providers: 'openai', 'google', 'vertex_ai'"
+        api_key = self.llm_kwargs.get("api_key")
+        extra = {k: v for k, v in self.llm_kwargs.items() if k in CLIENT_CONSTRUCTOR_KWARGS}
+        return create_llm_client(
+            provider,
+            use_vertex_ai=use_vertex_ai,
+            base_url=base_url,
+            api_key=api_key,
+            **extra,
         )

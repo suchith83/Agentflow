@@ -52,9 +52,26 @@ def render_criterion(cr: Any) -> str:
         extra.append(f'<div class="criterion-reason">{_html.escape(reason)}</div>')
     if error:
         extra.append(
-            f'<div class="criterion-reason" style="color:#991b1b;">'
+            f'<div class="criterion-reason" style="color:var(--color-fail);">'
             f"Error: {_html.escape(error)}</div>"
         )
+    tok = getattr(cr, "token_usage", None)
+    if tok and tok.total_tokens:
+        extra.append(
+            f'<div style="grid-column:2/-1;margin-left:0.25rem;font-size:0.73rem;'
+            f'color:var(--color-muted);">'
+            f"&#x1F4B0; judge tokens &mdash; "
+            f"in: <strong>{tok.input_tokens:,}</strong>&nbsp;&nbsp;"
+            f"out: <strong>{tok.output_tokens:,}</strong>&nbsp;&nbsp;"
+            f"total: <strong>{tok.total_tokens:,}</strong>"
+            + (
+                f"&nbsp;&nbsp;cache_read: <strong>{tok.cache_read_tokens:,}</strong>"
+                if tok.cache_read_tokens
+                else ""
+            )
+            + "</div>"
+        )
+
     if details:
         detail_items = [
             f'<span style="color:var(--color-muted);font-size:0.75rem;">'
@@ -106,8 +123,64 @@ _CASE_TEMPLATE = (
 # ── Token panel ───────────────────────────────────────────────────────────────
 
 
+def _tok_inline(tok: Any, label: str, *, muted: bool = False) -> str:
+    """Render one token row: label  in: N  out: N  total: N."""
+    style = "color:var(--color-muted);" if muted else ""
+    cache = (
+        f"&nbsp;&nbsp;cache_read: <strong>{tok.cache_read_tokens:,}</strong>"
+        if tok.cache_read_tokens
+        else ""
+    )
+    return (
+        f'<div style="display:flex;gap:0.6rem;align-items:baseline;font-size:0.8rem;{style}'
+        f'padding:0.15rem 0;">'
+        f'<span style="min-width:9rem;font-weight:600;">{label}</span>'
+        f"&nbsp;in: <strong>{tok.input_tokens:,}</strong>"
+        f"&nbsp;&nbsp;out: <strong>{tok.output_tokens:,}</strong>"
+        f"{cache}"
+        f"&nbsp;&nbsp;total: <strong>{tok.total_tokens:,}</strong>"
+        f"</div>"
+    )
+
+
+def _render_token_breakdown_panel(result: Any) -> str:
+    """Render a token breakdown panel: Graph row + one row per LLM judge criterion."""
+    rows: list[str] = []
+
+    agent_tok = getattr(result, "agent_token_usage", None)
+    if agent_tok and agent_tok.total_tokens:
+        rows.append(_tok_inline(agent_tok, "&#x1F9E0; Graph"))
+
+    crs = getattr(result, "criterion_results", []) or []
+    for cr in crs:
+        tok = getattr(cr, "token_usage", None)
+        if tok and tok.total_tokens:
+            label = f"&#x2696;&#xFE0F; {_html.escape(cr.criterion)}"
+            rows.append(_tok_inline(tok, label, muted=True))
+
+    if not rows:
+        return ""
+
+    total_tok = getattr(result, "token_usage", None)
+    if total_tok and total_tok.total_tokens:
+        divider = (
+            '<div style="border-top:1px solid var(--color-border,#e5e7eb);margin:0.2rem 0;"></div>'
+        )
+        rows.append(divider)
+        rows.append(_tok_inline(total_tok, "&#x1F4B0; Total"))
+
+    inner = "\n".join(rows)
+    return (
+        '                    <div class="token-summary-bar" style="'
+        "font-size:0.8rem;padding:0.5rem 0.6rem;margin:0.25rem 0;"
+        'border-radius:4px;background:var(--color-bg-muted,#f3f4f6);">'
+        f"{inner}</div>"
+    )
+
+
 def _render_token_panel(tok: Any) -> str:
-    """Render a compact token usage bar for a case."""
+    """Render a compact token usage bar
+    (legacy single-row, kept for callers outside render_case)."""
     parts = [
         '<span style="margin-right:1rem;">&#x1F4B0; <strong>Tokens</strong></span>',
         f"in: <strong>{tok.input_tokens:,}</strong>",
@@ -308,10 +381,10 @@ def render_case(
         if nd_html:
             body_parts.append(_detail(f"Node Details ({len(result.node_details)})", nd_html))
 
-    # Per-case token usage panel
-    tok = getattr(result, "token_usage", None)
-    if tok and tok.total_tokens:
-        body_parts.append(_render_token_panel(tok))
+    # Per-case token breakdown panel (Graph + per-judge rows + total)
+    breakdown = _render_token_breakdown_panel(result)
+    if breakdown:
+        body_parts.append(breakdown)
 
     # Messages
     if getattr(result, "messages", None):
@@ -497,9 +570,9 @@ def _render_messages(messages: list[Any]) -> list[str]:
         role = msg.get("role", "?") if isinstance(msg, dict) else "?"
         content = msg.get("content", "") if isinstance(msg, dict) else str(msg)
         role_color = (
-            "#6366f1"
+            "var(--color-accent)"
             if role == "user"
-            else "#22c55e"
+            else "var(--color-pass)"
             if role == "assistant"
             else "var(--color-muted)"
         )

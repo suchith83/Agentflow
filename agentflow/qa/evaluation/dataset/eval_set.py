@@ -13,14 +13,13 @@ This module defines the core data structures for agent evaluation:
 from __future__ import annotations
 
 import uuid
-from collections.abc import Iterator
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 
 from pydantic import BaseModel, Field
 
 
-class StepType(str, Enum):
+class StepType(StrEnum):
     """Type of step in execution trajectory."""
 
     NODE = "node"
@@ -55,6 +54,9 @@ class ToolCall(BaseModel):
         if not isinstance(other, ToolCall):
             return False
         return self.name == other.name and self.args == other.args
+
+    def __hash__(self) -> int:
+        return hash((self.name, frozenset(self.args.items())))
 
 
 class TrajectoryStep(BaseModel):
@@ -266,7 +268,7 @@ class EvalSet(BaseModel):
     def __len__(self) -> int:
         return len(self.eval_cases)
 
-    def __iter__(self) -> Iterator[EvalCase]:
+    def __iter__(self):
         return iter(self.eval_cases)
 
     def add_case(self, case: EvalCase) -> None:
