@@ -12,6 +12,7 @@ import pytest
 
 from agentflow.qa.evaluation import (
     CriterionConfig,
+    CriteriaConfig,
     EvalCase,
     EvalConfig,
     EvalSet,
@@ -389,6 +390,18 @@ class TestEvalConfig:
         assert len(new_config.criteria.rubric_based.rubrics) == 1
         # Original should be unchanged
         assert config.criteria.rubric_based is None
+
+    def test_eval_config_serialization(self):
+        """Test saving and loading eval config."""
+        config = EvalConfig.default()
+        
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = Path(tmpdir) / "config.json"
+            config.to_file(str(path))
+            
+            loaded = EvalConfig.from_file(str(path))
+            assert loaded.criteria.trajectory is not None
+            assert loaded.criteria.trajectory.threshold == 1.0
 
     def test_eval_config_serialization(self):
         """Test saving and loading eval config."""
