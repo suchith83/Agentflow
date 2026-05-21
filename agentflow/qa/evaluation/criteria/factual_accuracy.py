@@ -1,22 +1,15 @@
-"""
-Factual accuracy evaluation criterion.
-"""
+"""Factual accuracy evaluation criterion."""
 
 from __future__ import annotations
 
-import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
-from agentflow.qa.evaluation.criteria.base import BaseCriterion
-from agentflow.qa.evaluation.criteria.llm_utils import LLMCallerMixin
-from agentflow.qa.evaluation.eval_result import CriterionResult
+from agentflow.qa.evaluation.criteria.llm_base import TemplatedLLMCriterion
 
 
 if TYPE_CHECKING:
     from agentflow.qa.evaluation.dataset.eval_set import EvalCase
     from agentflow.qa.evaluation.execution.result import ExecutionResult
-
-logger = logging.getLogger("agentflow.evaluation")
 
 
 FACTUAL_ACCURACY_PROMPT = """
@@ -47,92 +40,43 @@ Respond with a JSON object:
 """
 
 
-class FactualAccuracyCriterion(LLMCallerMixin, BaseCriterion):
+class FactualAccuracyCriterion(TemplatedLLMCriterion):
     """Evaluate factual accuracy of responses."""
 
     name = "factual_accuracy_v1"
     description = "LLM-based factual accuracy evaluation"
 
-    async def evaluate(
-        self,
-        actual: ExecutionResult,
-        expected: EvalCase,
-    ) -> CriterionResult:
-        try:
-            question = self._extract_question(expected)
+    def _build_prompt(self, actual: ExecutionResult, expected: EvalCase) -> str:
+        reference = self._extract_reference(expected)
+        return FACTUAL_ACCURACY_PROMPT.format(
+            question=self._extract_question(expected),
+            response=actual.actual_response,
+            reference=reference or "Not provided",
+        )
 
-            actual_response = actual.actual_response
+    def _collect_extras(self, result_dict: dict[str, Any]) -> dict[str, Any]:
+        return {"errors": result_dict.get("errors", [])}
 
-            if not actual_response:
-                return CriterionResult.success(
-                    criterion=self.name,
-                    score=1.0,
-                    threshold=self.threshold,
-                    details={"note": "No response to evaluate"},
-                )
-
-            reference = self._extract_reference(expected)
-
-            prompt = FACTUAL_ACCURACY_PROMPT.format(
-                question=question,
-                response=actual_response,
-                reference=reference or "Not provided",
-            )
-
-            scores, all_errors, reasonings, token_usage = await self._run_samples(prompt)
-
-            if not scores:
-                return CriterionResult.failure(criterion=self.name, error="All LLM samples failed")
-
-            final_score = sum(scores) / len(scores)
-
-            return CriterionResult.success(
-                criterion=self.name,
-                score=final_score,
-                threshold=self.threshold,
-                details={
-                    "is_accurate": final_score >= self.threshold,
-                    "errors": list(set(all_errors)),
-                    "samples": len(scores),
-                    "reasonings": reasonings,
-                },
-                token_usage=token_usage,
-            )
-
-        except Exception as e:
-            logger.error("Factual accuracy evaluation failed: %s", e)
-            return CriterionResult.failure(criterion=self.name, error=str(e))
-
-    async def _run_samples(
-        self, prompt: str
-    ) -> tuple[list[float], list[str], list[str], TokenUsage]:
-        """Run majority-voting samples and collect scores, errors, reasonings, and tokens."""
-        from agentflow.qa.evaluation.token_usage import TokenUsage
-
-        scores: list[float] = []
+    def _aggregate_extras(self, per_sample: list[dict[str, Any]]) -> dict[str, Any]:
         all_errors: list[str] = []
-        reasonings: list[str] = []
-        total_usage = TokenUsage()
+        for s in per_sample:
+            all_errors.extend(s.get("errors", []))
+        return {"errors": list(set(all_errors))}
 
-        for _ in range(self.config.num_samples):
-            try:
-                result, usage = await self._call_llm_json(prompt)
-                scores.append(float(result.get("score", 0.0)))
-                all_errors.extend(result.get("errors", []))
-                reasonings.append(result.get("reasoning", ""))
-                total_usage = total_usage + usage
-            except Exception as e:
-                logger.warning("Factual accuracy sample failed: %s", e)
-
-        return scores, all_errors, reasonings, total_usage
-
-    def _extract_question(self, expected: EvalCase) -> str:
-        if expected.conversation:
-            return expected.conversation[0].user_content.get_text()
-        return ""
+    def _build_details(
+        self,
+        scores: list[float],
+        reasonings: list[str],
+        aggregated_extras: dict[str, Any],
+        final_score: float,
+    ) -> dict[str, Any]:
+        return {
+            "is_accurate": final_score >= self.threshold,
+            "samples": len(scores),
+            "reasonings": reasonings,
+            **aggregated_extras,
+        }
 
     def _extract_reference(self, expected: EvalCase) -> str:
-        for inv in expected.conversation:
-            if inv.expected_final_response:
-                return inv.expected_final_response.get_text()
-        return expected.metadata.get("reference_facts", "")
+        text = self._extract_last_expected_response(expected)
+        return text or expected.metadata.get("reference_facts", "")

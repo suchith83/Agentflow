@@ -19,24 +19,8 @@ from agentflow.qa.evaluation.collectors.trajectory_collector import (
     make_trajectory_callback,
 )
 from agentflow.qa.evaluation.config.eval_config import CriterionConfig, EvalConfig
+from agentflow.qa.evaluation.criteria import CRITERIA_REGISTRY
 from agentflow.qa.evaluation.criteria.base import BaseCriterion
-from agentflow.qa.evaluation.criteria.factual_accuracy import FactualAccuracyCriterion
-from agentflow.qa.evaluation.criteria.hallucination import HallucinationCriterion
-from agentflow.qa.evaluation.criteria.llm_judge import LLMJudgeCriterion
-from agentflow.qa.evaluation.criteria.response import (
-    ContainsKeywordsCriterion,
-    ExactMatchCriterion,
-    ResponseMatchCriterion,
-    RougeMatchCriterion,
-)
-from agentflow.qa.evaluation.criteria.rubric import RubricBasedCriterion
-from agentflow.qa.evaluation.criteria.safety import SafetyCriterion
-from agentflow.qa.evaluation.criteria.simulation_goals import SimulationGoalsCriterion
-from agentflow.qa.evaluation.criteria.trajectory import (
-    NodeOrderMatchCriterion,
-    ToolNameMatchCriterion,
-    TrajectoryMatchCriterion,
-)
 from agentflow.qa.evaluation.dataset.eval_set import EvalCase, EvalSet
 from agentflow.qa.evaluation.eval_result import (
     CriterionResult,
@@ -141,55 +125,15 @@ class AgentEvaluator:
         name: str,
         criterion_config: CriterionConfig,
     ) -> BaseCriterion | None:
-        """Create a criterion instance by name.
-
-        Args:
-            name: The criterion name/type.
-            criterion_config: Configuration for the criterion.
-
-        Returns:
-            A configured criterion instance, or None if unknown.
-        """
-        criterion_map = {
-            # Trajectory / tool matching (no LLM)
-            "tool_trajectory_avg_score": TrajectoryMatchCriterion,
-            "trajectory_match": TrajectoryMatchCriterion,
-            "tool_name_match_score": ToolNameMatchCriterion,
-            # Node order matching (no LLM)
-            "node_order_score": NodeOrderMatchCriterion,
-            "node_order": NodeOrderMatchCriterion,
-            # Response matching
-            "response_match_score": ResponseMatchCriterion,
-            "response_match": ResponseMatchCriterion,
-            "rouge_match": RougeMatchCriterion,
-            "exact_match": ExactMatchCriterion,
-            "contains_keywords": ContainsKeywordsCriterion,
-            # LLM-as-judge
-            "final_response_match_v2": LLMJudgeCriterion,
-            "llm_judge": LLMJudgeCriterion,
-            "rubric_based_final_response_quality_v1": RubricBasedCriterion,
-            "rubric_based": RubricBasedCriterion,
-            # Specialised LLM criteria
-            "hallucinations_v1": HallucinationCriterion,
-            "hallucination": HallucinationCriterion,
-            "safety_v1": SafetyCriterion,
-            "safety": SafetyCriterion,
-            "factual_accuracy_v1": FactualAccuracyCriterion,
-            "factual_accuracy": FactualAccuracyCriterion,
-            # Simulation / multi-turn (UserSimulator only)
-            "simulation_goals": SimulationGoalsCriterion,
-            "conversation_goals": SimulationGoalsCriterion,
-        }
-
-        criterion_class = criterion_map.get(name)
+        """Create a criterion instance by name using the shared registry."""
+        criterion_class = CRITERIA_REGISTRY.get(name)
         if criterion_class:
             return criterion_class(config=criterion_config)
 
-        available = ", ".join(sorted(criterion_map.keys()))
         logger.warning(
             "Unknown criterion '%s'. Available: %s",
             name,
-            available,
+            ", ".join(sorted(CRITERIA_REGISTRY)),
         )
         return None
 

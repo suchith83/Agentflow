@@ -1,22 +1,16 @@
-"""
-LLM-as-Judge criterion for semantic response matching.
-"""
+"""LLM-as-Judge criterion for semantic response matching."""
 
 from __future__ import annotations
 
-import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
-from agentflow.qa.evaluation.criteria.base import BaseCriterion
-from agentflow.qa.evaluation.criteria.llm_utils import LLMCallerMixin
+from agentflow.qa.evaluation.criteria.llm_base import TemplatedLLMCriterion
 from agentflow.qa.evaluation.eval_result import CriterionResult
 
 
 if TYPE_CHECKING:
     from agentflow.qa.evaluation.dataset.eval_set import EvalCase
     from agentflow.qa.evaluation.execution.result import ExecutionResult
-
-logger = logging.getLogger("agentflow.evaluation")
 
 
 SEMANTIC_MATCH_PROMPT = """
@@ -48,99 +42,42 @@ Score guidelines:
 """
 
 
-class LLMJudgeCriterion(LLMCallerMixin, BaseCriterion):
-    """Use an LLM to judge semantic equivalence between actual and expected responses.
-
-    Supports majority voting across multiple samples for reliable scores.
-    """
+class LLMJudgeCriterion(TemplatedLLMCriterion):
+    """Use an LLM to judge semantic equivalence between actual and expected responses."""
 
     name = "final_response_match_v2"
     description = "LLM-based semantic response matching"
 
-    async def evaluate(
-        self,
-        actual: ExecutionResult,
-        expected: EvalCase,
-    ) -> CriterionResult:
-        try:
-            question = self._extract_question(expected)
-            expected_response = self._extract_expected_response(expected)
-
-            actual_response = actual.actual_response
-
-            if not expected_response:
-                return CriterionResult.success(
-                    criterion=self.name,
-                    score=1.0,
-                    threshold=self.threshold,
-                    details={"note": "No expected response to compare"},
-                )
-
-            scores, reasonings, token_usage = await self._run_samples(
-                question=question,
-                expected=expected_response,
-                actual=actual_response,
-            )
-
-            final_score = sum(scores) / len(scores) if scores else 0.0
-
+    def _get_skip_result(
+        self, actual: ExecutionResult, expected: EvalCase
+    ) -> CriterionResult | None:
+        if not self._extract_last_expected_response(expected):
             return CriterionResult.success(
                 criterion=self.name,
-                score=final_score,
+                score=1.0,
                 threshold=self.threshold,
-                details={
-                    "samples": len(scores),
-                    "individual_scores": scores,
-                    "reasonings": reasonings,
-                    "judge_model": self.config.judge_model,
-                    "reason": reasonings[-1] if reasonings else "",
-                },
-                token_usage=token_usage,
+                details={"note": "No expected response to compare"},
             )
+        return super()._get_skip_result(actual, expected)
 
-        except Exception as e:
-            logger.error("LLM judge evaluation failed: %s", e)
-            return CriterionResult.failure(criterion=self.name, error=str(e))
-
-    async def _run_samples(
-        self,
-        question: str,
-        expected: str,
-        actual: str,
-    ) -> tuple[list[float], list[str], TokenUsage]:
-        from agentflow.qa.evaluation.token_usage import TokenUsage
-
-        scores: list[float] = []
-        reasonings: list[str] = []
-        total_usage = TokenUsage()
-
-        prompt = SEMANTIC_MATCH_PROMPT.format(
-            question=question,
-            expected=expected,
-            actual=actual,
+    def _build_prompt(self, actual: ExecutionResult, expected: EvalCase) -> str:
+        return SEMANTIC_MATCH_PROMPT.format(
+            question=self._extract_question(expected),
+            expected=self._extract_last_expected_response(expected),
+            actual=actual.actual_response,
         )
 
-        for _ in range(self.config.num_samples):
-            try:
-                score, reasoning, usage = await self._call_llm_score(prompt)
-                scores.append(score)
-                reasonings.append(reasoning)
-                total_usage = total_usage + usage
-            except Exception as e:
-                logger.warning("LLM sample failed: %s", e)
-
-        return scores, reasonings, total_usage
-
-    def _extract_question(self, expected: EvalCase) -> str:
-        if expected.conversation:
-            return expected.conversation[0].user_content.get_text()
-        return ""
-
-    def _extract_expected_response(self, expected: EvalCase) -> str:
-        # Use the last invocation's expected response to match the
-        # actual_response which comes from the final conversation turn.
-        result = ""
-        for invocation in expected.conversation:
-            if invocation.expected_final_response:
-                result = invocation.expected_final_response.get_text()
-        return result
+    def _build_details(
+        self,
+        scores: list[float],
+        reasonings: list[str],
+        aggregated_extras: dict[str, Any],
+        final_score: float,
+    ) -> dict[str, Any]:
+        return {
+            "samples": len(scores),
+            "individual_scores": scores,
+            "reasonings": reasonings,
+            "judge_model": self.config.judge_model,
+            "reason": reasonings[-1] if reasonings else "",
+        }

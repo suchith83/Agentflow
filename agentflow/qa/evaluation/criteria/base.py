@@ -137,6 +137,24 @@ class BaseCriterion(ABC):
         """Check if this criterion is enabled."""
         return self.config.enabled
 
+    # ------------------------------------------------------------------
+    # Shared helpers for criteria that inspect EvalCase / ExecutionResult
+    # ------------------------------------------------------------------
+
+    def _extract_question(self, expected: EvalCase) -> str:
+        """Return the first user message text from the eval case."""
+        if expected.conversation:
+            return expected.conversation[0].user_content.get_text()
+        return ""
+
+    def _extract_last_expected_response(self, expected: EvalCase) -> str:
+        """Return the last non-empty expected final response text."""
+        result = ""
+        for invocation in expected.conversation:
+            if invocation.expected_final_response:
+                result = invocation.expected_final_response.get_text()
+        return result
+
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}(name={self.name!r}, threshold={self.threshold})"
 
