@@ -354,7 +354,7 @@ class TestEvalConfig:
         config = EvalConfig.strict()
         assert config.criteria["tool_trajectory_avg_score"].threshold == 1.0
         assert config.criteria["response_match_score"].threshold == 0.9
-        assert "final_response_match_v2" in config.criteria
+        assert "llm_judge" in config.criteria
 
     def test_eval_config_relaxed(self):
         """Test relaxed eval config."""
@@ -367,11 +367,11 @@ class TestEvalConfig:
         """Test enabling a criterion."""
         config = EvalConfig()
         config.enable_criterion(
-            "custom_criterion",
+            "llm_judge",
             CriterionConfig(threshold=0.7),
         )
-        assert "custom_criterion" in config.criteria
-        assert config.criteria["custom_criterion"].threshold == 0.7
+        assert "llm_judge" in config.criteria
+        assert config.criteria["llm_judge"].threshold == 0.7
 
     def test_eval_config_disable_criterion(self):
         """Test disabling a criterion."""

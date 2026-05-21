@@ -20,6 +20,16 @@ from agentflow.qa.evaluation.token_usage import TokenUsage
 logger = logging.getLogger("agentflow.evaluation")
 
 
+def _parse_model_provider(model: str, use_vertex_ai: bool = False) -> tuple[str, str]:
+    """Return (provider, model_name_without_prefix).
+
+    Combines provider detection and prefix stripping in one call.
+    """
+    provider = detect_provider(model, use_vertex_ai=use_vertex_ai)
+    model_name = model.split("/", 1)[-1] if "/" in model else model
+    return provider, model_name
+
+
 class LLMCallerMixin:
     """Mixin providing shared LLM calling logic for LLM-based criteria.
 
@@ -40,9 +50,7 @@ class LLMCallerMixin:
         judge_model: str = self.config.judge_model  # type: ignore[attr-defined]
         use_vertex_ai: bool = getattr(self.config, "use_vertex_ai", False)  # type: ignore[attr-defined]
 
-        provider = detect_provider(judge_model, use_vertex_ai=use_vertex_ai)
-        # Strip any "provider/" prefix so the SDK gets a clean model name.
-        model_name = judge_model.split("/", 1)[-1] if "/" in judge_model else judge_model
+        provider, model_name = _parse_model_provider(judge_model, use_vertex_ai=use_vertex_ai)
 
         try:
             client = create_llm_client(provider, use_vertex_ai=use_vertex_ai)

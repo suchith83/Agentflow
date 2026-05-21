@@ -27,20 +27,16 @@ class NodeDetail(BaseModel):
     per-node token accounting in reports.
 
     Attributes:
-        node_name:         Name of the graph node that ran.
-        input_messages:    Conversation history sent to the LLM.
-        response_text:     LLM text output; empty on tool-call turns.
-        tool_call_inputs:  Full arguments for each tool call requested.
-        tool_call_outputs: Full results returned from each tool call.
-        token_usage:       Tokens consumed by this LLM call.
-        timestamp:         Wall-clock time when this invocation completed.
+        node_name:      Name of the graph node that ran.
+        input_messages: Conversation history sent to the LLM.
+        response_text:  LLM text output; empty on tool-call turns.
+        token_usage:    Tokens consumed by this LLM call.
+        timestamp:      Wall-clock time when this invocation completed.
     """
 
     node_name: str = ""
     input_messages: list[dict[str, Any]] = Field(default_factory=list)
     response_text: str = ""
-    tool_call_inputs: list[dict[str, Any]] = Field(default_factory=list)
-    tool_call_outputs: list[dict[str, Any]] = Field(default_factory=list)
     token_usage: TokenUsage = Field(default_factory=TokenUsage)
     timestamp: float = 0.0
 

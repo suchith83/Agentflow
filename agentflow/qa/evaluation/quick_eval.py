@@ -183,7 +183,7 @@ class QuickEval:
         eval_set = EvalSetBuilder.quick(*test_pairs)
 
         config = EvalPresets.quick_check()
-        config.criteria["rouge_match"].threshold = threshold
+        config.criteria.rouge_match.threshold = threshold
 
         evaluator = AgentEvaluator(graph, collector, config=config)
         report = await evaluator.evaluate(eval_set, verbose=verbose)

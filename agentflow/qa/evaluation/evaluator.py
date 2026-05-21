@@ -110,7 +110,7 @@ class AgentEvaluator:
         """
         criteria = []
 
-        for name, criterion_config in self.config.criteria.items():
+        for name, criterion_config in self.config.criteria.to_dict().items():
             if not criterion_config.enabled:
                 continue
 
@@ -347,32 +347,30 @@ class AgentEvaluator:
     # ------------------------------------------------------------------
 
     @staticmethod
-    def _execution_from_collector(collector: TrajectoryCollector) -> ExecutionResult:
-        """Build an ExecutionResult from a TrajectoryCollector.
+    def _build_execution_result(
+        node_responses: list[Any],
+        tool_calls: list[Any],
+        trajectory: list[Any],
+        node_visits: list[str],
+        actual_response: str,
+        duration_seconds: float,
+    ) -> ExecutionResult:
+        """Build an ExecutionResult from raw accumulated lists.
 
-        Maps collector fields to the ExecutionResult fields:
-            actual_response  ← collector.final_response
-            tool_calls       ← collector.tool_calls
-            trajectory       ← FULL trajectory (NODE + TOOL steps)
-            messages         ← de-duplicated flat list from all node inputs
-            node_responses   ← serialised NodeResponseData snapshots
-            node_visits      ← collector.node_visits
-            duration_seconds ← collector.duration
-
-        Criteria that need only TOOL steps should use
-        ``execution.tool_trajectory`` property.
+        De-duplicates messages by role+content key, serialises NodeResponse
+        dataclasses to NodeResponseData Pydantic models.  Used for both
+        single-turn (pass collector fields directly) and multi-turn
+        (pass the accumulated lists from all turns).
         """
-        # Build de-duplicated message history
         messages: list[dict[str, Any]] = []
         seen_contents: set[str] = set()
-        for nr in collector.node_responses:
+        for nr in node_responses:
             for msg in nr.input_messages:
                 key = f"{msg.get('role', '')}:{msg.get('content', '')}"
                 if key not in seen_contents:
                     seen_contents.add(key)
                     messages.append(msg)
 
-        # Serialise NodeResponse dataclasses → NodeResponseData pydantic models
         node_resp_data = [
             NodeResponseData(
                 node_name=nr.node_name,
@@ -384,44 +382,145 @@ class AgentEvaluator:
                 timestamp=nr.timestamp,
                 token_usage=nr.token_usage,
             )
-            for nr in collector.node_responses
+            for nr in node_responses
         ]
 
         return ExecutionResult(
-            actual_response=collector.final_response,
-            tool_calls=list(collector.tool_calls),
-            trajectory=list(collector.trajectory),
+            actual_response=actual_response,
+            tool_calls=list(tool_calls),
+            trajectory=list(trajectory),
             messages=messages,
             node_responses=node_resp_data,
-            node_visits=list(collector.node_visits),
-            duration_seconds=collector.duration,
+            node_visits=list(node_visits),
+            duration_seconds=duration_seconds,
         )
 
-    async def _evaluate_case(  # noqa: PLR0912, PLR0915
+    async def _run_conversation_turns(
+        self,
+        case: EvalCase,
+        collector: TrajectoryCollector,
+        graph: Any,
+        config: dict[str, Any],
+        case_start_time: float,
+    ) -> tuple[ExecutionResult, list[dict[str, Any]]] | EvalCaseResult:
+        """Run all conversation turns for a case, accumulating execution data.
+
+        Returns either a tuple of (ExecutionResult, turn_results) on success,
+        or an EvalCaseResult failure if a turn raises an exception.
+        """
+        from agentflow.core.state import Message
+
+        cumulative_messages: list[Any] = []
+        turn_results: list[dict[str, Any]] = []
+        all_tool_calls: list[Any] = []
+        all_trajectory: list[Any] = []
+        all_node_visits: list[str] = []
+        all_node_responses: list[Any] = []
+        last_response: str = ""
+        cumulative_start: float | None = None
+        cumulative_end: float | None = None
+
+        for turn_idx, invocation in enumerate(case.conversation):
+            collector.reset()
+            user_text = invocation.user_content.get_text()
+            cumulative_messages.append(Message.text_message(user_text, role="user"))
+
+            try:
+                await graph.ainvoke({"messages": list(cumulative_messages)}, config=config)
+            except Exception as exc:
+                logger.warning(
+                    "Graph execution failed for case %s turn %d: %s",
+                    case.eval_id, turn_idx, exc,
+                )
+                return EvalCaseResult.failure(
+                    eval_id=case.eval_id,
+                    error=f"Graph execution error on turn {turn_idx}: {exc}",
+                    name=case.name,
+                    duration_seconds=time.time() - case_start_time,
+                )
+
+            turn_response = collector.final_response or ""
+            turn_results.append({
+                "turn_index": turn_idx,
+                "user_input": user_text,
+                "agent_response": turn_response,
+                "tool_calls": [tc.model_dump() for tc in collector.tool_calls],
+                "node_visits": list(collector.node_visits),
+                "trajectory_steps": len(collector.trajectory),
+            })
+
+            all_tool_calls.extend(collector.tool_calls)
+            all_trajectory.extend(collector.trajectory)
+            all_node_visits.extend(collector.node_visits)
+            all_node_responses.extend(collector.node_responses)
+            last_response = turn_response
+
+            if collector.start_time is not None:
+                if cumulative_start is None:
+                    cumulative_start = collector.start_time
+                cumulative_end = collector.end_time
+
+            if collector.final_response:
+                cumulative_messages.append(
+                    Message.text_message(collector.final_response, role="assistant")
+                )
+
+        total_duration = (
+            cumulative_end - cumulative_start
+            if cumulative_start is not None and cumulative_end is not None
+            else 0.0
+        )
+
+        execution = self._build_execution_result(
+            node_responses=all_node_responses,
+            tool_calls=all_tool_calls,
+            trajectory=all_trajectory,
+            node_visits=all_node_visits,
+            actual_response=last_response,
+            duration_seconds=total_duration,
+        )
+        return execution, turn_results
+
+    async def _evaluate_criteria(
+        self,
+        execution: ExecutionResult,
+        case: EvalCase,
+    ) -> list[CriterionResult]:
+        """Run all configured criteria against an ExecutionResult."""
+        criterion_results: list[CriterionResult] = []
+        for criterion in self.criteria:
+            try:
+                criterion_results.append(await criterion.evaluate(execution, case))
+            except Exception as exc:
+                logger.error(
+                    "Criterion '%s' failed for case %s: %s",
+                    criterion.name, case.eval_id, exc,
+                )
+                criterion_results.append(
+                    CriterionResult.failure(criterion=criterion.name, error=str(exc))
+                )
+        return criterion_results
+
+    async def _evaluate_case(
         self,
         case: EvalCase,
         collector_override: TrajectoryCollector | None = None,
     ) -> EvalCaseResult:
         """Evaluate a single test case.
 
-        Supports multi-turn conversations: iterates over every
-        ``Invocation`` in ``case.conversation``, feeding the agent one
-        user message per turn and accumulating execution data.
+        Supports multi-turn conversations: iterates over every Invocation in
+        case.conversation, feeding the agent one user message per turn and
+        accumulating execution data across turns.
 
         Args:
             case: The evaluation case to run.
             collector_override: Optional per-case collector (used in parallel
                 mode to avoid cross-case data bleed).
-
-        Returns:
-            Result of the case evaluation.
         """
         start_time = time.time()
         collector = collector_override or self.collector
 
         try:
-            from agentflow.core.state import Message
-
             config: dict[str, Any] = {
                 "thread_id": f"eval_{self._run_id}_{case.eval_id}",
                 **case.session_input.config,
@@ -429,168 +528,29 @@ class AgentEvaluator:
             if case.session_input.user_id:
                 config["user_id"] = case.session_input.user_id
 
-            # Reset collector before each case so data doesn't bleed across runs
             collector.reset()
 
-            # If a per-case collector was passed we need to compile a
-            # short-lived graph with its own callback manager.  For the
-            # shared-collector sequential path the graph is already wired.
             graph = self.graph
             if collector_override is not None:
                 _, local_mgr = make_trajectory_callback(collector_override, config=config)
                 graph._state_graph._container.bind_instance(CallbackManager, local_mgr)
 
-            # ---- Multi-turn conversation loop ---------------------------
-            # Each Invocation represents one user turn.
-            # We accumulate tool_calls, trajectory, node_visits, and
-            # node_responses across all turns so the ExecutionResult
-            # given to criteria reflects the *entire* conversation.
-            cumulative_messages: list[Any] = []
-            turn_results: list[dict[str, Any]] = []
-            all_tool_calls: list[Any] = []
-            all_trajectory: list[Any] = []
-            all_node_visits: list[str] = []
-            all_node_responses: list[Any] = []
-            last_response: str = ""
-            cumulative_start: float | None = None
-            cumulative_end: float | None = None
+            # Run all conversation turns and accumulate results
+            result = await self._run_conversation_turns(
+                case, collector, graph, config, start_time
+            )
+            if isinstance(result, EvalCaseResult):
+                return result  # turn raised an exception — failure already built
+            execution, turn_results = result
 
-            for turn_idx, invocation in enumerate(case.conversation):
-                # Reset collector at the start of each turn so per-turn
-                # snapshots capture only that turn's data, not cumulative.
-                collector.reset()
-                user_text = invocation.user_content.get_text()
-                cumulative_messages.append(Message.text_message(user_text, role="user"))
+            # Evaluate all criteria against the full conversation ExecutionResult
+            criterion_results = await self._evaluate_criteria(execution, case)
 
-                state_dict: dict[str, Any] = {
-                    "messages": list(cumulative_messages),
-                }
-
-                try:
-                    await graph.ainvoke(state_dict, config=config)
-                except Exception as exc:
-                    logger.warning(
-                        "Graph execution failed for case %s turn %d: %s",
-                        case.eval_id,
-                        turn_idx,
-                        exc,
-                    )
-                    duration = time.time() - start_time
-                    return EvalCaseResult.failure(
-                        eval_id=case.eval_id,
-                        error=f"Graph execution error on turn {turn_idx}: {exc}",
-                        name=case.name,
-                        duration_seconds=duration,
-                    )
-
-                # Capture per-turn data for multi-turn transparency
-                turn_response = collector.final_response or ""
-                turn_results.append(
-                    {
-                        "turn_index": turn_idx,
-                        "user_input": user_text,
-                        "agent_response": turn_response,
-                        "tool_calls": [tc.model_dump() for tc in collector.tool_calls],
-                        "node_visits": list(collector.node_visits),
-                        "trajectory_steps": len(collector.trajectory),
-                    }
-                )
-
-                # Accumulate across turns for the full-conversation
-                # ExecutionResult that criteria will evaluate.
-                all_tool_calls.extend(collector.tool_calls)
-                all_trajectory.extend(collector.trajectory)
-                all_node_visits.extend(collector.node_visits)
-                all_node_responses.extend(collector.node_responses)
-                last_response = turn_response
-
-                # Track overall timing
-                if collector.start_time is not None:
-                    if cumulative_start is None:
-                        cumulative_start = collector.start_time
-                    cumulative_end = collector.end_time
-
-                # Append assistant response to cumulative history so the
-                # next turn includes prior context.
-                if collector.final_response:
-                    cumulative_messages.append(
-                        Message.text_message(collector.final_response, role="assistant")
-                    )
-
-            # ---- Build execution result from accumulated data -----------
-            # For single-turn cases the collector already has the right
-            # data; for multi-turn we stitch together all turns.
-            if len(case.conversation) <= 1:
-                execution: ExecutionResult = self._execution_from_collector(collector)
-            else:
-                from agentflow.qa.evaluation.execution.result import NodeResponseData
-
-                # De-duplicate messages across turns
-                messages: list[dict[str, Any]] = []
-                seen_contents: set[str] = set()
-                for nr in all_node_responses:
-                    for msg in nr.input_messages:
-                        key = f"{msg.get('role', '')}:{msg.get('content', '')}"
-                        if key not in seen_contents:
-                            seen_contents.add(key)
-                            messages.append(msg)
-
-                node_resp_data = [
-                    NodeResponseData(
-                        node_name=nr.node_name,
-                        input_messages=nr.input_messages,
-                        response_text=nr.response_text,
-                        has_tool_calls=nr.has_tool_calls,
-                        tool_call_names=nr.tool_call_names,
-                        is_final=nr.is_final,
-                        timestamp=nr.timestamp,
-                        token_usage=nr.token_usage,
-                    )
-                    for nr in all_node_responses
-                ]
-
-                total_duration = 0.0
-                if cumulative_start is not None and cumulative_end is not None:
-                    total_duration = cumulative_end - cumulative_start
-
-                execution = ExecutionResult(
-                    actual_response=last_response,
-                    tool_calls=list(all_tool_calls),
-                    trajectory=list(all_trajectory),
-                    messages=messages,
-                    node_responses=node_resp_data,
-                    node_visits=list(all_node_visits),
-                    duration_seconds=total_duration,
-                )
-
-            # Evaluate each criterion against the full ExecutionResult
-            criterion_results: list[CriterionResult] = []
-            for criterion in self.criteria:
-                try:
-                    cr_result = await criterion.evaluate(execution, case)
-                    criterion_results.append(cr_result)
-                except Exception as exc:
-                    logger.error(
-                        "Criterion '%s' failed for case %s: %s",
-                        criterion.name,
-                        case.eval_id,
-                        exc,
-                    )
-                    criterion_results.append(
-                        CriterionResult.failure(
-                            criterion=criterion.name,
-                            error=str(exc),
-                        )
-                    )
-
-            duration = time.time() - start_time
-
-            # Aggregate: agent tokens + all LLM judge tokens across criteria
+            # Aggregate agent + judge token usage
             from agentflow.qa.evaluation.token_usage import TokenUsage
 
             agent_token_usage = execution.token_usage
             criteria_token_usage = sum((cr.token_usage for cr in criterion_results), TokenUsage())
-            total_token_usage = agent_token_usage + criteria_token_usage
 
             return EvalCaseResult.success(
                 eval_id=case.eval_id,
@@ -601,22 +561,21 @@ class AgentEvaluator:
                 messages=execution.messages,
                 node_responses=[nr.model_dump() for nr in execution.node_responses],
                 node_visits=execution.node_visits,
-                duration_seconds=duration,
+                duration_seconds=time.time() - start_time,
                 name=case.name,
                 metadata=case.metadata if hasattr(case, "metadata") else {},
                 turn_results=turn_results,
-                token_usage=total_token_usage,
+                token_usage=agent_token_usage + criteria_token_usage,
                 agent_token_usage=agent_token_usage,
             )
 
         except Exception as exc:
-            duration = time.time() - start_time
             logger.error("Case evaluation failed unexpectedly: %s", exc)
             return EvalCaseResult.failure(
                 eval_id=case.eval_id,
                 error=str(exc),
                 name=case.name,
-                duration_seconds=duration,
+                duration_seconds=time.time() - start_time,
             )
 
     # ------------------------------------------------------------------

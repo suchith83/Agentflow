@@ -8,14 +8,14 @@ providing a consistent interface for different types of evaluations.
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from agentflow.qa.evaluation.eval_result import CriterionResult
 
 
 if TYPE_CHECKING:
     from agentflow.qa.evaluation.config.eval_config import CriterionConfig
-    from agentflow.qa.evaluation.dataset.eval_set import EvalCase, Invocation
+    from agentflow.qa.evaluation.dataset.eval_set import EvalCase
     from agentflow.qa.evaluation.execution.result import ExecutionResult
 
 
@@ -93,29 +93,6 @@ class BaseCriterion(ABC):
             EvaluationError: If evaluation fails due to an error.
         """
 
-    async def evaluate_invocation(
-        self,
-        actual: ExecutionResult,
-        expected: Invocation,
-    ) -> CriterionResult:
-        """Evaluate a single invocation (optional override).
-
-        By default, this delegates to the main evaluate method. Subclasses
-        can override this for invocation-level evaluation.
-
-        Args:
-            actual: Extracted execution result from the agent run.
-            expected: The expected invocation outcomes.
-
-        Returns:
-            CriterionResult for this invocation.
-        """
-        # Create a temporary EvalCase for single invocation
-        from agentflow.qa.evaluation.dataset.eval_set import EvalCase
-
-        temp_case = EvalCase(eval_id="single_invocation", conversation=[expected])
-        return await self.evaluate(actual, temp_case)
-
     def validate_config(self) -> list[str]:
         """Validate the criterion configuration.
 
@@ -154,6 +131,27 @@ class BaseCriterion(ABC):
             if invocation.expected_final_response:
                 result = invocation.expected_final_response.get_text()
         return result
+
+    def _result(
+        self,
+        score: float,
+        details: dict | None = None,
+        token_usage: Any | None = None,
+    ) -> CriterionResult:
+        """Build a passing CriterionResult for this criterion."""
+        kwargs: dict = {
+            "criterion": self.name,
+            "score": score,
+            "threshold": self.threshold,
+            "details": details or {},
+        }
+        if token_usage is not None:
+            kwargs["token_usage"] = token_usage
+        return CriterionResult.success(**kwargs)
+
+    def _failure(self, error: str) -> CriterionResult:
+        """Build a failure CriterionResult for this criterion."""
+        return CriterionResult.failure(criterion=self.name, error=error)
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}(name={self.name!r}, threshold={self.threshold})"
@@ -245,15 +243,10 @@ class CompositeCriterion(BaseCriterion):
             # OR: use maximum score, any pass is success
             combined_score = max(scores) if scores else 0.0
 
-        return CriterionResult.success(
-            criterion=self.name,
-            score=combined_score,
-            threshold=self.threshold,
-            details={
-                "sub_results": [r.model_dump() for r in results],
-                "require_all": self.require_all,
-            },
-        )
+        return self._result(combined_score, {
+            "sub_results": [r.model_dump() for r in results],
+            "require_all": self.require_all,
+        })
 
 
 class WeightedCriterion(BaseCriterion):
@@ -300,13 +293,8 @@ class WeightedCriterion(BaseCriterion):
 
         combined_score = weighted_sum / total_weight if total_weight > 0 else 0.0
 
-        return CriterionResult.success(
-            criterion=self.name,
-            score=combined_score,
-            threshold=self.threshold,
-            details={
-                "sub_results": [
-                    {"criterion": r.criterion, "score": r.score, "weight": w} for r, w in results
-                ],
-            },
-        )
+        return self._result(combined_score, {
+            "sub_results": [
+                {"criterion": r.criterion, "score": r.score, "weight": w} for r, w in results
+            ],
+        })

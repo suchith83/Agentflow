@@ -14,7 +14,6 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from agentflow.qa.evaluation.criteria.llm_base import TemplatedLLMCriterion
-from agentflow.qa.evaluation.eval_result import CriterionResult
 from agentflow.qa.evaluation.token_usage import TokenUsage
 
 
@@ -57,12 +56,7 @@ class SimulationGoalsCriterion(TemplatedLLMCriterion):
         self, actual: ExecutionResult, expected: EvalCase
     ) -> CriterionResult | None:
         if not self._extract_last_expected_response(expected):
-            return CriterionResult.success(
-                criterion=self.name,
-                score=1.0,
-                threshold=self.threshold,
-                details={"note": "No goals defined — skipping evaluation"},
-            )
+            return self._result(1.0, {"note": "No goals defined — skipping evaluation"})
         return None  # no "empty response" guard — transcript may be long
 
     def _build_prompt(self, actual: ExecutionResult, expected: EvalCase) -> str:

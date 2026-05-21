@@ -14,6 +14,7 @@ import pytest
 from agentflow.qa.evaluation.config.eval_config import CriterionConfig, Rubric
 from agentflow.qa.evaluation.criteria.llm_judge import LLMJudgeCriterion
 from agentflow.qa.evaluation.criteria.llm_utils import LLMCallerMixin, _parse_model_provider
+from agentflow.qa.evaluation.token_usage import TokenUsage
 from agentflow.qa.evaluation.criteria.rubric import RubricBasedCriterion
 from agentflow.qa.evaluation.criteria.simulation_goals import SimulationGoalsCriterion
 from agentflow.qa.evaluation.dataset.eval_set import EvalCase, ToolCall
@@ -60,10 +61,10 @@ class TestParseModelProvider:
         assert provider == "openai"
         assert model == "o3-mini"
 
-    def test_unknown_prefix_defaults_to_google(self):
+    def test_unknown_prefix_defaults_to_openai(self):
         provider, model = _parse_model_provider("unknown/some-model")
-        # unknown prefix → uses the name part, defaults to google
-        assert provider == "google"
+        # unknown prefix → uses the name part, defaults to openai
+        assert provider == "openai"
         assert model == "some-model"
 
     def test_gpt_prefix_slash(self):
@@ -89,9 +90,9 @@ class TestLLMCallerMixinCallLLMScore:
         with patch.object(
             TestCriterion,
             "_call_llm_json",
-            new=AsyncMock(return_value={"score": 0.85, "reasoning": "looks good"}),
+            new=AsyncMock(return_value=({"score": 0.85, "reasoning": "looks good"}, TokenUsage())),
         ):
-            score, reasoning = await criterion._call_llm_score("test prompt")
+            score, reasoning, usage = await criterion._call_llm_score("test prompt")
 
         assert score == pytest.approx(0.85)
         assert reasoning == "looks good"
@@ -108,9 +109,9 @@ class TestLLMCallerMixinCallLLMScore:
         with patch.object(
             TestCriterion,
             "_call_llm_json",
-            new=AsyncMock(return_value={}),
+            new=AsyncMock(return_value=({}, TokenUsage())),
         ):
-            score, reasoning = await criterion._call_llm_score("test prompt")
+            score, reasoning, usage = await criterion._call_llm_score("test prompt")
 
         assert score == pytest.approx(0.0)
         assert reasoning == ""
@@ -128,7 +129,7 @@ class TestLLMCallerMixinCallLLMScore:
             patch.object(TestCriterion, "_call_google_json", new=AsyncMock(return_value=None)),
             patch.object(TestCriterion, "_call_openai_json", new=AsyncMock(return_value=None)),
         ):
-            result = await criterion._call_llm_json("prompt")
+            result, usage = await criterion._call_llm_json("prompt")
 
         assert result["score"] == pytest.approx(0.5)
         assert "reasoning" in result
@@ -163,8 +164,8 @@ class TestLLMJudgeCriterion:
 
         with patch.object(
             LLMJudgeCriterion,
-            "_call_llm_score",
-            new=AsyncMock(return_value=(0.9, "good match")),
+            "_call_llm_json",
+            new=AsyncMock(return_value=({"score": 0.9, "reasoning": "good match"}, TokenUsage())),
         ):
             result = await criterion.evaluate(actual, expected)
 
@@ -191,12 +192,13 @@ class TestLLMJudgeCriterion:
 
         call_count = 0
 
-        async def mock_llm_score(self_arg, prompt):
+        async def mock_llm_json(self_arg, prompt):
             nonlocal call_count
             call_count += 1
-            return (call_count * 0.1 + 0.5, f"sample {call_count}")
+            score = call_count * 0.1 + 0.5
+            return ({"score": score, "reasoning": f"sample {call_count}"}, TokenUsage())
 
-        with patch.object(LLMJudgeCriterion, "_call_llm_score", new=mock_llm_score):
+        with patch.object(LLMJudgeCriterion, "_call_llm_json", new=mock_llm_json):
             result = await criterion.evaluate(actual, expected)
 
         # Scores: 0.6, 0.7, 0.8 → average = 0.7
@@ -232,7 +234,7 @@ class TestLLMJudgeCriterion:
         with patch.object(
             LLMJudgeCriterion,
             "_run_samples",
-            new=AsyncMock(return_value=([], [])),
+            new=AsyncMock(return_value=([], [], [], TokenUsage())),
         ):
             result = await criterion.evaluate(actual, expected)
 
@@ -250,7 +252,7 @@ class TestLLMJudgeCriterion:
     async def test_extract_expected_response_from_last_invocation(self):
         criterion = LLMJudgeCriterion()
         expected = _make_case("final answer")
-        resp = criterion._extract_expected_response(expected)
+        resp = criterion._extract_last_expected_response(expected)
         assert resp == "final answer"
 
 
@@ -274,8 +276,8 @@ class TestRubricBasedCriterion:
 
         with patch.object(
             RubricBasedCriterion,
-            "_call_llm_score",
-            new=AsyncMock(return_value=(0.9, "accurate and clear")),
+            "_call_llm_json",
+            new=AsyncMock(return_value=({"score": 0.9, "reasoning": "accurate and clear"}, TokenUsage())),
         ):
             result = await criterion.evaluate(actual, expected)
 
@@ -305,9 +307,10 @@ class TestRubricBasedCriterion:
         async def mock_score(self_arg, prompt):
             nonlocal sample_idx
             sample_idx += 1
-            return (0.8 if sample_idx % 2 == 0 else 0.6, f"sample {sample_idx}")
+            score = 0.8 if sample_idx % 2 == 0 else 0.6
+            return ({"score": score, "reasoning": f"sample {sample_idx}"}, TokenUsage())
 
-        with patch.object(RubricBasedCriterion, "_call_llm_score", new=mock_score):
+        with patch.object(RubricBasedCriterion, "_call_llm_json", new=mock_score):
             result = await criterion.evaluate(actual, expected)
 
         # Scores: 0.6, 0.8 → average = 0.7
@@ -330,9 +333,9 @@ class TestRubricBasedCriterion:
             call_count += 1
             if call_count == 1:
                 raise Exception("LLM error")
-            return (0.8, "good")
+            return ({"score": 0.8, "reasoning": "good"}, TokenUsage())
 
-        with patch.object(RubricBasedCriterion, "_call_llm_score", new=mock_score_raises):
+        with patch.object(RubricBasedCriterion, "_call_llm_json", new=mock_score_raises):
             result = await criterion.evaluate(actual, expected)
 
         # Only one sample succeeded
@@ -349,7 +352,7 @@ class TestRubricBasedCriterion:
 
         with patch.object(
             RubricBasedCriterion,
-            "_call_llm_score",
+            "_call_llm_json",
             side_effect=Exception("always fails"),
         ):
             result = await criterion.evaluate(actual, expected)
@@ -410,12 +413,15 @@ class TestSimulationGoalsCriterion:
             SimulationGoalsCriterion,
             "_call_llm_json",
             new=AsyncMock(
-                return_value={
-                    "score": 0.85,
-                    "achieved_goals": ["Resolve billing issue"],
-                    "unachieved_goals": [],
-                    "reasoning": "Both goals addressed",
-                }
+                return_value=(
+                    {
+                        "score": 0.85,
+                        "achieved_goals": ["Resolve billing issue"],
+                        "unachieved_goals": [],
+                        "reasoning": "Both goals addressed",
+                    },
+                    TokenUsage(),
+                )
             ),
         ):
             result = await criterion.evaluate(actual, expected)
@@ -461,12 +467,15 @@ class TestSimulationGoalsCriterion:
             SimulationGoalsCriterion,
             "_call_llm_json",
             new=AsyncMock(
-                return_value={
-                    "score": 0.33,
-                    "achieved_goals": ["Goal1"],
-                    "unachieved_goals": ["Goal2", "Goal3"],
-                    "reasoning": "Partial",
-                }
+                return_value=(
+                    {
+                        "score": 0.33,
+                        "achieved_goals": ["Goal1"],
+                        "unachieved_goals": ["Goal2", "Goal3"],
+                        "reasoning": "Partial",
+                    },
+                    TokenUsage(),
+                )
             ),
         ):
             result = await criterion.evaluate(actual, expected)
@@ -477,13 +486,13 @@ class TestSimulationGoalsCriterion:
     def test_extract_goals_from_invocation(self):
         criterion = SimulationGoalsCriterion()
         expected = self._make_goal_case("Goal1; Goal2")
-        goals = criterion._extract_goals(expected)
+        goals = criterion._extract_last_expected_response(expected)
         assert goals == "Goal1; Goal2"
 
     def test_extract_goals_empty_conversation(self):
         criterion = SimulationGoalsCriterion()
         expected = EvalCase(eval_id="empty")
-        goals = criterion._extract_goals(expected)
+        goals = criterion._extract_last_expected_response(expected)
         assert goals == ""
 
     @pytest.mark.asyncio
@@ -496,12 +505,15 @@ class TestSimulationGoalsCriterion:
             SimulationGoalsCriterion,
             "_call_llm_json",
             new=AsyncMock(
-                return_value={
-                    "score": 1.0,
-                    "achieved_goals": ["Solve problem"],
-                    "unachieved_goals": [],
-                    "reasoning": "Done",
-                }
+                return_value=(
+                    {
+                        "score": 1.0,
+                        "achieved_goals": ["Solve problem"],
+                        "unachieved_goals": [],
+                        "reasoning": "Done",
+                    },
+                    TokenUsage(),
+                )
             ),
         ):
             result = await criterion.evaluate(actual, expected)

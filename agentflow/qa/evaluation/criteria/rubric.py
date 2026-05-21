@@ -5,7 +5,6 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from agentflow.qa.evaluation.criteria.llm_base import TemplatedLLMCriterion
-from agentflow.qa.evaluation.eval_result import CriterionResult
 
 
 if TYPE_CHECKING:
@@ -43,12 +42,7 @@ class RubricBasedCriterion(TemplatedLLMCriterion):
         self, actual: ExecutionResult, expected: EvalCase
     ) -> CriterionResult | None:
         if not self.config.rubrics:
-            return CriterionResult.success(
-                criterion=self.name,
-                score=1.0,
-                threshold=self.threshold,
-                details={"note": "No rubrics configured"},
-            )
+            return self._result(1.0, {"note": "No rubrics configured"})
         return super()._get_skip_result(actual, expected)
 
     def _build_prompt(self, actual: ExecutionResult, expected: EvalCase) -> str:

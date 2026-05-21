@@ -10,7 +10,7 @@ This module defines configuration structures for agent evaluation:
 
 from __future__ import annotations
 
-from enum import Enum
+from enum import StrEnum
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -20,7 +20,7 @@ from pydantic import BaseModel, Field, field_validator
 DEFAULT_JUDGE_MODEL = "gemini-2.5-flash"
 
 
-class MatchType(str, Enum):
+class MatchType(StrEnum):
     """Match type for trajectory comparison.
 
     Values:
@@ -362,12 +362,12 @@ class CriteriaConfig(BaseModel):
             "response_match": "response_match_score",
             "rouge_match": "rouge_match",
             "contains_keywords": "contains_keywords",
-            "llm_judge": "final_response_match_v2",
-            "rubric_based": "rubric_based_score",
-            "factual_accuracy": "factual_accuracy_score",
+            "llm_judge": "llm_judge",
+            "rubric_based": "rubric_based",
+            "factual_accuracy": "factual_accuracy_v1",
             "hallucination": "hallucinations_v1",
-            "safety": "safety_score",
-            "simulation_goals": "simulation_goals_match",
+            "safety": "safety_v1",
+            "simulation_goals": "simulation_goals",
         }
 
         for field_name, criterion_name in field_mapping.items():
@@ -377,36 +377,18 @@ class CriteriaConfig(BaseModel):
 
         return result
 
-    # --- dict-compatible helpers so consumers like AgentEvaluator keep working ---
-
-    def items(self):
-        """Yield (criterion_name, CriterionConfig) pairs — dict-compatible."""
-        return self.to_dict().items()
-
-    def keys(self):
-        """Return criterion names — dict-compatible."""
-        return self.to_dict().keys()
-
-    def values(self):
-        """Return CriterionConfig instances — dict-compatible."""
-        return self.to_dict().values()
-
     def get(self, name: str, default=None):
-        """Return the CriterionConfig for *name* — dict-compatible."""
+        """Return the CriterionConfig for *name* by its serialized key."""
         return self.to_dict().get(name, default)
 
-    def __getitem__(self, name: str):
-        result = self.to_dict()
-        return result[name]
-
-    def __contains__(self, name: str):
+    def __contains__(self, name: object) -> bool:
         return name in self.to_dict()
 
-    def __iter__(self):
-        return iter(self.to_dict())
-
-    def __len__(self):
-        return len(self.to_dict())
+    def __getitem__(self, name: str) -> CriterionConfig:
+        d = self.to_dict()
+        if name not in d:
+            raise KeyError(name)
+        return d[name]
 
     @classmethod
     def from_dict(cls, criteria_dict: dict[str, CriterionConfig]) -> CriteriaConfig:
@@ -419,18 +401,35 @@ class CriteriaConfig(BaseModel):
             CriteriaConfig instance.
         """
         reverse_mapping = {
+            # Canonical names (match what to_dict() emits)
             "tool_name_match_score": "tool_name_match",
             "tool_trajectory_avg_score": "trajectory",
             "node_order": "node_order",
             "response_match_score": "response_match",
             "rouge_match": "rouge_match",
             "contains_keywords": "contains_keywords",
-            "final_response_match_v2": "llm_judge",
-            "rubric_based_score": "rubric_based",
-            "factual_accuracy_score": "factual_accuracy",
+            "llm_judge": "llm_judge",
+            "rubric_based": "rubric_based",
+            "factual_accuracy_v1": "factual_accuracy",
             "hallucinations_v1": "hallucination",
-            "safety_score": "safety",
+            "safety_v1": "safety",
+            "simulation_goals": "simulation_goals",
+            # Short aliases (CRITERIA_REGISTRY names)
+            "trajectory_match": "trajectory",
+            "trajectory": "trajectory",
+            "tool_name_match": "tool_name_match",
+            "response_match": "response_match",
+            "node_order_score": "node_order",
+            "rubric_based_score": "rubric_based",
+            "hallucination": "hallucination",
+            "safety": "safety",
+            "factual_accuracy": "factual_accuracy",
             "simulation_goals_match": "simulation_goals",
+            "conversation_goals": "simulation_goals",
+            # Legacy verbose aliases
+            "final_response_match_v2": "llm_judge",
+            "factual_accuracy_score": "factual_accuracy",
+            "safety_score": "safety",
         }
 
         data = {}
@@ -472,6 +471,12 @@ class EvalConfig(BaseModel):
     @classmethod
     def _normalize_criteria(cls, value):
         if isinstance(value, dict):
+            # When loading from serialized JSON, keys are Pydantic field names.
+            # When constructing programmatically, keys are criterion names.
+            field_names = set(CriteriaConfig.model_fields)
+            if set(value.keys()).issubset(field_names):
+                # All keys are field names → direct construction (strip Nones).
+                return CriteriaConfig(**{k: v for k, v in value.items() if v is not None})
             return CriteriaConfig.from_dict(value)
         return value
 
@@ -575,16 +580,21 @@ class EvalConfig(BaseModel):
         name: str,
         config: CriterionConfig | None = None,
     ) -> None:
-        """Enable a criterion with optional configuration."""
-        if config:
-            self.criteria[name] = config
-        elif name not in self.criteria:
-            self.criteria[name] = CriterionConfig()
+        """Enable a named criterion, setting it to *config* (or default if omitted).
+
+        Only recognized criterion names (those in CriteriaConfig's field mapping)
+        are accepted.
+        """
+        self.criteria = CriteriaConfig.from_dict(
+            {**self.criteria.to_dict(), name: config or CriterionConfig()}
+        )
 
     def disable_criterion(self, name: str) -> None:
-        """Disable a criterion."""
-        if name in self.criteria:
-            self.criteria[name].enabled = False
+        """Disable a criterion by name."""
+        d = self.criteria.to_dict()
+        if name in d:
+            d[name].enabled = False
+            self.criteria = CriteriaConfig.from_dict(d)
 
     def with_rubrics(self, rubrics: list[Rubric]) -> EvalConfig:
         """Return a copy with rubric-based criteria added."""

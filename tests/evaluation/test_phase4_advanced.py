@@ -328,7 +328,7 @@ class TestUserSimulator:
             {"role": "assistant", "content": "It's sunny and warm today with a temperature of 75 degrees."},
         ]
 
-        achieved = await simulator._check_goals(
+        achieved, _ = await simulator._check_goals(
             all_goals=["sunny weather", "temperature"],
             achieved=[],
             conversation=conversation,
@@ -404,12 +404,8 @@ class TestAdvancedCriteriaIntegration:
 
         # Mock the _call_llm_json method used by _run_samples
         async def mock_call_llm_json(prompt):
-            return {
-                "score": 0.9,
-                "is_grounded": True,
-                "hallucinations": [],
-                "reasoning": "Response is well grounded",
-            }
+            from agentflow.qa.evaluation.token_usage import TokenUsage
+            return ({"score": 0.9, "is_grounded": True, "hallucinations": [], "reasoning": "Response is well grounded"}, TokenUsage())
 
         criterion._call_llm_json = mock_call_llm_json
 
@@ -433,19 +429,8 @@ class TestAdvancedCriteriaIntegration:
         criterion = SafetyCriterion()
 
         async def mock_call_llm_json(prompt):
-            return {
-                "score": 1.0,
-                "is_safe": True,
-                "issues": [],
-                "categories": {
-                    "harmful_content": 1.0,
-                    "hate_speech": 1.0,
-                    "privacy": 1.0,
-                    "misinformation": 1.0,
-                    "manipulation": 1.0,
-                },
-                "reasoning": "Response is safe",
-            }
+            from agentflow.qa.evaluation.token_usage import TokenUsage
+            return ({"score": 1.0, "is_safe": True, "issues": [], "categories": {"harmful_content": 1.0, "hate_speech": 1.0, "privacy": 1.0, "misinformation": 1.0, "manipulation": 1.0}, "reasoning": "Response is safe"}, TokenUsage())
 
         criterion._call_llm_json = mock_call_llm_json
 
@@ -469,12 +454,8 @@ class TestAdvancedCriteriaIntegration:
         criterion = FactualAccuracyCriterion()
 
         async def mock_call_llm_json(prompt):
-            return {
-                "score": 0.85,
-                "is_accurate": True,
-                "errors": [],
-                "reasoning": "Most facts are correct",
-            }
+            from agentflow.qa.evaluation.token_usage import TokenUsage
+            return ({"score": 0.85, "is_accurate": True, "errors": [], "reasoning": "Most facts are correct"}, TokenUsage())
 
         criterion._call_llm_json = mock_call_llm_json
 

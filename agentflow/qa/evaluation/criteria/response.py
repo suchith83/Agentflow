@@ -12,11 +12,11 @@ from typing import TYPE_CHECKING
 
 from agentflow.qa.evaluation.criteria.base import SyncCriterion
 from agentflow.qa.evaluation.criteria.llm_judge import LLMJudgeCriterion
-from agentflow.qa.evaluation.eval_result import CriterionResult
 
 
 if TYPE_CHECKING:
     from agentflow.qa.evaluation.dataset.eval_set import EvalCase
+    from agentflow.qa.evaluation.eval_result import CriterionResult
     from agentflow.qa.evaluation.execution.result import ExecutionResult
 
 
@@ -60,27 +60,17 @@ class RougeMatchCriterion(SyncCriterion):
 
         if not expected_response:
             score = 1.0 if not actual_response else 0.5
-            return CriterionResult.success(
-                criterion=self.name,
-                score=score,
-                threshold=self.threshold,
-                details={"note": "No expected response defined"},
-            )
+            return self._result(score, {"note": "No expected response defined"})
 
         precision, recall, f1 = self._rouge1_score(actual_response, expected_response)
 
-        return CriterionResult.success(
-            criterion=self.name,
-            score=f1,
-            threshold=self.threshold,
-            details={
-                "precision": precision,
-                "recall": recall,
-                "f1": f1,
-                "actual_response": actual_response[:500],
-                "expected_response": expected_response[:500],
-            },
-        )
+        return self._result(f1, {
+            "precision": precision,
+            "recall": recall,
+            "f1": f1,
+            "actual_response": actual_response[:500],
+            "expected_response": expected_response[:500],
+        })
 
     def _rouge1_score(self, actual: str, expected: str) -> tuple[float, float, float]:
         actual_tokens = set(self._tokenize(actual))
@@ -122,16 +112,11 @@ class ExactMatchCriterion(SyncCriterion):
         actual_response = actual.actual_response.strip()
         is_match = actual_response == expected_response
 
-        return CriterionResult.success(
-            criterion=self.name,
-            score=1.0 if is_match else 0.0,
-            threshold=self.threshold,
-            details={
-                "match": is_match,
-                "actual_length": len(actual_response),
-                "expected_length": len(expected_response),
-            },
-        )
+        return self._result(1.0 if is_match else 0.0, {
+            "match": is_match,
+            "actual_length": len(actual_response),
+            "expected_length": len(expected_response),
+        })
 
 
 class ContainsKeywordsCriterion(SyncCriterion):
@@ -150,22 +135,11 @@ class ContainsKeywordsCriterion(SyncCriterion):
         expected: EvalCase,
     ) -> CriterionResult:
         if not self.keywords:
-            return CriterionResult.success(
-                criterion=self.name,
-                score=1.0,
-                threshold=self.threshold,
-                details={"note": "No keywords specified"},
-            )
+            return self._result(1.0, {"note": "No keywords specified"})
 
         actual_response = actual.actual_response.lower()
-
         found = [kw for kw in self.keywords if kw.lower() in actual_response]
         missing = [kw for kw in self.keywords if kw.lower() not in actual_response]
         score = len(found) / len(self.keywords)
 
-        return CriterionResult.success(
-            criterion=self.name,
-            score=score,
-            threshold=self.threshold,
-            details={"found": found, "missing": missing, "keywords": self.keywords},
-        )
+        return self._result(score, {"found": found, "missing": missing, "keywords": self.keywords})

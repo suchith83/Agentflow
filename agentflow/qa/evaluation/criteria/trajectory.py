@@ -1,5 +1,5 @@
 """
-Trajectory matching criterion.
+Trajectory matching criteria.
 
 Compares actual tool call trajectories against expected trajectories
 using EXACT, IN_ORDER, or ANY_ORDER matching strategies.
@@ -12,11 +12,11 @@ from typing import TYPE_CHECKING
 from agentflow.qa.evaluation.config.eval_config import MatchType
 from agentflow.qa.evaluation.criteria.base import SyncCriterion
 from agentflow.qa.evaluation.dataset.eval_set import ToolCall
-from agentflow.qa.evaluation.eval_result import CriterionResult
 
 
 if TYPE_CHECKING:
     from agentflow.qa.evaluation.dataset.eval_set import EvalCase
+    from agentflow.qa.evaluation.eval_result import CriterionResult
     from agentflow.qa.evaluation.execution.result import ExecutionResult
 
 
@@ -37,7 +37,6 @@ class TrajectoryMatchCriterion(SyncCriterion):
         actual: ExecutionResult,
         expected: EvalCase,
     ) -> CriterionResult:
-        # Collect expected tools from all invocations
         expected_tools: list[ToolCall] = []
         for invocation in expected.conversation:
             expected_tools.extend(invocation.expected_tool_trajectory)
@@ -56,21 +55,16 @@ class TrajectoryMatchCriterion(SyncCriterion):
         actual_names = [t.name for t in actual_tools]
         expected_names = [t.name for t in expected_tools]
 
-        return CriterionResult.success(
-            criterion=self.name,
-            score=score,
-            threshold=self.threshold,
-            details={
-                "reason": (
-                    f"Matched {score:.0%} of expected tools. "
-                    f"Expected {expected_names}, got {actual_names}."
-                ),
-                "actual_trajectory": [t.model_dump() for t in actual_tools],
-                "expected_trajectory": [t.model_dump() for t in expected_tools],
-                "match_type": match_type.value,
-                "check_args": check_args,
-            },
-        )
+        return self._result(score, {
+            "reason": (
+                f"Matched {score:.0%} of expected tools. "
+                f"Expected {expected_names}, got {actual_names}."
+            ),
+            "actual_trajectory": [t.model_dump() for t in actual_tools],
+            "expected_trajectory": [t.model_dump() for t in expected_tools],
+            "match_type": match_type.value,
+            "check_args": check_args,
+        })
 
     def _tools_match(self, actual: ToolCall, expected: ToolCall, check_args: bool) -> bool:
         return actual.matches(expected, check_args=check_args, check_call_id=False)
@@ -83,7 +77,6 @@ class TrajectoryMatchCriterion(SyncCriterion):
     ) -> float:
         if not expected:
             return 1.0 if not actual else 0.0
-
         if len(actual) != len(expected):
             min_len = min(len(actual), len(expected))
             matches = sum(
@@ -92,7 +85,6 @@ class TrajectoryMatchCriterion(SyncCriterion):
                 if self._tools_match(a, e, check_args)
             )
             return matches / len(expected)
-
         matches = sum(
             1 for a, e in zip(actual, expected, strict=False) if self._tools_match(a, e, check_args)
         )
@@ -106,14 +98,12 @@ class TrajectoryMatchCriterion(SyncCriterion):
     ) -> float:
         if not expected:
             return 1.0
-
         expected_idx = 0
         for actual_tool in actual:
             if expected_idx >= len(expected):
                 break
             if self._tools_match(actual_tool, expected[expected_idx], check_args):
                 expected_idx += 1
-
         return expected_idx / len(expected)
 
     def _any_order_match(
@@ -124,27 +114,19 @@ class TrajectoryMatchCriterion(SyncCriterion):
     ) -> float:
         if not expected:
             return 1.0
-
         matched = 0
         remaining_actual = list(actual)
-
         for exp_tool in expected:
             for idx, act_tool in enumerate(remaining_actual):
                 if self._tools_match(act_tool, exp_tool, check_args):
                     matched += 1
                     remaining_actual.pop(idx)
                     break
-
         return matched / len(expected)
 
 
 class NodeOrderMatchCriterion(SyncCriterion):
     """Check that the graph visited nodes in the expected order.
-
-    Compares ``ExecutionResult.node_visits`` against the expected node order
-    defined in ``EvalCase.conversation[i].expected_node_order``.
-
-    Example expected_node_order: ["MAIN", "TOOL", "MAIN"]
 
     Supports three matching modes via config.match_type:
         - EXACT: Same nodes, same order, same count
@@ -160,7 +142,6 @@ class NodeOrderMatchCriterion(SyncCriterion):
         actual: ExecutionResult,
         expected: EvalCase,
     ) -> CriterionResult:
-        # Collect expected node order from all invocations
         expected_nodes: list[str] = []
         for invocation in expected.conversation:
             expected_nodes.extend(invocation.expected_node_order)
@@ -169,7 +150,7 @@ class NodeOrderMatchCriterion(SyncCriterion):
         match_type = self.config.match_type
 
         if not expected_nodes:
-            score = 1.0 if not actual_nodes else 1.0  # No expectation → always pass
+            score = 1.0
         elif match_type == MatchType.EXACT:
             score = self._exact_match(actual_nodes, expected_nodes)
         elif match_type == MatchType.IN_ORDER:
@@ -177,20 +158,15 @@ class NodeOrderMatchCriterion(SyncCriterion):
         else:
             score = self._any_order_match(actual_nodes, expected_nodes)
 
-        return CriterionResult.success(
-            criterion=self.name,
-            score=score,
-            threshold=self.threshold,
-            details={
-                "reason": (
-                    f"Matched {score:.0%} of expected node order. "
-                    f"Expected {expected_nodes}, got {actual_nodes}."
-                ),
-                "actual_node_order": actual_nodes,
-                "expected_node_order": expected_nodes,
-                "match_type": match_type.value,
-            },
-        )
+        return self._result(score, {
+            "reason": (
+                f"Matched {score:.0%} of expected node order. "
+                f"Expected {expected_nodes}, got {actual_nodes}."
+            ),
+            "actual_node_order": actual_nodes,
+            "expected_node_order": expected_nodes,
+            "match_type": match_type.value,
+        })
 
     @staticmethod
     def _exact_match(actual: list[str], expected: list[str]) -> float:
@@ -256,12 +232,7 @@ class ToolNameMatchCriterion(SyncCriterion):
                     remaining.remove(exp_name)
             score = matched / len(expected_names)
 
-        return CriterionResult.success(
-            criterion=self.name,
-            score=score,
-            threshold=self.threshold,
-            details={
-                "expected_names": expected_names,
-                "actual_names": actual_names,
-            },
-        )
+        return self._result(score, {
+            "expected_names": expected_names,
+            "actual_names": actual_names,
+        })

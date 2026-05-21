@@ -21,7 +21,6 @@ from typing import TYPE_CHECKING, Any
 
 from agentflow.qa.evaluation.criteria.base import BaseCriterion
 from agentflow.qa.evaluation.criteria.llm_utils import LLMCallerMixin
-from agentflow.qa.evaluation.eval_result import CriterionResult
 from agentflow.qa.evaluation.token_usage import TokenUsage
 
 
@@ -56,12 +55,7 @@ class TemplatedLLMCriterion(LLMCallerMixin, BaseCriterion):
         Default: skip (score=1.0) when actual_response is empty.
         """
         if not actual.actual_response:
-            return CriterionResult.success(
-                criterion=self.name,
-                score=1.0,
-                threshold=self.threshold,
-                details={"note": "No response to evaluate"},
-            )
+            return self._result(1.0, {"note": "No response to evaluate"})
         return None
 
     def _build_prompt(self, actual: ExecutionResult, expected: EvalCase) -> str:
@@ -141,22 +135,14 @@ class TemplatedLLMCriterion(LLMCallerMixin, BaseCriterion):
             scores, reasonings, extras, token_usage = await self._run_samples(prompt)
 
             if not scores:
-                return CriterionResult.failure(
-                    criterion=self.name, error="All LLM samples failed"
-                )
+                return self._failure("All LLM samples failed")
 
             final_score = sum(scores) / len(scores)
             agg = self._aggregate_extras(extras)
             details = self._build_details(scores, reasonings, agg, final_score)
 
-            return CriterionResult.success(
-                criterion=self.name,
-                score=final_score,
-                threshold=self.threshold,
-                details=details,
-                token_usage=token_usage,
-            )
+            return self._result(final_score, details, token_usage)
 
         except Exception as e:
             logger.error("%s evaluation failed: %s", self.name, e)
-            return CriterionResult.failure(criterion=self.name, error=str(e))
+            return self._failure(str(e))

@@ -251,7 +251,7 @@ class EvalPresets:
         combined_criteria: dict = {}
 
         for config in configs:
-            combined_criteria.update(config.criteria)
+            combined_criteria.update(config.criteria.to_dict())
 
         return EvalConfig(criteria=combined_criteria)
 
