@@ -83,7 +83,7 @@ StateT = TypeVar("StateT", bound=AgentState)
 # Key stored in execution_meta.internal_data
 _ROUNDS_KEY = "sta_rounds"
 
-_FINISH_TOKEN = "FINISH"  # noqa: S105
+_FINISH_TOKEN = "FINISH"  # nosec: B105  # noqa: S105
 _SUPERVISOR_NODE = "SUPERVISOR"
 _PRE_SUPERVISOR_NODE = "PRE_SUPERVISOR"
 
@@ -204,7 +204,6 @@ def _make_supervisor_route(
     3. If it matches a known worker name → route there.
     4. If it contains ``FINISH`` or no known worker is found → ``END``.
     """
-    worker_set = {w.upper() for w in worker_names}
 
     def _route(state: AgentState) -> str:
         rounds = state.execution_meta.internal_data.get(_ROUNDS_KEY, 0)

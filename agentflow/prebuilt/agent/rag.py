@@ -248,7 +248,8 @@ class RAGAgent[StateT: AgentState]:
     The agent owns the full retrieval pipeline.  Users provide:
 
     * ``store`` — the knowledge base (:class:`~agentflow.storage.store.BaseStore`)
-    * ``agent`` — the LLM that generates the answer (:class:`~agentflow.core.graph.base_agent.BaseAgent`)
+    * ``agent`` — the LLM that generates the answer
+        (:class:`~agentflow.core.graph.base_agent.BaseAgent`)
     * ``reranker`` — optional :class:`BaseReranker` for improved precision
 
     Args:
@@ -277,7 +278,7 @@ class RAGAgent[StateT: AgentState]:
         state, context_manager, publisher, id_generator, container
     """
 
-    def __init__(
+    def __init__(  # noqa: PLR0913
         self,
         store: BaseStore,
         agent: BaseAgent,
@@ -393,11 +394,11 @@ class RAGAgent[StateT: AgentState]:
                 if last_user_idx >= 0 and original_query:
                     augmented = _build_context_message(docs, original_query)
                     augmented_msg = Message.text_message(augmented, role="user")  # type: ignore[arg-type]
-                    state.context = (
-                        list(state.context[:last_user_idx])
-                        + [augmented_msg]
-                        + list(state.context[last_user_idx + 1 :])
-                    )
+                    state.context = [
+                        *list(state.context[:last_user_idx]),
+                        augmented_msg,
+                        *list(state.context[last_user_idx + 1 :]),
+                    ]
                     logger.debug("RAGAgent SYNTHESIZE: injected %d docs.", len(docs))
 
             return await agent.execute(state, config)

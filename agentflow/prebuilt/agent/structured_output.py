@@ -82,7 +82,7 @@ def _validate_message(
             )
             adapter.validate_python(raw)
             return True, ""
-        except Exception:  # noqa: S110
+        except Exception:  # nosec: B110  # noqa: B110, S110, RUF100, RUF102
             pass  # fall through to text-based parsing
 
     # 2. Attempt to parse the text content as JSON.
