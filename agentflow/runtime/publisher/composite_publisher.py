@@ -15,6 +15,14 @@ class CompositePublisher(BasePublisher):
         super().__init__({})
         self._publishers = publishers
 
+    def add_publisher(self, publisher: BasePublisher) -> None:
+        """Add a publisher to the composite."""
+        self._publishers.append(publisher)
+
+    def remove_publisher(self, publisher: BasePublisher) -> None:
+        """Remove a publisher from the composite."""
+        self._publishers.remove(publisher)
+
     async def publish(self, event: EventModel) -> None:
         await asyncio.gather(
             *(p.publish(event) for p in self._publishers),
