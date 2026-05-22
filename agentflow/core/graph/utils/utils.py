@@ -111,6 +111,7 @@ def _update_state_fields(state, partial: dict):
 
 async def validate_message_content(
     message: list[Message],
+    config: dict[str, Any] | None = None,
     callback_mgr: CallbackManager = Inject[CallbackManager],  # will be auto-injected
 ) -> bool:
     """Validate message content using registered validators in callback manager.
@@ -120,6 +121,7 @@ async def validate_message_content(
 
     Args:
         message: List of Message objects to validate.
+        config: Execution config passed through to validators for event publishing.
         callback_manager: CallbackManager instance (required).
 
     Returns:
@@ -134,7 +136,7 @@ async def validate_message_content(
         return True
 
     # Execute validation
-    await callback_mgr.execute_validators(message)
+    await callback_mgr.execute_validators(message, config=config)
 
     logger.debug("All validators passed")
     return True
@@ -204,7 +206,7 @@ async def load_or_create_state[StateT: AgentState](  # noqa: PLR0912, PLR0915
             if new_messages:
                 logger.debug("Merging %d new messages with existing context", len(new_messages))
                 # Validate message content before adding
-                await validate_message_content(new_messages)
+                await validate_message_content(new_messages, config=config)
                 pre_merge_len = len(existing_state.context)
                 existing_state.context = add_messages(existing_state.context, new_messages)
 
@@ -263,7 +265,7 @@ async def load_or_create_state[StateT: AgentState](  # noqa: PLR0912, PLR0915
     if new_messages:
         logger.debug("Adding %d new messages to fresh state", len(new_messages))
         # Validate message content before adding
-        await validate_message_content(new_messages)
+        await validate_message_content(new_messages, config=config)
         state.context = add_messages(state.context, new_messages)
     # Merge partial state fields if provided
     partial_state = input_data.get("state", {})

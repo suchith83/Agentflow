@@ -260,7 +260,7 @@ class PlanActReflectAgent[StateT: AgentState]:
         max_iterations: int = 3,
         state: StateT | None = None,
         context_manager: BaseContextManager[StateT] | None = None,
-        publisher: BasePublisher | None = None,
+        publisher: BasePublisher | list[BasePublisher] | None = None,
         id_generator: BaseIDGenerator = DefaultIDGenerator(),
         container: InjectQ | None = None,
         *,

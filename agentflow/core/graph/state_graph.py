@@ -7,6 +7,7 @@ from injectq import InjectQ
 from agentflow.core.exceptions import GraphError
 from agentflow.core.state import AgentState, BaseContextManager
 from agentflow.runtime.publisher import BasePublisher
+from agentflow.runtime.publisher.composite_publisher import CompositePublisher
 from agentflow.storage.checkpointer import BaseCheckpointer
 from agentflow.storage.store import BaseStore
 from agentflow.utils import END, START, CallbackManager
@@ -66,7 +67,7 @@ class StateGraph[StateT: AgentState]:
         self,
         state: StateT | None = None,
         context_manager: BaseContextManager[StateT] | None = None,
-        publisher: BasePublisher | None = None,
+        publisher: BasePublisher | list[BasePublisher] | None = None,
         id_generator: BaseIDGenerator | None = None,
         container: InjectQ | None = None,
     ):
@@ -119,6 +120,10 @@ class StateGraph[StateT: AgentState]:
         self.edges: list[Edge] = []
         self.entry_point: str | None = None
 
+        # Normalize list of publishers into a single CompositePublisher
+        if isinstance(publisher, list):
+            publisher = CompositePublisher(publisher) if publisher else None
+
         # Services
         self._publisher: BasePublisher | None = publisher
         self._id_generator: BaseIDGenerator = id_generator or DefaultIDGenerator()
@@ -143,8 +148,8 @@ class StateGraph[StateT: AgentState]:
 
         # Add START and END nodes (accept full node signature including dependencies)
         logger.debug("Adding default START and END nodes")
-        self.nodes[START] = Node(START, lambda state, config, **deps: state, self._publisher)  # type: ignore
-        self.nodes[END] = Node(END, lambda state, config, **deps: state, self._publisher)
+        self.nodes[START] = Node(START, lambda state, config, **deps: state)  # type: ignore
+        self.nodes[END] = Node(END, lambda state, config, **deps: state)  # type: ignore
         logger.debug("StateGraph initialized with %d nodes", len(self.nodes))
 
     def _setup(self):
@@ -401,7 +406,7 @@ class StateGraph[StateT: AgentState]:
             raise KeyError(f"Node '{name}' does not exist. Use add_node() first.")
 
         # Create new Node with same name but different function
-        self.nodes[name] = Node(name, func, self._publisher)
+        self.nodes[name] = Node(name, func)
         logger.debug("Overrode node '%s' with new function", name)
         return self
 

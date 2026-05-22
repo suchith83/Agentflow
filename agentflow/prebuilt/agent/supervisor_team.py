@@ -165,7 +165,7 @@ def _make_increment_rounds_node() -> Callable[[AgentState], list]:
         return []
 
     _increment.__name__ = "increment_rounds"
-    return _increment
+    return _increment  # type: ignore
 
 
 # ---------------------------------------------------------------------------
@@ -305,7 +305,7 @@ class SupervisorTeamAgent[StateT: AgentState]:
         max_rounds: int = 10,
         state: StateT | None = None,
         context_manager: BaseContextManager[StateT] | None = None,
-        publisher: BasePublisher | None = None,
+        publisher: BasePublisher | list[BasePublisher] | None = None,
         id_generator: BaseIDGenerator = DefaultIDGenerator(),
         container: InjectQ | None = None,
         **supervisor_kwargs: Any,

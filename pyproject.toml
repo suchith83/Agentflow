@@ -107,6 +107,10 @@ rabbitmq = ["aio-pika>=9.0.0"]
 qdrant = ["qdrant-client>=1.7.0"]
 mem0 = ["mem0ai>=0.1.117"]
 a2a_sdk = ["a2a-sdk>=0.2.7"]
+otel = [
+    "opentelemetry-api>=1.20.0",
+    "opentelemetry-sdk>=1.20.0",
+]
 
 all_publishers = [
     "redis>=4.2",
@@ -189,6 +193,7 @@ max-complexity = 10
 "agentflow/adapters/llm/openai_converter.py" = ["PLR0912"]
 "agentflow/adapters/llm/openai_responses_converter.py" = ["PLR0912", "PLR0915"]
 "agentflow/graph/agent.py" = ["PLR0912", "PLR0913"]
+"agentflow/runtime/publisher/otel_publisher.py" = ["PLR0912"]
 "agentflow/qa/evaluation/reporters/_html_css.py" = ["E501"]
 "agentflow/qa/evaluation/reporters/_html_js.py" = ["E501"]
 "agentflow/qa/evaluation/reporters/_html_template.py" = ["E501", "PLR0913"]

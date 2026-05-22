@@ -166,12 +166,21 @@ class InvokeHandler[StateT: AgentState](
                 # Snapshot state before node execution for on_state_update hook
                 old_state_snapshot = state.model_copy(deep=True)
 
-                # Publish node invocation event
+                node_event = EventModel.default(
+                    config,
+                    data={"step": step, "state": state.model_dump()},
+                    event=Event.NODE_EXECUTION,
+                    event_type=EventType.START,
+                    content_type=[ContentType.STATE],
+                    node_name=current_node,
+                )
+                publish_event(node_event)
 
                 ###############################################
                 ##### Node Execution Started ##################
                 ###############################################
 
+                config["_node_name"] = current_node
                 result = await node.execute(config, state)  # type: ignore
 
                 ###############################################
@@ -225,6 +234,11 @@ class InvokeHandler[StateT: AgentState](
                     next_node,
                     len(messages),
                 )
+
+                node_event.event_type = EventType.END
+                node_event.data["messages"] = [m.model_dump() for m in messages] if messages else []
+                node_event.content_type = [ContentType.MESSAGE]
+                publish_event(node_event)
 
                 # Check stop again after node execution
                 res = await check_stop_requested(

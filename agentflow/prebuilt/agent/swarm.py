@@ -238,7 +238,7 @@ class SwarmAgent[StateT: AgentState]:
         entry: str,
         state: StateT | None = None,
         context_manager: BaseContextManager[StateT] | None = None,
-        publisher: BasePublisher | None = None,
+        publisher: BasePublisher | list[BasePublisher] | None = None,
         id_generator: BaseIDGenerator = DefaultIDGenerator(),
         container: InjectQ | None = None,
     ):
@@ -314,7 +314,7 @@ class SwarmAgent[StateT: AgentState]:
         if agent.tool_node is None:
             new_tn = ToolNode(handoff_tools)
             agent.tool_node = new_tn
-            agent._tool_node = new_tn
+            agent._tool_node = new_tn  # type: ignore
         elif isinstance(agent.tool_node, ToolNode):
             for tool in handoff_tools:
                 agent.tool_node.add_tool(tool)

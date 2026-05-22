@@ -354,7 +354,7 @@ class CompiledGraph[StateT: AgentState]:
             raise KeyError(f"Node '{name}' does not exist")
 
         # Create new Node and update the graph's dict
-        new_node = Node(name, func, self._publisher)
+        new_node = Node(name, func)
         self._state_graph.nodes[name] = new_node
 
         # Re-register in container so handlers pick up the change
