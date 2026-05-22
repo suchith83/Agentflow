@@ -99,10 +99,8 @@ google-genai = ["google-genai>=1.56.0"]
 openai = ["openai>=1.77.0"]
 pg_checkpoint = ["asyncpg>=0.29.0","redis>=4.2"]
 mcp = ["fastmcp>=2.11.3","mcp>=1.13.0"]
-composio = ["composio>=0.8.0"]
 images = ["Pillow>=10.0.0"]
 cloud-storage = ["cloud-storage-manager>=0.1.2"]
-langchain = ["langchain-core>=0.3.0","langchain-community>=0.3.0"]
 redis = ["redis>=4.2"]
 kafka = ["aiokafka>=0.8.0"]
 rabbitmq = ["aio-pika>=9.0.0"]
@@ -305,9 +303,6 @@ dev = [
     "redis>=6.4.0",
     "fastmcp>=2.12.3",
     "mcp>=1.14.1",
-    "composio>=0.8.15",
-    "langchain-core>=0.3.76",
-    "langchain-community>=0.3.29",
     "mem0ai>=0.1.117",
     "google-genai>=1.56.0",
     "a2a_sdk",

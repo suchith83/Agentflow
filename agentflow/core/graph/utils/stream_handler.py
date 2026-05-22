@@ -27,7 +27,7 @@ from agentflow.core.state.message_block import RemoteToolCallBlock
 from agentflow.core.state.stream_chunks import StreamChunk, StreamEvent
 from agentflow.utils import END, ResponseGranularity, add_messages
 from agentflow.utils.callbacks import CallbackManager, GraphLifecycleContext
-from .heandler_utils import (
+from .handler_utils import (
     check_and_handle_interrupt,
     check_interrupted,
     check_stop_requested,

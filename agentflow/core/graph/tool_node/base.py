@@ -1,9 +1,9 @@
 """Tool execution node for TAF graph workflows.
 
 This module provides the ToolNode class, which serves as a unified registry and executor
-for callable functions from various sources including local functions, MCP (Model Context Protocol)
-tools, Composio adapters, and LangChain tools. The ToolNode is designed with a modular
-architecture using mixins to handle different tool providers.
+for callable functions from various sources including local functions and MCP (Model Context
+Protocol) tools. The ToolNode is designed with a modular architecture using mixins to handle
+different tool providers.
 
 The ToolNode maintains compatibility with TAF's dependency injection system and
 publishes execution events for monitoring and debugging purposes.
@@ -31,13 +31,12 @@ from injectq import Inject
 from agentflow.core.state import AgentState, ErrorBlock, Message, ToolCallBlock, ToolResultBlock
 from agentflow.core.state.message_block import RemoteToolCallBlock
 from agentflow.core.state.stream_emitter import StreamEmitter
-from agentflow.runtime.adapters.tools import ComposioAdapter
 from agentflow.runtime.publisher.events import ContentType, Event, EventModel, EventType
 from agentflow.runtime.publisher.publish import publish_event
 from agentflow.utils import CallbackManager
 
 from . import deps
-from .executors import ComposioMixin, KwargsResolverMixin, LangChainMixin, LocalExecMixin, MCPMixin
+from .executors import KwargsResolverMixin, LocalExecMixin, MCPMixin
 from .schema import SchemaMixin
 
 
@@ -48,8 +47,6 @@ class ToolNode(
     SchemaMixin,
     LocalExecMixin,
     MCPMixin,
-    ComposioMixin,
-    LangChainMixin,
     KwargsResolverMixin,
 ):
     """A unified registry and executor for callable functions from various tool providers.
@@ -57,8 +54,6 @@ class ToolNode(
     ToolNode serves as the central hub for managing and executing tools from multiple sources:
     - Local Python functions
     - MCP (Model Context Protocol) tools
-    - Composio adapter tools
-    - LangChain tools
 
     The class uses a mixin-based architecture to separate concerns and maintain clean
     integration with different tool providers. It provides both synchronous and asynchronous
@@ -67,11 +62,7 @@ class ToolNode(
     Attributes:
         _funcs: Dictionary mapping function names to callable functions.
         _client: Optional MCP client for remote tool execution.
-        _composio: Optional Composio adapter for external integrations.
-        _langchain: Optional LangChain adapter for LangChain tools.
         mcp_tools: List of available MCP tool names.
-        composio_tools: List of available Composio tool names.
-        langchain_tools: List of available LangChain tool names.
 
     Example:
         ```python
@@ -102,28 +93,22 @@ class ToolNode(
         self,
         tools: t.Iterable[t.Callable],
         client: deps.Client | None = None,  # type: ignore
-        composio_adapter: ComposioAdapter | None = None,
-        langchain_adapter: t.Any | None = None,
         pass_user_info_to_mcp: bool = False,
     ) -> None:
-        """Initialize ToolNode with functions and optional tool adapters.
+        """Initialize ToolNode with functions and optional MCP client.
 
         Args:
-            functions: Iterable of callable functions to register as tools. Each function
+            tools: Iterable of callable functions to register as tools. Each function
                 will be registered with its `__name__` as the tool identifier.
             client: Optional MCP (Model Context Protocol) client for remote tool access.
                 Requires 'fastmcp' and 'mcp' packages to be installed.
-            composio_adapter: Optional Composio adapter for external integrations and
-                third-party API access.
-            langchain_adapter: Optional LangChain adapter for accessing LangChain tools
-                and integrations.
             pass_user_info_to_mcp: If True, extracts the 'user' dictionary from the config
                 and passes it as metadata to MCP tool calls. The user info will be accessible
                 on the MCP server via `ctx.request_context.meta`. Defaults to False.
 
         Raises:
             ImportError: If MCP client is provided but required packages are not installed.
-            TypeError: If any item in functions is not callable.
+            TypeError: If any item in tools is not callable.
 
         Note:
             When using MCP client functionality, ensure you have installed the required
@@ -162,8 +147,6 @@ class ToolNode(
 
         self._funcs: dict[str, t.Callable] = {}
         self._client: deps.Client | None = client  # type: ignore
-        self._composio: ComposioAdapter | None = composio_adapter
-        self._langchain: t.Any | None = langchain_adapter
         self._pass_user_info_to_mcp: bool = pass_user_info_to_mcp
 
         for tool in tools:
@@ -172,8 +155,6 @@ class ToolNode(
             self._funcs[tool.__name__] = tool
 
         self.mcp_tools: list[str] = []
-        self.composio_tools: list[str] = []
-        self.langchain_tools: list[str] = []
         self.remote_tools: list[dict] = []
         self.remote_tool_names: list[str] = []
 
@@ -213,8 +194,6 @@ class ToolNode(
     ) -> list[dict]:
         tools: list[dict] = self.get_local_tool(tags=tags)
         tools.extend(await self._get_mcp_tool(tags=tags))
-        tools.extend(await self._get_composio_tools())
-        tools.extend(await self._get_langchain_tools())
         tools.extend(self.remote_tools)
         return tools
 
@@ -289,12 +268,6 @@ class ToolNode(
             if result:
                 tools.extend(result)
 
-        comp = asyncio.run(self._get_composio_tools())
-        if comp:
-            tools.extend(comp)
-        lc = asyncio.run(self._get_langchain_tools())
-        if lc:
-            tools.extend(lc)
         return tools
 
     async def invoke(  # noqa: PLR0915
@@ -348,7 +321,7 @@ class ToolNode(
         Note:
             The method publishes execution events throughout the process for
             monitoring and debugging purposes. Tool execution is routed based
-            on tool provider precedence: MCP → Composio → LangChain → Local.
+            on tool provider precedence: MCP → Local.
         """
         logger.info("Executing tool '%s' with %d arguments", name, len(args))
         logger.debug("Tool arguments: %s", args)
@@ -396,40 +369,6 @@ class ToolNode(
                     output=res.model_dump(),
                 )
             ]
-            event.event_type = EventType.END
-            event.content_type = [ContentType.TOOL_RESULT, ContentType.MESSAGE]
-            publish_event(event)
-            return res
-
-        if name in self.composio_tools:
-            event.metadata["is_composio"] = True
-            publish_event(event)
-            res = await self._composio_execute(
-                name,
-                args,
-                tool_call_id,
-                config,
-                callback_manager,
-            )
-            event.data["message"] = res.model_dump()
-            event.content_blocks = [ToolResultBlock(call_id=tool_call_id, output=res.model_dump())]
-            event.event_type = EventType.END
-            event.content_type = [ContentType.TOOL_RESULT, ContentType.MESSAGE]
-            publish_event(event)
-            return res
-
-        if name in self.langchain_tools:
-            event.metadata["is_langchain"] = True
-            publish_event(event)
-            res = await self._langchain_execute(
-                name,
-                args,
-                tool_call_id,
-                config,
-                callback_manager,
-            )
-            event.data["message"] = res.model_dump()
-            event.content_blocks = [ToolResultBlock(call_id=tool_call_id, output=res.model_dump())]
             event.event_type = EventType.END
             event.content_type = [ContentType.TOOL_RESULT, ContentType.MESSAGE]
             publish_event(event)
@@ -564,46 +503,6 @@ class ToolNode(
             event.metadata["function_type"] = "mcp"
             publish_event(event)
             message = await self._mcp_execute(
-                name,
-                args,
-                tool_call_id,
-                config,
-                callback_manager,
-            )
-            event.data["message"] = message.model_dump()
-            event.content_blocks = [
-                ToolResultBlock(call_id=tool_call_id, output=message.model_dump())
-            ]
-            event.event_type = EventType.END
-            event.content_type = [ContentType.TOOL_RESULT, ContentType.MESSAGE]
-            publish_event(event)
-            yield message
-            return
-
-        if name in self.composio_tools:
-            event.metadata["function_type"] = "composio"
-            publish_event(event)
-            message = await self._composio_execute(
-                name,
-                args,
-                tool_call_id,
-                config,
-                callback_manager,
-            )
-            event.data["message"] = message.model_dump()
-            event.content_blocks = [
-                ToolResultBlock(call_id=tool_call_id, output=message.model_dump())
-            ]
-            event.event_type = EventType.END
-            event.content_type = [ContentType.TOOL_RESULT, ContentType.MESSAGE]
-            publish_event(event)
-            yield message
-            return
-
-        if name in self.langchain_tools:
-            event.metadata["function_type"] = "langchain"
-            publish_event(event)
-            message = await self._langchain_execute(
                 name,
                 args,
                 tool_call_id,

@@ -7,8 +7,6 @@ including:
 - TestContext: Helper for test environment setup
 - MockToolRegistry: Tool call tracking for testing
 - MockMCPClient: Mock MCP client for testing MCP tool integrations
-- MockComposioAdapter: Mock Composio adapter for testing
-- MockLangChainAdapter: Mock LangChain adapter for testing
 
 Example:
     ```python
@@ -49,7 +47,7 @@ from typing import Any
 from injectq import InjectQ
 
 from .in_memory_store import InMemoryStore
-from .mock_mcp import MockComposioAdapter, MockLangChainAdapter, MockMCPClient
+from .mock_mcp import MockMCPClient
 from .mock_tools import MockToolRegistry
 from .quick_test import QuickTest
 from .test_agent import TestAgent
@@ -187,8 +185,6 @@ StateGraph = Any  # Avoid circular import
 
 __all__ = [
     "InMemoryStore",
-    "MockComposioAdapter",
-    "MockLangChainAdapter",
     "MockMCPClient",
     "MockToolRegistry",
     "QuickTest",

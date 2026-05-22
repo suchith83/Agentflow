@@ -81,8 +81,6 @@ from .evaluation import (
 )
 from .testing import (
     InMemoryStore,
-    MockComposioAdapter,
-    MockLangChainAdapter,
     MockMCPClient,
     MockToolRegistry,
     QuickTest,
@@ -143,8 +141,6 @@ __all__ = [
     "LLMJudgeCriterion",
     "MatchType",
     "MessageContent",
-    "MockComposioAdapter",
-    "MockLangChainAdapter",
     "MockMCPClient",
     "MockToolRegistry",
     # --- Evaluation: Criteria (trajectory) ---

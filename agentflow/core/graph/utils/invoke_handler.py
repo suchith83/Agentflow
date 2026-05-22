@@ -25,7 +25,7 @@ from agentflow.utils import END, ResponseGranularity
 from agentflow.core.state.reducers import add_messages
 from agentflow.utils.callbacks import CallbackManager, GraphLifecycleContext
 
-from .heandler_utils import (
+from .handler_utils import (
     check_and_handle_interrupt,
     check_interrupted,
     check_stop_requested,
