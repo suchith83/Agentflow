@@ -27,7 +27,7 @@ from agentflow.core.state.message_block import RemoteToolCallBlock
 from agentflow.core.state.stream_chunks import StreamChunk, StreamEvent
 from agentflow.utils import END, ResponseGranularity, add_messages
 from agentflow.utils.callbacks import CallbackManager, GraphLifecycleContext
-from .heandler_utils import (
+from .handler_utils import (
     check_and_handle_interrupt,
     check_interrupted,
     check_stop_requested,
@@ -413,7 +413,7 @@ class StreamHandler[StateT: AgentState](
                 event.data["messages"] = [m.model_dump() for m in messages] if messages else []
                 if messages:
                     lm = messages[-1]
-                    event.content = lm.text() if isinstance(lm.content, list) else lm.content
+                    event.content = str(lm.text() if isinstance(lm.content, list) else lm.content)
                     if isinstance(lm.content, list):
                         event.content_blocks = lm.content
                 event.content_type = [ContentType.STATE, ContentType.MESSAGE]
@@ -563,7 +563,7 @@ class StreamHandler[StateT: AgentState](
             event.data["messages"] = [m.model_dump() for m in messages] if messages else []
             if messages:
                 fm = messages[-1]
-                event.content = fm.text() if isinstance(fm.content, list) else fm.content
+                event.content = str(fm.text() if isinstance(fm.content, list) else fm.content)
                 if isinstance(fm.content, list):
                     event.content_blocks = fm.content
             event.content_type = [ContentType.STATE, ContentType.MESSAGE]

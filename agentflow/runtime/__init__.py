@@ -2,7 +2,7 @@
 
 This package provides the runtime infrastructure for agent execution:
 
-- ``agentflow.runtime.adapters``   - LLM response converters and third-party tool adapters
+- ``agentflow.runtime.adapters``   - LLM response converters
 - ``agentflow.runtime.publisher``  - event publishers (console, Redis, Kafka, RabbitMQ)
 - ``agentflow.runtime.protocols``  - agent communication protocol packages
 """
@@ -15,7 +15,6 @@ from .adapters.llm import (
     OpenAIConverter,
     OpenAIResponsesConverter,
 )
-from .adapters.tools import ComposioAdapter, LangChainAdapter
 from .publisher import (
     BasePublisher,
     ConsolePublisher,
@@ -35,7 +34,6 @@ __all__ = [
     # Adapters
     "BaseConverter",
     "BasePublisher",
-    "ComposioAdapter",
     "ConsolePublisher",
     "ContentType",
     "ConverterType",
@@ -44,7 +42,6 @@ __all__ = [
     "EventType",
     "GoogleGenAIConverter",
     "KafkaPublisher",
-    "LangChainAdapter",
     "OpenAIConverter",
     "OpenAIResponsesConverter",
     "RabbitMQPublisher",

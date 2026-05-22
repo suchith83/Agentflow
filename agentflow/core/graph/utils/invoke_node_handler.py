@@ -27,7 +27,6 @@ from agentflow.core.exceptions import NodeError
 from agentflow.core.graph.tool_node import ToolNode
 from agentflow.core.graph.utils.utils import process_node_result
 from agentflow.core.state import AgentState, Message
-from agentflow.prebuilt.tools.handoff import is_handoff_tool
 from agentflow.runtime.publisher import BasePublisher
 from agentflow.runtime.publisher.events import ContentType, Event, EventModel, EventType
 from agentflow.runtime.publisher.publish import publish_event
@@ -147,6 +146,9 @@ class InvokeNodeHandler(BaseLoggingMixin):
             and last_message.tools_calls
             and len(last_message.tools_calls) > 0
         ):
+            # Lazy import to avoid circular dependency
+            from agentflow.prebuilt.tools.handoff import is_handoff_tool
+
             # NEW: Check for handoff BEFORE executing any tools
             for tool_call in last_message.tools_calls:
                 tool_name = tool_call.get("function", {}).get("name", "")
@@ -460,7 +462,7 @@ class InvokeNodeHandler(BaseLoggingMixin):
             # mirror simple content + structured blocks for the last message
             if messages:
                 last = messages[-1]
-                event.content = last.text() if isinstance(last.content, list) else last.content
+                event.content = str(last.text() if isinstance(last.content, list) else last.content)
                 if isinstance(last.content, list):
                     event.content_blocks = last.content
 

@@ -26,7 +26,6 @@ from agentflow.core.state import AgentState, Message
 from agentflow.core.state.message_block import ErrorBlock
 from agentflow.core.state.stream_chunks import StreamChunk, StreamEvent
 from agentflow.core.state.stream_emitter import StreamEmitter
-from agentflow.prebuilt.tools.handoff import is_handoff_tool
 from agentflow.runtime.adapters.llm.model_response_converter import ModelResponseConverter
 from agentflow.runtime.publisher.events import ContentType, Event, EventModel, EventType
 from agentflow.runtime.publisher.publish import publish_event
@@ -231,6 +230,9 @@ class StreamNodeHandler(BaseLoggingMixin):
             and last_message.tools_calls
             and len(last_message.tools_calls) > 0
         ):
+            # Lazy import to avoid circular dependency
+            from agentflow.prebuilt.tools.handoff import is_handoff_tool
+
             # Check for handoff BEFORE executing any tools
             for tool_call in last_message.tools_calls:
                 tool_name = tool_call.get("function", {}).get("name", "")
