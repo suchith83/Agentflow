@@ -50,6 +50,7 @@ StateT = TypeVar("StateT", bound=AgentState)
 
 # Key stored in execution_meta.internal_data
 _ITERATIONS_KEY = "par_iterations"
+_INCREMENT_ITERATIONS_NODE = "INCREMENT_ITERATIONS"
 
 # ---------------------------------------------------------------------------
 # Default system prompts
@@ -87,6 +88,42 @@ DEFAULT_REFLECT_SYSTEM_PROMPT: list[dict[str, str]] = [
         ),
     }
 ]
+
+
+# ---------------------------------------------------------------------------
+# Lightweight increment nodes
+# ---------------------------------------------------------------------------
+
+
+def _make_reflect_node(reflect_agent: Agent) -> Callable:
+    """Wrap *reflect_agent* so it only sees non-tool messages.
+
+    Tool results (role="tool") are noisy and can overflow context on long runs.
+    The wrapper hides them from the reflector's context view while keeping them
+    intact in the shared state so downstream PLAN steps still have full history.
+    """
+
+    async def _reflect(state: AgentState, config: dict) -> object:
+        original_context = state.context
+        state.context = [m for m in (original_context or []) if m.role != "tool"]
+        try:
+            return await reflect_agent.execute(state, config)
+        finally:
+            state.context = original_context
+
+    _reflect.__name__ = "reflect"
+    return _reflect
+
+
+def _make_increment_node(key: str) -> Callable[[AgentState], list]:
+    """Return an async node that increments an integer counter in internal_data."""
+
+    async def _increment(state: AgentState) -> list:
+        state.execution_meta.internal_data[key] = state.execution_meta.internal_data.get(key, 0) + 1
+        return []
+
+    _increment.__name__ = f"increment_{key}"
+    return _increment
 
 
 # ---------------------------------------------------------------------------
@@ -153,12 +190,10 @@ def _make_reflect_route(max_iterations: int) -> Callable[[AgentState], str]:
             logger.debug("REFLECT signalled [DONE] after %d iteration(s).", iterations)
             return END
 
-        # Not done yet — advance counter and loop back.
-        state.execution_meta.internal_data[_ITERATIONS_KEY] = iterations + 1
         logger.debug(
             "REFLECT iteration %d/%d — routing back to PLAN.", iterations + 1, max_iterations
         )
-        return "PLAN"
+        return _INCREMENT_ITERATIONS_NODE
 
     return _route
 
@@ -332,9 +367,9 @@ class PlanActReflectAgent[StateT: AgentState]:
             self._graph.add_node("ACT", self._tool_node)
             self._graph.add_edge("ACT", "REFLECT")
 
-        # --- REFLECT node (reflector agent, no tools) ---
+        # --- REFLECT node (reflector agent, no tools, tool messages filtered out) ---
         reflect_agent = self._build_agent(self._reflect_system_prompt, with_tools=False)
-        self._graph.add_node("REFLECT", reflect_agent)
+        self._graph.add_node("REFLECT", _make_reflect_node(reflect_agent))
 
         # --- Conditional edges from PLAN ---
         plan_path_map: dict[str, str] = {"REFLECT": "REFLECT"}
@@ -347,11 +382,15 @@ class PlanActReflectAgent[StateT: AgentState]:
             plan_path_map,
         )
 
+        # --- INCREMENT_ITERATIONS node: increments counter then falls through to PLAN ---
+        self._graph.add_node(_INCREMENT_ITERATIONS_NODE, _make_increment_node(_ITERATIONS_KEY))
+        self._graph.add_edge(_INCREMENT_ITERATIONS_NODE, "PLAN")
+
         # --- Conditional edges from REFLECT ---
         self._graph.add_conditional_edges(
             "REFLECT",
             _make_reflect_route(self._max_iterations),
-            {"PLAN": "PLAN", END: END},
+            {_INCREMENT_ITERATIONS_NODE: _INCREMENT_ITERATIONS_NODE, END: END},
         )
 
         # --- Entry point ---

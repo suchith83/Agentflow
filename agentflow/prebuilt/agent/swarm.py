@@ -334,8 +334,7 @@ class SwarmAgent[StateT: AgentState]:
         # Record which members have regular (non-handoff) tools BEFORE handoff
         # injection, so we know whether a TOOL node is needed.
         has_regular_tools: dict[str, bool] = {
-            name: cfg.agent.get_tool_node() is not None
-            for name, cfg in self._members.items()
+            name: cfg.agent.get_tool_node() is not None for name, cfg in self._members.items()
         }
 
         # Inject handoff tools and register member nodes.
@@ -356,6 +355,12 @@ class SwarmAgent[StateT: AgentState]:
                 self._graph.add_edge(tool_node_name, name)
 
             if not allowed_targets and tool_node_name is None:
+                logger.warning(
+                    "SwarmAgent member %r has no handoff targets and no tools — "
+                    "it will always route directly to END. "
+                    "Set can_handoff_to or add tools to this member.",
+                    name,
+                )
                 self._graph.add_edge(name, END)
                 continue
 

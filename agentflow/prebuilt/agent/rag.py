@@ -222,7 +222,7 @@ class CrossEncoderReranker:
         loop = asyncio.get_event_loop()
         scores: list[float] = await loop.run_in_executor(None, encoder.predict, pairs)
 
-        ranked = sorted(zip(scores, documents), key=lambda x: x[0], reverse=True)
+        ranked = sorted(zip(scores, documents, strict=False), key=lambda x: x[0], reverse=True)
         return [doc for _, doc in ranked[:top_n]]
 
 

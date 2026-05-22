@@ -54,6 +54,7 @@ Example::
 from __future__ import annotations
 
 import logging
+import re
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any, TypeVar
@@ -84,6 +85,7 @@ _ROUNDS_KEY = "sta_rounds"
 
 _FINISH_TOKEN = "FINISH"  # noqa: S105
 _SUPERVISOR_NODE = "SUPERVISOR"
+_PRE_SUPERVISOR_NODE = "PRE_SUPERVISOR"
 
 
 # ---------------------------------------------------------------------------
@@ -149,6 +151,24 @@ def _build_supervisor_prompt(workers: dict[str, WorkerConfig]) -> list[dict[str,
 
 
 # ---------------------------------------------------------------------------
+# Lightweight increment node
+# ---------------------------------------------------------------------------
+
+
+def _make_increment_rounds_node() -> Callable[[AgentState], list]:
+    """Return an async node that increments the round counter in internal_data."""
+
+    async def _increment(state: AgentState) -> list:
+        state.execution_meta.internal_data[_ROUNDS_KEY] = (
+            state.execution_meta.internal_data.get(_ROUNDS_KEY, 0) + 1
+        )
+        return []
+
+    _increment.__name__ = "increment_rounds"
+    return _increment
+
+
+# ---------------------------------------------------------------------------
 # Routing factory
 # ---------------------------------------------------------------------------
 
@@ -156,17 +176,17 @@ def _build_supervisor_prompt(workers: dict[str, WorkerConfig]) -> list[dict[str,
 def _make_worker_route(tool_node_name: str) -> Callable[[AgentState], str]:
     """Return a routing function for a worker node that has tools.
 
-    Routes to *tool_node_name* when the worker emitted tool calls, and back
-    to the SUPERVISOR when the worker produced a final text response.
+    Routes to *tool_node_name* when the worker emitted tool calls, and to
+    PRE_SUPERVISOR when the worker produced a final text response.
     """
 
     def _route(state: AgentState) -> str:
         if not state.context:
-            return _SUPERVISOR_NODE
+            return _PRE_SUPERVISOR_NODE
         last = state.context[-1]
         if last.role == "assistant" and last.tools_calls and len(last.tools_calls) > 0:
             return tool_node_name
-        return _SUPERVISOR_NODE
+        return _PRE_SUPERVISOR_NODE
 
     return _route
 
@@ -208,11 +228,11 @@ def _make_supervisor_route(
             logger.debug("Supervisor signalled FINISH after %d round(s).", rounds)
             return END
 
-        # Check each worker name (order matters — first match wins).
+        # Check each worker name with word-boundary matching to avoid false positives
+        # (e.g. worker "CODE" must not match "DECODE").
         for name in worker_names:
-            if name.upper() in raw:
-                logger.debug("Supervisor routing to %s (round %d).", name, rounds + 1)
-                state.execution_meta.internal_data[_ROUNDS_KEY] = rounds + 1
+            if re.search(rf"\b{re.escape(name.upper())}\b", raw):
+                logger.debug("Supervisor routing to %s (round %d).", name, rounds)
                 return name
 
         # No recognisable token → treat as done.
@@ -348,6 +368,10 @@ class SupervisorTeamAgent[StateT: AgentState]:
         supervisor_agent = self._build_supervisor_agent()
         self._graph.add_node(_SUPERVISOR_NODE, supervisor_agent)
 
+        # --- PRE_SUPERVISOR node: increments round counter, then routes to SUPERVISOR ---
+        self._graph.add_node(_PRE_SUPERVISOR_NODE, _make_increment_rounds_node())
+        self._graph.add_edge(_PRE_SUPERVISOR_NODE, _SUPERVISOR_NODE)
+
         # --- WORKER nodes ---
         for name, cfg in self._workers.items():
             self._graph.add_node(name, cfg.agent)
@@ -355,18 +379,18 @@ class SupervisorTeamAgent[StateT: AgentState]:
             worker_tool_node = cfg.agent.get_tool_node()
             if worker_tool_node is not None:
                 # Wire a mini react-loop: WORKER → WORKER_TOOL → WORKER
-                # The worker routes to SUPERVISOR only when it has no more tool calls.
+                # The worker routes to PRE_SUPERVISOR only when it has no more tool calls.
                 tool_node_name = f"{name}_TOOL"
                 self._graph.add_node(tool_node_name, worker_tool_node)
                 self._graph.add_edge(tool_node_name, name)
                 self._graph.add_conditional_edges(
                     name,
                     _make_worker_route(tool_node_name),
-                    {tool_node_name: tool_node_name, _SUPERVISOR_NODE: _SUPERVISOR_NODE},
+                    {tool_node_name: tool_node_name, _PRE_SUPERVISOR_NODE: _PRE_SUPERVISOR_NODE},
                 )
             else:
-                # No tools — worker returns directly to SUPERVISOR.
-                self._graph.add_edge(name, _SUPERVISOR_NODE)
+                # No tools — worker returns via PRE_SUPERVISOR to SUPERVISOR.
+                self._graph.add_edge(name, _PRE_SUPERVISOR_NODE)
 
         # --- Conditional edges from SUPERVISOR ---
         path_map: dict[str, str] = {END: END}
