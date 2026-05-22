@@ -130,14 +130,15 @@ async def _call_google(
         "max_output_tokens": max_tokens,
         "temperature": temperature,
     }
-    if system_prompt:
-        config_kwargs["system_instruction"] = system_prompt
     if json_mode:
         config_kwargs["response_mime_type"] = "application/json"
 
     cached_content = llm_kwargs.pop("cached_content", None)
     if cached_content:
+        # system_prompt is already inside the cache — don't resend it
         config_kwargs["cached_content"] = cached_content
+    elif system_prompt:
+        config_kwargs["system_instruction"] = system_prompt
 
     response = await client.aio.models.generate_content(
         model=model,
