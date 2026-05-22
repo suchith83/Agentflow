@@ -57,12 +57,14 @@ class LLMCallerMixin:
     async def _call_openai_json(self, prompt: str) -> tuple[dict, TokenUsage] | None:
         """Call OpenAI LLM and return (parsed JSON dict, token usage), or None if unavailable."""
         judge_model: str = self.config.judge_model  # type: ignore[attr-defined]
+        api_style: str = getattr(self.config, "api_style", "responses")  # type: ignore[attr-defined]
         try:
             text, inp, out, cache = await call_llm(
                 judge_model,
                 prompt,
                 temperature=0.3,
                 json_mode=True,
+                api_style=api_style,  # type: ignore[arg-type]
             )
             if not text:
                 return None

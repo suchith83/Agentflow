@@ -8,6 +8,12 @@ Returns a plain 4-tuple so callers can choose how much they consume:
     text, *_ = await call_llm(...)              # only text
     text, inp, out, cache = await call_llm(...)  # text + token counts
 
+OpenAI supports two API styles:
+- ``"responses"`` (default) — ``client.responses.create()``, the current
+  recommended API with ``input`` / ``instructions`` / ``max_output_tokens``.
+- ``"chat"`` — ``client.chat.completions.create()``, the legacy style
+  required by older or third-party-hosted models (e.g. some Chinese models).
+
 The Agent class keeps its own execution path (streaming, tools, retry, etc.)
 and is unaffected by this module.
 """
@@ -15,7 +21,7 @@ and is unaffected by this module.
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import Any, Literal
 
 from agentflow.core.llm.client_factory import create_llm_client, detect_provider
 
@@ -32,6 +38,7 @@ async def call_llm(
     temperature: float = 0.3,
     json_mode: bool = False,
     use_vertex_ai: bool = False,
+    api_style: Literal["responses", "chat"] = "responses",
 ) -> tuple[str, int, int, int]:
     """Single-turn LLM call with provider auto-detection.
 
@@ -44,6 +51,10 @@ async def call_llm(
         temperature: Sampling temperature.
         json_mode: When ``True``, instructs the provider to return valid JSON.
         use_vertex_ai: When ``True``, force Google Vertex AI client.
+        api_style: OpenAI only. ``"responses"`` (default) uses the current
+            Responses API (``client.responses.create``). Use ``"chat"`` for
+            models that only support the legacy Chat Completions endpoint
+            (e.g. older or self-hosted Chinese models).
 
     Returns:
         ``(text, input_tokens, output_tokens, cache_read_tokens)`` — plain tuple.
@@ -54,14 +65,29 @@ async def call_llm(
 
     if provider == "google":
         return await _call_google(
-            client, model, prompt,
+            client,
+            model,
+            prompt,
             system_prompt=system_prompt,
             max_tokens=max_tokens,
             temperature=temperature,
             json_mode=json_mode,
         )
-    return await _call_openai(
-        client, model, prompt,
+
+    if api_style == "chat":
+        return await _call_openai_chat(
+            client,
+            model,
+            prompt,
+            system_prompt=system_prompt,
+            max_tokens=max_tokens,
+            temperature=temperature,
+            json_mode=json_mode,
+        )
+    return await _call_openai_responses(
+        client,
+        model,
+        prompt,
         system_prompt=system_prompt,
         max_tokens=max_tokens,
         temperature=temperature,
@@ -70,8 +96,9 @@ async def call_llm(
 
 
 # ---------------------------------------------------------------------------
-# Provider implementations
+# Google
 # ---------------------------------------------------------------------------
+
 
 async def _call_google(
     client: Any,
@@ -111,7 +138,12 @@ async def _call_google(
     return text, inp, out, cache
 
 
-async def _call_openai(
+# ---------------------------------------------------------------------------
+# OpenAI — Responses API (default)
+# ---------------------------------------------------------------------------
+
+
+async def _call_openai_responses(
     client: Any,
     model: str,
     prompt: str,
@@ -121,6 +153,67 @@ async def _call_openai(
     temperature: float,
     json_mode: bool,
 ) -> tuple[str, int, int, int]:
+    """Call the OpenAI Responses API (client.responses.create)."""
+    kwargs: dict[str, Any] = {
+        "model": model,
+        "input": prompt,
+        "max_output_tokens": max_tokens,
+        "temperature": temperature,
+    }
+    if system_prompt:
+        kwargs["instructions"] = system_prompt
+    if json_mode:
+        kwargs["text"] = {"format": {"type": "json_object"}}
+
+    response = await client.responses.create(**kwargs)
+
+    text = _extract_responses_text(response)
+    inp = out = cache = 0
+    usage = getattr(response, "usage", None)
+    if usage is not None:
+        inp = getattr(usage, "input_tokens", 0) or 0
+        out = getattr(usage, "output_tokens", 0) or 0
+        details = getattr(usage, "input_tokens_details", None)
+        if details is not None:
+            cache = getattr(details, "cached_tokens", 0) or 0
+
+    return text, inp, out, cache
+
+
+def _extract_responses_text(response: Any) -> str:
+    """Extract the assistant text from an OpenAI Responses API response object."""
+    # SDK convenience property available in openai >= 1.61
+    output_text = getattr(response, "output_text", None)
+    if output_text is not None:
+        return str(output_text).strip()
+
+    # Manual fallback: iterate output items
+    for item in getattr(response, "output", []):
+        item_type = getattr(item, "type", None)
+        if item_type == "message":
+            for part in getattr(item, "content", []):
+                if getattr(part, "type", None) == "output_text":
+                    return (getattr(part, "text", "") or "").strip()
+
+    return ""
+
+
+# ---------------------------------------------------------------------------
+# OpenAI — Chat Completions (legacy / compat)
+# ---------------------------------------------------------------------------
+
+
+async def _call_openai_chat(
+    client: Any,
+    model: str,
+    prompt: str,
+    *,
+    system_prompt: str | None,
+    max_tokens: int,
+    temperature: float,
+    json_mode: bool,
+) -> tuple[str, int, int, int]:
+    """Call the OpenAI Chat Completions API (client.chat.completions.create)."""
     messages: list[dict[str, str]] = []
     if system_prompt:
         messages.append({"role": "system", "content": system_prompt})

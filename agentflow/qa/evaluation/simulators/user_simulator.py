@@ -176,6 +176,7 @@ class UserSimulator:
         max_turns: int = 10,
         config: UserSimulatorConfig | None = None,
         criteria: list[BaseCriterion] | None = None,
+        api_style: str = "responses",
     ):
         """Initialize the user simulator.
 
@@ -185,15 +186,19 @@ class UserSimulator:
             max_turns: Default maximum turns per scenario.
             config: Optional configuration override.
             criteria: Optional list of BaseCriterion to run after simulation.
+            api_style: OpenAI API style — ``"responses"`` (default) or
+                ``"chat"`` for legacy/third-party models.
         """
         if config:
             self.model = config.model
             self.temperature = config.temperature
             self.max_turns = config.max_invocations
+            self.api_style: str = getattr(config, "api_style", "responses")
         else:
             self.model = model
             self.temperature = temperature
             self.max_turns = max_turns
+            self.api_style = api_style
 
         self.criteria: list[BaseCriterion] = criteria or []
 
@@ -508,6 +513,7 @@ class UserSimulator:
                 self.model,
                 prompt,
                 temperature=self.temperature,
+                api_style=self.api_style,  # type: ignore[arg-type]
             )
         except Exception as exc:
             logger.warning("LLM call failed (%s): %s", type(exc).__name__, exc)

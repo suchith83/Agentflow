@@ -19,7 +19,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import TypeVar
+from typing import Literal, TypeVar
 
 from agentflow.core.llm.caller import call_llm
 from agentflow.core.llm.client_factory import detect_provider
@@ -99,6 +99,9 @@ class SummaryContextManager(BaseContextManager[S]):
         summary_system_prompt: Override the default summarisation instruction
             sent to the LLM.
         max_summary_tokens: Upper bound on the summary output length (tokens).
+        api_style: OpenAI only. ``"responses"`` (default) uses the Responses API.
+            Use ``"chat"`` for models that only support the legacy Chat Completions
+            endpoint (e.g. older or third-party-hosted Chinese models).
 
     Example::
 
@@ -115,7 +118,7 @@ class SummaryContextManager(BaseContextManager[S]):
         manager = SummaryContextManager(
             model="gpt-4o-mini",
             max_messages=30,
-            token_budget=8000,   # either threshold fires summarisation
+            token_budget=8000,  # either threshold fires summarisation
             keep_recent=8,
         )
     """
@@ -130,6 +133,7 @@ class SummaryContextManager(BaseContextManager[S]):
         remove_tool_msgs: bool = False,
         summary_system_prompt: str | None = None,
         max_summary_tokens: int = 600,
+        api_style: Literal["responses", "chat"] = "responses",
     ) -> None:
         self.model = model
         self.max_messages = max_messages
@@ -138,6 +142,7 @@ class SummaryContextManager(BaseContextManager[S]):
         self.remove_tool_msgs = remove_tool_msgs
         self.summary_system_prompt = summary_system_prompt or _DEFAULT_SUMMARY_PROMPT
         self.max_summary_tokens = max_summary_tokens
+        self.api_style = api_style
 
         self._provider: str = detect_provider(model)
 
@@ -169,9 +174,7 @@ class SummaryContextManager(BaseContextManager[S]):
     # Context split
     # ------------------------------------------------------------------
 
-    def _split_context(
-        self, messages: list[Message]
-    ) -> tuple[list[Message], list[Message]]:
+    def _split_context(self, messages: list[Message]) -> tuple[list[Message], list[Message]]:
         """Split into (messages_to_summarise, messages_to_keep).
 
         System messages are always kept and never summarised.
@@ -201,6 +204,7 @@ class SummaryContextManager(BaseContextManager[S]):
             f"Conversation to summarize:\n\n{text}",
             system_prompt=self.summary_system_prompt,
             max_tokens=self.max_summary_tokens,
+            api_style=self.api_style,
         )
         return summary
 
