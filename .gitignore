@@ -73,6 +73,9 @@ cython_debug/
 .env.*
 *.env
 
+# uv lock file
+uv.lock
+
 # remove sites
 site
 
