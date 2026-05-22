@@ -7,6 +7,7 @@ from injectq import InjectQ
 from agentflow.core.exceptions import GraphError
 from agentflow.core.state import AgentState, BaseContextManager
 from agentflow.runtime.publisher import BasePublisher
+from agentflow.runtime.publisher.composite_publisher import CompositePublisher
 from agentflow.storage.checkpointer import BaseCheckpointer
 from agentflow.storage.store import BaseStore
 from agentflow.utils import END, START, CallbackManager
@@ -66,7 +67,7 @@ class StateGraph[StateT: AgentState]:
         self,
         state: StateT | None = None,
         context_manager: BaseContextManager[StateT] | None = None,
-        publisher: BasePublisher | None = None,
+        publisher: BasePublisher | list[BasePublisher] | None = None,
         id_generator: BaseIDGenerator | None = None,
         container: InjectQ | None = None,
     ):
@@ -118,6 +119,10 @@ class StateGraph[StateT: AgentState]:
         self.nodes: dict[str, Node] = {}
         self.edges: list[Edge] = []
         self.entry_point: str | None = None
+
+        # Normalize list of publishers into a single CompositePublisher
+        if isinstance(publisher, list):
+            publisher = CompositePublisher(publisher) if publisher else None
 
         # Services
         self._publisher: BasePublisher | None = publisher

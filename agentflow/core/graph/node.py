@@ -21,7 +21,6 @@ from agentflow.core.graph.utils.invoke_node_handler import InvokeNodeHandler
 from agentflow.core.graph.utils.stream_node_handler import StreamNodeHandler
 from agentflow.core.state import AgentState, Message
 from agentflow.core.state.stream_chunks import StreamChunk
-from agentflow.runtime.publisher import BasePublisher
 from agentflow.utils import (
     CallbackManager,
 )
@@ -63,7 +62,6 @@ class Node:
         self,
         name: str,
         func: Union[Callable, "ToolNode", "BaseAgent"],
-        publisher: BasePublisher | None = Inject[BasePublisher],
     ):
         """Initialize a new Node instance with function and dependencies.
 
@@ -93,7 +91,6 @@ class Node:
         )
         self.name = name
         self.func = func
-        self.publisher = publisher
         self.invoke_handler = InvokeNodeHandler(
             name,
             func,

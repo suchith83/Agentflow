@@ -17,6 +17,7 @@ from .adapters.llm import (
 )
 from .publisher import (
     BasePublisher,
+    CompositePublisher,
     ConsolePublisher,
     ContentType,
     Event,
@@ -30,10 +31,10 @@ from .publisher import (
 
 
 __all__ = [
-    "AgentFlowExecutor",
     # Adapters
     "BaseConverter",
     "BasePublisher",
+    "CompositePublisher",
     "ConsolePublisher",
     "ContentType",
     "ConverterType",
@@ -46,13 +47,7 @@ __all__ = [
     "OpenAIResponsesConverter",
     "RabbitMQPublisher",
     "RedisPublisher",
-    "a2a",
     "adapters",
-    "build_a2a_app",
-    "create_a2a_client_node",
-    "create_a2a_server",
-    "delegate_to_a2a_agent",
-    "make_agent_card",
     # Protocols
     "protocols",
     "publish_event",

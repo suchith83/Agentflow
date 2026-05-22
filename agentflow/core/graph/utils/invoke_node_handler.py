@@ -27,7 +27,6 @@ from agentflow.core.exceptions import NodeError
 from agentflow.core.graph.tool_node import ToolNode
 from agentflow.core.graph.utils.utils import process_node_result
 from agentflow.core.state import AgentState, Message
-from agentflow.runtime.publisher import BasePublisher
 from agentflow.runtime.publisher.events import ContentType, Event, EventModel, EventType
 from agentflow.runtime.publisher.publish import publish_event
 from agentflow.utils import (
@@ -57,7 +56,6 @@ class InvokeNodeHandler(BaseLoggingMixin):
     Args:
         name (str): Name of the node.
         func (Callable | ToolNode | Agent): The function, ToolNode, or Agent to execute.
-        publisher (BasePublisher, optional): Event publisher for execution events.
     """
 
     # Class-level cache for function signatures to avoid repeated inspection
@@ -72,11 +70,9 @@ class InvokeNodeHandler(BaseLoggingMixin):
         self,
         name: str,
         func: Union[Callable, "ToolNode", "BaseAgent"],
-        publisher: BasePublisher | None = Inject[BasePublisher],
     ):
         self.name = name
         self.func = func
-        self.publisher = publisher
 
     async def _handle_single_tool(
         self,
