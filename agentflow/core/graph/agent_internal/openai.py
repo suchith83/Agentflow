@@ -101,25 +101,36 @@ class AgentOpenAIMixin:
                 call_kwargs["tools"] = tools
 
             logger.debug("Calling OpenAI beta.chat.completions.parse with model=%s", self.model)
-            return await self.client.beta.chat.completions.parse(
+            response = await self.client.beta.chat.completions.parse(
                 model=self.model,
                 messages=messages,
                 response_format=output_schema,
                 stream=False,
                 **call_kwargs,
             )
+            details = getattr(getattr(response, "usage", None), "prompt_tokens_details", None)
+            cached = getattr(details, "cached_tokens", 0) or 0
+            if cached:
+                logger.debug("Cache hit: %d cached tokens (OpenAI chat completions)", cached)
+            return response
 
         if self.output_type in ("text", "json"):
             if tools:
                 call_kwargs["tools"] = tools
 
             logger.debug("Calling OpenAI chat.completions.create with model=%s", self.model)
-            return await self.client.chat.completions.create(
+            response = await self.client.chat.completions.create(
                 model=self.model,
                 messages=messages,
                 stream=stream,
                 **call_kwargs,
             )
+            if not stream:
+                details = getattr(getattr(response, "usage", None), "prompt_tokens_details", None)
+                cached = getattr(details, "cached_tokens", 0) or 0
+                if cached:
+                    logger.debug("Cache hit: %d cached tokens (OpenAI chat completions)", cached)
+            return response
 
         if self.output_type == "image":
             prompt = self._extract_prompt(messages)
@@ -223,15 +234,21 @@ class AgentOpenAIMixin:
             call_kwargs["instructions"] = instructions
         if responses_tools:
             call_kwargs["tools"] = responses_tools
-        if self.reasoning_config:
+        if self.reasoning_config:  # type: ignore
             call_kwargs["reasoning"] = self.reasoning_config
 
         call_kwargs.pop("reasoning_effort", None)
 
         logger.debug("Calling OpenAI responses.create with model=%s", self.model)
-        return await self.client.responses.create(
+        response = await self.client.responses.create(
             model=self.model,
             input=input_items,
             stream=stream,
             **call_kwargs,
         )
+        if not stream:
+            details = getattr(getattr(response, "usage", None), "input_tokens_details", None)
+            cached = getattr(details, "cached_tokens", 0) or 0
+            if cached:
+                logger.debug("Cache hit: %d cached tokens (OpenAI responses API)", cached)
+        return response

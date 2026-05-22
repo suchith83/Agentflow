@@ -304,9 +304,6 @@ class AgentGoogleMixin:
         structured_output = getattr(self, "output_schema", None) is not None
         text_like_output = self.output_type in ("text", "json")
 
-        if system_instruction:
-            config_kwargs["system_instruction"] = system_instruction
-
         if "temperature" in call_kwargs:
             config_kwargs["temperature"] = call_kwargs.pop("temperature")
         if "max_tokens" in call_kwargs or "max_output_tokens" in call_kwargs:
@@ -314,6 +311,13 @@ class AgentGoogleMixin:
                 "max_tokens",
                 call_kwargs.pop("max_output_tokens", None),
             )
+
+        cached_content = call_kwargs.pop("cached_content", None)
+        if cached_content:
+            # system_instruction is already inside the cache — don't resend it
+            config_kwargs["cached_content"] = cached_content
+        elif system_instruction:
+            config_kwargs["system_instruction"] = system_instruction
 
         if tools and text_like_output and not structured_output:
             function_declarations = self._convert_tools_to_google_format(tools)
@@ -370,11 +374,17 @@ class AgentGoogleMixin:
             mode_suffix,
             self.model,
         )
-        return await self.client.aio.models.generate_content(
+        response = await self.client.aio.models.generate_content(
             model=self.model,
             contents=google_contents,
             config=config,
         )
+        cached = (
+            getattr(getattr(response, "usage_metadata", None), "cached_content_token_count", 0) or 0
+        )
+        if cached:
+            logger.debug("Cache hit: %d cached tokens (Google)", cached)
+        return response
 
     async def _call_google(
         self,
@@ -397,8 +407,23 @@ class AgentGoogleMixin:
 
         call_kwargs = {**self.llm_kwargs, **kwargs}
 
+        # Peek before _build_google_config pops it, so we know whether a cache is active.
+        has_explicit_cache = bool(call_kwargs.get("cached_content"))
+
         system_instruction, google_contents = self._convert_to_google_format(messages)
         config = self._build_google_config(system_instruction, tools, call_kwargs)
+
+        # When an explicit cache is active, system_instruction is excluded from the
+        # config (the static part lives inside the cache).  Any dynamic additions
+        # — memory injections, skill prompts, per-request state — are preserved by
+        # prepending them as a leading user message so the model still sees them.
+        if has_explicit_cache and system_instruction:
+            from google.genai import types
+
+            google_contents = [
+                types.Content(role="user", parts=[types.Part(text=system_instruction)]),
+                *google_contents,
+            ]
 
         if structured_output:
             if config is None:

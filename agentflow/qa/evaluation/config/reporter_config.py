@@ -20,6 +20,8 @@ class UserSimulatorConfig(BaseModel):
         temperature: Temperature for generation.
         thinking_enabled: Whether to enable thinking/reasoning.
         thinking_budget: Token budget for thinking (if enabled).
+        api_style: OpenAI API style — ``"responses"`` (default) or ``"chat"``
+            for models that only support the legacy Chat Completions endpoint.
     """
 
     model: str = "gemini-2.5-flash"
@@ -27,6 +29,7 @@ class UserSimulatorConfig(BaseModel):
     temperature: float = 0.7
     thinking_enabled: bool = False
     thinking_budget: int = 10240
+    api_style: str = "responses"
 
 
 class ReporterConfig(BaseModel):

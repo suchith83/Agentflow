@@ -47,6 +47,9 @@ class CriterionConfig(BaseModel):
         keywords: Required keywords for ContainsKeywordsCriterion.
         check_args: Whether to check tool arguments in trajectory matching.
         enabled: Whether this criterion is enabled.
+        api_style: OpenAI API style — ``"responses"`` (default, Responses API)
+            or ``"chat"`` (legacy Chat Completions, required for some older
+            or third-party-hosted models such as Chinese LLMs).
     """
 
     threshold: float = 0.8
@@ -57,6 +60,7 @@ class CriterionConfig(BaseModel):
     keywords: list[str] = Field(default_factory=list)
     check_args: bool = False
     enabled: bool = True
+    api_style: str = "responses"
 
     @classmethod
     def tool_name_match(cls, threshold: float = 1.0) -> CriterionConfig:

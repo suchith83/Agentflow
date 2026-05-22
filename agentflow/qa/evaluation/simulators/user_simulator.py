@@ -15,6 +15,7 @@ from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel, Field
 
+from agentflow.core.llm.caller import call_llm
 from agentflow.qa.evaluation.token_usage import TokenUsage
 
 
@@ -175,6 +176,7 @@ class UserSimulator:
         max_turns: int = 10,
         config: UserSimulatorConfig | None = None,
         criteria: list[BaseCriterion] | None = None,
+        api_style: str = "responses",
     ):
         """Initialize the user simulator.
 
@@ -184,15 +186,19 @@ class UserSimulator:
             max_turns: Default maximum turns per scenario.
             config: Optional configuration override.
             criteria: Optional list of BaseCriterion to run after simulation.
+            api_style: OpenAI API style — ``"responses"`` (default) or
+                ``"chat"`` for legacy/third-party models.
         """
         if config:
             self.model = config.model
             self.temperature = config.temperature
             self.max_turns = config.max_invocations
+            self.api_style: str = getattr(config, "api_style", "responses")
         else:
             self.model = model
             self.temperature = temperature
             self.max_turns = max_turns
+            self.api_style = api_style
 
         self.criteria: list[BaseCriterion] = criteria or []
 
@@ -501,88 +507,22 @@ class UserSimulator:
         return scores, details, results
 
     async def _call_llm(self, prompt: str) -> tuple[str, TokenUsage]:
-        """Call the LLM for user simulation.
-
-        Uses Google GenAI as primary, OpenAI as fallback.
-        Returns (text, TokenUsage).
-        """
-        from agentflow.qa.evaluation.criteria.llm_utils import _parse_model_provider
-
-        provider, model_name = _parse_model_provider(self.model)
-
-        if provider == "google":
-            text, usage = await self._call_google(model_name, prompt)
-            if text is not None:
-                return text, usage
-
-        # OpenAI path
-        text, usage = await self._call_openai(
-            self.model if provider == "openai" else model_name,
-            prompt,
-        )
-        if text is not None:
-            return text, usage
-
-        # Fallback: try Google if we haven't yet
-        if provider != "google":
-            text, usage = await self._call_google(model_name, prompt)
-            if text is not None:
-                return text, usage
-
-        return "I have a follow-up question.", TokenUsage()
-
-    async def _call_google(self, model: str, prompt: str) -> tuple[str | None, TokenUsage]:
-        """Call Google GenAI for user simulation. Returns (text, TokenUsage)."""
+        """Call the LLM for user simulation. Returns (text, TokenUsage)."""
         try:
-            from google import genai
-            from google.genai import types
-
-            client = genai.Client()
-            config = types.GenerateContentConfig(temperature=self.temperature)
-            response = await client.aio.models.generate_content(
-                model=model,
-                contents=prompt,
-                config=config,
-            )
-            usage = TokenUsage()
-            meta = getattr(response, "usage_metadata", None)
-            if meta is not None:
-                usage = TokenUsage(
-                    input_tokens=getattr(meta, "prompt_token_count", 0) or 0,
-                    output_tokens=getattr(meta, "candidates_token_count", 0) or 0,
-                    cache_read_tokens=getattr(meta, "cached_content_token_count", 0) or 0,
-                )
-            return (response.text or "").strip(), usage
-        except ImportError:
-            return None, TokenUsage()
-        except Exception as e:
-            logger.warning("Google GenAI call failed (%s): %s", type(e).__name__, e)
-            return None, TokenUsage()
-
-    async def _call_openai(self, model: str, prompt: str) -> tuple[str | None, TokenUsage]:
-        """Call OpenAI for user simulation. Returns (text, TokenUsage)."""
-        try:
-            from openai import AsyncOpenAI
-
-            client = AsyncOpenAI()
-            response = await client.chat.completions.create(
-                model=model,
-                messages=[{"role": "user", "content": prompt}],
+            text, inp, out, cache = await call_llm(
+                self.model,
+                prompt,
                 temperature=self.temperature,
+                api_style=self.api_style,  # type: ignore[arg-type]
             )
-            usage = TokenUsage()
-            raw = getattr(response, "usage", None)
-            if raw is not None:
-                usage = TokenUsage(
-                    input_tokens=getattr(raw, "prompt_tokens", 0) or 0,
-                    output_tokens=getattr(raw, "completion_tokens", 0) or 0,
-                )
-            return (response.choices[0].message.content or "").strip(), usage
-        except ImportError:
-            return None, TokenUsage()
-        except Exception as e:
-            logger.warning("OpenAI call failed (%s): %s", type(e).__name__, e)
-            return None, TokenUsage()
+        except Exception as exc:
+            logger.warning("LLM call failed (%s): %s", type(exc).__name__, exc)
+            return "I have a follow-up question.", TokenUsage()
+
+        if not text:
+            return "I have a follow-up question.", TokenUsage()
+
+        return text, TokenUsage(input_tokens=inp, output_tokens=out, cache_read_tokens=cache)
 
     def _extract_response(self, result: dict[str, Any]) -> str:
         """Extract text response from graph result.

@@ -2,7 +2,7 @@ import secrets
 from collections.abc import Awaitable
 from contextlib import suppress
 from datetime import datetime
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 
 from injectq import InjectQ
@@ -28,7 +28,7 @@ def _generate_memory_id() -> str:
     return secrets.token_hex(16)
 
 
-class RetrievalStrategy(str, Enum):
+class RetrievalStrategy(StrEnum):
     """Memory retrieval strategies."""
 
     SIMILARITY = "similarity"  # Vector similarity search
@@ -38,7 +38,7 @@ class RetrievalStrategy(str, Enum):
     GRAPH_TRAVERSAL = "graph_traversal"  # Knowledge graph navigation
 
 
-class DistanceMetric(str, Enum):
+class DistanceMetric(StrEnum):
     """Supported distance metrics for vector similarity."""
 
     COSINE = "cosine"
@@ -47,7 +47,7 @@ class DistanceMetric(str, Enum):
     MANHATTAN = "manhattan"
 
 
-class MemoryType(str, Enum):
+class MemoryType(StrEnum):
     """Types of memories that can be stored."""
 
     EPISODIC = "episodic"  # Conversation memories
@@ -76,7 +76,7 @@ class MemorySearchResult(BaseModel):
     @classmethod
     def validate_vector(cls, v):
         if v is not None and (
-            not isinstance(v, list) or any(not isinstance(x, (int | float)) for x in v)
+            not isinstance(v, list) or any(not isinstance(x, int | float) for x in v)
         ):
             raise ValueError("vector must be list[float] or None")
         return v
