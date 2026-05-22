@@ -315,6 +315,10 @@ class AgentGoogleMixin:
                 call_kwargs.pop("max_output_tokens", None),
             )
 
+        cached_content = call_kwargs.pop("cached_content", None)
+        if cached_content:
+            config_kwargs["cached_content"] = cached_content
+
         if tools and text_like_output and not structured_output:
             function_declarations = self._convert_tools_to_google_format(tools)
             if function_declarations:
@@ -370,11 +374,17 @@ class AgentGoogleMixin:
             mode_suffix,
             self.model,
         )
-        return await self.client.aio.models.generate_content(
+        response = await self.client.aio.models.generate_content(
             model=self.model,
             contents=google_contents,
             config=config,
         )
+        cached = (
+            getattr(getattr(response, "usage_metadata", None), "cached_content_token_count", 0) or 0
+        )
+        if cached:
+            logger.debug("Cache hit: %d cached tokens (Google)", cached)
+        return response
 
     async def _call_google(
         self,

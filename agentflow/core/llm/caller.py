@@ -39,6 +39,7 @@ async def call_llm(
     json_mode: bool = False,
     use_vertex_ai: bool = False,
     api_style: Literal["responses", "chat"] = "responses",
+    **llm_kwargs: Any,
 ) -> tuple[str, int, int, int]:
     """Single-turn LLM call with provider auto-detection.
 
@@ -55,6 +56,15 @@ async def call_llm(
             Responses API (``client.responses.create``). Use ``"chat"`` for
             models that only support the legacy Chat Completions endpoint
             (e.g. older or self-hosted Chinese models).
+        **llm_kwargs: Provider-specific parameters forwarded directly to the
+            underlying API call. Examples:
+
+            - Google: ``cached_content="cachedContents/abc123"`` — attaches an
+              explicit Gemini context cache created via the Google SDK.
+            - OpenAI: ``prompt_cache_key="my-agent-v1"`` — improves cache hit
+              rates across requests sharing the same long system-prompt prefix.
+            - OpenAI: ``prompt_cache_retention="24h"`` — extends cache retention
+              for gpt-5.5+ models (default is in-memory, ~5-10 min).
 
     Returns:
         ``(text, input_tokens, output_tokens, cache_read_tokens)`` — plain tuple.
@@ -72,6 +82,7 @@ async def call_llm(
             max_tokens=max_tokens,
             temperature=temperature,
             json_mode=json_mode,
+            **llm_kwargs,
         )
 
     if api_style == "chat":
@@ -83,6 +94,7 @@ async def call_llm(
             max_tokens=max_tokens,
             temperature=temperature,
             json_mode=json_mode,
+            **llm_kwargs,
         )
     return await _call_openai_responses(
         client,
@@ -92,6 +104,7 @@ async def call_llm(
         max_tokens=max_tokens,
         temperature=temperature,
         json_mode=json_mode,
+        **llm_kwargs,
     )
 
 
@@ -109,6 +122,7 @@ async def _call_google(
     max_tokens: int,
     temperature: float,
     json_mode: bool,
+    **llm_kwargs: Any,
 ) -> tuple[str, int, int, int]:
     from google.genai import types
 
@@ -120,6 +134,10 @@ async def _call_google(
         config_kwargs["system_instruction"] = system_prompt
     if json_mode:
         config_kwargs["response_mime_type"] = "application/json"
+
+    cached_content = llm_kwargs.pop("cached_content", None)
+    if cached_content:
+        config_kwargs["cached_content"] = cached_content
 
     response = await client.aio.models.generate_content(
         model=model,
@@ -134,6 +152,9 @@ async def _call_google(
         inp = getattr(meta, "prompt_token_count", 0) or 0
         out = getattr(meta, "candidates_token_count", 0) or 0
         cache = getattr(meta, "cached_content_token_count", 0) or 0
+
+    if cache:
+        logger.debug("Cache hit: %d cached tokens (Google)", cache)
 
     return text, inp, out, cache
 
@@ -152,6 +173,7 @@ async def _call_openai_responses(
     max_tokens: int,
     temperature: float,
     json_mode: bool,
+    **llm_kwargs: Any,
 ) -> tuple[str, int, int, int]:
     """Call the OpenAI Responses API (client.responses.create)."""
     kwargs: dict[str, Any] = {
@@ -164,6 +186,7 @@ async def _call_openai_responses(
         kwargs["instructions"] = system_prompt
     if json_mode:
         kwargs["text"] = {"format": {"type": "json_object"}}
+    kwargs.update(llm_kwargs)
 
     response = await client.responses.create(**kwargs)
 
@@ -176,6 +199,9 @@ async def _call_openai_responses(
         details = getattr(usage, "input_tokens_details", None)
         if details is not None:
             cache = getattr(details, "cached_tokens", 0) or 0
+
+    if cache:
+        logger.debug("Cache hit: %d cached tokens (OpenAI responses API)", cache)
 
     return text, inp, out, cache
 
@@ -212,6 +238,7 @@ async def _call_openai_chat(
     max_tokens: int,
     temperature: float,
     json_mode: bool,
+    **llm_kwargs: Any,
 ) -> tuple[str, int, int, int]:
     """Call the OpenAI Chat Completions API (client.chat.completions.create)."""
     messages: list[dict[str, str]] = []
@@ -227,6 +254,7 @@ async def _call_openai_chat(
     }
     if json_mode:
         kwargs["response_format"] = {"type": "json_object"}
+    kwargs.update(llm_kwargs)
 
     response = await client.chat.completions.create(**kwargs)
 
@@ -239,5 +267,8 @@ async def _call_openai_chat(
         details = getattr(usage, "prompt_tokens_details", None)
         if details is not None:
             cache = getattr(details, "cached_tokens", 0) or 0
+
+    if cache:
+        logger.debug("Cache hit: %d cached tokens (OpenAI chat completions)", cache)
 
     return text, inp, out, cache
