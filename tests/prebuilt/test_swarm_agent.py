@@ -102,38 +102,38 @@ def _three_members() -> dict[str, SwarmMemberConfig]:
 
 class TestMakeMemberRoute:
     def test_routes_to_target_on_handoff_tool_call(self):
-        fn = _make_member_route("TRIAGE", ["RESEARCHER", "WRITER"])
+        fn = _make_member_route("TRIAGE", ["RESEARCHER", "WRITER"], None)
         state = _state_with(_msg("", tool_calls=[_tc("transfer_to_researcher")]))
         assert fn(state) == "RESEARCHER"
 
     def test_routes_to_end_with_no_tool_calls(self):
-        fn = _make_member_route("TRIAGE", ["RESEARCHER"])
+        fn = _make_member_route("TRIAGE", ["RESEARCHER"], None)
         state = _state_with(_msg("direct answer"))
         assert fn(state) == END
 
     def test_routes_to_end_on_empty_context(self):
-        fn = _make_member_route("WRITER", ["TRIAGE"])
+        fn = _make_member_route("WRITER", ["TRIAGE"], None)
         state = AgentState()
         assert fn(state) == END
 
     def test_routes_to_end_when_tool_not_a_handoff(self):
-        fn = _make_member_route("TRIAGE", ["WRITER"])
+        fn = _make_member_route("TRIAGE", ["WRITER"], None)
         state = _state_with(_msg("", tool_calls=[_tc("web_search")]))
         assert fn(state) == END
 
     def test_routes_to_end_when_target_not_in_allowed(self):
         """Handoff tool exists but target is not in allowed_targets for this member."""
-        fn = _make_member_route("WRITER", ["TRIAGE"])  # only TRIAGE allowed
+        fn = _make_member_route("WRITER", ["TRIAGE"], None)  # only TRIAGE allowed
         state = _state_with(_msg("", tool_calls=[_tc("transfer_to_researcher")]))
         assert fn(state) == END
 
     def test_routes_to_end_on_non_assistant_message(self):
-        fn = _make_member_route("TRIAGE", ["WRITER"])
+        fn = _make_member_route("TRIAGE", ["WRITER"], None)
         state = _state_with(_msg("", role="user", tool_calls=[_tc("transfer_to_writer")]))
         assert fn(state) == END
 
     def test_first_matching_handoff_wins(self):
-        fn = _make_member_route("TRIAGE", ["RESEARCHER", "WRITER"])
+        fn = _make_member_route("TRIAGE", ["RESEARCHER", "WRITER"], None)
         state = _state_with(
             _msg(
                 "",
@@ -143,13 +143,13 @@ class TestMakeMemberRoute:
         assert fn(state) == "RESEARCHER"
 
     def test_empty_allowed_targets_always_ends(self):
-        fn = _make_member_route("WRITER", [])
+        fn = _make_member_route("WRITER", [], None)
         state = _state_with(_msg("", tool_calls=[_tc("transfer_to_triage")]))
         assert fn(state) == END
 
     def test_case_insensitive_target_matching(self):
         """Target in allowed list is UPPER; handoff tool uses lower — should match."""
-        fn = _make_member_route("TRIAGE", ["WRITER"])
+        fn = _make_member_route("TRIAGE", ["WRITER"], None)
         state = _state_with(_msg("", tool_calls=[_tc("transfer_to_writer")]))
         assert fn(state) == "WRITER"
 
@@ -489,29 +489,29 @@ class TestSystemPromptPassthrough:
 
 class TestSwarmIntegration:
     def test_triage_routes_to_researcher_on_handoff(self):
-        fn = _make_member_route("TRIAGE", ["RESEARCHER", "WRITER"])
+        fn = _make_member_route("TRIAGE", ["RESEARCHER", "WRITER"], None)
         state = _state_with(_msg("", tool_calls=[_tc("transfer_to_researcher")]))
         assert fn(state) == "RESEARCHER"
 
     def test_researcher_routes_to_writer_on_handoff(self):
-        fn = _make_member_route("RESEARCHER", ["WRITER"])
+        fn = _make_member_route("RESEARCHER", ["WRITER"], None)
         state = _state_with(_msg("", tool_calls=[_tc("transfer_to_writer")]))
         assert fn(state) == "WRITER"
 
     def test_writer_with_no_targets_routes_to_end(self):
-        fn = _make_member_route("WRITER", [])
+        fn = _make_member_route("WRITER", [], None)
         state = _state_with(_msg("Final report complete."))
         assert fn(state) == END
 
     def test_researcher_cannot_route_back_to_triage(self):
         """Researcher's allowed_targets is [WRITER], so TRIAGE is not reachable."""
-        fn = _make_member_route("RESEARCHER", ["WRITER"])
+        fn = _make_member_route("RESEARCHER", ["WRITER"], None)
         state = _state_with(_msg("", tool_calls=[_tc("transfer_to_triage")]))
         assert fn(state) == END
 
     def test_route_to_end_when_no_handoff_despite_tools(self):
         """Regular tool call (non-handoff) routes to END."""
-        fn = _make_member_route("TRIAGE", ["WRITER"])
+        fn = _make_member_route("TRIAGE", ["WRITER"], None)
         state = _state_with(_msg("", tool_calls=[_tc("web_search")]))
         assert fn(state) == END
 

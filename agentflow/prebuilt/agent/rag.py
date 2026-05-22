@@ -309,12 +309,26 @@ class RAGAgent[StateT: AgentState]:
         self._score_threshold = score_threshold
         self._store_config: dict[str, Any] = store_config or {}
 
-        self._graph = StateGraph[StateT](
-            state=state,
-            context_manager=context_manager,
-            publisher=publisher,
-            id_generator=id_generator,
-            container=container,
+        # Graph infra — stored for _new_graph() reuse across compile() calls.
+        self._state = state
+        self._context_manager = context_manager
+        self._publisher = publisher
+        self._id_generator = id_generator
+        self._container = container
+
+        self._graph = self._new_graph()
+
+    # ------------------------------------------------------------------
+    # Internal helpers
+    # ------------------------------------------------------------------
+
+    def _new_graph(self) -> StateGraph[StateT]:
+        return StateGraph[StateT](
+            state=self._state,
+            context_manager=self._context_manager,
+            publisher=self._publisher,
+            id_generator=self._id_generator,
+            container=self._container,
         )
 
     # ------------------------------------------------------------------
@@ -464,8 +478,8 @@ class RAGAgent[StateT: AgentState]:
 
 
 __all__ = [
-    "RAGAgent",
     "BaseReranker",
     "CohereReranker",
     "CrossEncoderReranker",
+    "RAGAgent",
 ]

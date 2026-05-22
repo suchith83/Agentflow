@@ -169,10 +169,15 @@ class TestMakeSupervisorRoute:
         assert fn(state) == END
 
     def test_increments_round_counter(self):
+        # The round counter is now incremented by the PRE_SUPERVISOR node,
+        # not by the routing function itself.  The routing function only
+        # reads the current counter to enforce max_rounds.
         fn = _make_supervisor_route(["RESEARCHER"], max_rounds=10)
         state = _state_with_rounds(2, _msg("RESEARCHER"))
-        fn(state)
-        assert state.execution_meta.internal_data[_ROUNDS_KEY] == 3
+        result = fn(state)
+        assert result == "RESEARCHER"
+        # Counter should NOT be mutated by the routing function.
+        assert state.execution_meta.internal_data[_ROUNDS_KEY] == 2
 
     def test_does_not_increment_on_finish(self):
         fn = _make_supervisor_route(["RESEARCHER"], max_rounds=10)
@@ -461,16 +466,21 @@ class TestSupervisorIntegration:
         assert fn(state) == END
 
     def test_round_counter_increments_correctly(self):
+        # The round counter is managed by the PRE_SUPERVISOR increment node;
+        # the routing function does not mutate it.
         fn = _make_supervisor_route(["RESEARCHER"], max_rounds=5)
         state = AgentState()
         state.context = [_msg("RESEARCHER")]
 
-        fn(state)
-        assert state.execution_meta.internal_data[_ROUNDS_KEY] == 1
+        result = fn(state)
+        assert result == "RESEARCHER"
+        # Key should not be set by routing fn
+        assert _ROUNDS_KEY not in state.execution_meta.internal_data
 
         state.context = [_msg("RESEARCHER")]
-        fn(state)
-        assert state.execution_meta.internal_data[_ROUNDS_KEY] == 2
+        result = fn(state)
+        assert result == "RESEARCHER"
+        assert _ROUNDS_KEY not in state.execution_meta.internal_data
 
     def test_compiled_swarm_has_correct_nodes(self):
         with patch("agentflow.prebuilt.agent.supervisor_team.Agent", FakeAgent):

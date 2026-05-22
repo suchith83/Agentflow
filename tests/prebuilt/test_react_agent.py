@@ -216,14 +216,14 @@ class TestShouldUseToolsFunction:
         """Test with empty context."""
         state = AgentState()
         result = _should_use_tools(state)
-        assert result == "TOOL"
+        assert result == END
         
     def test_no_context(self):
         """Test with None context."""
         state = AgentState()
         state.context = []  # Empty list instead of None
         result = _should_use_tools(state)
-        assert result == "TOOL"
+        assert result == END
         
     def test_assistant_with_tool_calls(self):
         """Test with assistant message that has tool calls."""
@@ -249,15 +249,14 @@ class TestShouldUseToolsFunction:
         assert result == END
         
     def test_tool_result_message(self):
-        """Test with tool result message."""
+        """Test with tool result message - routes to END (caller re-invokes MAIN via graph edges)."""
         state = AgentState()
-        
+
         message = Message.text_message("Tool executed successfully", role="tool")
-        
+
         state.context = [message]
         result = _should_use_tools(state)
-        assert result == "MAIN"
-        
+        assert result == END
     def test_user_message(self):
         """Test with user message."""
         state = AgentState()
@@ -279,20 +278,19 @@ class TestShouldUseToolsFunction:
         assert result == END
         
     def test_mixed_messages_last_is_tool(self):
-        """Test with multiple messages where last is tool result."""
+        """Test with multiple messages where last is tool result - routes to END."""
         state = AgentState()
-        
+
         user_msg = Message.text_message("Call a tool", role="user")
-        
+
         assistant_msg = Message.text_message("I'll call the tool", role="assistant")
         assistant_msg.tools_calls = [{"id": "call_123", "type": "function"}]
-        
+
         tool_msg = Message.text_message("Tool result", role="tool")
-        
+
         state.context = [user_msg, assistant_msg, tool_msg]
         result = _should_use_tools(state)
-        assert result == "MAIN"
-        
+        assert result == END
     def test_mixed_messages_last_is_assistant_with_tools(self):
         """Test with multiple messages where last is assistant with tool calls."""
         state = AgentState()
@@ -319,7 +317,7 @@ class TestShouldUseToolsFunction:
         assert router(state) == "CUSTOM_TOOL"
 
     def test_custom_router_preserves_non_tool_routes(self):
-        """Custom router should preserve MAIN and END decisions from the base router."""
+        """Custom router returns END for non-tool-call messages."""
 
         tool_state = AgentState()
         tool_state.context = [Message.text_message("done", role="tool")]
@@ -329,7 +327,7 @@ class TestShouldUseToolsFunction:
 
         router = _make_should_use_tools("CUSTOM_TOOL")
 
-        assert router(tool_state) == "MAIN"
+        assert router(tool_state) == END
         assert router(end_state) == END
 
 

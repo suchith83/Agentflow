@@ -389,7 +389,7 @@ class TestCommandHandoffStream:
         from unittest.mock import patch
 
         with patch(
-            "agentflow.core.graph.utils.invoke_node_handler.is_handoff_tool",
+            "agentflow.prebuilt.tools.handoff.is_handoff_tool",
             return_value=(True, "specialist_agent"),
         ):
             state = CustomState(context=[message])
