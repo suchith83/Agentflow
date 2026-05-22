@@ -27,7 +27,7 @@ import logging
 from abc import ABC, abstractmethod
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
-from enum import Enum
+from enum import StrEnum
 from typing import TYPE_CHECKING, Any, TypeVar, Union, cast
 
 from agentflow.core.state.message import Message
@@ -83,7 +83,7 @@ class BaseValidator(ABC):
         ...
 
 
-class InvocationType(str, Enum):
+class InvocationType(StrEnum):
     """Types of invocations that can trigger callbacks."""
 
     AI = "ai"
@@ -560,12 +560,18 @@ class CallbackManager:
         self._validators.append(validator)
         logger.debug("Registered input validator: %s", validator.__class__.__name__)
 
-    async def execute_validators(self, messages: list[Message]) -> bool:
+    async def execute_validators(
+        self,
+        messages: list[Message],
+        config: dict[str, Any] | None = None,
+    ) -> bool:
         """
         Execute all registered validators on the given messages.
 
         Args:
             messages: List of Message objects to validate
+            config: Optional execution config; when provided, publishes an error event
+                    on validation failure so the publisher stream captures the rejection.
 
         Returns:
             True if all validators pass
@@ -579,8 +585,30 @@ class CallbackManager:
 
         logger.debug("Running %d validators on %d messages", len(self._validators), len(messages))
 
-        for validator in self._validators:
-            await validator.validate(messages)
+        try:
+            for validator in self._validators:
+                await validator.validate(messages)
+        except Exception as e:
+            if config:
+                from agentflow.runtime.publisher.events import (  # noqa: PLC0415
+                    ContentType,
+                    Event,
+                    EventModel,
+                    EventType,
+                )
+                from agentflow.runtime.publisher.publish import publish_event  # noqa: PLC0415
+
+                publish_event(
+                    EventModel.default(
+                        config,
+                        data={"error": str(e), "rejected_count": len(messages)},
+                        event=Event.GRAPH_EXECUTION,
+                        event_type=EventType.ERROR,
+                        content_type=[ContentType.ERROR],
+                        extra={"lifecycle": "validation_rejected"},
+                    )
+                )
+            raise
 
         logger.debug("All validators passed")
         return True
@@ -638,6 +666,25 @@ class CallbackManager:
                     hook.__class__.__name__,
                     e,
                 )
+
+        from agentflow.runtime.publisher.events import (  # noqa: PLC0415
+            ContentType,
+            Event,
+            EventModel,
+            EventType,
+        )
+        from agentflow.runtime.publisher.publish import publish_event  # noqa: PLC0415
+
+        publish_event(
+            EventModel.default(
+                context.config,
+                data={},
+                event=Event.GRAPH_EXECUTION,
+                event_type=EventType.UPDATE,
+                content_type=[ContentType.STATE],
+                extra={"lifecycle": "graph_start"},
+            )
+        )
         return result
 
     async def fire_on_graph_end(
@@ -660,6 +707,25 @@ class CallbackManager:
                     hook.__class__.__name__,
                     e,
                 )
+
+        from agentflow.runtime.publisher.events import (  # noqa: PLC0415
+            ContentType,
+            Event,
+            EventModel,
+            EventType,
+        )
+        from agentflow.runtime.publisher.publish import publish_event  # noqa: PLC0415
+
+        publish_event(
+            EventModel.default(
+                context.config,
+                data={"total_steps": total_steps},
+                event=Event.GRAPH_EXECUTION,
+                event_type=EventType.UPDATE,
+                content_type=[ContentType.STATE],
+                extra={"lifecycle": "graph_end", "total_steps": total_steps},
+            )
+        )
         return result
 
     async def fire_on_graph_error(
@@ -690,6 +756,25 @@ class CallbackManager:
                     hook.__class__.__name__,
                     e,
                 )
+        from agentflow.runtime.publisher.events import (  # noqa: PLC0415
+            ContentType,
+            Event,
+            EventModel,
+            EventType,
+        )
+        from agentflow.runtime.publisher.publish import publish_event  # noqa: PLC0415
+
+        publish_event(
+            EventModel.default(
+                context.config,
+                data={"error": error_message, "step": step, "node_name": node_name},
+                event=Event.GRAPH_EXECUTION,
+                event_type=EventType.UPDATE,
+                node_name=node_name,
+                content_type=[ContentType.ERROR],
+                extra={"lifecycle": "graph_error", "step": step},
+            )
+        )
         return result_state, error_message
 
     async def fire_on_interrupt(
@@ -714,6 +799,25 @@ class CallbackManager:
                     hook.__class__.__name__,
                     e,
                 )
+        from agentflow.runtime.publisher.events import (  # noqa: PLC0415
+            ContentType,
+            Event,
+            EventModel,
+            EventType,
+        )
+        from agentflow.runtime.publisher.publish import publish_event  # noqa: PLC0415
+
+        publish_event(
+            EventModel.default(
+                context.config,
+                data={"interrupted_node": interrupted_node, "interrupt_type": interrupt_type},
+                event=Event.GRAPH_EXECUTION,
+                event_type=EventType.INTERRUPTED,
+                node_name=interrupted_node,
+                content_type=[ContentType.STATE],
+                extra={"lifecycle": "graph_interrupt", "interrupt_type": interrupt_type},
+            )
+        )
         return result
 
     async def fire_on_resume(
@@ -736,6 +840,24 @@ class CallbackManager:
                     hook.__class__.__name__,
                     e,
                 )
+        from agentflow.runtime.publisher.events import (  # noqa: PLC0415
+            ContentType,
+            Event,
+            EventModel,
+            EventType,
+        )
+        from agentflow.runtime.publisher.publish import publish_event  # noqa: PLC0415
+
+        publish_event(
+            EventModel.default(
+                context.config,
+                data={"resumed_node": resumed_node},
+                event=Event.GRAPH_EXECUTION,
+                event_type=EventType.UPDATE,
+                content_type=[ContentType.STATE],
+                extra={"lifecycle": "resume", "resumed_node": resumed_node},
+            )
+        )
         return result
 
     async def fire_on_checkpoint(
@@ -763,6 +885,24 @@ class CallbackManager:
                     hook.__class__.__name__,
                     e,
                 )
+        from agentflow.runtime.publisher.events import (  # noqa: PLC0415
+            ContentType,
+            Event,
+            EventModel,
+            EventType,
+        )
+        from agentflow.runtime.publisher.publish import publish_event  # noqa: PLC0415
+
+        publish_event(
+            EventModel.default(
+                context.config,
+                data={},
+                event=Event.GRAPH_EXECUTION,
+                event_type=EventType.UPDATE,
+                content_type=[ContentType.STATE],
+                extra={"lifecycle": "checkpoint", "trimmed": is_context_trimmed},
+            )
+        )
         return result_state, result_messages
 
     async def fire_on_state_update(
@@ -786,4 +926,23 @@ class CallbackManager:
                     hook.__class__.__name__,
                     e,
                 )
+        from agentflow.runtime.publisher.events import (  # noqa: PLC0415
+            ContentType,
+            Event,
+            EventModel,
+            EventType,
+        )
+        from agentflow.runtime.publisher.publish import publish_event  # noqa: PLC0415
+
+        publish_event(
+            EventModel.default(
+                context.config,
+                data={"step": step},
+                event=Event.NODE_EXECUTION,
+                event_type=EventType.UPDATE,
+                node_name=node_name,
+                content_type=[ContentType.STATE],
+                extra={"lifecycle": "state_update", "step": step},
+            )
+        )
         return result
