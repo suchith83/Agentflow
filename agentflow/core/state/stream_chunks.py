@@ -19,7 +19,7 @@ from .agent_state import AgentState
 from .message import Message
 
 
-class StreamEvent(str, enum.Enum):
+class StreamEvent(enum.StrEnum):
     STATE = "state"
     MESSAGE = "message"
     ERROR = "error"

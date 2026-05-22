@@ -6,7 +6,7 @@ progress, interruptions, and pause/resume functionality for agent graph executio
 """
 
 import logging
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 
 from pydantic import BaseModel, Field
@@ -15,7 +15,7 @@ from pydantic import BaseModel, Field
 logger = logging.getLogger("agentflow.state")
 
 
-class ExecutionStatus(str, Enum):
+class ExecutionStatus(StrEnum):
     """Status of graph execution."""
 
     RUNNING = "running"
@@ -25,7 +25,7 @@ class ExecutionStatus(str, Enum):
     ERROR = "error"
 
 
-class StopRequestStatus(str, Enum):
+class StopRequestStatus(StrEnum):
     """Status of graph execution."""
 
     NONE = "none"

@@ -67,7 +67,7 @@ class StateGraph[StateT: AgentState]:
         state: StateT | None = None,
         context_manager: BaseContextManager[StateT] | None = None,
         publisher: BasePublisher | None = None,
-        id_generator: BaseIDGenerator = DefaultIDGenerator(),
+        id_generator: BaseIDGenerator | None = None,
         container: InjectQ | None = None,
     ):
         """Initialize a new StateGraph instance.
@@ -121,7 +121,7 @@ class StateGraph[StateT: AgentState]:
 
         # Services
         self._publisher: BasePublisher | None = publisher
-        self._id_generator: BaseIDGenerator = id_generator
+        self._id_generator: BaseIDGenerator = id_generator or DefaultIDGenerator()
         self._context_manager: BaseContextManager[StateT] | None = context_manager
         # save container for dependency injection
         # if any container is passed then we will activate that
@@ -153,7 +153,7 @@ class StateGraph[StateT: AgentState]:
         This method can be used to perform any necessary setup or validation
         before compiling the graph for execution.
         """
-        logger.info("Setting up StateGraph before compilation")
+        logger.debug("Setting up StateGraph before compilation")
         # Placeholder for any setup logic needed before compilation
         # register dependencies
 
@@ -631,6 +631,7 @@ class StateGraph[StateT: AgentState]:
 
             for fn in getattr(agent, "_extra_tools", []):
                 resolved_tool_node.add_tool(fn)
+
             agent._extra_tools = []
 
             logger.info(

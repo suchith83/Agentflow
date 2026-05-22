@@ -460,7 +460,7 @@ class InvokeNodeHandler(BaseLoggingMixin):
             # mirror simple content + structured blocks for the last message
             if messages:
                 last = messages[-1]
-                event.content = last.text() if isinstance(last.content, list) else last.content
+                event.content = str(last.text() if isinstance(last.content, list) else last.content)
                 if isinstance(last.content, list):
                     event.content_blocks = last.content
 
