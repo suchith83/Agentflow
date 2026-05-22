@@ -25,8 +25,10 @@ Example::
     from agentflow.prebuilt.agent import SupervisorTeamAgent
     from agentflow.prebuilt.agent.supervisor_team import WorkerConfig
 
+
     def web_search(query: str) -> str: ...
     def run_code(code: str) -> str: ...
+
 
     agent = SupervisorTeamAgent(
         supervisor_model="gpt-4o",
@@ -52,7 +54,7 @@ Example::
 from __future__ import annotations
 
 import logging
-from collections.abc import Callable, Iterable
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any, TypeVar
 
@@ -62,17 +64,12 @@ from agentflow.core.graph.agent import Agent
 from agentflow.core.graph.base_agent import BaseAgent
 from agentflow.core.graph.compiled_graph import CompiledGraph
 from agentflow.core.graph.state_graph import StateGraph
-from agentflow.core.graph.tool_node import ToolNode
-from agentflow.core.skills.models import SkillConfig
 from agentflow.core.state.agent_state import AgentState
 from agentflow.core.state.base_context import BaseContextManager
-from agentflow.core.state.message import Message
 from agentflow.runtime.publisher.base_publisher import BasePublisher
 from agentflow.storage.checkpointer.base_checkpointer import BaseCheckpointer
-from agentflow.storage.media.config import MultimodalConfig
 from agentflow.storage.media.storage.base import BaseMediaStore
 from agentflow.storage.store.base_store import BaseStore
-from agentflow.storage.store.memory_config import MemoryConfig
 from agentflow.utils.callbacks import CallbackManager
 from agentflow.utils.constants import END
 from agentflow.utils.id_generator import BaseIDGenerator, DefaultIDGenerator
@@ -85,7 +82,7 @@ StateT = TypeVar("StateT", bound=AgentState)
 # Key stored in execution_meta.internal_data
 _ROUNDS_KEY = "sta_rounds"
 
-_FINISH_TOKEN = "FINISH"
+_FINISH_TOKEN = "FINISH"  # noqa: S105
 _SUPERVISOR_NODE = "SUPERVISOR"
 
 
@@ -156,6 +153,24 @@ def _build_supervisor_prompt(workers: dict[str, WorkerConfig]) -> list[dict[str,
 # ---------------------------------------------------------------------------
 
 
+def _make_worker_route(tool_node_name: str) -> Callable[[AgentState], str]:
+    """Return a routing function for a worker node that has tools.
+
+    Routes to *tool_node_name* when the worker emitted tool calls, and back
+    to the SUPERVISOR when the worker produced a final text response.
+    """
+
+    def _route(state: AgentState) -> str:
+        if not state.context:
+            return _SUPERVISOR_NODE
+        last = state.context[-1]
+        if last.role == "assistant" and last.tools_calls and len(last.tools_calls) > 0:
+            return tool_node_name
+        return _SUPERVISOR_NODE
+
+    return _route
+
+
 def _make_supervisor_route(
     worker_names: list[str],
     max_rounds: int,
@@ -175,9 +190,7 @@ def _make_supervisor_route(
         rounds = state.execution_meta.internal_data.get(_ROUNDS_KEY, 0)
 
         if rounds >= max_rounds:
-            logger.warning(
-                "SupervisorTeam reached max_rounds=%d; terminating.", max_rounds
-            )
+            logger.warning("SupervisorTeam reached max_rounds=%d; terminating.", max_rounds)
             return END
 
         if not state.context:
@@ -203,9 +216,7 @@ def _make_supervisor_route(
                 return name
 
         # No recognisable token → treat as done.
-        logger.warning(
-            "Supervisor response %r does not match any worker; terminating.", raw
-        )
+        logger.warning("Supervisor response %r does not match any worker; terminating.", raw)
         return END
 
     return _route
@@ -267,7 +278,7 @@ class SupervisorTeamAgent[StateT: AgentState]:
             ``Agent`` only (e.g. ``provider``, ``temperature``, ``retry_config``).
     """
 
-    def __init__(  # noqa: PLR0913
+    def __init__(
         self,
         supervisor_model: str,
         workers: dict[str, WorkerConfig],
@@ -340,8 +351,22 @@ class SupervisorTeamAgent[StateT: AgentState]:
         # --- WORKER nodes ---
         for name, cfg in self._workers.items():
             self._graph.add_node(name, cfg.agent)
-            # Every worker unconditionally returns to SUPERVISOR
-            self._graph.add_edge(name, _SUPERVISOR_NODE)
+
+            worker_tool_node = cfg.agent.get_tool_node()
+            if worker_tool_node is not None:
+                # Wire a mini react-loop: WORKER → WORKER_TOOL → WORKER
+                # The worker routes to SUPERVISOR only when it has no more tool calls.
+                tool_node_name = f"{name}_TOOL"
+                self._graph.add_node(tool_node_name, worker_tool_node)
+                self._graph.add_edge(tool_node_name, name)
+                self._graph.add_conditional_edges(
+                    name,
+                    _make_worker_route(tool_node_name),
+                    {tool_node_name: tool_node_name, _SUPERVISOR_NODE: _SUPERVISOR_NODE},
+                )
+            else:
+                # No tools — worker returns directly to SUPERVISOR.
+                self._graph.add_edge(name, _SUPERVISOR_NODE)
 
         # --- Conditional edges from SUPERVISOR ---
         path_map: dict[str, str] = {END: END}

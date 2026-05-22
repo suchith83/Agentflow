@@ -26,26 +26,19 @@ StateT = TypeVar("StateT", bound=AgentState)
 
 
 def _should_use_tools(state: AgentState) -> str:
-    """Determine if we should use tools or end the conversation."""
-    if not state.context or len(state.context) == 0:
-        return "TOOL"  # No context, might need tools
+    """Return "TOOL" if the last assistant message has tool calls, else END."""
+    if not state.context:
+        return END
 
     last_message = state.context[-1]
 
-    # If the last message is from assistant and has tool calls, go to TOOL
     if (
-        hasattr(last_message, "tools_calls")
+        last_message.role == "assistant"
+        and hasattr(last_message, "tools_calls")
         and last_message.tools_calls
-        and len(last_message.tools_calls) > 0
-        and last_message.role == "assistant"
     ):
         return "TOOL"
 
-    # If last message is a tool result, we should be done (AI will make final response)
-    if last_message.role == "tool" and last_message is not None:
-        return "MAIN"
-
-    # Default to END for other cases
     return END
 
 
@@ -56,9 +49,10 @@ def _make_should_use_tools(tool_node_name: str) -> Callable[[AgentState], str]:
         return _should_use_tools
 
     def _route(state: AgentState) -> str:
-        if _should_use_tools(state) == "TOOL":
+        result = _should_use_tools(state)
+        if result == "TOOL":
             return tool_node_name
-        return _should_use_tools(state)
+        return END
 
     return _route
 

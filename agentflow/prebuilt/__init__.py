@@ -11,13 +11,17 @@ from typing import Any as _Any
 
 
 _AGENT_EXPORTS = {
+    "BaseReranker",
+    "CohereReranker",
+    "CrossEncoderReranker",
     "PlanActReflectAgent",
     "RAGAgent",
     "ReactAgent",
-    "RouterAgent",
     "StructuredOutputAgent",
+    "SupervisorTeamAgent",
     "SwarmAgent",
     "SwarmMemberConfig",
+    "WorkerConfig",
 }
 
 _TOOL_EXPORTS = {

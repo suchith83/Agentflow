@@ -52,11 +52,9 @@ def _msg(text: str, role: str = "assistant", tool_calls: list | None = None) -> 
     return m
 
 
-def _tc(name: str):
-    """Minimal tool-call-like object with a .name attribute."""
-    tc = Mock()
-    tc.name = name
-    return tc
+def _tc(name: str) -> dict:
+    """Minimal tool-call dict matching the Message.tools_calls schema."""
+    return {"name": name}
 
 
 def _state_with(*messages: Message) -> AgentState:

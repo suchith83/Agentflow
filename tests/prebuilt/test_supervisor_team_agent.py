@@ -406,12 +406,14 @@ class TestSupervisorAgentConfiguration:
         with patch(
             "agentflow.prebuilt.agent.supervisor_team.Agent", CapturingFakeAgent
         ):
-            SupervisorTeamAgent(
+            sta = SupervisorTeamAgent(
                 supervisor_model="gpt-4o",
                 workers=_two_workers(),
                 temperature=0.2,
                 provider="openai",
             )
+            # Agent is built lazily inside _configure_graph; call it inside the patch
+            sta._configure_graph()
 
         # temperature and provider should have been captured
         assert "temperature" in captured_kwargs or "provider" in captured_kwargs

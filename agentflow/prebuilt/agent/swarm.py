@@ -134,12 +134,17 @@ class SwarmMemberConfig:
 # ---------------------------------------------------------------------------
 
 
-def _make_member_route(name: str, allowed_targets: list[str]) -> Callable[[AgentState], str]:
+def _make_member_route(
+    name: str,
+    allowed_targets: list[str],
+    tool_node_name: str | None,
+) -> Callable[[AgentState], str]:
     """Return a routing function for the given member node.
 
-    The function inspects the last message's tool calls for a handoff tool.
-    If a matching one is found and the target is in *allowed_targets*, the
-    graph routes there.  Otherwise it routes to ``END``.
+    Priority:
+    1. Handoff tool call (``transfer_to_<target>``) → route to target member.
+    2. Regular tool call → route to *tool_node_name* for execution.
+    3. No tool calls → ``END``.
     """
     allowed_set = set(allowed_targets)
 
@@ -152,11 +157,17 @@ def _make_member_route(name: str, allowed_targets: list[str]) -> Callable[[Agent
         if last.role != "assistant" or not last.tools_calls:
             return END
 
+        # Handoff tool calls are intercepted here; they are never executed by
+        # the ToolNode — the graph routing IS the handoff.
         for tc in last.tools_calls:
             is_handoff, target = is_handoff_tool(tc.get("name", ""))
             if is_handoff and target and target.upper() in allowed_set:
                 logger.debug("Member %s handing off to %s.", name, target.upper())
                 return target.upper()
+
+        # Regular tool calls need ToolNode execution.
+        if tool_node_name is not None:
+            return tool_node_name
 
         return END
 
@@ -301,7 +312,9 @@ class SwarmAgent[StateT: AgentState]:
 
         agent = self._members[name].agent
         if agent.tool_node is None:
-            agent.tool_node = ToolNode(handoff_tools)
+            new_tn = ToolNode(handoff_tools)
+            agent.tool_node = new_tn
+            agent._tool_node = new_tn
         elif isinstance(agent.tool_node, ToolNode):
             for tool in handoff_tools:
                 agent.tool_node.add_tool(tool)
@@ -318,22 +331,40 @@ class SwarmAgent[StateT: AgentState]:
 
         all_names = list(self._members.keys())
 
-        # Inject handoff tools and register nodes
+        # Record which members have regular (non-handoff) tools BEFORE handoff
+        # injection, so we know whether a TOOL node is needed.
+        has_regular_tools: dict[str, bool] = {
+            name: cfg.agent.get_tool_node() is not None
+            for name, cfg in self._members.items()
+        }
+
+        # Inject handoff tools and register member nodes.
         for name, cfg in self._members.items():
             self._inject_handoff_tools(name)
             self._graph.add_node(name, cfg.agent)
 
-        # Wire conditional edges for each member
+        # Wire edges for each member.
         for name in all_names:
             allowed_targets = self._resolve_targets(name)
-            if not allowed_targets:
+
+            tool_node_name: str | None = None
+            if has_regular_tools[name]:
+                # Register the member's ToolNode (now contains both regular and
+                # handoff tools) as a dedicated graph node and loop it back.
+                tool_node_name = f"{name}_TOOL"
+                self._graph.add_node(tool_node_name, self._members[name].agent.get_tool_node())
+                self._graph.add_edge(tool_node_name, name)
+
+            if not allowed_targets and tool_node_name is None:
                 self._graph.add_edge(name, END)
                 continue
 
-            route_fn = _make_member_route(name, allowed_targets)
+            route_fn = _make_member_route(name, allowed_targets, tool_node_name)
             path_map: dict[str, str] = {END: END}
             for target in allowed_targets:
                 path_map[target] = target
+            if tool_node_name is not None:
+                path_map[tool_node_name] = tool_node_name
 
             self._graph.add_conditional_edges(name, route_fn, path_map)
 

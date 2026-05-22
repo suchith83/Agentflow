@@ -4,32 +4,23 @@
 # from .map_reduce import MapReduceAgent
 # from .network import NetworkAgent
 from .plan_act_reflect import PlanActReflectAgent
-from .rag import RAGAgent
+from .rag import BaseReranker, CohereReranker, CrossEncoderReranker, RAGAgent
 from .react import ReactAgent
-from .router import RouterAgent
 from .structured_output import StructuredOutputAgent
+from .supervisor_team import SupervisorTeamAgent, WorkerConfig
 from .swarm import SwarmAgent, SwarmMemberConfig
 
 
-# from .sequential import SequentialAgent
-# from .supervisor_team import SupervisorTeamAgent
-# from .swarm import SwarmAgent
-
-
 __all__ = [
-    # "BranchJoinAgent",
-    # "DeepResearchAgent",
-    # "GuardedAgent",
-    # "MapReduceAgent",
-    # "NetworkAgent",
+    "BaseReranker",
+    "CohereReranker",
+    "CrossEncoderReranker",
     "PlanActReflectAgent",
     "RAGAgent",
     "ReactAgent",
-    "RouterAgent",
     "StructuredOutputAgent",
+    "SupervisorTeamAgent",
     "SwarmAgent",
     "SwarmMemberConfig",
-    # "SequentialAgent",
-    # "SupervisorTeamAgent",
-    # "SwarmAgent",
+    "WorkerConfig",
 ]
