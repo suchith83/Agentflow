@@ -11,10 +11,13 @@ from typing import Any as _Any
 
 
 _AGENT_EXPORTS = {
+    "PlanActReflectAgent",
     "RAGAgent",
     "ReactAgent",
     "RouterAgent",
     "StructuredOutputAgent",
+    "SwarmAgent",
+    "SwarmMemberConfig",
 }
 
 _TOOL_EXPORTS = {
@@ -61,10 +64,13 @@ def __getattr__(name: str) -> _Any:
 
 
 __all__ = [
+    "PlanActReflectAgent",
     "RAGAgent",
     "ReactAgent",
     "RouterAgent",
     "StructuredOutputAgent",
+    "SwarmAgent",
+    "SwarmMemberConfig",
     # Agents
     "agent",
     # Tools

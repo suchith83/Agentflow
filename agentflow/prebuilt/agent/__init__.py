@@ -3,11 +3,12 @@
 # from .guarded import GuardedAgent
 # from .map_reduce import MapReduceAgent
 # from .network import NetworkAgent
-# from .plan_act_reflect import PlanActReflectAgent
+from .plan_act_reflect import PlanActReflectAgent
 from .rag import RAGAgent
 from .react import ReactAgent
 from .router import RouterAgent
 from .structured_output import StructuredOutputAgent
+from .swarm import SwarmAgent, SwarmMemberConfig
 
 
 # from .sequential import SequentialAgent
@@ -21,11 +22,13 @@ __all__ = [
     # "GuardedAgent",
     # "MapReduceAgent",
     # "NetworkAgent",
-    # "PlanActReflectAgent",
+    "PlanActReflectAgent",
     "RAGAgent",
     "ReactAgent",
     "RouterAgent",
     "StructuredOutputAgent",
+    "SwarmAgent",
+    "SwarmMemberConfig",
     # "SequentialAgent",
     # "SupervisorTeamAgent",
     # "SwarmAgent",

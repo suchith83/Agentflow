@@ -31,6 +31,7 @@ from agentflow.storage.checkpointer.base_checkpointer import BaseCheckpointer
 from agentflow.storage.media.config import MultimodalConfig
 from agentflow.storage.media.storage.base import BaseMediaStore
 from agentflow.storage.store.base_store import BaseStore
+from agentflow.storage.store.memory_config import MemoryConfig
 from agentflow.utils.callbacks import CallbackManager
 from agentflow.utils.constants import END
 from agentflow.utils.id_generator import BaseIDGenerator, DefaultIDGenerator
@@ -279,6 +280,9 @@ class StructuredOutputAgent[StateT: AgentState]:
         tools_tags: set[str] | None = None,
         reasoning_config: dict[str, Any] | bool | None = True,
         skills: SkillConfig | None = None,
+        memory: MemoryConfig | None = None,
+        retry_config: Any = True,
+        fallback_models: list[str | tuple[str, str]] | None = None,
         multimodal_config: MultimodalConfig | None = None,
         **agent_kwargs: Any,
     ):
@@ -297,6 +301,9 @@ class StructuredOutputAgent[StateT: AgentState]:
         self._tools_tags = tools_tags
         self._reasoning_config = reasoning_config
         self._skills = skills
+        self._memory = memory
+        self._retry_config = retry_config
+        self._fallback_models = fallback_models
         self._multimodal_config = multimodal_config
         self._agent_kwargs = agent_kwargs
 
@@ -352,6 +359,9 @@ class StructuredOutputAgent[StateT: AgentState]:
             tools_tags=self._tools_tags,
             reasoning_config=self._reasoning_config,
             skills=self._skills,
+            memory=self._memory,
+            retry_config=self._retry_config,
+            fallback_models=self._fallback_models,
             multimodal_config=self._multimodal_config,
             output_schema=self._output_schema,
             **self._agent_kwargs,
@@ -367,6 +377,9 @@ class StructuredOutputAgent[StateT: AgentState]:
             extra_messages=self._extra_messages,
             trim_context=self._trim_context,
             reasoning_config=self._reasoning_config,
+            memory=self._memory,
+            retry_config=self._retry_config,
+            fallback_models=self._fallback_models,
             output_schema=self._output_schema,
             **self._agent_kwargs,
         )

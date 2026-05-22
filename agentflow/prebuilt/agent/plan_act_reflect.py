@@ -1,193 +1,397 @@
-# from __future__ import annotations
+"""PlanActReflectAgent — a self-contained Plan → Act → Reflect looping agent.
 
-# from collections.abc import Callable
-# from typing import TypeVar
+Pattern::
 
-# from injectq import InjectQ
+    PLAN --[tool calls?]--> ACT --> REFLECT --[done or max_iters?]--> END
+        \\                                  \\
+         +--> (no tools) --> REFLECT         +--> PLAN (iterate)
 
-# from agentflow.checkpointer.base_checkpointer import BaseCheckpointer
-# from agentflow.graph.compiled_graph import CompiledGraph
-# from agentflow.graph.state_graph import StateGraph
-# from agentflow.graph.tool_node import ToolNode
-# from agentflow.publisher.base_publisher import BasePublisher
-# from agentflow.state.agent_state import AgentState
-# from agentflow.state.base_context import BaseContextManager
-# from agentflow.store.base_store import BaseStore
-# from agentflow.utils.callbacks import CallbackManager
-# from agentflow.utils.constants import END
-# from agentflow.utils.id_generator import BaseIDGenerator, DefaultIDGenerator
+Three purpose-specific ``Agent`` instances are created internally — planner,
+actor (via ToolNode), and reflector.  All three share the same *model* but
+each has its own default system prompt that can be overridden.
 
+The REFLECT node signals task completion by including ``[DONE]`` anywhere in
+its response (case-insensitive).  The reflector's default system prompt
+instructs it to emit this token automatically.  If ``max_iterations`` is
+reached without a ``[DONE]`` signal the graph ends gracefully and returns the
+last context.
+"""
 
-# StateT = TypeVar("StateT", bound=AgentState)
+from __future__ import annotations
 
+import logging
+from collections.abc import Callable, Iterable
+from typing import Any, TypeVar
 
-# def _should_act(state: AgentState) -> str:
-#     """Decide whether to perform tool-use (ACT) or finish.
+from injectq import InjectQ
 
-#     Heuristic:
-#     - If last assistant message proposes tool calls -> go to ACT
-#     - If last message is a tool result -> go to REFLECT
-#     - Otherwise END
-#     """
-#     if not state.context:
-#         return END
-
-#     last = state.context[-1]
-#     # If assistant asked for tools
-#     if (
-#         getattr(last, "tools_calls", None)
-#         and isinstance(last.tools_calls, list)
-#         and len(last.tools_calls) > 0
-#         and last.role == "assistant"
-#     ):
-#         return "ACT"
-
-#     # If tool responded, reflect
-#     if last.role == "tool" and last is not None:
-#         return "REFLECT"
-
-#     return END
+from agentflow.core.graph.agent import Agent
+from agentflow.core.graph.compiled_graph import CompiledGraph
+from agentflow.core.graph.state_graph import StateGraph
+from agentflow.core.graph.tool_node import ToolNode
+from agentflow.core.skills.models import SkillConfig
+from agentflow.core.state.agent_state import AgentState
+from agentflow.core.state.base_context import BaseContextManager
+from agentflow.core.state.message import Message
+from agentflow.runtime.publisher.base_publisher import BasePublisher
+from agentflow.storage.checkpointer.base_checkpointer import BaseCheckpointer
+from agentflow.storage.media.config import MultimodalConfig
+from agentflow.storage.media.storage.base import BaseMediaStore
+from agentflow.storage.store.base_store import BaseStore
+from agentflow.storage.store.memory_config import MemoryConfig
+from agentflow.utils.callbacks import CallbackManager
+from agentflow.utils.constants import END
+from agentflow.utils.id_generator import BaseIDGenerator, DefaultIDGenerator
 
 
-# class PlanActReflectAgent[StateT: AgentState]:
-#     """Plan -> Act -> Reflect looping agent.
+logger = logging.getLogger("agentflow.prebuilt.plan_act_reflect")
 
-#     Pattern:
-#         PLAN -> (condition) -> ACT | REFLECT | END
-#         ACT -> REFLECT
-#         REFLECT -> PLAN
+StateT = TypeVar("StateT", bound=AgentState)
 
-#     Default condition (_should_act):
-#         - If last assistant message contains tool calls -> ACT
-#         - If last message is from a tool -> REFLECT
-#         - Else -> END
+# Key stored in execution_meta.internal_data
+_ITERATIONS_KEY = "par_iterations"
 
-#     Provide a custom condition to override this heuristic and implement:
-#         * Budget / depth limiting
-#         * Confidence-based early stop
-#         * Dynamic branch selection (e.g., different tool nodes)
+# ---------------------------------------------------------------------------
+# Default system prompts
+# ---------------------------------------------------------------------------
 
-#     Parameters (constructor):
-#         state: Optional initial state instance
-#         context_manager: Custom context manager
-#         publisher: Optional publisher for streaming / events
-#         id_generator: ID generation strategy
-#         container: InjectQ DI container
+DEFAULT_PLAN_SYSTEM_PROMPT: list[dict[str, str]] = [
+    {
+        "role": "system",
+        "content": (
+            "You are a strategic planner. Your job is to break the user's task "
+            "into clear, actionable steps and make concrete progress toward it.\n\n"
+            "When a step requires external information or actions, call the "
+            "appropriate tools with precise parameters.\n"
+            "When you can make progress without tools, provide your analysis or "
+            "partial answer directly.\n"
+            "Be concise and focused — each response should advance the task."
+        ),
+    }
+]
 
-#     compile(...) arguments:
-#         plan_node: Callable (state -> state). Produces next thought / tool requests
-#         tool_node: ToolNode executing declared tools
-#         reflect_node: Callable (state -> state). Consumes tool results & may adjust plan
-#         condition: Optional Callable[[AgentState], str] returning next node name or END
-#         checkpointer/store/interrupt_before/interrupt_after/callback_manager:
-#             Standard graph compilation options
+DEFAULT_REFLECT_SYSTEM_PROMPT: list[dict[str, str]] = [
+    {
+        "role": "system",
+        "content": (
+            "You are a critical evaluator. Review all work done so far — the "
+            "plan, the actions taken, and any results obtained — and decide "
+            "whether the original task is fully complete.\n\n"
+            "If the task IS complete:\n"
+            "  • Provide a concise final summary of what was accomplished.\n"
+            "  • End your response with the exact token: [DONE]\n\n"
+            "If the task is NOT complete:\n"
+            "  • Identify the specific gaps or unresolved sub-tasks.\n"
+            "  • Give clear, actionable guidance for the next planning step.\n"
+            "  • Do NOT include [DONE] in your response."
+        ),
+    }
+]
 
-#     Returns:
-#         CompiledGraph ready for invoke / ainvoke.
 
-#     Notes:
-#         - Node names can be customized via (callable, "NAME") tuples.
-#         - condition must return one of: tool_node_name, reflect_node_name, END.
-#     """
+# ---------------------------------------------------------------------------
+# Routing factories
+# ---------------------------------------------------------------------------
 
-#     def __init__(
-#         self,
-#         state: StateT | None = None,
-#         context_manager: BaseContextManager[StateT] | None = None,
-#         publisher: BasePublisher | None = None,
-#         id_generator: BaseIDGenerator = DefaultIDGenerator(),
-#         container: InjectQ | None = None,
-#     ):
-#         self._graph = StateGraph[StateT](
-#             state=state,
-#             context_manager=context_manager,
-#             publisher=publisher,
-#             id_generator=id_generator,
-#             container=container,
-#         )
 
-#     def compile(
-#         self,
-#         plan_node: Callable | tuple[Callable, str],
-#         tool_node: ToolNode | tuple[ToolNode, str],
-#         reflect_node: Callable | tuple[Callable, str],
-#         *,
-#         condition: Callable[[AgentState], str] | None = None,
-#         checkpointer: BaseCheckpointer[StateT] | None = None,
-#         store: BaseStore | None = None,
-#         interrupt_before: list[str] | None = None,
-#         interrupt_after: list[str] | None = None,
-#         callback_manager: CallbackManager = CallbackManager(),
-#     ) -> CompiledGraph:
-#         """Compile the Plan-Act-Reflect loop.
+def _make_plan_route(*, has_tools: bool) -> Callable[[AgentState], str]:
+    """Build the conditional routing function for the PLAN node.
 
-#         Args:
-#             plan_node: Callable or (callable, name)
-#             tool_node: ToolNode or (ToolNode, name)
-#             reflect_node: Callable or (callable, name)
-#             condition: Optional decision function. Defaults to internal heuristic.
-#             checkpointer/store/interrupt_* / callback_manager: Standard graph options.
+    Routes to ``"ACT"`` when the PLAN agent emitted tool calls, and to
+    ``"REFLECT"`` when it produced a direct (text-only) response.
+    """
 
-#         Returns:
-#             CompiledGraph
-#         """
-#         # PLAN
-#         if isinstance(plan_node, tuple):
-#             plan_func, plan_name = plan_node
-#             if not callable(plan_func):
-#                 raise ValueError("plan_node[0] must be callable")
-#         else:
-#             plan_func = plan_node
-#             plan_name = "PLAN"
-#             if not callable(plan_func):
-#                 raise ValueError("plan_node must be callable")
+    def _route(state: AgentState) -> str:
+        if not state.context:
+            return "REFLECT"
 
-#         # ACT
-#         if isinstance(tool_node, tuple):
-#             tool_func, tool_name = tool_node
-#             if not isinstance(tool_func, ToolNode):
-#                 raise ValueError("tool_node[0] must be a ToolNode")
-#         else:
-#             tool_func = tool_node
-#             tool_name = "ACT"
-#             if not isinstance(tool_func, ToolNode):
-#                 raise ValueError("tool_node must be a ToolNode")
+        last = state.context[-1]
 
-#         # REFLECT
-#         if isinstance(reflect_node, tuple):
-#             reflect_func, reflect_name = reflect_node
-#             if not callable(reflect_func):
-#                 raise ValueError("reflect_node[0] must be callable")
-#         else:
-#             reflect_func = reflect_node
-#             reflect_name = "REFLECT"
-#             if not callable(reflect_func):
-#                 raise ValueError("reflect_node must be callable")
+        if (
+            has_tools
+            and last.role == "assistant"
+            and last.tools_calls
+            and len(last.tools_calls) > 0
+        ):
+            return "ACT"
 
-#         # Register nodes
-#         self._graph.add_node(plan_name, plan_func)
-#         self._graph.add_node(tool_name, tool_func)
-#         self._graph.add_node(reflect_name, reflect_func)
+        return "REFLECT"
 
-#         # Decision
-#         decision_fn = condition or _should_act
-#         self._graph.add_conditional_edges(
-#             plan_name,
-#             decision_fn,
-#             {tool_name: tool_name, reflect_name: reflect_name, END: END},
-#         )
+    return _route
 
-#         # Loop edges
-#         self._graph.add_edge(tool_name, reflect_name)
-#         self._graph.add_edge(reflect_name, plan_name)
 
-#         # Entry
-#         self._graph.set_entry_point(plan_name)
+def _make_reflect_route(max_iterations: int) -> Callable[[AgentState], str]:
+    """Build the conditional routing function for the REFLECT node.
 
-#         return self._graph.compile(
-#             checkpointer=checkpointer,
-#             store=store,
-#             interrupt_before=interrupt_before,
-#             interrupt_after=interrupt_after,
-#             callback_manager=callback_manager,
-#         )
+    Routing logic (evaluated in order):
+
+    1. If ``max_iterations`` is reached → ``END``.
+    2. If the last REFLECT message contains ``[DONE]`` (case-insensitive) → ``END``.
+    3. Otherwise increment the iteration counter and route to ``"PLAN"``.
+
+    .. note::
+        The counter increment is a deliberate, controlled side effect kept
+        inside this routing function so the graph topology stays simple
+        (no additional increment-only nodes).
+    """
+
+    def _route(state: AgentState) -> str:
+        iterations = state.execution_meta.internal_data.get(_ITERATIONS_KEY, 0)
+
+        # Hard cap first — avoids wasted LLM calls.
+        if iterations >= max_iterations:
+            logger.warning("PlanActReflect reached max_iterations=%d; terminating.", max_iterations)
+            return END
+
+        if not state.context:
+            return END
+
+        last = state.context[-1]
+        text = last.text()
+
+        if "[done]" in text.lower():
+            logger.debug("REFLECT signalled [DONE] after %d iteration(s).", iterations)
+            return END
+
+        # Not done yet — advance counter and loop back.
+        state.execution_meta.internal_data[_ITERATIONS_KEY] = iterations + 1
+        logger.debug(
+            "REFLECT iteration %d/%d — routing back to PLAN.", iterations + 1, max_iterations
+        )
+        return "PLAN"
+
+    return _route
+
+
+# ---------------------------------------------------------------------------
+# PlanActReflectAgent
+# ---------------------------------------------------------------------------
+
+
+class PlanActReflectAgent[StateT: AgentState]:
+    """Self-contained Plan → Act → Reflect looping agent.
+
+    Creates three internal ``Agent`` instances (planner, actor, reflector) with
+    purpose-specific default system prompts.  Pass ``model`` and optionally
+    ``tools``; everything else has sensible defaults.
+
+    Usage::
+
+        from agentflow.prebuilt.agent import PlanActReflectAgent
+
+        def web_search(query: str) -> str:
+            ...
+
+        agent = PlanActReflectAgent(
+            model="gpt-4o-mini",
+            tools=[web_search],
+            max_iterations=4,
+        )
+        app = agent.compile(checkpointer=...)
+        result = await app.ainvoke(
+            {"message": "Research the impact of AI on climate science."},
+            config={"thread_id": "t1"},
+        )
+
+    Graph topology::
+
+        PLAN --[tool calls?]--> ACT --> REFLECT --[done or max_iters?]--> END
+            \\                                  \\
+             +--> (no tools) --> REFLECT         +--> PLAN (iterate)
+
+    Args:
+        model: LLM model identifier (e.g. ``"gpt-4o-mini"``, ``"gemini-2.0-flash"``).
+        tools: Callable tools made available to the PLAN agent.
+        plan_system_prompt: Override the default planner system prompt.
+        reflect_system_prompt: Override the default reflector system prompt.
+        max_iterations: Maximum number of PLAN→ACT→REFLECT cycles before the
+            graph terminates (default ``3``).
+        state: Optional initial ``AgentState`` (or subclass) instance.
+        context_manager: Optional custom context manager.
+        publisher: Optional publisher for streaming/events.
+        id_generator: ID generation strategy.
+        container: InjectQ DI container.
+        **agent_kwargs: Extra keyword arguments forwarded to all inner ``Agent``
+            instances (e.g. ``provider``, ``temperature``, ``reasoning_config``,
+            ``retry_config``).
+    """
+
+    def __init__(  # noqa: PLR0913
+        self,
+        model: str,
+        tools: Iterable[Callable] | None = None,
+        plan_system_prompt: list[dict[str, Any]] | None = None,
+        reflect_system_prompt: list[dict[str, Any]] | None = None,
+        max_iterations: int = 3,
+        state: StateT | None = None,
+        context_manager: BaseContextManager[StateT] | None = None,
+        publisher: BasePublisher | None = None,
+        id_generator: BaseIDGenerator = DefaultIDGenerator(),
+        container: InjectQ | None = None,
+        *,
+        # Agent pass-through options
+        client: Any = None,
+        pass_user_info_to_mcp: bool = False,
+        extra_messages: list[Message] | None = None,
+        trim_context: bool = False,
+        tools_tags: set[str] | None = None,
+        reasoning_config: dict[str, Any] | bool | None = True,
+        skills: SkillConfig | None = None,
+        memory: MemoryConfig | None = None,
+        retry_config: Any = True,
+        fallback_models: list[str | tuple[str, str]] | None = None,
+        multimodal_config: MultimodalConfig | None = None,
+        **agent_kwargs: Any,
+    ):
+        self._model = model
+        self._max_iterations = max_iterations
+        self._plan_system_prompt = plan_system_prompt or DEFAULT_PLAN_SYSTEM_PROMPT
+        self._reflect_system_prompt = reflect_system_prompt or DEFAULT_REFLECT_SYSTEM_PROMPT
+
+        # Agent pass-through
+        self._client = client
+        self._pass_user_info_to_mcp = pass_user_info_to_mcp
+        self._extra_messages = extra_messages
+        self._trim_context = trim_context
+        self._tools_tags = tools_tags
+        self._reasoning_config = reasoning_config
+        self._skills = skills
+        self._memory = memory
+        self._retry_config = retry_config
+        self._fallback_models = fallback_models
+        self._multimodal_config = multimodal_config
+        self._agent_kwargs = agent_kwargs
+
+        # Graph infrastructure
+        self._state = state
+        self._context_manager = context_manager
+        self._publisher = publisher
+        self._id_generator = id_generator
+        self._container = container
+
+        # Build tool node once; reused across compile() calls.
+        self._tool_node: ToolNode | None = self._build_tool_node(
+            tools=list(tools or []),
+            client=client,
+            pass_user_info_to_mcp=pass_user_info_to_mcp,
+        )
+
+        # Lazy graph handle — recreated on each _configure_graph() call.
+        self._graph: StateGraph[StateT] = self._new_graph()
+
+    # ------------------------------------------------------------------
+    # Internal helpers
+    # ------------------------------------------------------------------
+
+    def _new_graph(self) -> StateGraph[StateT]:
+        return StateGraph[StateT](
+            state=self._state,
+            context_manager=self._context_manager,
+            publisher=self._publisher,
+            id_generator=self._id_generator,
+            container=self._container,
+        )
+
+    @staticmethod
+    def _build_tool_node(
+        *,
+        tools: list[Callable],
+        client: Any,
+        pass_user_info_to_mcp: bool,
+    ) -> ToolNode | None:
+        if not tools and client is None:
+            return None
+        return ToolNode(tools, client=client, pass_user_info_to_mcp=pass_user_info_to_mcp)
+
+    def _build_agent(self, system_prompt: list[dict[str, Any]], *, with_tools: bool) -> Agent:
+        return Agent(
+            model=self._model,
+            system_prompt=system_prompt,
+            tool_node=self._tool_node if with_tools else None,
+            extra_messages=self._extra_messages,
+            trim_context=self._trim_context,
+            tools_tags=self._tools_tags if with_tools else None,
+            reasoning_config=self._reasoning_config,
+            skills=self._skills,
+            memory=self._memory,
+            retry_config=self._retry_config,
+            fallback_models=self._fallback_models,
+            multimodal_config=self._multimodal_config,
+            **self._agent_kwargs,
+        )
+
+    def _configure_graph(self) -> None:
+        self._graph = self._new_graph()
+
+        # --- PLAN node (planner agent with tools) ---
+        plan_agent = self._build_agent(self._plan_system_prompt, with_tools=True)
+        self._graph.add_node("PLAN", plan_agent)
+
+        # --- ACT node (ToolNode, optional) ---
+        if self._tool_node is not None:
+            self._graph.add_node("ACT", self._tool_node)
+            self._graph.add_edge("ACT", "REFLECT")
+
+        # --- REFLECT node (reflector agent, no tools) ---
+        reflect_agent = self._build_agent(self._reflect_system_prompt, with_tools=False)
+        self._graph.add_node("REFLECT", reflect_agent)
+
+        # --- Conditional edges from PLAN ---
+        plan_path_map: dict[str, str] = {"REFLECT": "REFLECT"}
+        if self._tool_node is not None:
+            plan_path_map["ACT"] = "ACT"
+
+        self._graph.add_conditional_edges(
+            "PLAN",
+            _make_plan_route(has_tools=self._tool_node is not None),
+            plan_path_map,
+        )
+
+        # --- Conditional edges from REFLECT ---
+        self._graph.add_conditional_edges(
+            "REFLECT",
+            _make_reflect_route(self._max_iterations),
+            {"PLAN": "PLAN", END: END},
+        )
+
+        # --- Entry point ---
+        self._graph.set_entry_point("PLAN")
+
+    # ------------------------------------------------------------------
+    # Public API
+    # ------------------------------------------------------------------
+
+    def compile(
+        self,
+        checkpointer: BaseCheckpointer[StateT] | None = None,
+        store: BaseStore | None = None,
+        interrupt_before: list[str] | None = None,
+        interrupt_after: list[str] | None = None,
+        callback_manager: CallbackManager = CallbackManager(),
+        media_store: BaseMediaStore | None = None,
+        shutdown_timeout: float = 30.0,
+    ) -> CompiledGraph:
+        """Wire the graph and return a :class:`~agentflow.core.graph.CompiledGraph`.
+
+        Args:
+            checkpointer: Persistence backend for state snapshots.
+            store: Long-term key-value store.
+            interrupt_before: Node names to pause execution before.
+            interrupt_after: Node names to pause execution after.
+            callback_manager: Callback hooks for observability.
+            media_store: Media/file storage backend.
+            shutdown_timeout: Graceful-shutdown timeout in seconds.
+
+        Returns:
+            A compiled, ready-to-invoke graph.
+        """
+        self._configure_graph()
+        return self._graph.compile(
+            checkpointer=checkpointer,
+            store=store,
+            interrupt_before=interrupt_before,
+            interrupt_after=interrupt_after,
+            callback_manager=callback_manager,
+            media_store=media_store,
+            shutdown_timeout=shutdown_timeout,
+        )
