@@ -14,6 +14,7 @@ _AGENT_EXPORTS = {
     "RAGAgent",
     "ReactAgent",
     "RouterAgent",
+    "StructuredOutputAgent",
 }
 
 _TOOL_EXPORTS = {
@@ -63,6 +64,7 @@ __all__ = [
     "RAGAgent",
     "ReactAgent",
     "RouterAgent",
+    "StructuredOutputAgent",
     # Agents
     "agent",
     # Tools

@@ -270,7 +270,7 @@ class ToolNode(
 
         return tools
 
-    async def invoke(  # noqa: PLR0915
+    async def invoke(
         self,
         name: str,
         args: dict,
@@ -426,7 +426,7 @@ class ToolNode(
             ],
         )
 
-    async def stream(  # noqa: PLR0915
+    async def stream(
         self,
         name: str,
         args: dict,

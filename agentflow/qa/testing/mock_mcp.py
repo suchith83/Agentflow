@@ -210,5 +210,3 @@ class MockMCPClient:
         self.tools.clear()
         self.calls.clear()
         logger.debug("MockMCPClient completely cleared")
-
-

@@ -7,6 +7,7 @@
 from .rag import RAGAgent
 from .react import ReactAgent
 from .router import RouterAgent
+from .structured_output import StructuredOutputAgent
 
 
 # from .sequential import SequentialAgent
@@ -24,6 +25,7 @@ __all__ = [
     "RAGAgent",
     "ReactAgent",
     "RouterAgent",
+    "StructuredOutputAgent",
     # "SequentialAgent",
     # "SupervisorTeamAgent",
     # "SwarmAgent",
