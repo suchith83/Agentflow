@@ -39,6 +39,7 @@ from .reducers import (
 )
 from .stream_chunks import StreamChunk, StreamEvent
 from .stream_emitter import StreamEmitter
+from .summary_context_manager import SummaryContextManager
 from .tool_result import ToolResult
 
 
@@ -62,6 +63,7 @@ __all__ = [
     "StreamChunk",
     "StreamEmitter",
     "StreamEvent",
+    "SummaryContextManager",
     "TextBlock",
     "TextBlock",
     "TokenUsages",

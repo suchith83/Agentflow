@@ -6,6 +6,10 @@ tool helpers from ``agentflow.prebuilt.tools``.
 
 from __future__ import annotations
 
+# Context managers
+from agentflow.core.state.message_context_manager import MessageContextManager
+from agentflow.core.state.summary_context_manager import SummaryContextManager
+
 # Agents
 from .agent import (
     BaseReranker,
@@ -43,10 +47,13 @@ __all__ = [
     "BaseReranker",
     "CohereReranker",
     "CrossEncoderReranker",
+    # Context managers
+    "MessageContextManager",
     "PlanActReflectAgent",
     "RAGAgent",
     "ReactAgent",
     "StructuredOutputAgent",
+    "SummaryContextManager",
     "SupervisorTeamAgent",
     "SwarmAgent",
     "SwarmMemberConfig",
