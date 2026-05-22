@@ -247,9 +247,20 @@ class StreamHandler[StateT: AgentState](
                 # Snapshot state before node execution for on_state_update hook
                 old_state_snapshot = state.model_copy(deep=True)
 
+                node_event = EventModel.default(
+                    config,
+                    data={"step": step},
+                    event=Event.NODE_EXECUTION,
+                    event_type=EventType.START,
+                    content_type=[ContentType.STATE],
+                    node_name=current_node,
+                )
+                publish_event(node_event)
+
                 ####################################################
                 ############ Execute Node ##########################
                 ####################################################
+                config["_node_name"] = current_node
                 result = node.stream(config, state)  # type: ignore
                 logger.debug("Node '%s' execution completed", current_node)
                 ####################################################
@@ -380,6 +391,11 @@ class StreamHandler[StateT: AgentState](
                     next_node,
                     len(messages),
                 )
+
+                node_event.event_type = EventType.END
+                node_event.data["messages"] = [m.model_dump() for m in messages] if messages else []
+                node_event.content_type = [ContentType.MESSAGE]
+                publish_event(node_event)
 
                 # Add collected messages to state context
                 if messages:

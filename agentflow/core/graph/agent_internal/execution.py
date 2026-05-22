@@ -24,6 +24,137 @@ from .constants import RetryConfig
 logger = logging.getLogger("agentflow.agent")
 
 
+def _extract_input_tokens(response: Any) -> int:
+    usage = getattr(response, "usage", None)
+    if usage is None:
+        return 0
+    return getattr(usage, "prompt_tokens", None) or getattr(usage, "input_tokens", None) or 0
+
+
+def _extract_output_tokens(response: Any) -> int:
+    usage = getattr(response, "usage", None)
+    if usage is None:
+        return 0
+    return getattr(usage, "completion_tokens", None) or getattr(usage, "output_tokens", None) or 0
+
+
+def _extract_cache_read_tokens(response: Any) -> int:
+    """Tokens served from provider cache (OpenAI cached prompt tokens, Anthropic cache read)."""
+    usage = getattr(response, "usage", None)
+    if usage is None:
+        return 0
+    # Anthropic: usage.cache_read_input_tokens
+    v = getattr(usage, "cache_read_input_tokens", None)
+    if v:
+        return int(v)
+    # OpenAI chat completions: usage.prompt_tokens_details.cached_tokens
+    details = getattr(usage, "prompt_tokens_details", None)
+    if details:
+        v = getattr(details, "cached_tokens", None)
+        if v:
+            return int(v)
+    # OpenAI responses API: usage.input_tokens_details.cached_tokens
+    details = getattr(usage, "input_tokens_details", None)
+    if details:
+        v = getattr(details, "cached_tokens", None)
+        if v:
+            return int(v)
+    # Google: usage_metadata.cached_content_token_count
+    usage_meta = getattr(response, "usage_metadata", None)
+    if usage_meta:
+        v = getattr(usage_meta, "cached_content_token_count", None)
+        if v:
+            return int(v)
+    return 0
+
+
+def _extract_cache_creation_tokens(response: Any) -> int:
+    """Tokens written to provider cache (Anthropic cache_creation only;
+    OpenAI has no equivalent)."""
+    usage = getattr(response, "usage", None)
+    if usage is None:
+        return 0
+    v = getattr(usage, "cache_creation_input_tokens", None)
+    return int(v) if v else 0
+
+
+def _extract_reasoning_tokens(response: Any) -> int:
+    """Reasoning/thinking tokens (OpenAI o-series completion_tokens_details, Google thoughts)."""
+    usage = getattr(response, "usage", None)
+    if usage is None:
+        return 0
+    # OpenAI: usage.completion_tokens_details.reasoning_tokens
+    details = getattr(usage, "completion_tokens_details", None)
+    if details:
+        v = getattr(details, "reasoning_tokens", None)
+        if v:
+            return int(v)
+    # OpenAI responses API: usage.output_tokens_details.reasoning_tokens
+    details = getattr(usage, "output_tokens_details", None)
+    if details:
+        v = getattr(details, "reasoning_tokens", None)
+        if v:
+            return int(v)
+    # Google thinking models: usage_metadata.thoughts_token_count
+    usage_meta = getattr(response, "usage_metadata", None)
+    if usage_meta:
+        v = getattr(usage_meta, "thoughts_token_count", None)
+        if v:
+            return int(v)
+    return 0
+
+
+def _extract_finish_reason(response: Any) -> str:
+    """Return a single finish reason string from the raw provider response."""
+    # OpenAI chat completions: response.choices[0].finish_reason
+    choices = getattr(response, "choices", None)
+    if choices:
+        reason = getattr(choices[0], "finish_reason", None)
+        if reason:
+            return str(reason)
+    # OpenAI responses API: response.status ("completed", "incomplete", etc.)
+    status = getattr(response, "status", None)
+    if status and isinstance(status, str) and status not in ("", "in_progress"):
+        return status
+    # Anthropic / generic: response.stop_reason
+    stop_reason = getattr(response, "stop_reason", None)
+    if stop_reason:
+        return str(stop_reason)
+    # Google: response.candidates[0].finish_reason (may be an enum)
+    candidates = getattr(response, "candidates", None)
+    if candidates:
+        fr = getattr(candidates[0], "finish_reason", None)
+        if fr is not None:
+            name = getattr(fr, "name", None)
+            return str(name) if name else str(fr)
+    return ""
+
+
+def _extract_response_id(response: Any) -> str:
+    """Return the unique completion ID from the provider response."""
+    v = getattr(response, "id", None)
+    return str(v) if v else ""
+
+
+def _extract_response_model(response: Any) -> str:
+    """Return the model name the provider actually used (may differ from requested)."""
+    v = getattr(response, "model", None)
+    return str(v) if v else ""
+
+
+def _extract_response_text(response: Any) -> str:
+    text = getattr(response, "text", None)
+    if text:
+        return str(text).strip()
+    output_text = getattr(response, "output_text", None)
+    if output_text:
+        return str(output_text).strip()
+    choices = getattr(response, "choices", None)
+    if choices:
+        return str(getattr(getattr(choices[0], "message", None), "content", "") or "").strip()
+    return ""
+
+
 class AgentExecutionMixin:
     """Execution flow, tool resolution, and provider dispatch helpers."""
 
@@ -349,11 +480,67 @@ class AgentExecutionMixin:
         # Always resolve tools - even after tool results, the model may want to call
         # additional tools (e.g., Gemini 2.5+ with sequential tool calls)
         tools = await self._resolve_tools(container)
+
+        from agentflow.runtime.publisher.events import (
+            ContentType,
+            Event,
+            EventModel,
+            EventType,
+        )
+        from agentflow.runtime.publisher.publish import publish_event
+
+        node_name = config.get("_node_name", "unknown")
+
+        # Collect LLM request parameters from llm_kwargs (temperature, max_tokens, etc.)
+        _REQUEST_PARAM_KEYS = (
+            "temperature",
+            "max_tokens",
+            "top_p",
+            "top_k",
+            "frequency_penalty",
+            "presence_penalty",
+            "stop",
+            "seed",
+        )
+        request_params: dict[str, Any] = {
+            k: v for k, v in self.llm_kwargs.items() if k in _REQUEST_PARAM_KEYS and v is not None
+        }
+
+        llm_event = EventModel.default(
+            config,
+            data={
+                "model": self.model,
+                "provider": getattr(self, "provider", ""),
+                "input_messages": messages,
+                "system_prompt": effective_system_prompt,
+                "request_params": request_params,
+                "tool_count": len(tools) if tools else 0,
+            },
+            event=Event.LLM_CALL,
+            event_type=EventType.START,
+            content_type=[ContentType.STATE],
+            node_name=node_name,
+        )
+        publish_event(llm_event)
+
         response = await self._call_llm_with_retry(
             messages=messages,
             tools=tools if tools else None,
             stream=is_stream,
         )
+
+        if not is_stream:
+            llm_event.event_type = EventType.END  # type: ignore[assignment]
+            llm_event.data["output_response"] = _extract_response_text(response)
+            llm_event.data["input_tokens"] = _extract_input_tokens(response)
+            llm_event.data["output_tokens"] = _extract_output_tokens(response)
+            llm_event.data["cache_read_tokens"] = _extract_cache_read_tokens(response)
+            llm_event.data["cache_creation_tokens"] = _extract_cache_creation_tokens(response)
+            llm_event.data["reasoning_tokens"] = _extract_reasoning_tokens(response)
+            llm_event.data["finish_reason"] = _extract_finish_reason(response)
+            llm_event.data["response_id"] = _extract_response_id(response)
+            llm_event.data["response_model"] = _extract_response_model(response)
+            publish_event(llm_event)
 
         converter_key = self._get_converter_key()
         return ModelResponseConverter(response, converter=converter_key)
