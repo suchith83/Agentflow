@@ -203,4 +203,4 @@ class Node:
         )
 
         async for item in result:
-            yield item
+            yield item  # type: ignore

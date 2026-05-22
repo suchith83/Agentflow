@@ -148,8 +148,8 @@ class StateGraph[StateT: AgentState]:
 
         # Add START and END nodes (accept full node signature including dependencies)
         logger.debug("Adding default START and END nodes")
-        self.nodes[START] = Node(START, lambda state, config, **deps: state, self._publisher)  # type: ignore
-        self.nodes[END] = Node(END, lambda state, config, **deps: state, self._publisher)
+        self.nodes[START] = Node(START, lambda state, config, **deps: state)  # type: ignore
+        self.nodes[END] = Node(END, lambda state, config, **deps: state)  # type: ignore
         logger.debug("StateGraph initialized with %d nodes", len(self.nodes))
 
     def _setup(self):
@@ -406,7 +406,7 @@ class StateGraph[StateT: AgentState]:
             raise KeyError(f"Node '{name}' does not exist. Use add_node() first.")
 
         # Create new Node with same name but different function
-        self.nodes[name] = Node(name, func, self._publisher)
+        self.nodes[name] = Node(name, func)
         logger.debug("Overrode node '%s' with new function", name)
         return self
 

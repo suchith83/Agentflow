@@ -7,6 +7,17 @@ import os
 
 import pytest
 
+from agentflow.core.graph.node import Node
+
+
+_ORIGINAL_NODE_INIT = Node.__init__
+
+
+def _compat_node_init(self, name, func, publisher=None):
+    """Test-only compatibility shim for legacy Node(name, func, publisher) calls."""
+    _ORIGINAL_NODE_INIT(self, name, func)
+    self.publisher = publisher
+
 
 @pytest.fixture(scope="session", autouse=True)
 def setup_test_environment():
@@ -22,8 +33,14 @@ def setup_test_environment():
     
     # Set dummy Google API key for tests
     os.environ.setdefault("GEMINI_API_KEY", "dummy-gemini-key-for-testing-only")
+
+    # Keep tests compatible while core graph transitions from
+    # Node(name, func, publisher) to Node(name, func).
+    Node.__init__ = _compat_node_init
     
     yield
+
+    Node.__init__ = _ORIGINAL_NODE_INIT
     
     # Note: We don't clean up the environment variables since they're test-only
     # and won't affect any other processes
