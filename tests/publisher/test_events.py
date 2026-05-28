@@ -28,12 +28,13 @@ class TestEventEnums:
         """Test Event enum has expected values."""
         assert Event.GRAPH_EXECUTION.value == "graph_execution"
         assert Event.NODE_EXECUTION.value == "node_execution"
+        assert Event.LLM_CALL.value == "llm_call"
         assert Event.TOOL_EXECUTION.value == "tool_execution"
         assert Event.STREAMING.value == "streaming"
         
         # Test all expected values are present
         expected_values = {
-            "graph_execution", "node_execution", 
+            "graph_execution", "node_execution", "llm_call",
             "tool_execution", "streaming"
         }
         actual_values = {event.value for event in Event}

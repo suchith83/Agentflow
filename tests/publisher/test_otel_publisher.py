@@ -137,25 +137,22 @@ def test_graph_node_tool_lifecycle_dispatch_and_close():
 
     pub._dispatch(_evt(Event.GRAPH_EXECUTION, EventType.START, data={"step": 1}))
     pub._dispatch(_evt(Event.NODE_EXECUTION, EventType.START, node="MAIN", data={"step": 2}))
-    # Current implementation references Event.LLM_CALL before TOOL_EXECUTION,
-    # so tool events through _dispatch raise AttributeError.
-    with patch.object(Event, "LLM_CALL", "llm_call", create=True):
-        pub._dispatch(
-            _evt(
-                Event.TOOL_EXECUTION,
-                EventType.START,
-                node="MAIN",
-                data={"function_name": "search", "args": {"q": "x"}},
-            )
+    pub._dispatch(
+        _evt(
+            Event.TOOL_EXECUTION,
+            EventType.START,
+            node="MAIN",
+            data={"function_name": "search", "args": {"q": "x"}},
         )
-        pub._dispatch(
-            _evt(
-                Event.TOOL_EXECUTION,
-                EventType.END,
-                node="MAIN",
-                data={"function_name": "search", "message": {"ok": True}},
-            )
+    )
+    pub._dispatch(
+        _evt(
+            Event.TOOL_EXECUTION,
+            EventType.END,
+            node="MAIN",
+            data={"function_name": "search", "message": {"ok": True}},
         )
+    )
     pub._dispatch(_evt(Event.NODE_EXECUTION, EventType.END, node="MAIN", data={"messages": [{"usages": {"prompt_tokens": 1, "completion_tokens": 2}}]}))
     pub._dispatch(_evt(Event.GRAPH_EXECUTION, EventType.END, data={"total_steps": 3}))
 
@@ -331,11 +328,10 @@ def test_dispatch_covers_llm_and_tool_error_paths():
     pub._on_graph_start(_evt(Event.GRAPH_EXECUTION, EventType.START))
     pub._on_node_start(_evt(Event.NODE_EXECUTION, EventType.START, node="N"))
 
-    with patch.object(Event, "LLM_CALL", "llm_call", create=True):
-        pub._dispatch(_evt_raw("llm_call", EventType.START, node="N", data={"provider": "openai", "model": "m"}))
-        pub._dispatch(_evt_raw("llm_call", EventType.END, node="N", data={"input_tokens": 1, "output_tokens": 1}))
-        pub._dispatch(_evt_raw("llm_call", EventType.ERROR, node="N", data={"error": "x"}))
-        pub._dispatch(_evt(Event.TOOL_EXECUTION, EventType.ERROR, node="N", data={"function_name": "f", "error": "x"}))
+    pub._dispatch(_evt(Event.LLM_CALL, EventType.START, node="N", data={"provider": "openai", "model": "m"}))
+    pub._dispatch(_evt(Event.LLM_CALL, EventType.END, node="N", data={"input_tokens": 1, "output_tokens": 1}))
+    pub._dispatch(_evt(Event.LLM_CALL, EventType.ERROR, node="N", data={"error": "x"}))
+    pub._dispatch(_evt(Event.TOOL_EXECUTION, EventType.ERROR, node="N", data={"function_name": "f", "error": "x"}))
 
 
 def test_sync_close_runtime_error_branch_no_warning():
