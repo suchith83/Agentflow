@@ -11,9 +11,9 @@ Classes:
     EventModel: Structured event chunk for streaming agent graph execution.
 """
 
-import enum
 import uuid
 from datetime import datetime
+from enum import StrEnum
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -21,7 +21,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from agentflow.core.state.message_block import ContentBlock
 
 
-class Event(str, enum.Enum):
+class Event(StrEnum):
     """Enum for event sources in agent graph execution.
 
     Values:
@@ -33,11 +33,12 @@ class Event(str, enum.Enum):
 
     GRAPH_EXECUTION = "graph_execution"
     NODE_EXECUTION = "node_execution"
+    LLM_CALL = "llm_call"
     TOOL_EXECUTION = "tool_execution"
     STREAMING = "streaming"
 
 
-class EventType(str, enum.Enum):
+class EventType(StrEnum):
     """Enum for event phases in agent graph execution.
 
     Values:
@@ -59,7 +60,7 @@ class EventType(str, enum.Enum):
     INTERRUPTED = "interrupted"
 
 
-class ContentType(str, enum.Enum):
+class ContentType(StrEnum):
     """Enum for semantic content types in agent graph streaming.
 
     Values:

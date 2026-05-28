@@ -18,9 +18,9 @@ class CustomAgentState(AgentState):
 
 
 def call_weather_api(location: str) -> str:
-    is_failed = random.choice([True, False])  # Randomly simulate success or failure
-    if is_failed:
-        raise Exception("Failed to fetch weather data due to a simulated API error.")
+    # is_failed = random.choice([True, False])  # Randomly simulate success or failure
+    # if is_failed:
+    #     raise Exception("Failed to fetch weather data due to a simulated API error.")
     return f"The weather in {location} is sunny"
 
 
@@ -82,8 +82,10 @@ agent = Agent(
         {
             "role": "system",
             "content": """
-                You are a helpful assistant.
+                You are a helpful assistant, talking with Human over voice.
                 Your task is to assist the user in finding information and answering questions.
+                When you ask for the tools, then share some filler content to let the conversation
+                more natural, and then call the tools with right parameters.
             """,
         },
         {"role": "user", "content": "Today Date is 2024-06-15"},

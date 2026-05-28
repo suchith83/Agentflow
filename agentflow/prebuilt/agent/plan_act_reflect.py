@@ -123,7 +123,7 @@ def _make_increment_node(key: str) -> Callable[[AgentState], list]:
         return []
 
     _increment.__name__ = f"increment_{key}"
-    return _increment
+    return _increment  # type: ignore
 
 
 # ---------------------------------------------------------------------------
@@ -264,6 +264,12 @@ class PlanActReflectAgent[StateT: AgentState]:
         id_generator: BaseIDGenerator = DefaultIDGenerator(),
         container: InjectQ | None = None,
         *,
+        # Per-phase model overrides — fall back to `model` when not set
+        plan_model: str | None = None,
+        reflect_model: str | None = None,
+        # Per-phase reasoning config overrides — fall back to `reasoning_config` when not set
+        plan_reasoning_config: dict[str, Any] | bool | None = None,
+        reflect_reasoning_config: dict[str, Any] | bool | None = None,
         # Agent pass-through options
         client: Any = None,
         pass_user_info_to_mcp: bool = False,
@@ -279,9 +285,19 @@ class PlanActReflectAgent[StateT: AgentState]:
         **agent_kwargs: Any,
     ):
         self._model = model
+        self._plan_model = plan_model or model
+        self._reflect_model = reflect_model or model
         self._max_iterations = max_iterations
         self._plan_system_prompt = plan_system_prompt or DEFAULT_PLAN_SYSTEM_PROMPT
         self._reflect_system_prompt = reflect_system_prompt or DEFAULT_REFLECT_SYSTEM_PROMPT
+
+        # Per-phase reasoning config — explicit override wins, else shared config, else default True
+        self._plan_reasoning_config = (
+            plan_reasoning_config if plan_reasoning_config is not None else reasoning_config
+        )
+        self._reflect_reasoning_config = (
+            reflect_reasoning_config if reflect_reasoning_config is not None else reasoning_config
+        )
 
         # Agent pass-through
         self._client = client
@@ -338,15 +354,24 @@ class PlanActReflectAgent[StateT: AgentState]:
             return None
         return ToolNode(tools, client=client, pass_user_info_to_mcp=pass_user_info_to_mcp)
 
-    def _build_agent(self, system_prompt: list[dict[str, Any]], *, with_tools: bool) -> Agent:
+    def _build_agent(
+        self,
+        system_prompt: list[dict[str, Any]],
+        *,
+        with_tools: bool,
+        model: str | None = None,
+        reasoning_config: dict[str, Any] | bool | None = None,
+    ) -> Agent:
         return Agent(
-            model=self._model,
+            model=model or self._model,
             system_prompt=system_prompt,
             tool_node=self._tool_node if with_tools else None,
             extra_messages=self._extra_messages,
             trim_context=self._trim_context,
             tools_tags=self._tools_tags if with_tools else None,
-            reasoning_config=self._reasoning_config,
+            reasoning_config=reasoning_config
+            if reasoning_config is not None
+            else self._reasoning_config,
             skills=self._skills,
             memory=self._memory,
             retry_config=self._retry_config,
@@ -359,7 +384,12 @@ class PlanActReflectAgent[StateT: AgentState]:
         self._graph = self._new_graph()
 
         # --- PLAN node (planner agent with tools) ---
-        plan_agent = self._build_agent(self._plan_system_prompt, with_tools=True)
+        plan_agent = self._build_agent(
+            self._plan_system_prompt,
+            with_tools=True,
+            model=self._plan_model,
+            reasoning_config=self._plan_reasoning_config,
+        )
         self._graph.add_node("PLAN", plan_agent)
 
         # --- ACT node (ToolNode, optional) ---
@@ -368,7 +398,12 @@ class PlanActReflectAgent[StateT: AgentState]:
             self._graph.add_edge("ACT", "REFLECT")
 
         # --- REFLECT node (reflector agent, no tools, tool messages filtered out) ---
-        reflect_agent = self._build_agent(self._reflect_system_prompt, with_tools=False)
+        reflect_agent = self._build_agent(
+            self._reflect_system_prompt,
+            with_tools=False,
+            model=self._reflect_model,
+            reasoning_config=self._reflect_reasoning_config,
+        )
         self._graph.add_node("REFLECT", _make_reflect_node(reflect_agent))
 
         # --- Conditional edges from PLAN ---
