@@ -621,6 +621,32 @@ class TestConvertToGoogleFormat:
         tool_content = contents[-1]
         assert tool_content.role == "user"
 
+    def test_parallel_tool_results_merged_into_single_content(self):
+        agent = _make_google_agent()
+        messages = [
+            {
+                "role": "assistant",
+                "content": "",
+                "tool_calls": [
+                    {"id": "c1", "function": {"name": "tool_a", "arguments": "{}"}},
+                    {"id": "c2", "function": {"name": "tool_b", "arguments": "{}"}},
+                ],
+            },
+            {"role": "tool", "tool_call_id": "c1", "content": "ra"},
+            {"role": "tool", "tool_call_id": "c2", "content": "rb"},
+        ]
+        types_mock = _build_google_types_mock()
+        with _google_types_patch(types_mock):
+            _, contents = agent._convert_to_google_format(messages)
+        # Two consecutive tool results must collapse into ONE user Content (not two)
+        assert len(contents) == 2
+        model_turn, tool_turn = contents[0], contents[1]
+        assert model_turn.role == "model"
+        assert tool_turn.role == "user"
+        n_calls = sum(1 for p in model_turn.parts if getattr(p, "function_call", None))
+        n_resps = sum(1 for p in tool_turn.parts if getattr(p, "_fn_name", None))
+        assert n_calls == n_resps == 2
+
 
 # ═════════════════════════════════════════════════════════════════════════════
 # AgentGoogleMixin – _convert_tools_to_google_format

@@ -34,19 +34,35 @@ class AgentGoogleMixin:
                 if tool_call_id and function_name:
                     call_id_to_name[tool_call_id] = function_name
 
-        for message in messages:
+        i = 0
+        n = len(messages)
+        while i < n:
+            message = messages[i]
             role = message.get("role", "user")
             content = message.get("content", "")
 
             if role == "system":
                 system_instruction = self._handle_system_message(content, system_instruction)
+                i += 1
             elif role == "assistant" and message.get("tool_calls"):
                 google_contents.append(self._handle_assistant_with_tools(message))
+                i += 1
             elif role == "tool":
-                google_contents.append(self._handle_tool_message(message, content, call_id_to_name))
+                # Merge ALL consecutive tool results into ONE user Content so the number
+                # of function-response parts matches the function-call parts of the
+                # preceding model turn (Gemini requires this for parallel tool calls).
+                fr_parts: list = []
+                while i < n and messages[i].get("role") == "tool":
+                    tmsg = messages[i]
+                    fr_parts.append(
+                        self._tool_response_part(tmsg, tmsg.get("content", ""), call_id_to_name)
+                    )
+                    i += 1
+                google_contents.append(types.Content(role="user", parts=fr_parts))
             else:
                 google_role = "model" if role == "assistant" else "user"
                 google_contents.append(self._handle_regular_message(content, google_role))
+                i += 1
 
         return system_instruction, google_contents
 
@@ -107,10 +123,10 @@ class AgentGoogleMixin:
         else:
             part.thought_signature = b"skip_thought_signature_validator"
 
-    def _handle_tool_message(
+    def _tool_response_part(
         self, message: dict[str, Any], content: Any, call_id_to_name: dict[str, str]
     ) -> Any:
-        """Handle tool role message."""
+        """Build a single function-response Part from a tool message."""
         from google.genai import types
 
         tool_call_id = message.get("tool_call_id", "")
@@ -118,14 +134,20 @@ class AgentGoogleMixin:
             tool_call_id,
             message.get("name", "") or tool_call_id or "unknown_function",
         )
+        return types.Part.from_function_response(
+            name=function_name,
+            response={"result": str(content) if content else ""},
+        )
+
+    def _handle_tool_message(
+        self, message: dict[str, Any], content: Any, call_id_to_name: dict[str, str]
+    ) -> Any:
+        """Handle a single tool-role message (kept for backward compatibility)."""
+        from google.genai import types
+
         return types.Content(
             role="user",
-            parts=[
-                types.Part.from_function_response(
-                    name=function_name,
-                    response={"result": str(content) if content else ""},
-                )
-            ],
+            parts=[self._tool_response_part(message, content, call_id_to_name)],
         )
 
     def _handle_regular_message(self, content: Any, role: str) -> Any:

@@ -308,7 +308,9 @@ class AgentExecutionMixin:
                         self.base_url = base_url
                         active_client = fallback_client
                         if active_client is None:
-                            active_client = self._create_client(provider, base_url)
+                            active_client = self._create_client(
+                                provider, base_url, getattr(self, "use_vertex_ai", False)
+                            )
                         self.client = active_client
                         try:
                             result = await self._call_llm(messages, tools, stream, **kwargs)

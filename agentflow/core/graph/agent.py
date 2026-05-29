@@ -252,6 +252,7 @@ class Agent(
             ).lower()
             == "true",
         )  # legacy alias for provider="google"
+        self.use_vertex_ai = use_vertex_ai
         # Call parent constructor
         super().__init__(
             model=model,
