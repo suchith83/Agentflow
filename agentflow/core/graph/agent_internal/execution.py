@@ -158,6 +158,10 @@ def _extract_response_text(response: Any) -> str:
 class AgentExecutionMixin:
     """Execution flow, tool resolution, and provider dispatch helpers."""
 
+    # Set by ``Agent.__init__``; declared here so the mixin can read it when
+    # lazily building fallback clients (the mixin never assigns it itself).
+    use_vertex_ai: bool
+
     def _setup_tools(self) -> ToolNode | None:
         """Normalize the tool_node input and wire internal state.
 
@@ -276,10 +280,10 @@ class AgentExecutionMixin:
 
         # Build the ordered attempt list: primary + fallbacks
         attempts: list[tuple[str, str, Any, str | None]] = [
-            (self.model, self.provider, self.client, getattr(self, "base_url", None)),
+            (self.model, self.provider, self.client, self.base_url),
         ]
         for fb_model, fb_provider in fallback_models:
-            attempts.append((fb_model, fb_provider or self.provider, None, None))
+            attempts.append((fb_model, fb_provider or self.provider, None, self.base_url))
 
         last_exc: Exception | None = None
 
@@ -301,14 +305,20 @@ class AgentExecutionMixin:
                             self.model,
                             self.provider,
                             self.client,
-                            getattr(self, "base_url", None),
+                            self.base_url,
                         )
                         self.model = model
                         self.provider = provider
                         self.base_url = base_url
                         active_client = fallback_client
                         if active_client is None:
-                            active_client = self._create_client(provider, base_url)
+                            # Lazily build the fallback client, honouring the
+                            # agent's Vertex AI selection (only affects google).
+                            active_client = self._create_client(
+                                provider,
+                                base_url,
+                                self.use_vertex_ai,
+                            )
                         self.client = active_client
                         try:
                             result = await self._call_llm(messages, tools, stream, **kwargs)
