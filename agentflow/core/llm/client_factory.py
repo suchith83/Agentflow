@@ -131,7 +131,11 @@ def _create_google_client(*, use_vertex_ai: bool) -> Any:
             "for the Google provider."
         )
     logger.info("Creating Google GenAI client (API key)")
-    return genai.Client(api_key=api_key)
+    # Pass vertexai=False explicitly: google-genai's Client() otherwise reads the
+    # GOOGLE_GENAI_USE_VERTEXAI env var and silently switches to Vertex mode,
+    # which rejects API keys (401 UNAUTHENTICATED). The caller asked for the
+    # Developer API (use_vertex_ai=False), so honour that over the env.
+    return genai.Client(vertexai=False, api_key=api_key)
 
 
 def _create_openai_client(

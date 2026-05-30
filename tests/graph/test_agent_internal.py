@@ -622,30 +622,32 @@ class TestConvertToGoogleFormat:
         assert tool_content.role == "user"
 
     def test_parallel_tool_results_merged_into_single_content(self):
+        # Gemini requires the number of function_response parts to equal the
+        # number of function_call parts in the preceding model turn. Parallel
+        # tool calls must therefore collapse into one user Content.
         agent = _make_google_agent()
         messages = [
             {
                 "role": "assistant",
                 "content": "",
                 "tool_calls": [
-                    {"id": "c1", "function": {"name": "tool_a", "arguments": "{}"}},
-                    {"id": "c2", "function": {"name": "tool_b", "arguments": "{}"}},
+                    {"id": "call_1", "function": {"name": "fn_a", "arguments": "{}"}},
+                    {"id": "call_2", "function": {"name": "fn_b", "arguments": "{}"}},
                 ],
             },
-            {"role": "tool", "tool_call_id": "c1", "content": "ra"},
-            {"role": "tool", "tool_call_id": "c2", "content": "rb"},
+            {"role": "tool", "tool_call_id": "call_1", "content": "res_a"},
+            {"role": "tool", "tool_call_id": "call_2", "content": "res_b"},
         ]
         types_mock = _build_google_types_mock()
         with _google_types_patch(types_mock):
             _, contents = agent._convert_to_google_format(messages)
-        # Two consecutive tool results must collapse into ONE user Content (not two)
+        # One model Content (2 function_call parts) + one merged user Content
         assert len(contents) == 2
-        model_turn, tool_turn = contents[0], contents[1]
-        assert model_turn.role == "model"
-        assert tool_turn.role == "user"
-        n_calls = sum(1 for p in model_turn.parts if getattr(p, "function_call", None))
-        n_resps = sum(1 for p in tool_turn.parts if getattr(p, "_fn_name", None))
-        assert n_calls == n_resps == 2
+        model_content, tool_content = contents
+        fn_call_parts = [p for p in model_content.parts if p.function_call is not None]
+        assert len(fn_call_parts) == 2
+        assert tool_content.role == "user"
+        assert len(tool_content.parts) == 2
 
 
 # ═════════════════════════════════════════════════════════════════════════════

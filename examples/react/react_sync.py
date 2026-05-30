@@ -76,7 +76,7 @@ tool_node = ToolNode(
 
 # Create agent with tools
 agent = Agent(
-    model="gemini-3-flash-preview",
+    model="gemini-2.5-flash",
     provider="google",
     system_prompt=[
         {
@@ -93,6 +93,7 @@ agent = Agent(
     trim_context=True,
     reasoning_config=True,
     tool_node=tool_node,
+    use_vertex_ai=True,
 )
 
 
