@@ -252,6 +252,9 @@ class Agent(
             ).lower()
             == "true",
         )  # legacy alias for provider="google"
+        # Persist so fallback clients (created lazily at call time) honour the
+        # same Vertex AI selection as the primary client.
+        self.use_vertex_ai = use_vertex_ai
         # Call parent constructor
         super().__init__(
             model=model,
